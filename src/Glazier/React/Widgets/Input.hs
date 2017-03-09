@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -6,9 +7,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveFunctor #-}
 
-module Glazier.React.Widget.Input
+module Glazier.React.Widgets.Input
     ( Command(..)
     , Action(..)
     , AsAction(..)
@@ -17,17 +17,17 @@ module Glazier.React.Widget.Input
     , mkGasket
     , Model(..)
     , HasModel(..)
+    , mkSuperModel
+    , Widget
     , GModel
     , MModel
     , SuperModel
-    , mkSuperModel
     , window
     , gadget
     , whenKeyDown
     ) where
 
 import Control.Applicative
-import Control.Concurrent.MVar
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Free.Church
@@ -45,7 +45,7 @@ import qualified Glazier.React.Component as R
 import qualified Glazier.React.Event as R
 import qualified Glazier.React.Maker as R
 import qualified Glazier.React.Markup as R
-import qualified Glazier.React.Model.Class as R
+import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
 data Command act
@@ -65,6 +65,7 @@ data Model = Model
     { _uid :: J.JSString
     , _inputRef :: J.JSVal
     , _placeholder :: J.JSString
+    , _className :: J.JSString
     }
 
 data Gasket = Gasket
@@ -74,75 +75,63 @@ data Gasket = Gasket
     , _onKeyDown :: J.Callback (J.JSVal -> IO ())
     } deriving (G.Generic)
 
-----------------------------------------------------------
--- The following should be the same per widget
--- | Gasket and pure state
-type GModel = (Gasket, Model)
--- | Mutable model for rendering callback
-type MModel = MVar GModel
--- | Contains MModel and GModel
-type SuperModel = (MModel, GModel)
 makeClassyPrisms ''Action
 makeClassy ''Gasket
 makeClassy ''Model
-instance CD.Disposing Gasket
--- GModel
-instance R.HasGModel GModel GModel where
-    gModel = id
-instance HasGasket GModel where
-    gasket = _1
-instance HasModel GModel where
-    model = _2
-instance CD.Disposing GModel
--- MModel
-instance R.HasMModel MModel GModel where
-    mModel = id
--- SuperModel
-instance R.HasMModel SuperModel GModel where
-    mModel = _1
-instance R.HasGModel SuperModel GModel where
-    gModel = _2
-instance HasGasket SuperModel where
-    gasket = R.gModel . gasket
-instance HasModel SuperModel where
-    model = R.gModel . model
-instance CD.Disposing SuperModel where
-    disposing s = CD.disposing $ s ^. R.gModel
--- End same code per widget
-----------------------------------------------------------
 
--- | This might be different per widget
-instance CD.Disposing Model where
-    disposing _ = CD.DisposeNone
-
-mkSuperModel :: Model -> F (R.Maker (Action act)) SuperModel
-mkSuperModel s = R.mkSuperModel mkGasket $ \cbs -> (cbs, s)
--- End similar code per widget
-----------------------------------------------------------
-
-mkGasket :: MVar GModel -> F (R.Maker (Action act)) Gasket
-mkGasket ms = Gasket
+mkGasket :: R.MModel Gasket Model -> F (R.Maker (Action act)) Gasket
+mkGasket mm = Gasket
     <$> R.getComponent
-    <*> (R.mkRenderer ms $ const render)
+    <*> (R.mkRenderer mm $ const render)
     <*> (R.mkHandler $ pure . pure . InputRefAction)
     <*> (R.mkHandler onKeyDown')
 
+instance CD.Disposing Model where
+    disposing _ = CD.DisposeNone
+
+mkSuperModel :: Model -> F (R.Maker (Action act)) (SuperModel act)
+mkSuperModel s = R.mkSuperModel mkGasket $ \gkt -> R.GModel gkt s
+
+data Widget act
+instance R.IsWidget (Widget act) where
+    type Action (Widget act) = Action act
+    type Command (Widget act) = Command act
+    type Model (Widget act) = Model
+    type Gasket (Widget act) = Gasket
+type GModel act = R.WidgetGModel (Widget act)
+type MModel act = R.WidgetMModel (Widget act)
+type SuperModel act = R.WidgetSuperModel (Widget act)
+
+----------------------------------------------------------
+-- The following should be the same per widget (except for type params)
+instance CD.Disposing Gasket
+instance HasGasket (R.GModel Gasket Model) where
+    gasket = R.widgetGasket
+instance HasModel (R.GModel Gasket Model) where
+    model = R.widgetModel
+instance HasGasket (R.SuperModel Gasket Model) where
+    gasket = R.gModel . gasket
+instance HasModel (R.SuperModel Gasket Model) where
+    model = R.gModel . model
+-- End same code per widget
+----------------------------------------------------------
+
 -- | This is used by parent components to render this component
-window :: Monad m => G.WindowT GModel (R.ReactMlT m) ()
+window :: Monad m => G.WindowT (GModel act) (R.ReactMlT m) ()
 window = do
     s <- ask
-    lift $ R.lf (s ^. component . to J.pToJSVal)
-        [ ("key",  s ^. uid . to J.pToJSVal)
-        , ("render", s ^. onRender . to JE.PureJSVal . to J.pToJSVal)
+    lift $ R.lf (s ^. component . to J.jsval)
+        [ ("key",  s ^. uid . to J.jsval)
+        , ("render", s ^. onRender . to J.jsval)
         ]
 
 -- | This is used by the React render callback
-render :: Monad m => G.WindowT GModel (R.ReactMlT m) ()
+render :: Monad m => G.WindowT (GModel act) (R.ReactMlT m) ()
 render = do
     s <- ask
     lift $ R.lf (JE.strval "input")
                     [ ("key", s ^. uid . to J.jsval)
-                    , ("className", JE.strval "new-todo")
+                    , ("className", s ^. className . to J.jsval)
                     , ("placeholder", s ^. placeholder . to J.jsval)
                     , ("autoFocus", J.pToJSVal True)
                     , ("onKeyDown", s ^. onKeyDown . to J.jsval)
@@ -169,14 +158,14 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
   where
     goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action act]
     goLazy (ms, j) = pure $
-        SendCommandsAction [SetPropertyCommand ("value", J.pToJSVal J.empty) j]
+        SendCommandsAction [SetPropertyCommand ("value", J.jsval J.empty) j]
         : maybe [] (pure . SubmitAction) ms
 
 -- | State update logic.
 -- The best practice is to leave this in general Monad m (eg, not MonadIO).
 -- This allows gadget to use STM as the base monad which allows for combining concurrently
 -- with other stateful STM effects and still maintain a single source of truth.
-gadget :: Monad m => G.GadgetT (Action act) SuperModel m (D.DList (Command act))
+gadget :: Monad m => G.GadgetT (Action act) (SuperModel act) m (D.DList (Command act))
 gadget = do
     a <- ask
     case a of

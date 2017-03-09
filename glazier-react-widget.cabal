@@ -15,11 +15,12 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Glazier.React.Widget.Input
-                       Glazier.React.Widget.Input.Run
-                       -- Glazier.React.Widget.List
+  exposed-modules:     Glazier.React.Widgets.Input
+                       Glazier.React.Widgets.Input.Run
+                       -- Glazier.React.Widgets.List
                        -- Glazier.React.Widget.List.Run
   build-depends:       base >= 4.7 && < 5
+                     , containers >= 0.5 && < 0.6
                      , disposable >= 0.2 && < 1
                      , dlist >= 0.8 && < 0.9
                      , free >= 4.12 && < 5
@@ -27,6 +28,7 @@ library
                      , glazier-react >= 0.1 && < 1
                      , javascript-extras >= 0.1 && < 1
                      , lens >= 4 && < 5
+                     , mmorph >= 1 && < 2
                      , mtl >= 2 && < 3
                      , pipes-concurrency >= 2 && < 3
                      , stm >= 2.4 && < 3

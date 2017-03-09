@@ -10,13 +10,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Widget.List
-    ( TodosKey
-    , TodosValue
-    , TodosCommand'
-    , TodosAction'
-    , TodosModel'
-    , Command(..)
+module Glazier.React.Widgets.List
+    ( Command(..)
     , Action(..)
     , AsAction(..)
     , Gasket(..)
@@ -24,64 +19,50 @@ module Glazier.React.Widget.List
     , mkGasket
     , Model(..)
     , HasModel(..)
+    , mkSuperModel
+    , Widget
     , GModel
     , MModel
     , SuperModel
-    , mkSuperModel
     , window
     , gadget
     ) where
 
-import Control.Concurrent.MVar
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Morph
 import Control.Monad.Reader
-import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import qualified Data.DList as D
 import Data.Foldable
 import qualified Data.JSString as J
 import qualified Data.Map.Strict as M
-import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
-import qualified GHCJS.Marshal.Pure as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
-import qualified Glazier.React.Class as R
+import qualified Glazier.React.Widget as R
+import qualified Glazier.React.Command as R
 import qualified Glazier.React.Component as R
 import qualified Glazier.React.Maker as R
 import qualified Glazier.React.Markup as R
-import qualified Glazier.React.Widget.Input as W.Input
 import qualified JavaScript.Extras as JE
--- import qualified Todo.Todo as TD.Todo
-
--- type TodosKey = Int
-
--- type TodosValue = TD.Todo.SuperModel
-
--- type TodosModel' = M.Map TodosKey TodosValue
-
--- type TodosCommand' = (TodosKey, TD.Todo.Command)
-
--- type TodosAction' = (TodosKey, TD.Todo.Action)
 
 data Command key itemWidget
-    = RenderCommand (SuperModel key itemWidget) [JE.Property] J.JSVal
+    = RenderCommand (R.SuperModel Gasket (Model key itemWidget)) [JE.Property] J.JSVal
     | DisposeCommand CD.SomeDisposable
     | MakerCommand (F (R.Maker (Action key itemWidget)) (Action key itemWidget))
     | SendActionsCommand [Action key itemWidget]
-    | ItemCommand key (R.Command itemWidget)
+    | ItemCommand key (R.WidgetCommand itemWidget)
 
 data Action key itemWidget
     = ComponentRefAction J.JSVal
     | ComponentDidUpdateAction
     | DestroyItemAction key
-    | MakeItemAction (key -> key) (key -> R.Model itemWidget)
-    | AddItemAction key (R.SuperModel itemWidget)
-    | ItemAction key (R.Action itemWidget)
+    | MakeItemAction (key -> key) (key -> R.WidgetModel itemWidget)
+    | AddItemAction key (R.WidgetSuperModel itemWidget)
+    | ItemAction key (R.WidgetAction itemWidget)
 
 data Model key itemWidget = Model
     { _uid :: J.JSString
@@ -90,7 +71,7 @@ data Model key itemWidget = Model
     , _frameNum :: Int
     , _deferredCommands :: D.DList (Command key itemWidget)
     , _itemKey :: key
-    , _itemsModel :: M.Map key (R.SuperModel itemWidget)
+    , _itemsModel :: M.Map key (R.WidgetSuperModel itemWidget)
     }
 
 data Gasket = Gasket
@@ -100,68 +81,51 @@ data Gasket = Gasket
     , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
     } deriving (G.Generic)
 
-----------------------------------------------------------
--- The following should be the same per widget (except for type params)
--- | Gasket and pure state
-type GModel key itemWidget = (Gasket, Model key itemWidget)
--- | Mutable model for rendering callback
-type MModel key itemWidget = MVar (GModel key itemWidget)
--- | Contains MModel and GModel
-type SuperModel key itemWidget = (MModel key itemWidget, GModel key itemWidget)
 makeClassyPrisms ''Action
 makeClassy ''Gasket
 makeClassy ''Model
-instance CD.Disposing Gasket
--- GModel
-instance R.HasGModel (GModel key itemWidget) (GModel key itemWidget) where
-    gModel = id
-instance HasGasket (GModel key itemWidget) where
-    gasket = _1
-instance HasModel (GModel key itemWidget) key itemWidget where
-    model = _2
-instance CD.Disposing (R.SuperModel itemWidget) => CD.Disposing (GModel key itemWidget)
--- MModel
-instance R.HasMModel (MModel key itemWidget) (GModel key itemWidget) where
-    mModel = id
--- SuperModel
-instance R.HasMModel (SuperModel key itemWidget) (GModel key itemWidget) where
-    mModel = _1
-instance R.HasGModel (SuperModel key itemWidget) (GModel key itemWidget) where
-    gModel = _2
-instance HasGasket (SuperModel key itemWidget) where
-    gasket = R.gModel . gasket
-instance HasModel (SuperModel key itemWidget) key itemWidget where
-    model = R.gModel . model
-instance CD.Disposing (R.SuperModel itemWidget) => CD.Disposing (SuperModel key itemWidget) where
-    disposing s = CD.disposing $ s ^. R.gModel
-data Widget key itemWidget
-instance R.Widget (Widget key itemWidget) where
-    type Action (Widget key itemWidget) = Action key itemWidget
-    type Command (Widget key itemWidget) = Command key itemWidget
-    type Model (Widget key itemWidget) = Model key itemWidget
-    type Gasket (Widget key itemWidget) = Gasket
--- End same code per widget
-----------------------------------------------------------
 
--- | This might be different per widget
-instance CD.Disposing (R.SuperModel itemWidget) => CD.Disposing (Model key itemWidget) where
-    disposing s = CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. itemsModel)
-
--- mkSuperModel :: W.Input.Model -> (W.Input.SuperModel -> (Model key itemWidget)) -> F (R.Maker (Action key itemWidget)) (SuperModel key itemWidget)
--- mkSuperModel inputModel f = do
---     inputSuperModel <- hoistF (R.mapAction $ review _InputAction) $
---         W.Input.mkSuperModel $ inputModel
---     R.mkSuperModel mkGasket $ \cbs -> (cbs, f inputSuperModel)
-
--- End similar code per widget
-----------------------------------------------------------
-
-mkGasket :: G.WindowT (R.GModel itemWidget) (R.ReactMlT Identity) () -> MVar (GModel key itemWidget) -> F (R.Maker (Action key itemWidget)) Gasket
+mkGasket
+    :: G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT Identity) ()
+    -> MModel key itemWidget
+    -> F (R.Maker (Action key itemWidget)) Gasket
 mkGasket itemWindow ms = Gasket
     <$> R.getComponent
     <*> (R.mkRenderer ms $ const (render itemWindow))
     <*> (R.mkHandler $ pure . pure . ComponentRefAction)
     <*> (R.mkHandler $ pure . pure . const ComponentDidUpdateAction)
+
+instance ( CD.Disposing (R.WidgetGasket itemWidget)
+         , CD.Disposing (R.WidgetModel itemWidget)
+         ) =>
+         CD.Disposing (Model key itemWidget) where
+    disposing s =
+        CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. itemsModel)
+
+mkSuperModel
+    :: G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT Identity) ()
+    -> Model key itemWidget
+    -> F (R.Maker (Action key itemWidget)) (SuperModel key itemWidget)
+mkSuperModel itemWindow s = R.mkSuperModel (mkGasket itemWindow) $ \gkt -> R.GModel gkt s
+
+data Widget key itemWidget
+instance R.IsWidget (Widget key itemWidget) where
+    type WidgetAction (Widget key itemWidget) = Action key itemWidget
+    type WidgetCommand (Widget key itemWidget) = Command key itemWidget
+    type WidgetModel (Widget key itemWidget) = Model key itemWidget
+    type WidgetGasket (Widget ackey itemWidget) = Gasket
+type GModel key itemWidget = R.WidgetGModel (Widget key itemWidget)
+type MModel key itemWidget = R.WidgetMModel (Widget key itemWidget)
+type SuperModel key itemWidget = R.WidgetSuperModel (Widget key itemWidget)
+instance CD.Disposing Gasket
+instance HasGasket (R.GModel Gasket (Model key itemWidget)) where
+    gasket = R.widgetGasket
+instance HasModel (R.GModel Gasket (Model key itemWidget)) key itemWidget where
+    model = R.widgetModel
+instance HasGasket (R.SuperModel Gasket (Model key itemWidget)) where
+    gasket = R.gModel . gasket
+instance HasModel (R.SuperModel Gasket (Model key itemWidget)) key itemWidget where
+    model = R.gModel . model
 
 -- | This is used by parent components to render this component
 window :: Monad m => G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
@@ -176,7 +140,10 @@ window = do
 
 -- | This is used by the React render callback
 -- FIXME: add separator
-render :: Monad m => G.WindowT (R.GModel itemWidget) (R.ReactMlT m) () -> G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
+render
+    :: Monad m
+    => G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT m) ()
+    -> G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
 render itemWindow = do
     s <- ask
     items <- fmap (view R.gModel . snd) . M.toList <$> view itemsModel
@@ -186,9 +153,9 @@ render itemWindow = do
         traverse_ (view G._WindowT itemWindow) items
 
 gadget
-    :: Monad m
-    => (R.Model itemWidget -> F (R.Maker (R.Action itemWidget)) (R.SuperModel itemWidget))
-    -> G.GadgetT (R.Action itemWidget) (R.SuperModel itemWidget) m (D.DList (R.Command itemWidget))
+    :: (Ord key, Monad m, CD.Disposing (R.WidgetModel itemWidget), CD.Disposing (R.WidgetGasket itemWidget))
+    => (R.WidgetModel itemWidget -> F (R.Maker (R.WidgetAction itemWidget)) (R.WidgetSuperModel itemWidget))
+    -> G.GadgetT (R.WidgetAction itemWidget) (R.WidgetSuperModel itemWidget) m (D.DList (R.WidgetCommand itemWidget))
     -> G.GadgetT (Action key itemWidget) (SuperModel key itemWidget) m (D.DList (Command key itemWidget))
 gadget mkItemSuperModel itemGadget = do
     a <- ask
@@ -206,33 +173,35 @@ gadget mkItemSuperModel itemGadget = do
 
         DestroyItemAction k -> do
             -- queue up callbacks to be released after rerendering
-            (maybe (pure mempty) pure) <$> runMaybeT $ do
-                (_, itemsModel) <- MaybeT $ preuse (itemsModel . at k)
-                let junk = CD.disposing itemsModel
+            ret <- runMaybeT $ do
+                itemSuperModel <- MaybeT $ use (itemsModel . at k)
+                let junk = CD.disposing itemSuperModel
                 deferredCommands %= (`D.snoc` DisposeCommand junk)
                 -- Remove the todo from the model
                 itemsModel %= M.delete k
                 -- on re-render the todo Shim will not get rendered and will be removed by react
-                lift $ D.singleton <$> renderCmd
+                D.singleton <$> (R.renderCmd frameNum componentRef RenderCommand)
+            maybe (pure mempty) pure ret
 
         MakeItemAction keyMaker itemModelMaker -> do
             n <- keyMaker <$> use itemKey
             itemKey .= n
             pure $ D.singleton $ MakerCommand $ do
-                sm <- hoistF (R.mapAction $ \act -> ItemAction (n, act)) $
-                    mkItemSuperModel $ itemModelMaker n
+                sm <- hoistF (R.mapAction $ \act -> ItemAction n act) $
+                    mkItemSuperModel (itemModelMaker n)
                 pure $ AddItemAction n sm
 
         AddItemAction n v -> do
             itemsModel %= M.insert n v
-            D.singleton <$> renderCmd
+            D.singleton <$> (R.renderCmd frameNum componentRef RenderCommand)
 
         ItemAction key act -> do
-            (maybe (pure mempty) pure) <$> runMaybeT $ do
-                xs <- MaybeT $ preuse (itemsModel . at k)
+            ret <- runMaybeT $ do
+                sm <- MaybeT $ use (itemsModel . at key)
                 -- run the item gadget logic
-                (cmds, sm') <- lift $ lift $ view G._GadgetT itemGadget a sm
+                (cmds, sm') <- lift $ lift $ view G._GadgetT itemGadget act sm
                 -- replace the item state in the map
-                lift $ itemsModel %= M.insert k sm'
+                itemsModel %= M.insert key sm'
                 -- annotate cmd with the key
-                pure $ (ItemCommand k) <$> cmds
+                pure $ (ItemCommand key) <$> cmds
+            maybe (pure mempty) pure ret

@@ -94,16 +94,13 @@ mkSuperModel s = R.mkSuperModel mkGasket $ \gkt -> R.GModel gkt s
 
 data Widget act
 instance R.IsWidget (Widget act) where
-    type Action (Widget act) = Action act
-    type Command (Widget act) = Command act
-    type Model (Widget act) = Model
-    type Gasket (Widget act) = Gasket
+    type WidgetAction (Widget act) = Action act
+    type WidgetCommand (Widget act) = Command act
+    type WidgetModel (Widget act) = Model
+    type WidgetGasket (Widget act) = Gasket
 type GModel act = R.WidgetGModel (Widget act)
 type MModel act = R.WidgetMModel (Widget act)
 type SuperModel act = R.WidgetSuperModel (Widget act)
-
-----------------------------------------------------------
--- The following should be the same per widget (except for type params)
 instance CD.Disposing Gasket
 instance HasGasket (R.GModel Gasket Model) where
     gasket = R.widgetGasket
@@ -113,8 +110,6 @@ instance HasGasket (R.SuperModel Gasket Model) where
     gasket = R.gModel . gasket
 instance HasModel (R.SuperModel Gasket Model) where
     model = R.gModel . model
--- End same code per widget
-----------------------------------------------------------
 
 -- | This is used by parent components to render this component
 window :: Monad m => G.WindowT (GModel act) (R.ReactMlT m) ()

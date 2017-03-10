@@ -35,6 +35,7 @@ import Control.Monad.Morph
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.DList as D
+import qualified Data.List as DL
 import Data.Foldable
 import qualified Data.JSString as J
 import qualified Data.Map.Strict as M
@@ -53,7 +54,6 @@ data Command key itemWidget
     = RenderCommand (R.SuperModel Gasket (Model key itemWidget)) [JE.Property] J.JSVal
     | DisposeCommand CD.SomeDisposable
     | MakerCommand (F (R.Maker (Action key itemWidget)) (Action key itemWidget))
-    | SendActionsCommand [Action key itemWidget]
     | ItemCommand key (R.WidgetCommand itemWidget)
 
 data Action key itemWidget
@@ -67,9 +67,9 @@ data Action key itemWidget
 data Model key itemWidget = Model
     { _uid :: J.JSString
     , _componentRef :: J.JSVal
-    , _className ::J.JSString
     , _frameNum :: Int
     , _deferredCommands :: D.DList (Command key itemWidget)
+    , _className ::J.JSString
     , _itemKey :: key
     , _itemsModel :: M.Map key (R.WidgetSuperModel itemWidget)
     }
@@ -87,11 +87,12 @@ makeClassy ''Model
 
 mkGasket
     :: G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT Identity) ()
+    -> R.ReactMlT Identity ()
     -> MModel key itemWidget
     -> F (R.Maker (Action key itemWidget)) Gasket
-mkGasket itemWindow ms = Gasket
+mkGasket itemWindow separator mm = Gasket
     <$> R.getComponent
-    <*> (R.mkRenderer ms $ const (render itemWindow))
+    <*> (R.mkRenderer mm $ const (render itemWindow separator))
     <*> (R.mkHandler $ pure . pure . ComponentRefAction)
     <*> (R.mkHandler $ pure . pure . const ComponentDidUpdateAction)
 
@@ -104,9 +105,10 @@ instance ( CD.Disposing (R.WidgetGasket itemWidget)
 
 mkSuperModel
     :: G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT Identity) ()
+    -> R.ReactMlT Identity ()
     -> Model key itemWidget
     -> F (R.Maker (Action key itemWidget)) (SuperModel key itemWidget)
-mkSuperModel itemWindow s = R.mkSuperModel (mkGasket itemWindow) $ \gkt -> R.GModel gkt s
+mkSuperModel itemWindow separator s = R.mkSuperModel (mkGasket itemWindow separator) $ \gkt -> R.GModel gkt s
 
 data Widget key itemWidget
 instance R.IsWidget (Widget key itemWidget) where
@@ -139,18 +141,20 @@ window = do
         ]
 
 -- | This is used by the React render callback
--- FIXME: add separator
 render
     :: Monad m
     => G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT m) ()
+    -> R.ReactMlT m ()
     -> G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
-render itemWindow = do
+render itemWindow separator = do
     s <- ask
     items <- fmap (view R.gModel . snd) . M.toList <$> view itemsModel
     lift $ R.bh (JE.strval "ul") [ ("key", s ^. uid . to J.jsval)
                                  , ("className", s ^. className . to J.jsval)
-                                 ] $
-        traverse_ (view G._WindowT itemWindow) items
+                                 ] $ do
+        let itemsWindows = (view G._WindowT itemWindow) <$> items
+            separatedWindows = DL.intersperse separator itemsWindows
+        sequenceA_ separatedWindows
 
 gadget
     :: (Ord key, Monad m, CD.Disposing (R.WidgetModel itemWidget), CD.Disposing (R.WidgetGasket itemWidget))
@@ -180,7 +184,7 @@ gadget mkItemSuperModel itemGadget = do
                 -- Remove the todo from the model
                 itemsModel %= M.delete k
                 -- on re-render the todo Shim will not get rendered and will be removed by react
-                D.singleton <$> (R.renderCmd frameNum componentRef RenderCommand)
+                D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
             maybe (pure mempty) pure ret
 
         MakeItemAction keyMaker itemModelMaker -> do
@@ -193,15 +197,8 @@ gadget mkItemSuperModel itemGadget = do
 
         AddItemAction n v -> do
             itemsModel %= M.insert n v
-            D.singleton <$> (R.renderCmd frameNum componentRef RenderCommand)
+            D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
 
-        ItemAction key act -> do
-            ret <- runMaybeT $ do
-                sm <- MaybeT $ use (itemsModel . at key)
-                -- run the item gadget logic
-                (cmds, sm') <- lift $ lift $ view G._GadgetT itemGadget act sm
-                -- replace the item state in the map
-                itemsModel %= M.insert key sm'
-                -- annotate cmd with the key
-                pure $ (ItemCommand key) <$> cmds
-            maybe (pure mempty) pure ret
+        ItemAction key _ -> fmap (ItemCommand key) <$>
+            (magnify (_ItemAction . to snd)
+            (zoom (itemsModel . at key . _Just) itemGadget))

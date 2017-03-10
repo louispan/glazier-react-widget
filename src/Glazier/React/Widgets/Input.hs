@@ -50,7 +50,6 @@ import qualified JavaScript.Extras as JE
 
 data Command act
     = SetPropertyCommand JE.Property J.JSVal
-    | SubmitCommand J.JSString
     | GetPropertyCommand J.JSString J.JSVal (J.JSVal -> act)
     deriving Functor
 
@@ -166,11 +165,8 @@ gadget = do
     case a of
         SendCommandsAction cmds -> pure $ D.fromList cmds
 
-        SubmitAction v -> do
-            let v' = J.strip v
-            if J.null v'
-                then pure mempty
-                else pure $ D.singleton $ SubmitCommand v'
+        -- parent widgets should detect this case to do something with submitted action
+        SubmitAction _ -> pure empty
 
         InputRefAction v -> do
             inputRef .= v

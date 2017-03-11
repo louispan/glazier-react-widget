@@ -35,19 +35,19 @@ import Control.Monad.Morph
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.DList as D
-import qualified Data.List as DL
 import Data.Foldable
 import qualified Data.JSString as J
+import qualified Data.List as DL
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
-import qualified Glazier.React.Widget as R
 import qualified Glazier.React.Command as R
 import qualified Glazier.React.Component as R
 import qualified Glazier.React.Maker as R
 import qualified Glazier.React.Markup as R
+import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
 data Command key itemWidget
@@ -58,11 +58,13 @@ data Command key itemWidget
 
 data Action key itemWidget
     = ComponentRefAction J.JSVal
+    | RenderAction
     | ComponentDidUpdateAction
     | DestroyItemAction key
     | MakeItemAction (key -> key) (key -> R.WidgetModel itemWidget)
     | AddItemAction key (R.WidgetSuperModel itemWidget)
     | ItemAction key (R.WidgetAction itemWidget)
+    | SetFilterAction (R.WidgetSuperModel itemWidget -> Bool)
 
 data Model key itemWidget = Model
     { _uid :: J.JSString
@@ -72,6 +74,7 @@ data Model key itemWidget = Model
     , _className ::J.JSString
     , _itemKey :: key
     , _itemsModel :: M.Map key (R.WidgetSuperModel itemWidget)
+    , _itemsFilter :: R.WidgetSuperModel itemWidget -> Bool
     }
 
 data Gasket = Gasket
@@ -148,7 +151,7 @@ render
     -> G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
 render itemWindow separator = do
     s <- ask
-    items <- fmap (view R.gModel . snd) . M.toList <$> view itemsModel
+    items <- fmap (view R.gModel) . filter (s ^. itemsFilter) . fmap snd .  M.toList <$> view itemsModel
     lift $ R.bh (JE.strval "ul") [ ("key", s ^. uid . to J.jsval)
                                  , ("className", s ^. className . to J.jsval)
                                  ] $ do
@@ -167,6 +170,9 @@ gadget mkItemSuperModel itemGadget = do
         ComponentRefAction node -> do
             componentRef .= node
             pure mempty
+
+        RenderAction ->
+            D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
 
         ComponentDidUpdateAction -> do
             -- Run delayed commands that need to wait until frame is re-rendered
@@ -202,3 +208,7 @@ gadget mkItemSuperModel itemGadget = do
         ItemAction key _ -> fmap (ItemCommand key) <$>
             (magnify (_ItemAction . to snd)
             (zoom (itemsModel . at key . _Just) itemGadget))
+
+        SetFilterAction ftr -> do
+            itemsFilter .= ftr
+            D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)

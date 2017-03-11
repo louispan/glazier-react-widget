@@ -136,7 +136,7 @@ whenKeyDown evt = do
         evt' <- MaybeT $ pure $ R.castSyntheticEvent evt
         evt'' <- MaybeT $ pure $ R.parseKeyboardEvent evt'
         -- target is the "input" DOM
-        input <- lift $ pure . J.jsval . R.target . R.parseEvent $ evt'
+        input <- lift $ pure . J.jsval . R.target . R.fromSyntheticEvent $ evt'
         let k = R.keyCode evt''
         case k of
             -- FIXME: ESCAPE_KEY

@@ -37,8 +37,6 @@ import qualified Data.DList as D
 import qualified Data.JSString as J
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
-import qualified GHCJS.Marshal as J
-import qualified GHCJS.Marshal.Pure as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
 import qualified Glazier.React.Component as R
@@ -114,36 +112,37 @@ instance HasModel (R.SuperModel Gasket Model) where
 window :: Monad m => G.WindowT (GModel act) (R.ReactMlT m) ()
 window = do
     s <- ask
-    lift $ R.lf (s ^. component . to J.jsval)
-        [ ("key",  s ^. uid . to J.jsval)
-        , ("render", s ^. onRender . to J.jsval)
+    lift $ R.lf (s ^. component . to JE.toJS)
+        [ ("key",  s ^. uid . to JE.toJS)
+        , ("render", s ^. onRender . to JE.toJS)
         ]
 
 -- | This is used by the React render callback
 render :: Monad m => G.WindowT (GModel act) (R.ReactMlT m) ()
 render = do
     s <- ask
-    lift $ R.lf (JE.strval "input")
-                    [ ("key", s ^. uid . to J.jsval)
-                    , ("className", s ^. className . to J.jsval)
-                    , ("placeholder", s ^. placeholder . to J.jsval)
-                    , ("autoFocus", J.pToJSVal True)
-                    , ("onKeyDown", s ^. onKeyDown . to J.jsval)
+    lift $ R.lf (JE.strJS "input")
+                    [ ("key", s ^. uid . to JE.toJS)
+                    , ("className", s ^. className . to JE.toJS)
+                    , ("placeholder", s ^. placeholder . to JE.toJS)
+                    , ("autoFocus", JE.toJS True)
+                    , ("onKeyDown", s ^. onKeyDown . to JE.toJS)
                     ]
 
 whenKeyDown :: J.JSVal -> MaybeT IO (Maybe J.JSString, J.JSVal)
 whenKeyDown evt = do
-        evt' <- MaybeT $ pure $ R.castSyntheticEvent evt
-        evt'' <- MaybeT $ pure $ R.parseKeyboardEvent evt'
+        evt' <- MaybeT $ JE.fromJS evt
+        evt'' <- MaybeT $ R.parseKeyboardEvent evt'
+        evt''' <- lift $ R.parseEvent $ evt'
         -- target is the "input" DOM
-        input <- lift $ pure . J.jsval . R.target . R.fromSyntheticEvent $ evt'
+        input <- lift $ pure . JE.toJS . R.target $ evt'''
         let k = R.keyCode evt''
         case k of
             -- FIXME: ESCAPE_KEY
             27 -> pure $ (Nothing, input)
             -- FIXME: ENTER_KEY
             13 -> do
-                v <- MaybeT $ JE.getProperty "value" input >>= J.fromJSVal
+                v <- MaybeT $ JE.getProperty "value" input >>= JE.fromJS
                 pure $ (Just v, input)
             _ -> empty
 
@@ -152,7 +151,7 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
   where
     goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action act]
     goLazy (ms, j) = pure $
-        SendCommandsAction [SetPropertyCommand ("value", J.jsval J.empty) j]
+        SendCommandsAction [SetPropertyCommand ("value", JE.toJS J.empty) j]
         : maybe [] (pure . SubmitAction) ms
 
 -- | State update logic.

@@ -136,11 +136,11 @@ instance HasModel (R.SuperModel Gasket (Model key itemWidget)) key itemWidget wh
 window :: Monad m => G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
 window = do
     s <- ask
-    lift $ R.lf (s ^. component . to J.jsval)
-        [ ("key",  s ^. uid . to J.jsval)
-        , ("render", s ^. onRender . to J.jsval)
-        , ("ref", s ^. onComponentRef . to J.jsval)
-        , ("componentDidUpdate", s ^. onComponentDidUpdate . to J.jsval)
+    lift $ R.lf (s ^. component . to JE.toJS)
+        [ ("key",  s ^. uid . to JE.toJS)
+        , ("render", s ^. onRender . to JE.toJS)
+        , ("ref", s ^. onComponentRef . to JE.toJS)
+        , ("componentDidUpdate", s ^. onComponentDidUpdate . to JE.toJS)
         ]
 
 -- | This is used by the React render callback
@@ -152,8 +152,8 @@ render
 render itemWindow separator = do
     s <- ask
     items <- fmap (view R.gModel) . filter (s ^. itemsFilter) . fmap snd .  M.toList <$> view itemsModel
-    lift $ R.bh (JE.strval "ul") [ ("key", s ^. uid . to J.jsval)
-                                 , ("className", s ^. className . to J.jsval)
+    lift $ R.bh (JE.strJS "ul") [ ("key", s ^. uid . to JE.toJS)
+                                 , ("className", s ^. className . to JE.toJS)
                                  ] $ do
         let itemsWindows = (view G._WindowT itemWindow) <$> items
             separatedWindows = DL.intersperse separator itemsWindows

@@ -52,8 +52,8 @@ extra-deps:
 - glazier-0.10.0.0
 - glazier-react-0.1.0.0
 - disposable-0.2.0.1
-- javascript-extras-0.1.0.2
-- ghcjs-base-stub-0.1.0.1
+- javascript-extras-2.0.0.0
+- ghcjs-base-stub-0.1.0.2
 
 # Override default flag values for local packages and extra-deps
 flags: {}

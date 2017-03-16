@@ -14,15 +14,15 @@ module Glazier.React.Widgets.List
     ( Command(..)
     , Action(..)
     , AsAction(..)
-    , Gasket(..)
-    , HasGasket(..)
-    , mkGasket
+    , Plan(..)
+    , HasPlan(..)
+    , mkPlan
     , Model(..)
     , HasModel(..)
     , mkSuperModel
     , Widget
-    , GModel
-    , MModel
+    , Design
+    , Replica
     , SuperModel
     , window
     , gadget
@@ -51,7 +51,7 @@ import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
 data Command key itemWidget
-    = RenderCommand (R.SuperModel Gasket (Model key itemWidget)) [JE.Property] J.JSVal
+    = RenderCommand (R.SuperModel (Model key itemWidget) Plan) [JE.Property] J.JSVal
     | DisposeCommand CD.SomeDisposable
     | MakerCommand (F (R.Maker (Action key itemWidget)) (Action key itemWidget))
     | ItemCommand key (R.WidgetCommand itemWidget)
@@ -77,7 +77,7 @@ data Model key itemWidget = Model
     , _itemsFilter :: R.WidgetSuperModel itemWidget -> Bool
     }
 
-data Gasket = Gasket
+data Plan = Plan
     { _component :: R.ReactComponent
     , _onRender ::  J.Callback (J.JSVal -> IO J.JSVal)
     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
@@ -85,21 +85,21 @@ data Gasket = Gasket
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
-makeClassy ''Gasket
+makeClassy ''Plan
 makeClassy ''Model
 
-mkGasket
-    :: G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT Identity) ()
+mkPlan
+    :: G.WindowT (R.WidgetDesign itemWidget) (R.ReactMlT Identity) ()
     -> R.ReactMlT Identity ()
-    -> MModel key itemWidget
-    -> F (R.Maker (Action key itemWidget)) Gasket
-mkGasket itemWindow separator mm = Gasket
+    -> Replica key itemWidget
+    -> F (R.Maker (Action key itemWidget)) Plan
+mkPlan itemWindow separator mm = Plan
     <$> R.getComponent
     <*> (R.mkRenderer mm $ const (render itemWindow separator))
     <*> (R.mkHandler $ pure . pure . ComponentRefAction)
     <*> (R.mkHandler $ pure . pure . const ComponentDidUpdateAction)
 
-instance ( CD.Disposing (R.WidgetGasket itemWidget)
+instance ( CD.Disposing (R.WidgetPlan itemWidget)
          , CD.Disposing (R.WidgetModel itemWidget)
          ) =>
          CD.Disposing (Model key itemWidget) where
@@ -107,33 +107,33 @@ instance ( CD.Disposing (R.WidgetGasket itemWidget)
         CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. itemsModel)
 
 mkSuperModel
-    :: G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT Identity) ()
+    :: G.WindowT (R.WidgetDesign itemWidget) (R.ReactMlT Identity) ()
     -> R.ReactMlT Identity ()
     -> Model key itemWidget
     -> F (R.Maker (Action key itemWidget)) (SuperModel key itemWidget)
-mkSuperModel itemWindow separator s = R.mkSuperModel (mkGasket itemWindow separator) $ \gkt -> R.GModel gkt s
+mkSuperModel itemWindow separator mdl = R.mkSuperModel (mkPlan itemWindow separator) (R.Design mdl)
 
 data Widget key itemWidget
 instance R.IsWidget (Widget key itemWidget) where
     type WidgetAction (Widget key itemWidget) = Action key itemWidget
     type WidgetCommand (Widget key itemWidget) = Command key itemWidget
     type WidgetModel (Widget key itemWidget) = Model key itemWidget
-    type WidgetGasket (Widget ackey itemWidget) = Gasket
-type GModel key itemWidget = R.WidgetGModel (Widget key itemWidget)
-type MModel key itemWidget = R.WidgetMModel (Widget key itemWidget)
+    type WidgetPlan (Widget key itemWidget) = Plan
+type Design key itemWidget = R.WidgetDesign (Widget key itemWidget)
+type Replica key itemWidget = R.WidgetReplica (Widget key itemWidget)
 type SuperModel key itemWidget = R.WidgetSuperModel (Widget key itemWidget)
-instance CD.Disposing Gasket
-instance HasGasket (R.GModel Gasket (Model key itemWidget)) where
-    gasket = R.widgetGasket
-instance HasModel (R.GModel Gasket (Model key itemWidget)) key itemWidget where
+instance CD.Disposing Plan
+instance HasPlan (R.Design (Model key itemWidget) Plan) where
+    plan = R.widgetPlan
+instance HasModel (R.Design (Model key itemWidget) Plan) key itemWidget where
     model = R.widgetModel
-instance HasGasket (R.SuperModel Gasket (Model key itemWidget)) where
-    gasket = R.gModel . gasket
-instance HasModel (R.SuperModel Gasket (Model key itemWidget)) key itemWidget where
-    model = R.gModel . model
+instance HasPlan (R.SuperModel (Model key itemWidget) Plan) where
+    plan = R.design . plan
+instance HasModel (R.SuperModel (Model key itemWidget) Plan) key itemWidget where
+    model = R.design . model
 
 -- | This is used by parent components to render this component
-window :: Monad m => G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
+window :: Monad m => G.WindowT (Design key itemWidget) (R.ReactMlT m) ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS)
@@ -146,12 +146,12 @@ window = do
 -- | This is used by the React render callback
 render
     :: Monad m
-    => G.WindowT (R.WidgetGModel itemWidget) (R.ReactMlT m) ()
+    => G.WindowT (R.WidgetDesign itemWidget) (R.ReactMlT m) ()
     -> R.ReactMlT m ()
-    -> G.WindowT (GModel key itemWidget) (R.ReactMlT m) ()
+    -> G.WindowT (Design key itemWidget) (R.ReactMlT m) ()
 render itemWindow separator = do
     s <- ask
-    items <- fmap (view R.gModel) . filter (s ^. itemsFilter) . fmap snd .  M.toList <$> view itemsModel
+    items <- fmap (view R.design) . filter (s ^. itemsFilter) . fmap snd .  M.toList <$> view itemsModel
     lift $ R.bh (JE.strJS "ul") [ ("key", s ^. uid . to JE.toJS)
                                  , ("className", s ^. className . to JE.toJS)
                                  ] $ do
@@ -160,7 +160,7 @@ render itemWindow separator = do
         sequenceA_ separatedWindows
 
 gadget
-    :: (Ord key, Monad m, CD.Disposing (R.WidgetModel itemWidget), CD.Disposing (R.WidgetGasket itemWidget))
+    :: (Ord key, Monad m, CD.Disposing (R.WidgetModel itemWidget), CD.Disposing (R.WidgetPlan itemWidget))
     => (R.WidgetModel itemWidget -> F (R.Maker (R.WidgetAction itemWidget)) (R.WidgetSuperModel itemWidget))
     -> G.GadgetT (R.WidgetAction itemWidget) (R.WidgetSuperModel itemWidget) m (D.DList (R.WidgetCommand itemWidget))
     -> G.GadgetT (Action key itemWidget) (SuperModel key itemWidget) m (D.DList (Command key itemWidget))

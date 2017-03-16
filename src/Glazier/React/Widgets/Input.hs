@@ -12,15 +12,15 @@ module Glazier.React.Widgets.Input
     ( Command(..)
     , Action(..)
     , AsAction(..)
-    , Gasket(..)
-    , HasGasket(..)
-    , mkGasket
+    , Plan(..)
+    , HasPlan(..)
+    , mkPlan
     , Model(..)
     , HasModel(..)
     , mkSuperModel
     , Widget
-    , GModel
-    , MModel
+    , Design
+    , Replica
     , SuperModel
     , window
     , gadget
@@ -65,7 +65,7 @@ data Model = Model
     , _className :: J.JSString
     }
 
-data Gasket = Gasket
+data Plan = Plan
     { _component :: R.ReactComponent
     , _onRender :: J.Callback (J.JSVal -> IO J.JSVal)
     , _onInputRef :: J.Callback (J.JSVal -> IO ())
@@ -73,11 +73,11 @@ data Gasket = Gasket
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
-makeClassy ''Gasket
+makeClassy ''Plan
 makeClassy ''Model
 
-mkGasket :: R.MModel Gasket Model -> F (R.Maker (Action act)) Gasket
-mkGasket mm = Gasket
+mkPlan :: R.Replica Model Plan -> F (R.Maker (Action act)) Plan
+mkPlan mm = Plan
     <$> R.getComponent
     <*> (R.mkRenderer mm $ const render)
     <*> (R.mkHandler $ pure . pure . InputRefAction)
@@ -87,29 +87,29 @@ instance CD.Disposing Model where
     disposing _ = CD.DisposeNone
 
 mkSuperModel :: Model -> F (R.Maker (Action act)) (SuperModel act)
-mkSuperModel s = R.mkSuperModel mkGasket $ \gkt -> R.GModel gkt s
+mkSuperModel mdl = R.mkSuperModel mkPlan (R.Design mdl)
 
 data Widget act
 instance R.IsWidget (Widget act) where
     type WidgetAction (Widget act) = Action act
     type WidgetCommand (Widget act) = Command act
     type WidgetModel (Widget act) = Model
-    type WidgetGasket (Widget act) = Gasket
-type GModel act = R.WidgetGModel (Widget act)
-type MModel act = R.WidgetMModel (Widget act)
+    type WidgetPlan (Widget act) = Plan
+type Design act = R.WidgetDesign (Widget act)
+type Replica act = R.WidgetReplica (Widget act)
 type SuperModel act = R.WidgetSuperModel (Widget act)
-instance CD.Disposing Gasket
-instance HasGasket (R.GModel Gasket Model) where
-    gasket = R.widgetGasket
-instance HasModel (R.GModel Gasket Model) where
+instance CD.Disposing Plan
+instance HasPlan (R.Design Model Plan) where
+    plan = R.widgetPlan
+instance HasModel (R.Design Model Plan) where
     model = R.widgetModel
-instance HasGasket (R.SuperModel Gasket Model) where
-    gasket = R.gModel . gasket
-instance HasModel (R.SuperModel Gasket Model) where
-    model = R.gModel . model
+instance HasPlan (R.SuperModel Model Plan) where
+    plan = R.design . plan
+instance HasModel (R.SuperModel Model Plan) where
+    model = R.design . model
 
 -- | This is used by parent components to render this component
-window :: Monad m => G.WindowT (GModel act) (R.ReactMlT m) ()
+window :: Monad m => G.WindowT (Design act) (R.ReactMlT m) ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS)
@@ -118,7 +118,7 @@ window = do
         ]
 
 -- | This is used by the React render callback
-render :: Monad m => G.WindowT (GModel act) (R.ReactMlT m) ()
+render :: Monad m => G.WindowT (Design act) (R.ReactMlT m) ()
 render = do
     s <- ask
     lift $ R.lf (JE.strJS "input")

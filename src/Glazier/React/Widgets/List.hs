@@ -61,7 +61,7 @@ data Action key itemWidget
     | RenderAction
     | ComponentDidUpdateAction
     | DestroyItemAction key
-    | MakeItemAction (key -> key) (key -> R.WidgetModel itemWidget)
+    | MakeItemAction (key -> key) (key -> F (R.Maker (R.WidgetAction itemWidget)) (R.WidgetModel itemWidget))
     | AddItemAction key (R.WidgetSuperModel itemWidget)
     | ItemAction key (R.WidgetAction itemWidget)
     | SetFilterAction (R.WidgetSuperModel itemWidget -> Bool)
@@ -197,8 +197,8 @@ gadget mkItemSuperModel itemGadget = do
             n <- keyMaker <$> use itemKey
             itemKey .= n
             pure $ D.singleton $ MakerCommand $ do
-                sm <- hoistF (R.mapAction $ \act -> ItemAction n act) $
-                    mkItemSuperModel (itemModelMaker n)
+                sm <- hoistF (R.mapAction $ \act -> ItemAction n act) (
+                    itemModelMaker n >>= mkItemSuperModel)
                 pure $ AddItemAction n sm
 
         AddItemAction n v -> do

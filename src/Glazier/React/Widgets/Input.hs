@@ -17,11 +17,11 @@ module Glazier.React.Widgets.Input
     , mkPlan
     , Model(..)
     , HasModel(..)
-    , mkSuperModel
-    , Widget
     , Design
-    , Replica
+    , Frame
     , SuperModel
+    , Widget
+    , widget
     , window
     , gadget
     , whenKeyDown
@@ -43,20 +43,18 @@ import qualified Glazier.React.Component as R
 import qualified Glazier.React.Event as R
 import qualified Glazier.React.Maker as R
 import qualified Glazier.React.Markup as R
+import qualified Glazier.React.Model as R
 import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
-data Command act
+-- TODO: onChanged to update state but not render?
+data Command
     = SetPropertyCommand JE.Property J.JSVal
-    | GetPropertyCommand J.JSString J.JSVal (J.JSVal -> act)
-    deriving Functor
 
-data Action act
-    = SendCommandsAction [Command act]
+data Action
+    = SendCommandsAction [Command]
     | SubmitAction J.JSString
     | InputRefAction J.JSVal
-    | GetPropertyAction J.JSString (J.JSVal -> act)
-    deriving Functor
 
 data Model = Model
     { _uid :: J.JSString
@@ -76,40 +74,40 @@ makeClassyPrisms ''Action
 makeClassy ''Plan
 makeClassy ''Model
 
-mkPlan :: R.Replica Model Plan -> F (R.Maker (Action act)) Plan
-mkPlan mm = Plan
+mkPlan :: R.Frame Model Plan -> F (R.Maker Action) Plan
+mkPlan frm = Plan
     <$> R.getComponent
-    <*> (R.mkRenderer mm $ const render)
+    <*> (R.mkRenderer frm $ const render)
     <*> (R.mkHandler $ pure . pure . InputRefAction)
     <*> (R.mkHandler onKeyDown')
 
+instance CD.Disposing Plan
 instance CD.Disposing Model where
     disposing _ = CD.DisposeNone
 
-mkSuperModel :: Model -> F (R.Maker (Action act)) (SuperModel act)
-mkSuperModel mdl = R.mkSuperModel mkPlan (R.Design mdl)
-
-data Widget act
-instance R.IsWidget (Widget act) where
-    type WidgetAction (Widget act) = Action act
-    type WidgetCommand (Widget act) = Command act
-    type WidgetModel (Widget act) = Model
-    type WidgetPlan (Widget act) = Plan
-type Design act = R.WidgetDesign (Widget act)
-type Replica act = R.WidgetReplica (Widget act)
-type SuperModel act = R.WidgetSuperModel (Widget act)
-instance CD.Disposing Plan
+-- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
 instance HasPlan (R.Design Model Plan) where
-    plan = R.widgetPlan
+    plan = R.plan
 instance HasModel (R.Design Model Plan) where
-    model = R.widgetModel
+    model = R.model
 instance HasPlan (R.SuperModel Model Plan) where
     plan = R.design . plan
 instance HasModel (R.SuperModel Model Plan) where
     model = R.design . model
 
--- | This is used by parent components to render this component
-window :: Monad m => G.WindowT (Design act) (R.ReactMlT m) ()
+type Design = R.Design Model Plan
+type Frame = R.Frame Model Plan
+type SuperModel = R.SuperModel Model Plan
+
+type Widget = R.Widget Command Action Model Plan
+widget :: R.Widget Command Action Model Plan
+widget = R.Widget
+    mkPlan
+    window
+    gadget
+
+-- | Exposed to parent components to render this component
+window :: G.WindowT (R.Design Model Plan) (R.ReactMlT Identity) ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS)
@@ -117,8 +115,8 @@ window = do
         , ("render", s ^. onRender . to JE.toJS)
         ]
 
--- | This is used by the React render callback
-render :: Monad m => G.WindowT (Design act) (R.ReactMlT m) ()
+-- | Internal rendering used by the React render callback
+render :: G.WindowT (R.Design Model Plan) (R.ReactMlT Identity) ()
 render = do
     s <- ask
     lift $ R.lf (JE.strJS "input")
@@ -139,17 +137,17 @@ whenKeyDown evt = do
         let k = R.keyCode evt''
         case k of
             -- FIXME: ESCAPE_KEY
-            27 -> pure $ (Nothing, input)
+            27 -> pure (Nothing, input)
             -- FIXME: ENTER_KEY
             13 -> do
                 v <- MaybeT $ JE.getProperty "value" input >>= JE.fromJS
-                pure $ (Just v, input)
+                pure (Just v, input)
             _ -> empty
 
-onKeyDown' :: J.JSVal -> MaybeT IO [Action act]
+onKeyDown' :: J.JSVal -> MaybeT IO [Action]
 onKeyDown' = R.eventHandlerM whenKeyDown goLazy
   where
-    goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action act]
+    goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action]
     goLazy (ms, j) = pure $
         SendCommandsAction [SetPropertyCommand ("value", JE.toJS J.empty) j]
         : maybe [] (pure . SubmitAction) ms
@@ -158,7 +156,7 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
 -- The best practice is to leave this in general Monad m (eg, not MonadIO).
 -- This allows gadget to use STM as the base monad which allows for combining concurrently
 -- with other stateful STM effects and still maintain a single source of truth.
-gadget :: Monad m => G.GadgetT (Action act) (SuperModel act) m (D.DList (Command act))
+gadget :: G.GadgetT Action (R.SuperModel Model Plan) Identity (D.DList Command)
 gadget = do
     a <- ask
     case a of
@@ -170,7 +168,3 @@ gadget = do
         InputRefAction v -> do
             inputRef .= v
             pure mempty
-
-        GetPropertyAction prop f -> do
-            j <- use inputRef
-            pure $ D.singleton $ GetPropertyCommand prop j f

@@ -20,7 +20,7 @@ import Glazier.React.Widgets.List as W.List
 import qualified Pipes.Concurrent as PC
 
 run
-    :: (key -> R.WidgetCommand itemWidget -> IO ()) -- command runner for the items
+    :: (key -> R.CommandOf itemWidget -> IO ()) -- command runner for the items
     -> R.ReactComponent -- for Maker
     -> PC.Output (Action key itemWidget)
     -> Command key itemWidget

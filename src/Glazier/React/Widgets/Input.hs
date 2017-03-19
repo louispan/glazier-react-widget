@@ -47,7 +47,6 @@ import qualified Glazier.React.Model as R
 import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
--- TODO: onChanged to update state but not render?
 data Command
     = SetPropertyCommand JE.Property J.JSVal
 

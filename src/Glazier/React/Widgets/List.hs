@@ -131,7 +131,7 @@ widget separator itemWidget = R.Widget
     (gadget (R.mkSuperModel itemWidget) (R.gadget itemWidget))
 
 -- | Exposed to parent components to render this component
-window :: Monad m => G.WindowT (R.Design (Model key itemWidget) Plan) (R.ReactMlT m) ()
+window :: G.WindowT (R.Design (Model key itemWidget) Plan) (R.ReactMlT Identity) ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS)

@@ -37,21 +37,13 @@ resolver: lts-7.19
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-- location: '/Users/louis/repo/js/glazier-react'
-  extra-dep: true
-- location: '/Users/louis/repo/hs/disposable'
-  extra-dep: true
-- location: '/Users/louis/repo/js/ghcjs-base-stub'
-  extra-dep: true
-- location: '/Users/louis/repo/js/javascript-extras'
-  extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- glazier-0.10.0.0
-- glazier-react-0.3.0.0
-- disposable-0.2.0.1
+- glazier-0.11.0.0
+- glazier-react-0.3.0.1
+- disposable-0.2.0.2
 - javascript-extras-2.0.0.0
 - ghcjs-base-stub-0.1.0.2
 

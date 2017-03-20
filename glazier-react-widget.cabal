@@ -8,7 +8,7 @@ license-file:        LICENSE
 author:              Louis Pan
 maintainer:          louis@pan.me
 copyright:           2017 Louis Pan
-category:            Web
+category:            Web, GUI
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10

@@ -56,7 +56,7 @@ data Action
     | InputRefAction J.JSVal
 
 data Model = Model
-    { _uid :: J.JSString
+    { _key :: J.JSString
     , _inputRef :: J.JSVal
     , _placeholder :: J.JSString
     , _className :: J.JSString
@@ -110,7 +110,7 @@ window :: G.WindowT (R.Design Model Plan) (R.ReactMlT Identity) ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS)
-        [ ("key",  s ^. uid . to JE.toJS)
+        [ ("key",  s ^. key . to JE.toJS)
         , ("render", s ^. onRender . to JE.toJS)
         ]
 
@@ -119,7 +119,7 @@ render :: G.WindowT (R.Design Model Plan) (R.ReactMlT Identity) ()
 render = do
     s <- ask
     lift $ R.lf (JE.strJS "input")
-                    [ ("key", s ^. uid . to JE.toJS)
+                    [ ("key", s ^. key . to JE.toJS)
                     , ("className", s ^. className . to JE.toJS)
                     , ("placeholder", s ^. placeholder . to JE.toJS)
                     , ("autoFocus", JE.toJS True)

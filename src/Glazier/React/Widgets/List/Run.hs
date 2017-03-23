@@ -8,6 +8,7 @@ module Glazier.React.Widgets.List.Run
     ( run
     ) where
 
+import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import qualified Control.Disposable as CD
 import Control.Monad
@@ -20,18 +21,19 @@ import Glazier.React.Widgets.List as W.List
 import qualified Pipes.Concurrent as PC
 
 run
-    :: (key -> R.CommandOf itemWidget -> IO ()) -- command runner for the items
+    :: (k -> R.CommandOf itemWidget -> IO ()) -- command runner for the items
+    -> MVar Int
     -> R.ReactComponent -- for Maker
-    -> PC.Output (Action key itemWidget)
-    -> Command key itemWidget
+    -> PC.Output (Action k itemWidget)
+    -> Command k itemWidget
     -> IO ()
 
-run _ _ _ (RenderCommand sm props j) = R.componentSetState sm props j
+run _ _ _ _ (RenderCommand sm props j) = R.componentSetState sm props j
 
-run _ _ _ (DisposeCommand x) = CD.dispose x
+run _ _ _ _ (DisposeCommand x) = CD.dispose x
 
-run _ comp output (MakerCommand mks) = do
-    act <- iterM (R.Maker.run comp output) mks
+run _ muid comp output (MakerCommand mks) = do
+    act <- iterM (R.Maker.run muid comp output) mks
     void $ atomically $ PC.send output act
 
-run itemCmdRun _ _ (ItemCommand key itemCmd) = itemCmdRun key itemCmd
+run itemCmdRun _ _ _ (ItemCommand k itemCmd) = itemCmdRun k itemCmd

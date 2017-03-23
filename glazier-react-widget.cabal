@@ -1,5 +1,5 @@
 name:                glazier-react-widget
-version:             0.3.0.0
+version:             0.4.0.0
 synopsis:            Generic widget library using glazier-react
 description:         Generic widget library using glazier-react
 homepage:            https://github.com/louispan/glazier-react-widget#readme
@@ -21,12 +21,12 @@ library
                        Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5 && < 0.6
-                     , disposable >= 0.2.0.2 && < 1
+                     , disposable >= 0.2.0.3 && < 1
                      , dlist >= 0.8 && < 0.9
                      , free >= 4.12 && < 5
                      , glazier >= 0.10 && < 1
-                     , glazier-react >= 0.3 && < 1
-                     , javascript-extras >= 0.2 && < 1
+                     , glazier-react >= 0.4 && < 1
+                     , javascript-extras >= 0.2.0.2 && < 1
                      , lens >= 4 && < 5
                      , mmorph >= 1 && < 2
                      , mtl >= 2 && < 3

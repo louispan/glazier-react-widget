@@ -68,11 +68,7 @@ data Action k itemWidget
     | SetFilterAction (R.SuperModelOf itemWidget -> Bool)
 
 data Model k itemWidget = Model
-    { _key :: J.JSString
-    , _componentRef :: J.JSVal
-    , _frameNum :: Int
-    , _deferredDisposables :: D.DList CD.SomeDisposable
-    , _className ::J.JSString
+    { _className ::J.JSString
     , _itemKey :: k
     , _itemsModel :: M.Map k (R.SuperModelOf itemWidget)
     , _itemsFilter :: R.SuperModelOf itemWidget -> Bool
@@ -80,6 +76,10 @@ data Model k itemWidget = Model
 
 data Plan = Plan
     { _component :: R.ReactComponent
+    , _key :: J.JSString
+    , _frameNum :: Int
+    , _componentRef :: J.JSVal
+    , _deferredDisposables :: D.DList CD.SomeDisposable
     , _onRender ::  J.Callback (J.JSVal -> IO J.JSVal)
     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
     , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
@@ -96,6 +96,10 @@ mkPlan
     -> F (R.Maker (Action k itemWidget)) Plan
 mkPlan separator itemWindow frm = Plan
     <$> R.getComponent
+    <*> R.mkKey
+    <*> pure 0
+    <*> pure J.nullRef
+    <*> pure mempty
     <*> (R.mkRenderer frm $ const (render separator itemWindow))
     <*> (R.mkHandler $ pure . pure . ComponentRefAction)
     <*> (R.mkHandler $ pure . pure . const ComponentDidUpdateAction)

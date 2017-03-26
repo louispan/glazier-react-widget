@@ -56,14 +56,14 @@ data Action
     | InputRefAction J.JSVal
 
 data Model = Model
-    { _key :: J.JSString
-    , _inputRef :: J.JSVal
-    , _placeholder :: J.JSString
+    { _placeholder :: J.JSString
     , _className :: J.JSString
     }
 
 data Plan = Plan
     { _component :: R.ReactComponent
+    , _key :: J.JSString
+    , _inputRef :: J.JSVal
     , _onRender :: J.Callback (J.JSVal -> IO J.JSVal)
     , _onInputRef :: J.Callback (J.JSVal -> IO ())
     , _onKeyDown :: J.Callback (J.JSVal -> IO ())
@@ -76,6 +76,8 @@ makeClassy ''Model
 mkPlan :: R.Frame Model Plan -> F (R.Maker Action) Plan
 mkPlan frm = Plan
     <$> R.getComponent
+    <*> R.mkKey
+    <*> pure J.nullRef
     <*> (R.mkRenderer frm $ const render)
     <*> (R.mkHandler $ pure . pure . InputRefAction)
     <*> (R.mkHandler onKeyDown')

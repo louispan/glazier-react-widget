@@ -9,19 +9,22 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module Glazier.React.Widgets.List
     ( Command(..)
     , Action(..)
     , AsAction(..)
+    , Design(..)
+    , HasDesign(..)
     , Plan(..)
     , HasPlan(..)
     , mkPlan
-    , Model(..)
-    , HasModel(..)
-    , Design
+    , Model
+    , Outline
+    , Scene
     , Frame
-    , SuperModel
+    , Gizmo
     , Widget
     , widget
     , window
@@ -52,7 +55,7 @@ import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
 data Command k itemWidget
-    = RenderCommand (R.SuperModel (Model k itemWidget) Plan) [JE.Property] J.JSVal
+    = RenderCommand (R.Gizmo (Model k itemWidget) Plan) [JE.Property] J.JSVal
     | DisposeCommand CD.SomeDisposable
     | MakerCommand (F (R.Maker (Action k itemWidget)) (Action k itemWidget))
     | ItemCommand k (R.CommandOf itemWidget)
@@ -63,15 +66,18 @@ data Action k itemWidget
     | ComponentDidUpdateAction
     | DestroyItemAction k
     | MakeItemAction (k -> k) (k -> F (R.Maker (R.ActionOf itemWidget)) (R.ModelOf itemWidget))
-    | AddItemAction k (R.SuperModelOf itemWidget)
+    | AddItemAction k (R.GizmoOf itemWidget)
     | ItemAction k (R.ActionOf itemWidget)
-    | SetFilterAction (R.SuperModelOf itemWidget -> Bool)
+    | SetFilterAction (R.OutlineOf itemWidget -> Bool)
 
-data Model k itemWidget = Model
-    { _className ::J.JSString
-    , _itemKey :: k
-    , _itemsModel :: M.Map k (R.SuperModelOf itemWidget)
-    , _itemsFilter :: R.SuperModelOf itemWidget -> Bool
+type Model k itemWidget = Design k itemWidget R.WithGizmo
+type Outline k itemWidget = Design k itemWidget R.WithOutline
+
+data Design k itemWidget t = Design
+    { _className :: J.JSString
+    , _idx :: k
+    , _items :: M.Map k (R.DesignType t itemWidget)
+    , _itemsFilter :: R.OutlineOf itemWidget -> Bool
     }
 
 data Plan = Plan
@@ -86,12 +92,12 @@ data Plan = Plan
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
+makeClassy ''Design
 makeClassy ''Plan
-makeClassy ''Model
 
 mkPlan
-    :: R.ReactMlT Identity ()
-    -> G.WindowT (R.DesignOf itemWidget) (R.ReactMlT Identity) ()
+    :: R.IsWidget itemWidget => R.ReactMlT Identity ()
+    -> G.WindowT (R.SceneOf itemWidget) (R.ReactMlT Identity) ()
     -> R.Frame (Model k itemWidget) Plan
     -> F (R.Maker (Action k itemWidget)) Plan
 mkPlan separator itemWindow frm = Plan
@@ -105,37 +111,40 @@ mkPlan separator itemWindow frm = Plan
     <*> (R.mkHandler $ pure . pure . const ComponentDidUpdateAction)
 
 instance CD.Disposing Plan
-instance (CD.Disposing (R.SuperModelOf itemWidget)) =>
+-- | Undecidable instances because itemWidget appears more often in hte constraint
+-- but this is safe because @R.GizmoOf itemWidget@ is smaller than @Model k itemWidget@
+instance (CD.Disposing (R.GizmoOf itemWidget)) =>
          CD.Disposing (Model k itemWidget) where
-    disposing s = CD.DisposeList $ foldr ((:) . CD.disposing) [] (_itemsModel s)
+    disposing s = CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. items)
 
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
-instance HasPlan (R.Design (Model k itemWidget) Plan) where
+instance HasPlan (R.Scene (Model k itemWidget) Plan) where
     plan = R.plan
-instance HasModel (R.Design (Model k itemWidget) Plan) k itemWidget where
-    model = R.model
-instance HasPlan (R.SuperModel (Model k itemWidget) Plan) where
-    plan = R.design . plan
-instance HasModel (R.SuperModel (Model k itemWidget) Plan) k itemWidget where
-    model = R.design . model
+instance HasDesign (R.Scene (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
+    design = R.model
+instance HasPlan (R.Gizmo (Model k itemWidget) Plan) where
+    plan = R.scene . plan
+instance HasDesign (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
+    design = R.scene . design
 
-type Design k itemWidget = R.Design (Model k itemWidget) Plan
+type Scene k itemWidget = R.Scene (Model k itemWidget) Plan
 type Frame k itemWidget = R.Frame (Model k itemWidget) Plan
-type SuperModel k itemWidget = R.SuperModel (Model k itemWidget) Plan
+type Gizmo k itemWidget = R.Gizmo (Model k itemWidget) Plan
 
-type Widget k itemWidget = R.Widget (Command k itemWidget) (Action k itemWidget) (Model k itemWidget) Plan
+type Widget k itemWidget = R.Widget (Command k itemWidget) (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan
+
 widget
     :: (R.IsWidget itemWidget, Ord k)
     => R.ReactMlT Identity ()
     -> itemWidget
-    -> R.Widget (Command k itemWidget) (Action k itemWidget) (Model k itemWidget) Plan
+    -> Widget k itemWidget
 widget separator itemWidget = R.Widget
     (mkPlan separator (R.window itemWidget))
     window
-    (gadget (R.mkSuperModel itemWidget) (R.gadget itemWidget))
+    (gadget (R.mkGizmo itemWidget) (R.gadget itemWidget))
 
 -- | Exposed to parent components to render this component
-window :: G.WindowT (R.Design (Model k itemWidget) Plan) (R.ReactMlT Identity) ()
+window :: G.WindowT (R.Scene (Model k itemWidget) Plan) (R.ReactMlT Identity) ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS)
@@ -147,25 +156,25 @@ window = do
 
 -- | Internal rendering used by the React render callback
 render
-    :: R.ReactMlT Identity ()
-    -> G.WindowT (R.DesignOf itemWidget) (R.ReactMlT Identity) ()
-    -> G.WindowT (R.Design (Model k itemWidget) Plan) (R.ReactMlT Identity) ()
+    :: R.IsWidget itemWidget => R.ReactMlT Identity ()
+    -> G.WindowT (R.SceneOf itemWidget) (R.ReactMlT Identity) ()
+    -> G.WindowT (R.Scene (Model k itemWidget) Plan) (R.ReactMlT Identity) ()
 render separator itemWindow = do
     s <- ask
-    items <- fmap (view R.design) . filter (s ^. itemsFilter) . fmap snd .  M.toList <$> view itemsModel
+    xs <- fmap (view R.scene) . filter ((s ^. itemsFilter) . R.outline . view R.model) . fmap snd .  M.toList <$> view items
     lift $ R.bh (JE.strJS "ul") [ ("key", s ^. key . to JE.toJS)
                                  , ("className", s ^. className . to JE.toJS)
                                  ] $ do
-        let itemsWindows = (view G._WindowT itemWindow) <$> items
+        let itemsWindows = (view G._WindowT itemWindow) <$> xs
             separatedWindows = DL.intersperse separator itemsWindows
         sequenceA_ separatedWindows
 
 gadget
     :: (Ord k, R.IsWidget itemWidget)
-    => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.SuperModelOf itemWidget))
-    -> G.GadgetT (R.ActionOf itemWidget) (R.SuperModelOf itemWidget) Identity (D.DList (R.CommandOf itemWidget))
-    -> G.GadgetT (Action k itemWidget) (R.SuperModel (Model k itemWidget) Plan) Identity (D.DList (Command k itemWidget))
-gadget mkItemSuperModel itemGadget = do
+    => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
+    -> G.GadgetT (R.ActionOf itemWidget) (R.GizmoOf itemWidget) Identity (D.DList (R.CommandOf itemWidget))
+    -> G.GadgetT (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) Identity (D.DList (Command k itemWidget))
+gadget mkItemGizmo itemGadget = do
     a <- ask
     case a of
         ComponentRefAction node -> do
@@ -185,29 +194,29 @@ gadget mkItemSuperModel itemGadget = do
         DestroyItemAction k -> do
             -- queue up callbacks to be released after rerendering
             ret <- runMaybeT $ do
-                itemSuperModel <- MaybeT $ use (itemsModel . at k)
-                deferredDisposables %= (`D.snoc` CD.disposing itemSuperModel)
+                itemGizmo <- MaybeT $ use (items . at k)
+                deferredDisposables %= (`D.snoc` CD.disposing itemGizmo)
                 -- Remove the todo from the model
-                itemsModel %= M.delete k
+                items %= M.delete k
                 -- on re-render the todo Shim will not get rendered and will be removed by react
                 D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
             maybe (pure mempty) pure ret
 
         MakeItemAction keyMaker itemModelMaker -> do
-            n <- keyMaker <$> use itemKey
-            itemKey .= n
+            n <- keyMaker <$> use idx
+            idx .= n
             pure $ D.singleton $ MakerCommand $ do
                 sm <- hoistF (R.mapAction $ \act -> ItemAction n act) (
-                    itemModelMaker n >>= mkItemSuperModel)
+                    itemModelMaker n >>= mkItemGizmo)
                 pure $ AddItemAction n sm
 
         AddItemAction n v -> do
-            itemsModel %= M.insert n v
+            items %= M.insert n v
             D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
 
         ItemAction k _ -> fmap (ItemCommand k) <$>
             (magnify (_ItemAction . to snd)
-            (zoom (itemsModel . at k . _Just) itemGadget))
+            (zoom (items . at k . _Just) itemGadget))
 
         SetFilterAction ftr -> do
             itemsFilter .= ftr

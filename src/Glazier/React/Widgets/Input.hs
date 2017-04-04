@@ -12,14 +12,16 @@ module Glazier.React.Widgets.Input
     ( Command(..)
     , Action(..)
     , AsAction(..)
+    , Design(..)
+    , HasDesign(..)
     , Plan(..)
     , HasPlan(..)
     , mkPlan
-    , Model(..)
-    , HasModel(..)
-    , Design
+    , Model
+    , Outline
+    , Scene
     , Frame
-    , SuperModel
+    , Gizmo
     , Widget
     , widget
     , window
@@ -55,7 +57,10 @@ data Action
     | SubmitAction J.JSString
     | InputRefAction J.JSVal
 
-data Model = Model
+type Model = Design
+type Outline = Design
+
+data Design = Design
     { _placeholder :: J.JSString
     , _className :: J.JSString
     }
@@ -71,7 +76,7 @@ data Plan = Plan
 
 makeClassyPrisms ''Action
 makeClassy ''Plan
-makeClassy ''Model
+makeClassy ''Design
 
 mkPlan :: R.Frame Model Plan -> F (R.Maker Action) Plan
 mkPlan frm = Plan
@@ -87,28 +92,28 @@ instance CD.Disposing Model where
     disposing _ = CD.DisposeNone
 
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
-instance HasPlan (R.Design Model Plan) where
+instance HasPlan (R.Scene Model Plan) where
     plan = R.plan
-instance HasModel (R.Design Model Plan) where
-    model = R.model
-instance HasPlan (R.SuperModel Model Plan) where
-    plan = R.design . plan
-instance HasModel (R.SuperModel Model Plan) where
-    model = R.design . model
+instance HasDesign (R.Scene Model Plan) where
+    design = R.model
+instance HasPlan (R.Gizmo Model Plan) where
+    plan = R.scene . plan
+instance HasDesign (R.Gizmo Model Plan) where
+    design = R.scene . design
 
-type Design = R.Design Model Plan
+type Scene = R.Scene Model Plan
 type Frame = R.Frame Model Plan
-type SuperModel = R.SuperModel Model Plan
+type Gizmo = R.Gizmo Model Plan
 
-type Widget = R.Widget Command Action Model Plan
-widget :: R.Widget Command Action Model Plan
+type Widget = R.Widget Command Action Outline Model Plan
+widget :: Widget
 widget = R.Widget
     mkPlan
     window
     gadget
 
 -- | Exposed to parent components to render this component
-window :: G.WindowT (R.Design Model Plan) (R.ReactMlT Identity) ()
+window :: G.WindowT (R.Scene Model Plan) (R.ReactMlT Identity) ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS)
@@ -117,7 +122,7 @@ window = do
         ]
 
 -- | Internal rendering used by the React render callback
-render :: G.WindowT (R.Design Model Plan) (R.ReactMlT Identity) ()
+render :: G.WindowT (R.Scene Model Plan) (R.ReactMlT Identity) ()
 render = do
     s <- ask
     lift $ R.lf (JE.strJS "input")
@@ -157,7 +162,7 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
 -- The best practice is to leave this in general Monad m (eg, not MonadIO).
 -- This allows gadget to use STM as the base monad which allows for combining concurrently
 -- with other stateful STM effects and still maintain a single source of truth.
-gadget :: G.GadgetT Action (R.SuperModel Model Plan) Identity (D.DList Command)
+gadget :: G.GadgetT Action (R.Gizmo Model Plan) Identity (D.DList Command)
 gadget = do
     a <- ask
     case a of

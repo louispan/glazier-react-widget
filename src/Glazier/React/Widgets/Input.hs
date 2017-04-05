@@ -12,20 +12,14 @@ module Glazier.React.Widgets.Input
     ( Command(..)
     , Action(..)
     , AsAction(..)
-    , Design(..)
-    , HasDesign(..)
+    , Schema(..)
+    , HasSchema(..)
     , Plan(..)
     , HasPlan(..)
-    , mkPlan
-    , Model
     , Outline
-    , Scene
-    , Frame
-    , Gizmo
+    , Model
     , Widget
     , widget
-    , window
-    , gadget
     , whenKeyDown
     ) where
 
@@ -57,13 +51,17 @@ data Action
     | SubmitAction J.JSString
     | InputRefAction J.JSVal
 
-type Model = Design
-type Outline = Design
-
-data Design = Design
+data Schema = Schema
     { _placeholder :: J.JSString
     , _className :: J.JSString
     }
+
+type Model = Schema
+type Outline = Schema
+instance R.ToOutline Model Outline where outline = id
+
+mkModel :: Outline -> F (R.Maker Action) Model
+mkModel = pure
 
 data Plan = Plan
     { _component :: R.ReactComponent
@@ -76,7 +74,7 @@ data Plan = Plan
 
 makeClassyPrisms ''Action
 makeClassy ''Plan
-makeClassy ''Design
+makeClassy ''Schema
 
 mkPlan :: R.Frame Model Plan -> F (R.Maker Action) Plan
 mkPlan frm = Plan
@@ -94,20 +92,17 @@ instance CD.Disposing Model where
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
 instance HasPlan (R.Scene Model Plan) where
     plan = R.plan
-instance HasDesign (R.Scene Model Plan) where
-    design = R.model
+instance HasSchema (R.Scene Model Plan) where
+    schema = R.model
 instance HasPlan (R.Gizmo Model Plan) where
     plan = R.scene . plan
-instance HasDesign (R.Gizmo Model Plan) where
-    design = R.scene . design
-
-type Scene = R.Scene Model Plan
-type Frame = R.Frame Model Plan
-type Gizmo = R.Gizmo Model Plan
+instance HasSchema (R.Gizmo Model Plan) where
+    schema = R.scene . schema
 
 type Widget = R.Widget Command Action Outline Model Plan
 widget :: Widget
 widget = R.Widget
+    mkModel
     mkPlan
     window
     gadget

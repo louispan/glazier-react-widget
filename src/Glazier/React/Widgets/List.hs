@@ -15,20 +15,14 @@ module Glazier.React.Widgets.List
     ( Command(..)
     , Action(..)
     , AsAction(..)
-    , Design(..)
-    , HasDesign(..)
+    , Schema(..)
+    , HasSchema(..)
     , Plan(..)
     , HasPlan(..)
-    , mkPlan
-    , Model
     , Outline
-    , Scene
-    , Frame
-    , Gizmo
+    , Model
     , Widget
     , widget
-    , window
-    , gadget
     ) where
 
 import qualified Control.Disposable as CD
@@ -70,15 +64,24 @@ data Action k itemWidget
     | ItemAction k (R.ActionOf itemWidget)
     | SetFilterAction (R.OutlineOf itemWidget -> Bool)
 
-type Model k itemWidget = Design k itemWidget R.WithGizmo
-type Outline k itemWidget = Design k itemWidget R.WithOutline
-
-data Design k itemWidget t = Design
+data Schema k itemWidget t = Schema
     { _className :: J.JSString
     , _idx :: k
-    , _items :: M.Map k (R.DesignType t itemWidget)
+    , _items :: M.Map k (R.SchemaType t itemWidget)
     , _itemsFilter :: R.OutlineOf itemWidget -> Bool
     }
+
+type Model k itemWidget = Schema k itemWidget R.WithGizmo
+type Outline k itemWidget = Schema k itemWidget R.WithOutline
+instance R.IsWidget itemWidget => R.ToOutline (Model k itemWidget) (Outline k itemWidget) where
+    outline (Schema a b c d) = Schema a b (R.outline <$> c) d
+
+mkModel :: R.IsWidget itemWidget => itemWidget -> Outline k itemWidget -> F (R.Maker (Action k itemWidget)) (Model k itemWidget)
+mkModel w (Schema a b c d) = Schema
+    <$> pure a
+    <*> pure b
+    <*> M.traverseWithKey (\k i -> R.hoistWithAction (ItemAction k) (R.mkGizmo' w i)) c
+    <*> pure d
 
 data Plan = Plan
     { _component :: R.ReactComponent
@@ -92,7 +95,7 @@ data Plan = Plan
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
-makeClassy ''Design
+makeClassy ''Schema
 makeClassy ''Plan
 
 mkPlan
@@ -111,7 +114,7 @@ mkPlan separator itemWindow frm = Plan
     <*> (R.mkHandler $ pure . pure . const ComponentDidUpdateAction)
 
 instance CD.Disposing Plan
--- | Undecidable instances because itemWidget appears more often in hte constraint
+-- | Undecidable instances because itemWidget appears more often in the constraint
 -- but this is safe because @R.GizmoOf itemWidget@ is smaller than @Model k itemWidget@
 instance (CD.Disposing (R.GizmoOf itemWidget)) =>
          CD.Disposing (Model k itemWidget) where
@@ -120,25 +123,21 @@ instance (CD.Disposing (R.GizmoOf itemWidget)) =>
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
 instance HasPlan (R.Scene (Model k itemWidget) Plan) where
     plan = R.plan
-instance HasDesign (R.Scene (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
-    design = R.model
+instance HasSchema (R.Scene (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
+    schema = R.model
 instance HasPlan (R.Gizmo (Model k itemWidget) Plan) where
     plan = R.scene . plan
-instance HasDesign (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
-    design = R.scene . design
-
-type Scene k itemWidget = R.Scene (Model k itemWidget) Plan
-type Frame k itemWidget = R.Frame (Model k itemWidget) Plan
-type Gizmo k itemWidget = R.Gizmo (Model k itemWidget) Plan
+instance HasSchema (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
+    schema = R.scene . schema
 
 type Widget k itemWidget = R.Widget (Command k itemWidget) (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan
-
 widget
     :: (R.IsWidget itemWidget, Ord k)
     => R.ReactMlT Identity ()
     -> itemWidget
     -> Widget k itemWidget
 widget separator itemWidget = R.Widget
+    (mkModel itemWidget)
     (mkPlan separator (R.window itemWidget))
     window
     (gadget (R.mkGizmo itemWidget) (R.gadget itemWidget))
@@ -206,7 +205,7 @@ gadget mkItemGizmo itemGadget = do
             n <- keyMaker <$> use idx
             idx .= n
             pure $ D.singleton $ MakerCommand $ do
-                sm <- hoistF (R.mapAction $ \act -> ItemAction n act) (
+                sm <- R.hoistWithAction (ItemAction n) (
                     itemModelMaker n >>= mkItemGizmo)
                 pure $ AddItemAction n sm
 

@@ -111,37 +111,36 @@ widget = R.Widget
 window :: G.WindowT (R.Scene Model Plan) (R.ReactMlT Identity) ()
 window = do
     s <- ask
-    lift $ R.lf (s ^. component . to JE.toJS)
-        [ ("key",  s ^. key . to JE.toJS)
-        , ("render", s ^. onRender . to JE.toJS)
+    lift $ R.lf (s ^. component . to JE.toJS')
+        [ ("key",  s ^. key . to JE.toJS')
+        , ("render", s ^. onRender . to JE.toJS')
         ]
 
 -- | Internal rendering used by the React render callback
 render :: G.WindowT (R.Scene Model Plan) (R.ReactMlT Identity) ()
 render = do
     s <- ask
-    lift $ R.lf (JE.strJS "input")
-                    [ ("key", s ^. key . to JE.toJS)
-                    , ("className", s ^. className . to JE.toJS)
-                    , ("placeholder", s ^. placeholder . to JE.toJS)
-                    , ("autoFocus", JE.toJS True)
-                    , ("onKeyDown", s ^. onKeyDown . to JE.toJS)
-                    ]
+    lift $ R.lf "input"
+        [ ("key", s ^. key . to JE.toJS')
+        , ("className", s ^. className . to JE.toJS')
+        , ("placeholder", s ^. placeholder . to JE.toJS')
+        , ("autoFocus", JE.toJS' True)
+        , ("onKeyDown", s ^. onKeyDown . to JE.toJS')
+        ]
 
 whenKeyDown :: J.JSVal -> MaybeT IO (Maybe J.JSString, J.JSVal)
 whenKeyDown evt = do
-        evt' <- MaybeT $ JE.fromJS evt
-        evt'' <- MaybeT $ R.parseKeyboardEvent evt'
-        evt''' <- lift $ R.parseEvent $ evt'
-        -- target is the "input" DOM
-        input <- lift $ pure . JE.toJS . R.target $ evt'''
-        let k = R.keyCode evt''
+        sevt <- MaybeT $ pure $ JE.fromJS evt
+        kevt <- MaybeT $ pure $ R.parseKeyboardEvent sevt
+        let evt' = R.parseEvent sevt
+            k = R.keyCode kevt
+        input <- lift $ pure . JE.toJS . R.target $ evt'
         case k of
             -- FIXME: ESCAPE_KEY
             27 -> pure (Nothing, input)
             -- FIXME: ENTER_KEY
             13 -> do
-                v <- MaybeT $ JE.getProperty "value" input >>= JE.fromJS
+                v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" input
                 pure (Just v, input)
             _ -> empty
 
@@ -150,7 +149,7 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
   where
     goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action]
     goLazy (ms, j) = pure $
-        SendCommandsAction [SetPropertyCommand ("value", JE.toJS J.empty) j]
+        SendCommandsAction [SetPropertyCommand ("value", JE.toJS' J.empty) j]
         : maybe [] (pure . SubmitAction) ms
 
 -- | State update logic.

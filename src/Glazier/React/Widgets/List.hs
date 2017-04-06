@@ -146,11 +146,11 @@ widget separator itemWidget = R.Widget
 window :: G.WindowT (R.Scene (Model k itemWidget) Plan) (R.ReactMlT Identity) ()
 window = do
     s <- ask
-    lift $ R.lf (s ^. component . to JE.toJS)
-        [ ("key",  s ^. key . to JE.toJS)
-        , ("render", s ^. onRender . to JE.toJS)
-        , ("ref", s ^. onComponentRef . to JE.toJS)
-        , ("componentDidUpdate", s ^. onComponentDidUpdate . to JE.toJS)
+    lift $ R.lf (s ^. component . to JE.toJS')
+        [ ("key",  s ^. key . to JE.toJS')
+        , ("render", s ^. onRender . to JE.toJS')
+        , ("ref", s ^. onComponentRef . to JE.toJS')
+        , ("componentDidUpdate", s ^. onComponentDidUpdate . to JE.toJS')
         ]
 
 -- | Internal rendering used by the React render callback
@@ -161,9 +161,9 @@ render
 render separator itemWindow = do
     s <- ask
     xs <- fmap (view R.scene) . filter ((s ^. itemsFilter) . R.outline . view R.model) . fmap snd .  M.toList <$> view items
-    lift $ R.bh (JE.strJS "ul") [ ("key", s ^. key . to JE.toJS)
-                                 , ("className", s ^. className . to JE.toJS)
-                                 ] $ do
+    lift $ R.bh "ul" [ ("key", s ^. key . to JE.toJS')
+                     , ("className", s ^. className . to JE.toJS')
+                     ] $ do
         let itemsWindows = (view G._WindowT itemWindow) <$> xs
             separatedWindows = DL.intersperse separator itemsWindows
         sequenceA_ separatedWindows

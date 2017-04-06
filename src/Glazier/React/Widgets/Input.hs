@@ -47,7 +47,7 @@ data Command
     = SetPropertyCommand JE.Property J.JSVal
 
 data Action
-    = SendCommandsAction [Command]
+    = SetPropertyAction JE.Property J.JSVal
     | SubmitAction J.JSString
     | InputRefAction J.JSVal
 
@@ -149,7 +149,7 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
   where
     goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action]
     goLazy (ms, j) = pure $
-        SendCommandsAction [SetPropertyCommand ("value", JE.toJS' J.empty) j]
+        SetPropertyAction ("value", JE.toJS' J.empty) j
         : maybe [] (pure . SubmitAction) ms
 
 -- | State update logic.
@@ -160,7 +160,7 @@ gadget :: G.GadgetT Action (R.Gizmo Model Plan) Identity (D.DList Command)
 gadget = do
     a <- ask
     case a of
-        SendCommandsAction cmds -> pure $ D.fromList cmds
+        SetPropertyAction props j -> pure $ D.singleton $ SetPropertyCommand props j
 
         -- parent widgets should detect this case to do something with submitted action
         SubmitAction _ -> pure empty

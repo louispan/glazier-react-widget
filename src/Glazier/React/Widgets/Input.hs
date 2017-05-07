@@ -99,7 +99,7 @@ instance HasPlan (R.Gizmo Model Plan) where
 instance HasSchema (R.Gizmo Model Plan) where
     schema = R.scene . schema
 
-type Widget = R.Widget Command Action Outline Model Plan
+type Widget = R.Widget () Command Action Outline Model Plan
 widget :: Widget
 widget = R.Widget
     mkModel
@@ -108,7 +108,7 @@ widget = R.Widget
     gadget
 
 -- | Exposed to parent components to render this component
-window :: G.WindowT (R.Scene Model Plan) (R.ReactMlT Identity) ()
+window :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS')
@@ -117,7 +117,7 @@ window = do
         ]
 
 -- | Internal rendering used by the React render callback
-render :: G.WindowT (R.Scene Model Plan) (R.ReactMlT Identity) ()
+render :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
 render = do
     s <- ask
     lift $ R.lf "input"
@@ -156,7 +156,7 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
 -- The best practice is to leave this in general Monad m (eg, not MonadIO).
 -- This allows gadget to use STM as the base monad which allows for combining concurrently
 -- with other stateful STM effects and still maintain a single source of truth.
-gadget :: G.GadgetT Action (R.Gizmo Model Plan) Identity (D.DList Command)
+gadget :: G.Gadget () Action (R.Gizmo Model Plan) (D.DList Command)
 gadget = do
     a <- ask
     case a of

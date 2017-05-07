@@ -124,7 +124,7 @@ type Outline = Design R.WithOutline
 instance R.ToOutline Model Outline where
     outline (Design a b c) = Design (R.outline a) (R.outline b) (R.outline c)
 
-mkModel :: R.ReactMlT Identity () -> Outline -> F (R.Maker Action) Model
+mkModel :: R.ReactMl () -> Outline -> F (R.Maker Action) Model
 mkModel separator (Design a b c) = Design
     <$> (R.hoistWithAction InputAction (R.mkGizmo' W.Input.widget a))
     <*> (R.hoistWithAction TodosAction (R.mkGizmo' (W.List.widget separator TD.Todo.widget) b))
@@ -259,7 +259,7 @@ For example, the [`List` widget](https://github.com/louispan/glazier-react-widge
 This is the starting rendering function to start the rendering. It always only renders the shim React component with the specific callbacks:
 
 ```haskell
-window :: WindowT (Design Model Plan) (ReactMlT Identity) ()
+window :: WindowT (Design Model Plan) ReactMl ()
 window = do
     s <- ask
     lift $ lf (s ^. component . to toJS)
@@ -276,14 +276,14 @@ This is the inner rendering function. React will render the shim component from 
 
 This contains the widget specific rendering instructions.
 ```haskell
-render :: WindowT (Design Model Plan) (ReactMlT Identity) ()
+render :: WindowT (Design Model Plan) ReactMl ()
 ```
 This a a monad transformer stack over `Identity`. This ensures only pure effects are allowed.
 
 ## gadget
 This contains the state update logic:
 ```haskell
-gadget :: G.GadgetT Action (R.SuperModel Model Plan) Identity (DList Command)
+gadget :: G.Gadget () Action (R.SuperModel Model Plan) (DList Command)
 ```
 This a a monad transformer stack over `Identity`. This ensures only pure effects are allowed.
 

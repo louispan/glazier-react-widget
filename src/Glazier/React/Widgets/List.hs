@@ -67,12 +67,13 @@ data Action k itemWidget
 data Schema k itemWidget t = Schema
     { _className :: J.JSString
     , _idx :: k
-    , _items :: M.Map k (R.SchemaType t itemWidget)
+    , _items :: M.Map k (R.Widget's t itemWidget)
     , _itemsFilter :: R.OutlineOf itemWidget -> Bool
     }
 
-type Model k itemWidget = Schema k itemWidget R.WithGizmo
-type Outline k itemWidget = Schema k itemWidget R.WithOutline
+type Model k itemWidget = Schema k itemWidget R.GizmoType
+type Outline k itemWidget = Schema k itemWidget R.OutlineType
+
 instance R.IsWidget itemWidget => R.ToOutline (Model k itemWidget) (Outline k itemWidget) where
     outline (Schema a b c d) = Schema a b (R.outline <$> c) d
 
@@ -123,17 +124,17 @@ instance (CD.Disposing (R.GizmoOf itemWidget)) =>
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
 instance HasPlan (R.Scene (Model k itemWidget) Plan) where
     plan = R.plan
-instance HasSchema (R.Scene (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
+instance HasSchema (R.Scene (Model k itemWidget) Plan) k itemWidget R.GizmoType where
     schema = R.model
 instance HasPlan (R.Gizmo (Model k itemWidget) Plan) where
     plan = R.scene . plan
-instance HasSchema (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.WithGizmo where
+instance HasSchema (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.GizmoType where
     schema = R.scene . schema
 
-type Widget k itemWidget = R.Widget (Command k itemWidget) (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan
+type Widget k itemWidget = R.Widget (R.ExceptionOf itemWidget) (Command k itemWidget) (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan
 widget
     :: (R.IsWidget itemWidget, Ord k)
-    => R.ReactMlT Identity ()
+    => R.ReactMl ()
     -> itemWidget
     -> Widget k itemWidget
 widget separator itemWidget = R.Widget
@@ -143,7 +144,7 @@ widget separator itemWidget = R.Widget
     (gadget (R.mkGizmo itemWidget) (R.gadget itemWidget))
 
 -- | Exposed to parent components to render this component
-window :: G.WindowT (R.Scene (Model k itemWidget) Plan) (R.ReactMlT Identity) ()
+window :: G.WindowT (R.Scene (Model k itemWidget) Plan) R.ReactMl ()
 window = do
     s <- ask
     lift $ R.lf (s ^. component . to JE.toJS')
@@ -156,8 +157,8 @@ window = do
 -- | Internal rendering used by the React render callback
 render
     :: R.IsWidget itemWidget => R.ReactMlT Identity ()
-    -> G.WindowT (R.SceneOf itemWidget) (R.ReactMlT Identity) ()
-    -> G.WindowT (R.Scene (Model k itemWidget) Plan) (R.ReactMlT Identity) ()
+    -> G.WindowT (R.SceneOf itemWidget) R.ReactMl ()
+    -> G.WindowT (R.Scene (Model k itemWidget) Plan) R.ReactMl ()
 render separator itemWindow = do
     s <- ask
     xs <- fmap (view R.scene) . filter ((s ^. itemsFilter) . R.outline . view R.model) . fmap snd .  M.toList <$> view items
@@ -171,8 +172,8 @@ render separator itemWindow = do
 gadget
     :: (Ord k, R.IsWidget itemWidget)
     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
-    -> G.GadgetT (R.ActionOf itemWidget) (R.GizmoOf itemWidget) Identity (D.DList (R.CommandOf itemWidget))
-    -> G.GadgetT (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) Identity (D.DList (Command k itemWidget))
+    -> G.Gadget (R.ExceptionOf itemWidget) (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
+    -> G.Gadget (R.ExceptionOf itemWidget) (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
 gadget mkItemGizmo itemGadget = do
     a <- ask
     case a of

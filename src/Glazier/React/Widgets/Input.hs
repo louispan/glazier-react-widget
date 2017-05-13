@@ -49,7 +49,6 @@ data Command
 data Action
     = SetPropertyAction JE.Property J.JSVal
     | SubmitAction J.JSString
-    | InputRefAction J.JSVal
 
 data Schema = Schema
     { _placeholder :: J.JSString
@@ -66,9 +65,7 @@ mkModel = pure
 data Plan = Plan
     { _component :: R.ReactComponent
     , _key :: J.JSString
-    , _inputRef :: J.JSVal
     , _onRender :: J.Callback (J.JSVal -> IO J.JSVal)
-    , _onInputRef :: J.Callback (J.JSVal -> IO ())
     , _onKeyDown :: J.Callback (J.JSVal -> IO ())
     } deriving (G.Generic)
 
@@ -80,9 +77,7 @@ mkPlan :: R.Frame Model Plan -> F (R.Maker Action) Plan
 mkPlan frm = Plan
     <$> R.getComponent
     <*> R.mkKey
-    <*> pure J.nullRef
     <*> (R.mkRenderer frm $ const render)
-    <*> (R.mkHandler $ pure . pure . InputRefAction)
     <*> (R.mkHandler onKeyDown')
 
 instance CD.Disposing Plan
@@ -164,7 +159,3 @@ gadget = do
 
         -- parent widgets should detect this case to do something with submitted action
         SubmitAction _ -> pure empty
-
-        InputRefAction v -> do
-            inputRef .= v
-            pure mempty

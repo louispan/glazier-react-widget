@@ -47,8 +47,8 @@ data Command
     = SetPropertyCommand JE.Property J.JSVal
 
 data Action
-    = SetPropertyAction JE.Property J.JSVal
-    | SubmitAction J.JSString
+    = SubmitAction J.JSVal J.JSString
+    | CancelAction J.JSVal
 
 data Schema = Schema
     { _placeholder :: J.JSString
@@ -144,18 +144,17 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
   where
     goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action]
     goLazy (ms, j) = pure $
-        SetPropertyAction ("value", JE.toJS' J.empty) j
-        : maybe [] (pure . SubmitAction) ms
+        maybe [CancelAction j] (pure . SubmitAction j) ms
 
 -- | State update logic.
 -- The best practice is to leave this in general Monad m (eg, not MonadIO).
 -- This allows gadget to use STM as the base monad which allows for combining concurrently
 -- with other stateful STM effects and still maintain a single source of truth.
-gadget :: G.Gadget () Action (R.Gizmo Model Plan) (D.DList Command)
+gadget :: G.Gadget Action () (R.Gizmo Model Plan) (D.DList Command)
 gadget = do
     a <- ask
     case a of
-        SetPropertyAction props j -> pure $ D.singleton $ SetPropertyCommand props j
-
         -- parent widgets should detect this case to do something with submitted action
-        SubmitAction _ -> pure empty
+        SubmitAction j _ -> pure $ D.singleton $ SetPropertyCommand ("value", JE.toJS' J.empty) j
+
+        CancelAction j -> pure $ D.singleton $ SetPropertyCommand ("value", JE.toJS' J.empty) j

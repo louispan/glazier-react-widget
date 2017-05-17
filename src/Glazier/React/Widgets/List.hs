@@ -172,8 +172,8 @@ render separator itemWindow = do
 gadget
     :: (Ord k, R.IsWidget itemWidget)
     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
-    -> G.Gadget (R.ExceptionOf itemWidget) (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
-    -> G.Gadget (R.ExceptionOf itemWidget) (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
+    -> G.Gadget (R.ActionOf itemWidget) (R.ExceptionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
+    -> G.Gadget (Action k itemWidget) (R.ExceptionOf itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
 gadget mkItemGizmo itemGadget = do
     a <- ask
     case a of

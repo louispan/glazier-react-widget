@@ -9,8 +9,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Widgets.Input
-    ( Command(..)
-    , Action(..)
+    ( Action(..)
     , AsAction(..)
     , Schema(..)
     , HasSchema(..)
@@ -22,6 +21,7 @@ module Glazier.React.Widgets.Input
     , widget
     , whenKeyDown
     , whenBlur
+    , resetGadget
     ) where
 
 import Control.Applicative
@@ -42,10 +42,10 @@ import qualified Glazier.React.Maker as R
 import qualified Glazier.React.Markup as R
 import qualified Glazier.React.Model as R
 import qualified Glazier.React.Widget as R
+import qualified Glazier.React.Gadgets.Property as G.Property
 import qualified JavaScript.Extras as JE
 
-data Command
-    = SetPropertyCommand JE.Property J.JSVal
+type Command = G.Property.Command
 
 data Action
     = SubmitAction J.JSVal J.JSString
@@ -107,7 +107,7 @@ widget = R.Widget
     mkModel
     mkPlan
     window
-    gadget
+    (pure mempty)
 
 -- | Exposed to parent components to render this component
 window :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
@@ -182,19 +182,10 @@ onChanged' = R.eventHandlerM whenChanged goLazy
     goLazy :: (J.JSVal, J.JSString) -> MaybeT IO [Action]
     goLazy (j, s) = pure [ChangedAction j s]
 
--- | State update logic.
--- The best practice is to leave this in general Monad m (eg, not MonadIO).
--- This allows gadget to use STM as the base monad which allows for combining concurrently
--- with other stateful STM effects and still maintain a single source of truth.
-gadget :: G.Gadget Action () (R.Gizmo Model Plan) (D.DList Command)
-gadget = do
+-- | Creates a gadget that rests the <input> value based on a predicate on Action.
+resetGadget :: (Action -> Maybe J.JSVal) -> G.Gadget Action () s (D.DList Command)
+resetGadget f = do
     a <- ask
-    case a of
-        -- parent widgets should detect this case to do something with submitted action
-        SubmitAction j _ -> pure $ D.singleton $ SetPropertyCommand ("value", JE.toJS' J.empty) j
-
-        CancelAction j -> pure $ D.singleton $ SetPropertyCommand ("value", JE.toJS' J.empty) j
-
-        BlurAction _ -> pure mempty
-
-        ChangedAction _ _ -> pure mempty
+    case f a of
+        Just j -> pure $ D.singleton $ G.Property.SetPropertyCommand j ("value", JE.toJS' J.empty)
+        Nothing -> pure mempty

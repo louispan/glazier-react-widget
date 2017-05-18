@@ -7,4 +7,4 @@ import Glazier.React.Gadgets.Property
 
 run :: Command -> IO ()
 
-run (SetPropertyCommand prop j) = JE.setProperty prop j
+run (SetPropertyCommand j prop) = JE.setProperty prop j

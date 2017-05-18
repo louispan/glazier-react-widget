@@ -15,7 +15,9 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Glazier.React.Widgets.Input
+  exposed-modules:     Glazier.React.Gadgets.Property
+                       Glazier.React.Gadgets.Property.Run
+                       Glazier.React.Widgets.Input
                        Glazier.React.Widgets.Input.Run
                        Glazier.React.Widgets.List
                        Glazier.React.Widgets.List.Run

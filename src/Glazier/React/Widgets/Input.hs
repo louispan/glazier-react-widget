@@ -21,6 +21,7 @@ module Glazier.React.Widgets.Input
     , Widget
     , widget
     , whenKeyDown
+    , whenBlur
     ) where
 
 import Control.Applicative
@@ -49,6 +50,8 @@ data Command
 data Action
     = SubmitAction J.JSVal J.JSString
     | CancelAction J.JSVal
+    | BlurAction J.JSVal
+    | ChangedAction J.JSVal J.JSString
 
 data Schema = Schema
     { _placeholder :: J.JSString
@@ -67,6 +70,8 @@ data Plan = Plan
     , _key :: J.JSString
     , _onRender :: J.Callback (J.JSVal -> IO J.JSVal)
     , _onKeyDown :: J.Callback (J.JSVal -> IO ())
+    , _onBlur :: J.Callback (J.JSVal -> IO ())
+    , _onChanged :: J.Callback (J.JSVal -> IO ())
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
@@ -79,6 +84,8 @@ mkPlan frm = Plan
     <*> R.mkKey
     <*> (R.mkRenderer frm $ const render)
     <*> (R.mkHandler onKeyDown')
+    <*> (R.mkHandler onBlur')
+    <*> (R.mkHandler onChanged')
 
 instance CD.Disposing Plan
 instance CD.Disposing Model where
@@ -94,7 +101,7 @@ instance HasPlan (R.Gizmo Model Plan) where
 instance HasSchema (R.Gizmo Model Plan) where
     schema = R.scene . schema
 
-type Widget = R.Widget () Command Action Outline Model Plan
+type Widget = R.Widget Action () Outline Model Plan Command
 widget :: Widget
 widget = R.Widget
     mkModel
@@ -121,9 +128,11 @@ render = do
         , ("placeholder", s ^. placeholder . to JE.toJS')
         , ("autoFocus", JE.toJS' True)
         , ("onKeyDown", s ^. onKeyDown . to JE.toJS')
+        , ("onBlur", s ^. onBlur . to JE.toJS')
+        , ("onChanged", s ^. onChanged . to JE.toJS')
         ]
 
-whenKeyDown :: J.JSVal -> MaybeT IO (Maybe J.JSString, J.JSVal)
+whenKeyDown :: J.JSVal -> MaybeT IO (J.JSVal, Maybe J.JSString)
 whenKeyDown evt = do
         sevt <- MaybeT $ pure $ JE.fromJS evt
         kevt <- MaybeT $ pure $ R.parseKeyboardEvent sevt
@@ -132,19 +141,46 @@ whenKeyDown evt = do
         input <- lift $ pure . JE.toJS . R.target $ evt'
         case k of
             -- FIXME: ESCAPE_KEY
-            27 -> pure (Nothing, input)
+            27 -> pure (input, Nothing)
             -- FIXME: ENTER_KEY
             13 -> do
                 v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" input
-                pure (Just v, input)
+                pure (input, Just v)
             _ -> empty
 
 onKeyDown' :: J.JSVal -> MaybeT IO [Action]
 onKeyDown' = R.eventHandlerM whenKeyDown goLazy
   where
-    goLazy :: (Maybe J.JSString, J.JSVal) -> MaybeT IO [Action]
-    goLazy (ms, j) = pure $
+    goLazy :: (J.JSVal, Maybe J.JSString) -> MaybeT IO [Action]
+    goLazy (j, ms) = pure $
         maybe [CancelAction j] (pure . SubmitAction j) ms
+
+whenBlur :: J.JSVal -> MaybeT IO J.JSVal
+whenBlur evt = do
+        sevt <- MaybeT $ pure $ JE.fromJS evt
+        let evt' = R.parseEvent sevt
+        lift $ pure . JE.toJS . R.target $ evt'
+
+onBlur' :: J.JSVal -> MaybeT IO [Action]
+onBlur' = R.eventHandlerM whenBlur goLazy
+  where
+    goLazy :: J.JSVal -> MaybeT IO [Action]
+    goLazy j = pure [BlurAction j]
+
+
+whenChanged :: J.JSVal -> MaybeT IO (J.JSVal, J.JSString)
+whenChanged evt = do
+        sevt <- MaybeT $ pure $ JE.fromJS evt
+        let evt' = R.parseEvent sevt
+        input <- lift $ pure . JE.toJS . R.target $ evt'
+        v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" input
+        pure (input, v)
+
+onChanged' :: J.JSVal -> MaybeT IO [Action]
+onChanged' = R.eventHandlerM whenChanged goLazy
+  where
+    goLazy :: (J.JSVal, J.JSString) -> MaybeT IO [Action]
+    goLazy (j, s) = pure [ChangedAction j s]
 
 -- | State update logic.
 -- The best practice is to leave this in general Monad m (eg, not MonadIO).
@@ -158,3 +194,7 @@ gadget = do
         SubmitAction j _ -> pure $ D.singleton $ SetPropertyCommand ("value", JE.toJS' J.empty) j
 
         CancelAction j -> pure $ D.singleton $ SetPropertyCommand ("value", JE.toJS' J.empty) j
+
+        BlurAction _ -> pure mempty
+
+        ChangedAction _ _ -> pure mempty

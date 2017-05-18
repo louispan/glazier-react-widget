@@ -131,7 +131,7 @@ instance HasPlan (R.Gizmo (Model k itemWidget) Plan) where
 instance HasSchema (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.GizmoType where
     schema = R.scene . schema
 
-type Widget k itemWidget = R.Widget (R.ExceptionOf itemWidget) (Command k itemWidget) (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan
+type Widget k itemWidget = R.Widget (Action k itemWidget) (R.ExceptionOf itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan (Command k itemWidget)
 widget
     :: (R.IsWidget itemWidget, Ord k)
     => R.ReactMl ()

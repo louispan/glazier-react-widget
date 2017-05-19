@@ -6,7 +6,7 @@ import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Free.Church
-import qualified Glazier.React.Component as R
+import qualified Glazier.React as R
 import qualified Glazier.React.Maker.Run as R.Maker
 import Glazier.React.Commands.Maker
 import qualified Pipes.Concurrent as PC

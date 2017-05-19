@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -41,17 +40,12 @@ import qualified Data.JSString as J
 import qualified Data.List as DL
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
-import qualified GHCJS.Foreign.Callback as J
-import qualified GHCJS.Types as J
 import qualified Glazier as G
+import qualified Glazier.React as R
 import qualified Glazier.React.Commands.Maker as C.Maker
 import qualified Glazier.React.Gadgets.Render as G.Render
 import qualified Glazier.React.Gadgets.Dispose as G.Dispose
-import qualified Glazier.React.Component as R
-import qualified Glazier.React.Maker as R
-import qualified Glazier.React.Markup as R
-import qualified Glazier.React.Model as R
-import qualified Glazier.React.Widget as R
+import qualified Glazier.React.Windows.Component as WComponent
 import qualified JavaScript.Extras as JE
 
 data Command' k itemWidget = ItemCommand k (R.CommandOf itemWidget)
@@ -95,11 +89,9 @@ mkModel w (Schema a b c d) = Schema
     <*> pure d
 
 data Plan = Plan
-    { _renderPlan :: G.Render.Plan
+    { _componentPlan :: WComponent.Plan
+    , _renderPlan :: G.Render.Plan
     , _disposePlan :: G.Dispose.Plan
-    , _component :: R.ReactComponent
-    , _key :: J.JSString
-    , _onRender ::  J.Callback (J.JSVal -> IO J.JSVal)
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
@@ -113,11 +105,9 @@ mkPlan
     -> R.Frame (Model k itemWidget) Plan
     -> F (R.Maker (Action k itemWidget)) Plan
 mkPlan separator itemWindow frm = Plan
-    <$> (R.hoistWithAction RenderAction G.Render.mkPlan)
+    <$> (WComponent.mkPlan (render separator itemWindow) frm)
+    <*> (R.hoistWithAction RenderAction G.Render.mkPlan)
     <*> (R.hoistWithAction DisposeAction G.Dispose.mkPlan)
-    <*> R.getComponent
-    <*> R.mkKey
-    <*> (R.mkRenderer frm $ const (render separator itemWindow))
 
 instance CD.Disposing Plan
 -- | Undecidable instances because itemWidget appears more often in the constraint
@@ -135,6 +125,12 @@ instance HasPlan (R.Gizmo (Model k itemWidget) Plan) where
     plan = R.scene . plan
 instance HasSchema (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.GizmoType where
     schema = R.scene . schema
+
+-- link the HasPlan for the composites
+instance WComponent.HasPlan (R.Scene (Model k itemWidget) Plan) where
+    plan = R.plan . componentPlan
+instance WComponent.HasPlan (R.Gizmo (Model k itemWidget) Plan) where
+    plan = R.scene . WComponent.plan
 
 instance G.Render.HasPlan (R.Scene (Model k itemWidget) Plan) where
     plan = R.plan . renderPlan
@@ -162,13 +158,7 @@ widget separator itemWidget = R.Widget
 window :: G.WindowT (R.Scene (Model k itemWidget) Plan) R.ReactMl ()
 window = do
     s <- ask
-    lift $ R.lf (s ^. component . to JE.toJS')
-        [ ("key",  s ^. key . to JE.toJS')
-        , ("render", s ^. onRender . to JE.toJS')
-        -- TODO: How ot make sure we don't forget to attach these listeners?
-        , ("ref", s ^. G.Render.onComponentRef . to JE.toJS')
-        , ("componentDidUpdate", s ^. G.Dispose.onComponentDidUpdate . to JE.toJS')
-        ]
+    WComponent.window $ foldMap ($ s) [G.Render.windowProps, G.Dispose.windowProps]
 
 -- | Internal rendering used by the React render callback
 render
@@ -178,10 +168,10 @@ render
 render separator itemWindow = do
     s <- ask
     xs <- fmap (view R.scene) . filter ((s ^. itemsFilter) . R.outline . view R.model) . fmap snd .  M.toList <$> view items
-    lift $ R.bh "ul" [ ("key", s ^. key . to JE.toJS')
+    lift $ R.bh "ul" [ ("key", s ^. WComponent.key . to JE.toJS')
                      , ("className", s ^. className . to JE.toJS')
                      ] $ do
-        let itemsWindows = (view G._WindowT itemWindow) <$> xs
+        let itemsWindows = view G._WindowT itemWindow <$> xs
             separatedWindows = DL.intersperse separator itemsWindows
         sequenceA_ separatedWindows
 

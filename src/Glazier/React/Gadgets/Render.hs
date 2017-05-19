@@ -9,6 +9,7 @@ module Glazier.React.Gadgets.Render
     , Plan(..)
     , HasPlan(..)
     , mkPlan
+    , windowProps
     , gadget
     ) where
 
@@ -22,7 +23,7 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified GHC.Generics as G
 import qualified Glazier as G
-import qualified Glazier.React.Maker as R
+import qualified Glazier.React as R
 import qualified JavaScript.Extras as JE
 
 data Command gz = RenderCommand gz [JE.Property] J.JSVal
@@ -44,6 +45,9 @@ mkPlan = Plan
     <$> pure 0
     <*> pure J.nullRef
     <*> (R.mkHandler $ pure . pure . ComponentRefAction)
+
+windowProps :: HasPlan s => s -> [JE.Property]
+windowProps s = [("ref", s ^. onComponentRef . to JE.toJS')]
 
 instance CD.Disposing Plan
 

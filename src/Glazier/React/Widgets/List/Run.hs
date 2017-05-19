@@ -7,11 +7,10 @@ module Glazier.React.Widgets.List.Run
     ) where
 
 import Control.Concurrent.MVar
-import qualified Glazier.React.Component as R
+import qualified Glazier.React as R
 import qualified Glazier.React.Commands.Maker.Run as C.Maker
 import qualified Glazier.React.Gadgets.Render.Run as G.Render
 import qualified Glazier.React.Gadgets.Dispose.Run as G.Dispose
-import qualified Glazier.React.Widget as R
 import Glazier.React.Widgets.List as W.List
 import qualified Pipes.Concurrent as PC
 

@@ -9,6 +9,7 @@ module Glazier.React.Gadgets.Dispose
     , Plan(..)
     , HasPlan(..)
     , mkPlan
+    , windowProps
     , gadget
     ) where
 
@@ -21,7 +22,8 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified GHC.Generics as G
 import qualified Glazier as G
-import qualified Glazier.React.Maker as R
+import qualified Glazier.React as R
+import qualified JavaScript.Extras as JE
 
 newtype Command = DisposeCommand CD.SomeDisposable
 
@@ -38,6 +40,9 @@ mkPlan :: F (R.Maker Action) Plan
 mkPlan = Plan
     <$> pure mempty
     <*> (R.mkHandler $ pure . pure . const DisposeAction)
+
+windowProps :: HasPlan s => s -> [JE.Property]
+windowProps s = [("componentDidUpdate", s ^. onComponentDidUpdate . to JE.toJS')]
 
 instance CD.Disposing Plan
 

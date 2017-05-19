@@ -35,13 +35,9 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
-import qualified Glazier.React.Component as R
-import qualified Glazier.React.Event as R
-import qualified Glazier.React.Maker as R
-import qualified Glazier.React.Markup as R
-import qualified Glazier.React.Model as R
-import qualified Glazier.React.Widget as R
+import qualified Glazier.React as R
 import qualified Glazier.React.Gadgets.Property as G.Property
+import qualified Glazier.React.Windows.Component as WComponent
 import qualified JavaScript.Extras as JE
 
 type Command = G.Property.Command
@@ -66,9 +62,7 @@ mkModel :: Outline -> F (R.Maker Action) Model
 mkModel = pure
 
 data Plan = Plan
-    { _component :: R.ReactComponent
-    , _key :: J.JSString
-    , _onRender :: J.Callback (J.JSVal -> IO J.JSVal)
+    { _componentPlan :: WComponent.Plan
     , _onKeyDown :: J.Callback (J.JSVal -> IO ())
     , _onBlur :: J.Callback (J.JSVal -> IO ())
     , _onChanged :: J.Callback (J.JSVal -> IO ())
@@ -80,9 +74,7 @@ makeClassy ''Schema
 
 mkPlan :: R.Frame Model Plan -> F (R.Maker Action) Plan
 mkPlan frm = Plan
-    <$> R.getComponent
-    <*> R.mkKey
-    <*> (R.mkRenderer frm $ const render)
+    <$> (WComponent.mkPlan render frm)
     <*> (R.mkHandler onKeyDown')
     <*> (R.mkHandler onBlur')
     <*> (R.mkHandler onChanged')
@@ -101,6 +93,13 @@ instance HasPlan (R.Gizmo Model Plan) where
 instance HasSchema (R.Gizmo Model Plan) where
     schema = R.scene . schema
 
+
+-- link the HasPlan for the composites
+instance WComponent.HasPlan (R.Scene Model Plan) where
+    plan = R.plan . componentPlan
+instance WComponent.HasPlan (R.Gizmo Model Plan) where
+    plan = R.scene . WComponent.plan
+
 type Widget = R.Widget Action Outline Model Plan Command
 widget :: Widget
 widget = R.Widget
@@ -111,19 +110,14 @@ widget = R.Widget
 
 -- | Exposed to parent components to render this component
 window :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
-window = do
-    s <- ask
-    lift $ R.lf (s ^. component . to JE.toJS')
-        [ ("key",  s ^. key . to JE.toJS')
-        , ("render", s ^. onRender . to JE.toJS')
-        ]
+window = WComponent.window []
 
 -- | Internal rendering used by the React render callback
 render :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
 render = do
     s <- ask
     lift $ R.lf "input"
-        [ ("key", s ^. key . to JE.toJS')
+        [ ("key", s ^. WComponent.key . to JE.toJS')
         , ("className", s ^. className . to JE.toJS')
         , ("placeholder", s ^. placeholder . to JE.toJS')
         , ("autoFocus", JE.toJS' True)

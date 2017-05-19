@@ -10,11 +10,11 @@ module Glazier.React.Widgets.List.Run
 
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import qualified Control.Disposable as CD
 import Control.Monad
 import Control.Monad.Free.Church
 import qualified Glazier.React.Component as R
-import qualified Glazier.React.Command.Run as R
+import qualified Glazier.React.Gadgets.Render.Run as G.Render
+import qualified Glazier.React.Gadgets.Dispose.Run as G.Dispose
 import qualified Glazier.React.Maker.Run as R.Maker
 import qualified Glazier.React.Widget as R
 import Glazier.React.Widgets.List as W.List
@@ -28,9 +28,9 @@ run
     -> Command k itemWidget
     -> IO ()
 
-run _ _ _ _ (RenderCommand sm props j) = R.componentSetState sm props j
+run _ _ _ _ (RenderCommand cmd) = G.Render.run cmd
 
-run _ _ _ _ (DisposeCommand x) = CD.dispose x
+run _ _ _ _ (DisposeCommand cmd) = G.Dispose.run cmd
 
 run _ muid comp output (MakerCommand mks) = do
     act <- iterM (R.Maker.run muid comp output) mks

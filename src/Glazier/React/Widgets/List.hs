@@ -40,7 +40,8 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
-import qualified Glazier.React.Command as R
+import qualified Glazier.React.Gadgets.Render as G.Render
+import qualified Glazier.React.Gadgets.Dispose as G.Dispose
 import qualified Glazier.React.Component as R
 import qualified Glazier.React.Maker as R
 import qualified Glazier.React.Markup as R
@@ -49,15 +50,16 @@ import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
 data Command k itemWidget
-    = RenderCommand (R.Gizmo (Model k itemWidget) Plan) [JE.Property] J.JSVal
-    | DisposeCommand CD.SomeDisposable
+    = RenderCommand (G.Render.Command (R.Gizmo (Model k itemWidget) Plan))
+    | DisposeCommand G.Dispose.Command
     | MakerCommand (F (R.Maker (Action k itemWidget)) (Action k itemWidget))
     | ItemCommand k (R.CommandOf itemWidget)
 
+-- LOUISFIXME: data ListAction
+
 data Action k itemWidget
-    = ComponentRefAction J.JSVal
-    | RenderAction
-    | ComponentDidUpdateAction
+    = RenderAction G.Render.Action
+    | DisposeAction G.Dispose.Action
     | DestroyItemAction k
     | MakeItemAction (k -> k) (k -> F (R.Maker (R.ActionOf itemWidget)) (R.ModelOf itemWidget))
     | AddItemAction k (R.GizmoOf itemWidget)
@@ -85,14 +87,11 @@ mkModel w (Schema a b c d) = Schema
     <*> pure d
 
 data Plan = Plan
-    { _component :: R.ReactComponent
+    { _renderPlan :: G.Render.Plan
+    , _disposePlan :: G.Dispose.Plan
+    , _component :: R.ReactComponent
     , _key :: J.JSString
-    , _frameNum :: Int
-    , _componentRef :: J.JSVal
-    , _deferredDisposables :: D.DList CD.SomeDisposable
     , _onRender ::  J.Callback (J.JSVal -> IO J.JSVal)
-    , _onComponentRef :: J.Callback (J.JSVal -> IO ())
-    , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
@@ -105,14 +104,11 @@ mkPlan
     -> R.Frame (Model k itemWidget) Plan
     -> F (R.Maker (Action k itemWidget)) Plan
 mkPlan separator itemWindow frm = Plan
-    <$> R.getComponent
+    <$> (R.hoistWithAction RenderAction G.Render.mkPlan)
+    <*> (R.hoistWithAction DisposeAction G.Dispose.mkPlan)
+    <*> R.getComponent
     <*> R.mkKey
-    <*> pure 0
-    <*> pure J.nullRef
-    <*> pure mempty
     <*> (R.mkRenderer frm $ const (render separator itemWindow))
-    <*> (R.mkHandler $ pure . pure . ComponentRefAction)
-    <*> (R.mkHandler $ pure . pure . const ComponentDidUpdateAction)
 
 instance CD.Disposing Plan
 -- | Undecidable instances because itemWidget appears more often in the constraint
@@ -131,7 +127,17 @@ instance HasPlan (R.Gizmo (Model k itemWidget) Plan) where
 instance HasSchema (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.GizmoType where
     schema = R.scene . schema
 
-type Widget k itemWidget = R.Widget (Action k itemWidget) (R.ExceptionOf itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan (Command k itemWidget)
+instance G.Render.HasPlan (R.Scene (Model k itemWidget) Plan) where
+    plan = R.plan . renderPlan
+instance G.Render.HasPlan (R.Gizmo (Model k itemWidget) Plan) where
+    plan = R.scene . G.Render.plan
+
+instance G.Dispose.HasPlan (R.Scene (Model k itemWidget) Plan) where
+    plan = R.plan . disposePlan
+instance G.Dispose.HasPlan (R.Gizmo (Model k itemWidget) Plan) where
+    plan = R.scene . G.Dispose.plan
+
+type Widget k itemWidget = R.Widget (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan (Command k itemWidget)
 widget
     :: (R.IsWidget itemWidget, Ord k)
     => R.ReactMl ()
@@ -150,8 +156,9 @@ window = do
     lift $ R.lf (s ^. component . to JE.toJS')
         [ ("key",  s ^. key . to JE.toJS')
         , ("render", s ^. onRender . to JE.toJS')
-        , ("ref", s ^. onComponentRef . to JE.toJS')
-        , ("componentDidUpdate", s ^. onComponentDidUpdate . to JE.toJS')
+        -- LOUISFIXME: How ot make sure we don't forget to attach these listeners?
+        , ("ref", s ^. G.Render.onComponentRef . to JE.toJS')
+        , ("componentDidUpdate", s ^. G.Dispose.onComponentDidUpdate . to JE.toJS')
         ]
 
 -- | Internal rendering used by the React render callback
@@ -172,34 +179,24 @@ render separator itemWindow = do
 gadget
     :: (Ord k, R.IsWidget itemWidget)
     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
-    -> G.Gadget (R.ActionOf itemWidget) (R.ExceptionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
-    -> G.Gadget (Action k itemWidget) (R.ExceptionOf itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
+    -> G.Gadget (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
+    -> G.Gadget (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
 gadget mkItemGizmo itemGadget = do
     a <- ask
     case a of
-        ComponentRefAction node -> do
-            componentRef .= node
-            pure mempty
+        RenderAction _ -> fmap RenderCommand <$> magnify _RenderAction G.Render.gadget
 
-        RenderAction ->
-            D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
-
-        ComponentDidUpdateAction -> do
-            -- Run delayed commands that need to wait until frame is re-rendered
-            -- Eg focusing after other rendering changes
-            ds <- use deferredDisposables
-            deferredDisposables .= mempty
-            pure . D.singleton . DisposeCommand . CD.DisposeList $ D.toList ds
+        DisposeAction _ -> fmap DisposeCommand <$> magnify _DisposeAction G.Dispose.gadget
 
         DestroyItemAction k -> do
             -- queue up callbacks to be released after rerendering
             ret <- runMaybeT $ do
                 itemGizmo <- MaybeT $ use (items . at k)
-                deferredDisposables %= (`D.snoc` CD.disposing itemGizmo)
+                G.Dispose.deferredDisposables %= (`D.snoc` CD.disposing itemGizmo)
                 -- Remove the todo from the model
                 items %= M.delete k
                 -- on re-render the todo Shim will not get rendered and will be removed by react
-                D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
+                lift renderGadget
             maybe (pure mempty) pure ret
 
         MakeItemAction keyMaker itemModelMaker -> do
@@ -212,7 +209,7 @@ gadget mkItemGizmo itemGadget = do
 
         AddItemAction n v -> do
             items %= M.insert n v
-            D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
+            renderGadget
 
         ItemAction k _ -> fmap (ItemCommand k) <$>
             (magnify (_ItemAction . to snd)
@@ -220,4 +217,7 @@ gadget mkItemGizmo itemGadget = do
 
         SetFilterAction ftr -> do
             itemsFilter .= ftr
-            D.singleton <$> (R.basicRenderCmd frameNum componentRef RenderCommand)
+            renderGadget
+
+renderGadget :: G.Gadget a (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
+renderGadget = fmap RenderCommand <$> G.withGadgetT G.Render.RenderAction G.Render.gadget

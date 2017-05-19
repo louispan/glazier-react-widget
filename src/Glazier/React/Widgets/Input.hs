@@ -101,7 +101,7 @@ instance HasPlan (R.Gizmo Model Plan) where
 instance HasSchema (R.Gizmo Model Plan) where
     schema = R.scene . schema
 
-type Widget = R.Widget Action () Outline Model Plan Command
+type Widget = R.Widget Action Outline Model Plan Command
 widget :: Widget
 widget = R.Widget
     mkModel
@@ -183,7 +183,7 @@ onChanged' = R.eventHandlerM whenChanged goLazy
     goLazy (j, s) = pure [ChangedAction j s]
 
 -- | Creates a gadget that rests the <input> value based on a predicate on Action.
-resetGadget :: (Action -> Maybe J.JSVal) -> G.Gadget Action () s (D.DList Command)
+resetGadget :: (Action -> Maybe J.JSVal) -> G.Gadget Action s (D.DList Command)
 resetGadget f = do
     a <- ask
     case f a of

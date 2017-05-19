@@ -1,9 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-
 module Glazier.React.Gadgets.Property
     ( Command(..)
     , Action(..)
@@ -22,11 +16,22 @@ data Command
 data Action
     = SetPropertyAction J.JSVal JE.Property
 
--- | State update logic.
--- The best practice is to leave this in general Monad m (eg, not MonadIO).
--- This allows gadget to use STM as the base monad which allows for combining concurrently
--- with other stateful STM effects and still maintain a single source of truth.
-gadget :: G.Gadget Action () s (D.DList Command)
+-- makeClassyPrisms ''Action
+-- class AsAction r where
+--     _Action :: Prism' r Action
+--     _SetPropertyAction :: Prism' r (J.JSVal, JE.Property)
+--     _SetPropertyAction = (.) _Action _SetPropertyAction
+
+-- instance AsAction Action where
+--     _Action = id
+--     _SetPropertyAction =
+--         prism
+--             (\(j, s) -> SetPropertyAction j s)
+--             (\x ->
+--                  case x of
+--                      SetPropertyAction j s -> Right (j, s))
+
+gadget :: G.Gadget Action s (D.DList Command)
 gadget = do
     a <- ask
     case a of

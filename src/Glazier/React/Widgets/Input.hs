@@ -50,8 +50,8 @@ data Action
     | ResetAction J.JSVal
 
 data Schema = Schema
-    { _placeholder :: J.JSString
-    , _className :: J.JSString
+    { _className :: J.JSString
+    , _placeholder :: J.JSString
     }
 
 type Model = Schema

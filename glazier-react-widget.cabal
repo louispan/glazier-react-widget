@@ -15,7 +15,9 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Glazier.React.Gadgets.Dispose
+  exposed-modules:     Glazier.React.Commands.Maker
+                       Glazier.React.Commands.Maker.Run
+                       Glazier.React.Gadgets.Dispose
                        Glazier.React.Gadgets.Dispose.Run
                        Glazier.React.Gadgets.Property
                        Glazier.React.Gadgets.Property.Run

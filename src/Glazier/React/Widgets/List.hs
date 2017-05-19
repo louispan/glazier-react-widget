@@ -13,8 +13,11 @@
 
 module Glazier.React.Widgets.List
     ( Command(..)
+    , Command'(..)
     , Action(..)
     , AsAction(..)
+    , Action'(..)
+    , AsAction'(..)
     , Schema(..)
     , HasSchema(..)
     , Plan(..)
@@ -25,6 +28,7 @@ module Glazier.React.Widgets.List
     , widget
     ) where
 
+import Control.Applicative
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Free.Church
@@ -40,6 +44,7 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
+import qualified Glazier.React.Commands.Maker as C.Maker
 import qualified Glazier.React.Gadgets.Render as G.Render
 import qualified Glazier.React.Gadgets.Dispose as G.Dispose
 import qualified Glazier.React.Component as R
@@ -49,22 +54,25 @@ import qualified Glazier.React.Model as R
 import qualified Glazier.React.Widget as R
 import qualified JavaScript.Extras as JE
 
+data Command' k itemWidget = ItemCommand k (R.CommandOf itemWidget)
+
 data Command k itemWidget
     = RenderCommand (G.Render.Command (R.Gizmo (Model k itemWidget) Plan))
     | DisposeCommand G.Dispose.Command
-    | MakerCommand (F (R.Maker (Action k itemWidget)) (Action k itemWidget))
-    | ItemCommand k (R.CommandOf itemWidget)
+    | MakerCommand (C.Maker.Command (Action k itemWidget))
+    | ListCommand (Command' k itemWidget)
 
--- LOUISFIXME: data ListAction
-
-data Action k itemWidget
-    = RenderAction G.Render.Action
-    | DisposeAction G.Dispose.Action
-    | DestroyItemAction k
+data Action' k itemWidget
+    = DestroyItemAction k
     | MakeItemAction (k -> k) (k -> F (R.Maker (R.ActionOf itemWidget)) (R.ModelOf itemWidget))
     | AddItemAction k (R.GizmoOf itemWidget)
     | ItemAction k (R.ActionOf itemWidget)
     | SetFilterAction (R.OutlineOf itemWidget -> Bool)
+
+data Action k itemWidget
+    = RenderAction G.Render.Action
+    | DisposeAction G.Dispose.Action
+    | ListAction (Action' k itemWidget)
 
 data Schema k itemWidget t = Schema
     { _className :: J.JSString
@@ -83,7 +91,7 @@ mkModel :: R.IsWidget itemWidget => itemWidget -> Outline k itemWidget -> F (R.M
 mkModel w (Schema a b c d) = Schema
     <$> pure a
     <*> pure b
-    <*> M.traverseWithKey (\k i -> R.hoistWithAction (ItemAction k) (R.mkGizmo' w i)) c
+    <*> M.traverseWithKey (\k i -> R.hoistWithAction (ListAction . ItemAction k) (R.mkGizmo' w i)) c
     <*> pure d
 
 data Plan = Plan
@@ -95,6 +103,7 @@ data Plan = Plan
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
+makeClassyPrisms ''Action'
 makeClassy ''Schema
 makeClassy ''Plan
 
@@ -156,7 +165,7 @@ window = do
     lift $ R.lf (s ^. component . to JE.toJS')
         [ ("key",  s ^. key . to JE.toJS')
         , ("render", s ^. onRender . to JE.toJS')
-        -- LOUISFIXME: How ot make sure we don't forget to attach these listeners?
+        -- TODO: How ot make sure we don't forget to attach these listeners?
         , ("ref", s ^. G.Render.onComponentRef . to JE.toJS')
         , ("componentDidUpdate", s ^. G.Dispose.onComponentDidUpdate . to JE.toJS')
         ]
@@ -181,13 +190,19 @@ gadget
     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
     -> G.Gadget (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
     -> G.Gadget (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
-gadget mkItemGizmo itemGadget = do
+gadget mkItemGizmo itemGadget =
+        (fmap RenderCommand <$> magnify _RenderAction G.Render.gadget)
+    <|> (fmap DisposeCommand <$> magnify _DisposeAction G.Dispose.gadget)
+    <|> (magnify _ListAction (listGadget mkItemGizmo itemGadget))
+
+listGadget
+    :: (Ord k, R.IsWidget itemWidget)
+    => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
+    -> G.Gadget (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
+    -> G.Gadget (Action' k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
+listGadget mkItemGizmo itemGadget = do
     a <- ask
     case a of
-        RenderAction _ -> fmap RenderCommand <$> magnify _RenderAction G.Render.gadget
-
-        DisposeAction _ -> fmap DisposeCommand <$> magnify _DisposeAction G.Dispose.gadget
-
         DestroyItemAction k -> do
             -- queue up callbacks to be released after rerendering
             ret <- runMaybeT $ do
@@ -196,28 +211,27 @@ gadget mkItemGizmo itemGadget = do
                 -- Remove the todo from the model
                 items %= M.delete k
                 -- on re-render the todo Shim will not get rendered and will be removed by react
-                lift renderGadget
+                lift doRender
             maybe (pure mempty) pure ret
 
         MakeItemAction keyMaker itemModelMaker -> do
             n <- keyMaker <$> use idx
             idx .= n
-            pure $ D.singleton $ MakerCommand $ do
-                sm <- R.hoistWithAction (ItemAction n) (
+            pure $ D.singleton $ MakerCommand $ C.Maker.MakerCommand $ do
+                sm <- R.hoistWithAction (ListAction . ItemAction n) (
                     itemModelMaker n >>= mkItemGizmo)
-                pure $ AddItemAction n sm
+                pure . ListAction $ AddItemAction n sm
 
         AddItemAction n v -> do
             items %= M.insert n v
-            renderGadget
+            doRender
 
-        ItemAction k _ -> fmap (ItemCommand k) <$>
+        ItemAction k _ -> fmap (ListCommand . ItemCommand k) <$>
             (magnify (_ItemAction . to snd)
             (zoom (items . at k . _Just) itemGadget))
 
         SetFilterAction ftr -> do
             itemsFilter .= ftr
-            renderGadget
-
-renderGadget :: G.Gadget a (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
-renderGadget = fmap RenderCommand <$> G.withGadgetT G.Render.RenderAction G.Render.gadget
+            doRender
+  where
+      doRender = fmap RenderCommand <$> G.withGadgetT G.Render.RenderAction G.Render.gadget

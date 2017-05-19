@@ -21,7 +21,6 @@ module Glazier.React.Widgets.Input
     , widget
     , whenKeyDown
     , whenBlur
-    , resetGadget
     ) where
 
 import Control.Applicative
@@ -52,6 +51,7 @@ data Action
     | CancelAction J.JSVal
     | BlurAction J.JSVal
     | ChangedAction J.JSVal J.JSString
+    | ResetAction J.JSVal
 
 data Schema = Schema
     { _placeholder :: J.JSString
@@ -107,7 +107,7 @@ widget = R.Widget
     mkModel
     mkPlan
     window
-    (pure mempty)
+    gadget
 
 -- | Exposed to parent components to render this component
 window :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
@@ -182,10 +182,9 @@ onChanged' = R.eventHandlerM whenChanged goLazy
     goLazy :: (J.JSVal, J.JSString) -> MaybeT IO [Action]
     goLazy (j, s) = pure [ChangedAction j s]
 
--- | Creates a gadget that rests the <input> value based on a predicate on Action.
-resetGadget :: (Action -> Maybe J.JSVal) -> G.Gadget Action s (D.DList Command)
-resetGadget f = do
+gadget :: G.Gadget Action s (D.DList Command)
+gadget = do
     a <- ask
-    case f a of
-        Just j -> pure $ D.singleton $ G.Property.SetPropertyCommand j ("value", JE.toJS' J.empty)
-        Nothing -> pure mempty
+    case a of
+        ResetAction j -> pure $ D.singleton $ G.Property.SetPropertyCommand j ("value", JE.toJS' J.empty)
+        _ -> pure mempty

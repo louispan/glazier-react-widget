@@ -111,8 +111,8 @@ widget fprops = R.Widget
     gadget
 
 -- | Exposed to parent components to render this component
-window :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
-window = WComponent.window []
+window :: R.HasScene scn Model Plan => G.WindowT scn R.ReactMl ()
+window = magnify (R.scene . componentPlan) (WComponent.window [])
 
 -- | Internal rendering used by the React render callback
 render :: R.HasScene scn Model Plan => (scn -> [JE.Property]) -> G.WindowT scn R.ReactMl ()

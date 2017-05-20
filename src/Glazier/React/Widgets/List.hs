@@ -157,10 +157,13 @@ widget separator itemWidget = R.Widget
     (gadget (R.mkGizmo itemWidget) (R.gadget itemWidget))
 
 -- | Exposed to parent components to render this component
-window :: G.WindowT (R.Scene (Model k itemWidget) Plan) R.ReactMl ()
+window :: R.HasScene scn (Model k itemWidget) Plan => G.WindowT scn R.ReactMl ()
 window = do
-    s <- ask
-    WComponent.window $ foldMap ($ s) [G.Render.windowProps, G.Dispose.windowProps]
+    s <- view R.scene
+    magnify
+        (R.scene . componentPlan)
+        (WComponent.window $
+         foldMap ($ s) [G.Render.windowProps, G.Dispose.windowProps])
 
 -- | Internal rendering used by the React render callback
 render
@@ -186,11 +189,11 @@ render separator itemWindow = do
         sequenceA_ separatedWindows
 
 gadget
-    :: (Ord k, R.IsWidget itemWidget)
+    :: (R.HasGizmo giz (Model k itemWidget) Plan, Ord k, R.IsWidget itemWidget)
     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
     -> G.Gadget (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
-    -> G.Gadget (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
-gadget mkItemGizmo itemGadget =
+    -> G.Gadget (Action k itemWidget) giz (D.DList (Command k itemWidget))
+gadget mkItemGizmo itemGadget = zoom R.gizmo $
         (fmap RenderCommand <$> magnify _RenderAction G.Render.gadget)
     <|> (fmap DisposeCommand <$> magnify _DisposeAction G.Dispose.gadget)
     <|> (magnify _ListAction (listGadget mkItemGizmo itemGadget))

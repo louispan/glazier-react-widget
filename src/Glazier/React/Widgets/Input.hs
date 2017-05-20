@@ -5,6 +5,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -24,6 +25,7 @@ module Glazier.React.Widgets.Input
     ) where
 
 import Control.Applicative
+import Control.Concurrent.MVar
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Free.Church
@@ -72,9 +74,9 @@ makeClassyPrisms ''Action
 makeClassy ''Plan
 makeClassy ''Schema
 
-mkPlan :: R.Frame Model Plan -> F (R.Maker Action) Plan
-mkPlan frm = Plan
-    <$> (WComponent.mkPlan render frm)
+mkPlan :: R.HasScene scn Model Plan => (scn -> [JE.Property]) -> MVar scn -> F (R.Maker Action) Plan
+mkPlan fprops frm = Plan
+    <$> (WComponent.mkPlan (render fprops) frm)
     <*> (R.mkHandler onKeyDown')
     <*> (R.mkHandler onBlur')
     <*> (R.mkHandler onChanged')
@@ -93,7 +95,6 @@ instance HasPlan (R.Gizmo Model Plan) where
 instance HasSchema (R.Gizmo Model Plan) where
     schema = R.scene . schema
 
-
 -- link the HasPlan for the composites
 instance WComponent.HasPlan (R.Scene Model Plan) where
     plan = R.plan . componentPlan
@@ -101,10 +102,11 @@ instance WComponent.HasPlan (R.Gizmo Model Plan) where
     plan = R.scene . WComponent.plan
 
 type Widget = R.Widget Action Outline Model Plan Command
-widget :: Widget
-widget = R.Widget
+
+widget :: (forall scn. R.HasScene scn Model Plan => scn -> [JE.Property]) -> Widget
+widget fprops = R.Widget
     mkModel
-    mkPlan
+    (mkPlan fprops)
     window
     gadget
 
@@ -113,18 +115,19 @@ window :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
 window = WComponent.window []
 
 -- | Internal rendering used by the React render callback
-render :: G.WindowT (R.Scene Model Plan) R.ReactMl ()
-render = do
+render :: R.HasScene scn Model Plan => (scn -> [JE.Property]) -> G.WindowT scn R.ReactMl ()
+render fprops = do
     s <- ask
-    lift $ R.lf "input"
-        [ ("key", s ^. WComponent.key . to JE.toJS')
-        , ("className", s ^. className . to JE.toJS')
-        , ("placeholder", s ^. placeholder . to JE.toJS')
+    lift . R.lf "input" $
+        [ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
+        , ("className", s ^. R.scene . className . to JE.toJS')
+        , ("placeholder", s ^. R.scene . placeholder . to JE.toJS')
         , ("autoFocus", JE.toJS' True)
-        , ("onKeyDown", s ^. onKeyDown . to JE.toJS')
-        , ("onBlur", s ^. onBlur . to JE.toJS')
-        , ("onChanged", s ^. onChanged . to JE.toJS')
-        ]
+        , ("onKeyDown", s ^. R.scene . onKeyDown . to JE.toJS')
+        , ("onBlur", s ^. R.scene . onBlur . to JE.toJS')
+        , ("onChanged", s ^. R.scene . onChanged . to JE.toJS')
+        ] ++
+        fprops s
 
 whenKeyDown :: J.JSVal -> MaybeT IO (J.JSVal, Maybe J.JSString)
 whenKeyDown evt = do

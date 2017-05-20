@@ -10,6 +10,7 @@ module Glazier.React.Windows.Component
     , window
     ) where
 
+import Control.Concurrent.MVar
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Free.Church
@@ -29,8 +30,8 @@ data Plan = Plan
 
 makeClassy ''Plan
 
-mkPlan :: G.WindowT (R.Scene mdl pln) R.ReactMl ()
-    -> R.Frame mdl pln
+mkPlan :: R.HasScene scn mdl pln => G.WindowT scn R.ReactMl ()
+    -> MVar scn
     -> F (R.Maker a) Plan
 mkPlan render frm = Plan
     <$> R.getComponent

@@ -28,6 +28,7 @@ module Glazier.React.Widgets.List
     ) where
 
 import Control.Applicative
+import Control.Concurrent.MVar
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Free.Church
@@ -100,9 +101,10 @@ makeClassy ''Schema
 makeClassy ''Plan
 
 mkPlan
-    :: R.IsWidget itemWidget => R.ReactMlT Identity ()
+    :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget)
+    => R.ReactMlT Identity ()
     -> G.WindowT (R.SceneOf itemWidget) (R.ReactMlT Identity) ()
-    -> R.Frame (Model k itemWidget) Plan
+    -> MVar scn
     -> F (R.Maker (Action k itemWidget)) Plan
 mkPlan separator itemWindow frm = Plan
     <$> (WComponent.mkPlan (render separator itemWindow) frm)
@@ -162,15 +164,23 @@ window = do
 
 -- | Internal rendering used by the React render callback
 render
-    :: R.IsWidget itemWidget => R.ReactMlT Identity ()
+    :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget) => R.ReactMlT Identity ()
     -> G.WindowT (R.SceneOf itemWidget) R.ReactMl ()
-    -> G.WindowT (R.Scene (Model k itemWidget) Plan) R.ReactMl ()
+    -> G.WindowT scn R.ReactMl ()
 render separator itemWindow = do
     s <- ask
-    xs <- fmap (view R.scene) . filter ((s ^. itemsFilter) . R.outline . view R.model) . fmap snd .  M.toList <$> view items
-    lift $ R.bh "ul" [ ("key", s ^. WComponent.key . to JE.toJS')
-                     , ("className", s ^. className . to JE.toJS')
-                     ] $ do
+    xs <-
+        fmap (view R.scene) .
+        filter ((s ^. R.scene . itemsFilter) . R.outline . view R.model) .
+        fmap snd .
+        M.toList <$>
+        view (R.scene . items)
+    lift $
+        R.bh
+            "ul"
+            [ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
+            , ("className", s ^. R.scene . className . to JE.toJS')
+            ] $ do
         let itemsWindows = view G._WindowT itemWindow <$> xs
             separatedWindows = DL.intersperse separator itemsWindows
         sequenceA_ separatedWindows

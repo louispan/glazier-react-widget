@@ -189,11 +189,11 @@ render separator itemWindow = do
         sequenceA_ separatedWindows
 
 gadget
-    :: (R.HasGizmo giz (Model k itemWidget) Plan, Ord k, R.IsWidget itemWidget)
+    :: (Ord k, R.IsWidget itemWidget)
     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
     -> G.Gadget (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
-    -> G.Gadget (Action k itemWidget) giz (D.DList (Command k itemWidget))
-gadget mkItemGizmo itemGadget = zoom R.gizmo $
+    -> G.Gadget (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
+gadget mkItemGizmo itemGadget =
         (fmap RenderCommand <$> magnify _RenderAction G.Render.gadget)
     <|> (fmap DisposeCommand <$> magnify _DisposeAction G.Dispose.gadget)
     <|> (magnify _ListAction (listGadget mkItemGizmo itemGadget))

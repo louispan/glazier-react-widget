@@ -54,6 +54,7 @@ data Action
 data Schema = Schema
     { _className :: J.JSString
     , _placeholder :: J.JSString
+    , _autoFocus :: Bool
     }
 
 type Model = Schema
@@ -122,7 +123,7 @@ render fprops = do
         [ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
         , ("className", s ^. R.scene . className . to JE.toJS')
         , ("placeholder", s ^. R.scene . placeholder . to JE.toJS')
-        , ("autoFocus", JE.toJS' True)
+        , ("autoFocus", s ^. R.scene . autoFocus . to JE.toJS')
         , ("onKeyDown", s ^. R.scene . onKeyDown . to JE.toJS')
         , ("onBlur", s ^. R.scene . onBlur . to JE.toJS')
         , ("onChanged", s ^. R.scene . onChanged . to JE.toJS')

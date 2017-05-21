@@ -102,12 +102,13 @@ makeClassy ''Plan
 
 mkPlan
     :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget)
-    => (scn -> R.RenderProps) -> R.ReactMlT Identity ()
+    => R.ReactMlT Identity ()
     -> G.WindowT (R.SceneOf itemWidget) (R.ReactMlT Identity) ()
+    -> (scn -> R.RenderProps)
     -> MVar scn
     -> F (R.Maker (Action k itemWidget)) Plan
-mkPlan renderProps separator itemWindow frm = Plan
-    <$> (WComponent.mkPlan (render renderProps separator itemWindow) frm)
+mkPlan separator itemWindow renderProps frm = Plan
+    <$> (WComponent.mkPlan (render separator itemWindow renderProps) frm)
     <*> (R.hoistWithAction RenderAction G.Render.mkPlan)
     <*> (R.hoistWithAction DisposeAction G.Dispose.mkPlan)
 
@@ -141,14 +142,14 @@ instance G.Dispose.HasPlan Plan where
 type Widget k itemWidget = R.Widget (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan (Command k itemWidget)
 widget
     :: (R.IsWidget itemWidget, Ord k)
-    => (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.WindowProps)
-    -> (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.RenderProps)
-    -> R.ReactMl ()
+    => R.ReactMl ()
     -> itemWidget
+    -> (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.WindowProps)
+    -> (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.RenderProps)
     -> Widget k itemWidget
-widget windowProps renderProps separator itemWidget = R.Widget
+widget separator itemWidget windowProps renderProps = R.Widget
     (mkModel itemWidget)
-    (mkPlan renderProps separator (R.window itemWidget))
+    (mkPlan separator (R.window itemWidget) renderProps)
     (window windowProps)
     (gadget (R.mkGizmo itemWidget) (R.gadget itemWidget))
 
@@ -159,11 +160,11 @@ window windowProps = WComponent.window $ fold [windowProps, G.Render.windowProps
 -- | Internal rendering used by the React render callback
 render
     :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget)
-    => (scn -> R.RenderProps)
-    -> R.ReactMlT Identity ()
+    => R.ReactMlT Identity ()
     -> G.WindowT (R.SceneOf itemWidget) R.ReactMl ()
+    -> (scn -> R.RenderProps)
     -> G.WindowT scn R.ReactMl ()
-render renderProps separator itemWindow = do
+render separator itemWindow renderProps = do
     s <- ask
     let R.RenderProps (props, hdls) = renderProps s
     xs <-

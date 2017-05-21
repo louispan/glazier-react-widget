@@ -41,10 +41,16 @@ mkPlan = Plan
     <$> pure mempty
     <*> (R.mkHandler $ pure . pure . const DisposeAction)
 
-windowProps :: HasPlan s => s -> [JE.Property]
-windowProps s = [("componentDidUpdate", s ^. onComponentDidUpdate . to JE.toJS')]
+windowProps :: HasPlan s => s -> ([JE.Property], [R.Handle])
+windowProps s = (mempty, [("componentDidUpdate", s ^. onComponentDidUpdate)])
 
 instance CD.Disposing Plan
+
+instance HasPlan pln => HasPlan (R.Scene mdl pln) where
+    plan = plan
+
+instance HasPlan pln => HasPlan (R.Gizmo mdl pln) where
+    plan = plan
 
 gadget :: HasPlan giz => G.Gadget Action giz (D.DList Command)
 gadget = do

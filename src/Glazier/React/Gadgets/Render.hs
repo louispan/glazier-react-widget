@@ -46,10 +46,20 @@ mkPlan = Plan
     <*> pure J.nullRef
     <*> (R.mkHandler $ pure . pure . ComponentRefAction)
 
-windowProps :: HasPlan s => s -> [JE.Property]
-windowProps s = [("ref", s ^. onComponentRef . to JE.toJS')]
+windowProps :: HasPlan s => s -> ([JE.Property], [R.Handle])
+windowProps s = (mempty, [("ref", s ^. onComponentRef)])
 
 instance CD.Disposing Plan
+
+gadget :: HasPlan giz => G.Gadget Action giz (D.DList (Command giz))
+gadget = do
+    a <- ask
+    case a of
+        ComponentRefAction node -> do
+            componentRef .= node
+            pure mempty
+
+        RenderAction -> D.singleton <$> basicRenderCmd frameNum componentRef RenderCommand
 
 -- | Just change the state to something different so the React pureComponent will call render()
 -- renderCmd :: Monad m => (sm -> [JE.Property] -> J.JSVal -> cmd) -> G.GadgetT act sm m cmd
@@ -65,13 +75,3 @@ basicRenderCmd frameNum' componentRef' fcmd = do
     r <- use componentRef'
     sm <- get
     pure $ fcmd sm [("frameNum", JE.JSVar i)] r
-
-gadget :: HasPlan giz => G.Gadget Action giz (D.DList (Command giz))
-gadget = do
-    a <- ask
-    case a of
-        ComponentRefAction node -> do
-            componentRef .= node
-            pure mempty
-
-        RenderAction -> D.singleton <$> basicRenderCmd frameNum componentRef RenderCommand

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -40,15 +41,23 @@ mkPlan render frm = Plan
 
 instance CD.Disposing Plan
 
-instance HasPlan (R.Scene s Plan) where
-    plan = R.plan
+instance HasPlan pln => HasPlan (R.Scene mdl pln) where
+    plan = R.plan . plan
+
+instance HasPlan pln => HasPlan (R.Gizmo mdl pln) where
+    plan = R.plan . plan
 
 -- | Exposed to parent components to render this component
-window :: HasPlan s => [JE.Property] -> G.WindowT s R.ReactMl ()
-window props = do
+window :: (R.HasScene scn mdl pln, HasPlan pln) => (scn -> R.WindowProps) -> G.WindowT scn R.ReactMl ()
+window fprops = do
     s <- ask
-    lift . R.lf (s ^. component . to JE.toJS') $
-        [ ("key", s ^. key . to JE.toJS')
-        , ("render", s ^. onRender . to JE.toJS')
-        ] ++
-        props
+    let R.WindowProps (props, hdls) = fprops s
+    lift $
+        R.lf
+            (s ^. R.scene . component . to JE.toJS')
+            ([ ("key", s ^. R.scene . key . to JE.toJS')
+             -- NB. render is not a 'Handle' as it returns an 'IO JSVal'
+             , ("render", s ^. R.scene . onRender . to JE.toJS')
+             ] ++
+             props)
+            hdls

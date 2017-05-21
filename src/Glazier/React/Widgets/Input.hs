@@ -75,9 +75,13 @@ makeClassyPrisms ''Action
 makeClassy ''Plan
 makeClassy ''Schema
 
-mkPlan :: R.HasScene scn Model Plan => (scn -> [JE.Property]) -> MVar scn -> F (R.Maker Action) Plan
-mkPlan fprops frm = Plan
-    <$> (WComponent.mkPlan (render fprops) frm)
+mkPlan
+    :: R.HasScene scn Model Plan
+    => (scn -> R.RenderProps)
+    -> MVar scn
+    -> F (R.Maker Action) Plan
+mkPlan renderProps frm = Plan
+    <$> (WComponent.mkPlan (render renderProps) frm)
     <*> (R.mkHandler onKeyDown')
     <*> (R.mkHandler onBlur')
     <*> (R.mkHandler onChanged')
@@ -87,48 +91,55 @@ instance CD.Disposing Model where
     disposing _ = CD.DisposeNone
 
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
-instance HasPlan (R.Scene Model Plan) where
-    plan = R.plan
-instance HasSchema (R.Scene Model Plan) where
-    schema = R.model
-instance HasPlan (R.Gizmo Model Plan) where
-    plan = R.scene . plan
-instance HasSchema (R.Gizmo Model Plan) where
-    schema = R.scene . schema
+-- LOUISFIXME: Make this simplification in all widgets
+instance HasPlan pln => HasPlan (R.Scene mdl pln) where
+    plan = R.plan . plan
+instance HasPlan pln => HasPlan (R.Gizmo mdl pln) where
+    plan = R.plan . plan
+instance HasSchema mdl => HasSchema (R.Scene mdl pln) where
+    schema = R.model . schema
+instance HasSchema mdl => HasSchema (R.Gizmo mdl pln) where
+    schema = R.model . schema
 
 -- link the HasPlan for the composites
-instance WComponent.HasPlan (R.Scene Model Plan) where
-    plan = R.plan . componentPlan
-instance WComponent.HasPlan (R.Gizmo Model Plan) where
-    plan = R.scene . WComponent.plan
+instance WComponent.HasPlan Plan where
+    plan = componentPlan
 
 type Widget = R.Widget Action Outline Model Plan Command
 
-widget :: (forall scn. R.HasScene scn Model Plan => scn -> [JE.Property]) -> Widget
-widget fprops = R.Widget
+widget
+    :: (forall scn. R.HasScene scn Model Plan => scn -> R.WindowProps)
+    -> (forall scn. R.HasScene scn Model Plan => scn -> R.RenderProps)
+    -> Widget
+widget windowProps renderProps = R.Widget
     mkModel
-    (mkPlan fprops)
-    window
+    (mkPlan renderProps)
+    (window windowProps)
     gadget
 
 -- | Exposed to parent components to render this component
-window :: R.HasScene scn Model Plan => G.WindowT scn R.ReactMl ()
-window = magnify (R.scene . componentPlan) (WComponent.window [])
+window :: R.HasScene scn Model Plan => (scn -> R.WindowProps) -> G.WindowT scn R.ReactMl ()
+window = WComponent.window
 
 -- | Internal rendering used by the React render callback
-render :: R.HasScene scn Model Plan => (scn -> [JE.Property]) -> G.WindowT scn R.ReactMl ()
+render :: R.HasScene scn Model Plan => (scn -> R.RenderProps) -> G.WindowT scn R.ReactMl ()
 render fprops = do
     s <- ask
-    lift . R.lf "input" $
-        [ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
-        , ("className", s ^. R.scene . className . to JE.toJS')
-        , ("placeholder", s ^. R.scene . placeholder . to JE.toJS')
-        , ("autoFocus", s ^. R.scene . autoFocus . to JE.toJS')
-        , ("onKeyDown", s ^. R.scene . onKeyDown . to JE.toJS')
-        , ("onBlur", s ^. R.scene . onBlur . to JE.toJS')
-        , ("onChanged", s ^. R.scene . onChanged . to JE.toJS')
-        ] ++
-        fprops s
+    let R.RenderProps (props, hdls) = fprops s
+    lift $
+        R.lf
+            "input"
+            ([ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
+             , ("className", s ^. R.scene . className . to JE.toJS')
+             , ("placeholder", s ^. R.scene . placeholder . to JE.toJS')
+             , ("autoFocus", s ^. R.scene . autoFocus . to JE.toJS')
+             ] ++
+             props)
+            ([ ("onKeyDown", s ^. R.scene . onKeyDown)
+             , ("onBlur", s ^. R.scene . onBlur)
+             , ("onChanged", s ^. R.scene . onChanged)
+             ] ++
+             hdls)
 
 whenKeyDown :: J.JSVal -> MaybeT IO (J.JSVal, Maybe J.JSString)
 whenKeyDown evt = do

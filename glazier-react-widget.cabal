@@ -25,8 +25,8 @@ library
                        Glazier.React.Gadgets.Render.Run
                        Glazier.React.Widgets.Input
                        Glazier.React.Widgets.Input.Run
-                       Glazier.React.Widgets.List
-                       Glazier.React.Widgets.List.Run
+                       -- Glazier.React.Widgets.List
+                       -- Glazier.React.Widgets.List.Run
                        Glazier.React.Windows.Component
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5 && < 0.6

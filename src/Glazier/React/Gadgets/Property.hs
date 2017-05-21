@@ -4,6 +4,7 @@ module Glazier.React.Gadgets.Property
     , gadget
     ) where
 
+import Control.Lens
 import Control.Monad.Reader
 import qualified Data.DList as D
 import qualified GHCJS.Types as J
@@ -16,20 +17,20 @@ data Command
 data Action
     = SetPropertyAction J.JSVal JE.Property
 
--- makeClassyPrisms ''Action
--- class AsAction r where
---     _Action :: Prism' r Action
---     _SetPropertyAction :: Prism' r (J.JSVal, JE.Property)
---     _SetPropertyAction = (.) _Action _SetPropertyAction
+-- Can't use makeClassyPrisms ''Action for single constructors
+class AsAction r where
+    _Action :: Prism' r Action
+    _SetPropertyAction :: Prism' r (J.JSVal, JE.Property)
+    _SetPropertyAction = (.) _Action _SetPropertyAction
 
--- instance AsAction Action where
---     _Action = id
---     _SetPropertyAction =
---         prism
---             (\(j, s) -> SetPropertyAction j s)
---             (\x ->
---                  case x of
---                      SetPropertyAction j s -> Right (j, s))
+instance AsAction Action where
+    _Action = id
+    _SetPropertyAction =
+        prism
+            (\(j, s) -> SetPropertyAction j s)
+            (\x ->
+                 case x of
+                     SetPropertyAction j s -> Right (j, s))
 
 gadget :: G.Gadget Action s (D.DList Command)
 gadget = do

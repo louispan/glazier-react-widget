@@ -46,10 +46,16 @@ mkPlan = Plan
     <*> pure J.nullRef
     <*> (R.mkHandler $ pure . pure . ComponentRefAction)
 
-windowProps :: HasPlan s => s -> ([JE.Property], [R.Handle])
-windowProps s = (mempty, [("ref", s ^. onComponentRef)])
-
 instance CD.Disposing Plan
+
+instance HasPlan pln => HasPlan (R.Scene mdl pln) where
+    plan = R.plan . plan
+
+instance HasPlan pln => HasPlan (R.Gizmo mdl pln) where
+    plan = R.plan . plan
+
+windowProps :: (R.HasScene scn mdl pln, HasPlan pln) => scn -> R.WindowProps
+windowProps scn = R.WindowProps (mempty, [("ref", scn ^. R.scene . onComponentRef)])
 
 gadget :: HasPlan giz => G.Gadget Action giz (D.DList (Command giz))
 gadget = do

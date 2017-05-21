@@ -91,7 +91,6 @@ instance CD.Disposing Model where
     disposing _ = CD.DisposeNone
 
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
--- LOUISFIXME: Make this simplification in all widgets
 instance HasPlan pln => HasPlan (R.Scene mdl pln) where
     plan = R.plan . plan
 instance HasPlan pln => HasPlan (R.Gizmo mdl pln) where
@@ -123,9 +122,9 @@ window = WComponent.window
 
 -- | Internal rendering used by the React render callback
 render :: R.HasScene scn Model Plan => (scn -> R.RenderProps) -> G.WindowT scn R.ReactMl ()
-render fprops = do
+render renderProps = do
     s <- ask
-    let R.RenderProps (props, hdls) = fprops s
+    let R.RenderProps (props, hdls) = renderProps s
     lift $
         R.lf
             "input"

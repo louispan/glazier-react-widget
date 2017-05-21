@@ -102,12 +102,12 @@ makeClassy ''Plan
 
 mkPlan
     :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget)
-    => R.ReactMlT Identity ()
+    => (scn -> R.RenderProps) -> R.ReactMlT Identity ()
     -> G.WindowT (R.SceneOf itemWidget) (R.ReactMlT Identity) ()
     -> MVar scn
     -> F (R.Maker (Action k itemWidget)) Plan
-mkPlan separator itemWindow frm = Plan
-    <$> (WComponent.mkPlan (render separator itemWindow) frm)
+mkPlan renderProps separator itemWindow frm = Plan
+    <$> (WComponent.mkPlan (render renderProps separator itemWindow) frm)
     <*> (R.hoistWithAction RenderAction G.Render.mkPlan)
     <*> (R.hoistWithAction DisposeAction G.Dispose.mkPlan)
 
@@ -119,59 +119,53 @@ instance (CD.Disposing (R.GizmoOf itemWidget)) =>
     disposing s = CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. items)
 
 -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
-instance HasPlan (R.Scene (Model k itemWidget) Plan) where
-    plan = R.plan
-instance HasSchema (R.Scene (Model k itemWidget) Plan) k itemWidget R.GizmoType where
-    schema = R.model
-instance HasPlan (R.Gizmo (Model k itemWidget) Plan) where
-    plan = R.scene . plan
-instance HasSchema (R.Gizmo (Model k itemWidget) Plan) k itemWidget R.GizmoType where
+instance HasPlan pln => HasPlan (R.Scene (Model k itemWidget) pln) where
+    plan = R.plan . plan
+instance HasPlan pln => HasPlan (R.Gizmo (Model k itemWidget) pln) where
+    plan = R.plan . plan
+instance HasSchema mdl k itemWidget R.GizmoType =>
+         HasSchema (R.Scene mdl pln) k itemWidget R.GizmoType where
+    schema = R.model . schema
+instance HasSchema mdl k itemWidget R.GizmoType =>
+         HasSchema (R.Gizmo mdl pln) k itemWidget R.GizmoType where
     schema = R.scene . schema
 
 -- link the HasPlan for the composites
-instance WComponent.HasPlan (R.Scene (Model k itemWidget) Plan) where
-    plan = R.plan . componentPlan
-instance WComponent.HasPlan (R.Gizmo (Model k itemWidget) Plan) where
-    plan = R.scene . WComponent.plan
-
-instance G.Render.HasPlan (R.Scene (Model k itemWidget) Plan) where
-    plan = R.plan . renderPlan
-instance G.Render.HasPlan (R.Gizmo (Model k itemWidget) Plan) where
-    plan = R.scene . G.Render.plan
-
-instance G.Dispose.HasPlan (R.Scene (Model k itemWidget) Plan) where
-    plan = R.plan . disposePlan
-instance G.Dispose.HasPlan (R.Gizmo (Model k itemWidget) Plan) where
-    plan = R.scene . G.Dispose.plan
+instance WComponent.HasPlan Plan where
+    plan = componentPlan
+instance G.Render.HasPlan Plan where
+    plan = renderPlan
+instance G.Dispose.HasPlan Plan where
+    plan = disposePlan
 
 type Widget k itemWidget = R.Widget (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan (Command k itemWidget)
 widget
     :: (R.IsWidget itemWidget, Ord k)
-    => R.ReactMl ()
+    => (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.WindowProps)
+    -> (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.RenderProps)
+    -> R.ReactMl ()
     -> itemWidget
     -> Widget k itemWidget
-widget separator itemWidget = R.Widget
+widget windowProps renderProps separator itemWidget = R.Widget
     (mkModel itemWidget)
-    (mkPlan separator (R.window itemWidget))
-    window
+    (mkPlan renderProps separator (R.window itemWidget))
+    (window windowProps)
     (gadget (R.mkGizmo itemWidget) (R.gadget itemWidget))
 
 -- | Exposed to parent components to render this component
-window :: R.HasScene scn (Model k itemWidget) Plan => G.WindowT scn R.ReactMl ()
-window = do
-    s <- view R.scene
-    magnify
-        (R.scene . componentPlan)
-        (WComponent.window $
-         foldMap ($ s) [G.Render.windowProps, G.Dispose.windowProps])
+window :: R.HasScene scn (Model k itemWidget) Plan => (scn -> R.WindowProps) -> G.WindowT scn R.ReactMl ()
+window windowProps = WComponent.window $ fold [windowProps, G.Render.windowProps, G.Dispose.windowProps]
 
 -- | Internal rendering used by the React render callback
 render
-    :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget) => R.ReactMlT Identity ()
+    :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget)
+    => (scn -> R.RenderProps)
+    -> R.ReactMlT Identity ()
     -> G.WindowT (R.SceneOf itemWidget) R.ReactMl ()
     -> G.WindowT scn R.ReactMl ()
-render separator itemWindow = do
+render renderProps separator itemWindow = do
     s <- ask
+    let R.RenderProps (props, hdls) = renderProps s
     xs <-
         fmap (view R.scene) .
         filter ((s ^. R.scene . itemsFilter) . R.outline . view R.model) .
@@ -181,9 +175,10 @@ render separator itemWindow = do
     lift $
         R.bh
             "ul"
-            [ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
+            ([ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
             , ("className", s ^. R.scene . className . to JE.toJS')
-            ] $ do
+            ] ++ props)
+            hdls $ do
         let itemsWindows = view G._WindowT itemWindow <$> xs
             separatedWindows = DL.intersperse separator itemsWindows
         sequenceA_ separatedWindows

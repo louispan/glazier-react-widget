@@ -1,9 +1,9 @@
-module Glazier.React.Gadgets.Property.Run
+module Glazier.React.Commands.Property.Run
     ( run
     ) where
 
 import qualified JavaScript.Extras as JE
-import Glazier.React.Gadgets.Property
+import Glazier.React.Commands.Property
 
 run :: Command -> IO ()
 

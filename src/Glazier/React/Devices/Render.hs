@@ -10,9 +10,7 @@ module Glazier.React.Devices.Render
     , Action(..)
     , Plan(..)
     , HasPlan(..)
-    , mkPlan
-    , windowAttrs
-    , gadget
+    , Device
     , device
     ) where
 
@@ -76,6 +74,8 @@ gadget = do
             r <- use componentRef
             s <- get
             pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
+
+type Device mdl = R.Device Action Plan (Command mdl) mdl
 
 device :: (R.HasModel mdl dtl pln, HasPlan pln) => R.Device Action Plan (Command mdl) mdl
 device = R.Device (const mkPlan) gadget windowAttrs (const mempty)

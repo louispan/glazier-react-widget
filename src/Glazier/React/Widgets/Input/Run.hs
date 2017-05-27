@@ -2,4 +2,4 @@ module Glazier.React.Widgets.Input.Run
     ( run
     ) where
 
-import Glazier.React.Gadgets.Property.Run (run)
+import Glazier.React.Commands.Property.Run (run)

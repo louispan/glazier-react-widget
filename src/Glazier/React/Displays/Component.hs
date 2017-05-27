@@ -4,7 +4,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Displays.Component
     ( Plan(..)
@@ -42,30 +41,23 @@ mkPlan render frm = Plan
 
 instance CD.Disposing Plan
 
-instance HasPlan pln => HasPlan (R.Model dtl pln) where
-    plan = R.plan . plan
-
--- | Undecidableinstances! This is safe because pln is smaller than mdl
-instance (R.HasModel mdl dtl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
-    plan = R.plan . plan
-
 -- | Exposed to parent components to render this component
-window :: (R.HasModel mdl dtl pln, HasPlan pln) => (mdl -> R.WindowAttrs) -> G.WindowT mdl R.ReactMl ()
+window :: (R.HasPlan mdl pln, HasPlan pln) => (mdl -> R.WindowAttrs) -> G.WindowT mdl R.ReactMl ()
 window wa = do
     s <- ask
     let R.WindowAttrs (props, hdls) = wa s
     lift $
         R.lf
-            (s ^. R.model . component . to JE.toJS')
-            ([ ("key", s ^. R.model . key . to JE.toJS')
+            (s ^. R.plan . component . to JE.toJS')
+            ([ ("key", s ^. R.plan . key . to JE.toJS')
              -- NB. render is not a 'Handle' as it returns an 'IO JSVal'
-             , ("render", s ^. R.model . onRender . to JE.toJS')
+             , ("render", s ^. R.plan . onRender . to JE.toJS')
              ] ++
              props)
             hdls
 
 type Display a mdl = R.Display a Plan mdl
 
-display :: (HasPlan pln, R.HasModel mdl dtl pln) => (J.JSVal -> G.WindowT mdl R.ReactMl ())
+display :: (HasPlan pln, R.HasPlan mdl pln) => (J.JSVal -> G.WindowT mdl R.ReactMl ())
      -> (mdl -> R.WindowAttrs) -> R.Display a Plan mdl
 display render wa = R.Display (mkPlan render) (const $ window wa)

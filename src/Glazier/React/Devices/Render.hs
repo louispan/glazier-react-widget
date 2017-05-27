@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UndecidableInstances #-}
+-- {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Devices.Render
     ( Command(..)
@@ -49,33 +49,35 @@ mkPlan = Plan
 
 instance CD.Disposing Plan
 
-instance HasPlan pln => HasPlan (R.Model dtl pln) where
-    plan = R.plan . plan
+-- instance (R.HasPlan mdl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
+--     plan = R.plan . plan
 
--- | Undecidableinstances! This is safe because pln is smaller than mdl
-instance (R.HasModel mdl dtl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
-    plan = R.plan . plan
+-- instance HasPlan pln => HasPlan (R.Model dtl pln) where
+--     plan = R.plan . plan
 
-windowAttrs :: (R.HasModel mdl dtl pln, HasPlan pln) => mdl -> R.WindowAttrs
-windowAttrs mdl = R.WindowAttrs (mempty, [("ref", mdl ^. R.model . onComponentRef)])
+-- instance (R.HasPlan mdl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
+--     plan = R.plan . plan
 
-gadget :: (R.HasModel mdl dtl pln, HasPlan pln) => G.Gadget Action (R.Shared mdl) (D.DList (Command mdl))
+windowAttrs :: (R.HasPlan mdl pln, HasPlan pln) => mdl -> R.WindowAttrs
+windowAttrs mdl = R.WindowAttrs (mempty, [("ref", mdl ^. R.plan . onComponentRef)])
+
+gadget :: (R.HasPlan mdl pln, HasPlan pln) => G.Gadget Action (R.Shared mdl) (D.DList (Command mdl))
 gadget = do
     a <- ask
     case a of
         ComponentRefAction node -> do
-            componentRef .= node
+            (R.plan . componentRef) .= node
             pure mempty
 
         RenderAction -> do
             -- Just change the state to a different number so the React pureComponent will call render()
-            frameNum %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
-            i <- JE.toJS <$> use frameNum
-            r <- use componentRef
+            (R.plan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
+            i <- JE.toJS <$> use (R.plan . frameNum)
+            r <- use (R.plan . componentRef)
             s <- get
             pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
 
 type Device mdl = R.Device Action Plan (Command mdl) mdl
 
-device :: (R.HasModel mdl dtl pln, HasPlan pln) => R.Device Action Plan (Command mdl) mdl
+device :: (R.HasPlan mdl pln, HasPlan pln) => R.Device Action Plan (Command mdl) mdl
 device = R.Device (const mkPlan) gadget windowAttrs (const mempty)

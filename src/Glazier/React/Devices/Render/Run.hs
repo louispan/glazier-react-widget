@@ -1,7 +1,8 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Glazier.React.Gadgets.Render.Run
+module Glazier.React.Devices.Render.Run
     ( run
     ) where
 
@@ -10,19 +11,19 @@ import Control.Lens
 import Control.Monad
 import qualified GHCJS.Types as J
 import qualified Glazier.React.Model as R
-import Glazier.React.Gadgets.Render
+import Glazier.React.Devices.Render
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
-componentSetState :: R.HasGizmo giz mdl pln => giz -> [JE.Property] -> J.JSVal -> IO ()
-componentSetState giz props j = do
-    let scn = giz ^. R.scene
-        frm = giz ^. R.frame
-    void $ swapMVar frm scn
+componentSetState :: (R.Shared mdl) -> [JE.Property] -> J.JSVal -> IO ()
+componentSetState s props j = do
+    let mdl = s ^. R.ival
+        frm = s ^. R.mvar
+    void $ swapMVar frm mdl
     js_componentSetState (JE.fromProperties props) j
 
-run :: R.HasGizmo giz mdl pln => Command giz -> IO ()
-run (RenderCommand giz props j) = componentSetState giz props j
+run :: Command (R.Shared mdl) -> IO ()
+run (RenderCommand s props j) = componentSetState s props j
 
 #ifdef __GHCJS__
 

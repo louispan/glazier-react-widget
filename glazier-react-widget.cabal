@@ -17,17 +17,16 @@ library
   hs-source-dirs:      src
   exposed-modules:     Glazier.React.Commands.Maker
                        Glazier.React.Commands.Maker.Run
-                       Glazier.React.Gadgets.Dispose
-                       Glazier.React.Gadgets.Dispose.Run
                        Glazier.React.Gadgets.Property
                        Glazier.React.Gadgets.Property.Run
-                       Glazier.React.Gadgets.Render
-                       Glazier.React.Gadgets.Render.Run
-                       Glazier.React.Widgets.Input
-                       Glazier.React.Widgets.Input.Run
-                       Glazier.React.Widgets.List
-                       Glazier.React.Widgets.List.Run
-                       Glazier.React.Windows.Component
+                       -- Glazier.React.Devices.Dispose
+                       -- Glazier.React.Devices.Dispose.Run
+                       Glazier.React.Devices.Render
+                       Glazier.React.Devices.Render.Run
+                       -- Glazier.React.Widgets.Input
+                       -- Glazier.React.Widgets.Input.Run
+                       -- Glazier.React.Widgets.List
+                       -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5 && < 0.6
                      , disposable >= 0.2.0.4 && < 1

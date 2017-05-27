@@ -1,16 +1,19 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Gadgets.Render
+module Glazier.React.Devices.Render
     ( Command(..)
     , Action(..)
     , Plan(..)
     , HasPlan(..)
     , mkPlan
-    , windowProps
+    , windowAttrs
     , gadget
+    , device
     ) where
 
 import Control.Lens
@@ -26,7 +29,7 @@ import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified JavaScript.Extras as JE
 
-data Command gz = RenderCommand gz [JE.Property] J.JSVal
+data Command mdl = RenderCommand (R.Shared mdl) [JE.Property] J.JSVal
 
 data Action
     = ComponentRefAction J.JSVal
@@ -48,16 +51,17 @@ mkPlan = Plan
 
 instance CD.Disposing Plan
 
-instance HasPlan pln => HasPlan (R.Scene mdl pln) where
+instance HasPlan pln => HasPlan (R.Model dtl pln) where
     plan = R.plan . plan
 
-instance HasPlan pln => HasPlan (R.Gizmo mdl pln) where
+-- | Undecidableinstances! This is safe because pln is smaller than mdl
+instance (R.HasModel mdl dtl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
     plan = R.plan . plan
 
-windowProps :: (R.HasScene scn mdl pln, HasPlan pln) => scn -> R.WindowProps
-windowProps scn = R.WindowProps (mempty, [("ref", scn ^. R.scene . onComponentRef)])
+windowAttrs :: (R.HasModel mdl dtl pln, HasPlan pln) => mdl -> R.WindowAttrs
+windowAttrs mdl = R.WindowAttrs (mempty, [("ref", mdl ^. R.model . onComponentRef)])
 
-gadget :: HasPlan giz => G.Gadget Action giz (D.DList (Command giz))
+gadget :: (R.HasModel mdl dtl pln, HasPlan pln) => G.Gadget Action (R.Shared mdl) (D.DList (Command mdl))
 gadget = do
     a <- ask
     case a of
@@ -65,19 +69,13 @@ gadget = do
             componentRef .= node
             pure mempty
 
-        RenderAction -> D.singleton <$> basicRenderCmd frameNum componentRef RenderCommand
+        RenderAction -> do
+            -- Just change the state to a different number so the React pureComponent will call render()
+            frameNum %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
+            i <- JE.toJS <$> use frameNum
+            r <- use componentRef
+            s <- get
+            pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
 
--- | Just change the state to something different so the React pureComponent will call render()
--- renderCmd :: Monad m => (sm -> [JE.Property] -> J.JSVal -> cmd) -> G.GadgetT act sm m cmd
--- The resulting command should be interpreted using 'componentSetState'
-basicRenderCmd :: MonadState giz m =>
-           Lens' giz Int
-           -> Getter giz J.JSVal
-           -> (giz -> [JE.Property] -> J.JSVal -> cmd)
-           -> m cmd
-basicRenderCmd frameNum' componentRef' fcmd = do
-    frameNum' %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
-    i <- JE.toJS <$> use frameNum'
-    r <- use componentRef'
-    sm <- get
-    pure $ fcmd sm [("frameNum", JE.JSVar i)] r
+device :: (R.HasModel mdl dtl pln, HasPlan pln) => R.Device Action Plan (Command mdl) mdl
+device = R.Device (const mkPlan) gadget windowAttrs (const mempty)

@@ -69,6 +69,7 @@ data Action k itemWidget
     | DisposeAction G.Dispose.Action
     | ListAction (Action' k itemWidget)
 
+-- TODO: Use the name Layout?
 data Schema k itemWidget t = Schema
     { _className :: J.JSString
     , _idx :: k

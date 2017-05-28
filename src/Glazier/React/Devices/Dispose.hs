@@ -41,21 +41,29 @@ mkPlan = Plan
 
 instance CD.Disposing Plan
 
-windowAttrs :: (R.HasPlan mdl pln, HasPlan pln) => mdl -> R.WindowAttrs
-windowAttrs mdl = R.WindowAttrs (mempty, [("componentDidUpdate", mdl ^. R.plan . onComponentDidUpdate)])
+-- instance HasPlan mdl => HasPlan (R.Shared mdl) where
+--     plan = R.ival . plan
+--     {-# INLINE plan #-}
 
-gadget :: (R.HasPlan mdl pln, HasPlan pln) => G.Gadget Action (R.Shared mdl) (D.DList Command)
-gadget = do
+-- instance HasPlan pln => HasPlan (R.Model dtl pln) where
+--     plan = R.plan . plan
+--     {-# INLINE plan #-}
+
+windowAttrs :: Lens' mdl Plan -> mdl -> R.WindowAttrs
+windowAttrs pln mdl = R.WindowAttrs (mempty, [("componentDidUpdate", mdl ^. pln . onComponentDidUpdate)])
+
+gadget :: Lens' mdl Plan -> G.Gadget Action (R.Shared mdl) (D.DList Command)
+gadget pln = do
     a <- ask
     case a of
         DisposeAction -> do
             -- Run delayed commands that need to wait until frame is re-rendered
             -- Eg focusing after other rendering changes
-            ds <- use (R.plan . deferredDisposables)
-            (R.plan . deferredDisposables) .= mempty
+            ds <- use (R.ival . pln . deferredDisposables)
+            (R.ival . pln . deferredDisposables) .= mempty
             pure . D.singleton . DisposeCommand . CD.DisposeList $ D.toList ds
 
 type Device mdl = R.Device Action Plan Command mdl
 
-device :: (R.HasPlan mdl pln, HasPlan pln) => R.Device Action Plan Command mdl
-device = R.Device (const mkPlan) gadget windowAttrs (const mempty)
+device :: Lens' mdl Plan -> R.Device Action Plan Command mdl
+device pln = R.Device (const mkPlan) (gadget pln) (windowAttrs pln) (const mempty)

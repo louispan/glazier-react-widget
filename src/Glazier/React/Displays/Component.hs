@@ -41,23 +41,30 @@ mkPlan render frm = Plan
 
 instance CD.Disposing Plan
 
+-- instance HasPlan mdl => HasPlan (R.Shared mdl) where
+--     plan = R.ival . plan
+--     {-# INLINE plan #-}
+
 -- | Exposed to parent components to render this component
-window :: (R.HasPlan mdl pln, HasPlan pln) => (mdl -> R.WindowAttrs) -> G.WindowT mdl R.ReactMl ()
-window wa = do
+window :: Lens' mdl Plan -> (mdl -> R.WindowAttrs) -> G.WindowT mdl R.ReactMl ()
+window pln wa = do
     s <- ask
     let R.WindowAttrs (props, hdls) = wa s
     lift $
         R.lf
-            (s ^. R.plan . component . to JE.toJS')
-            ([ ("key", s ^. R.plan . key . to JE.toJS')
-             -- NB. render is not a 'Handle' as it returns an 'IO JSVal'
-             , ("render", s ^. R.plan . onRender . to JE.toJS')
+            (s ^. pln . component . to JE.toJS')
+            ([ ("key", s ^. pln . key . to JE.toJS')
+             -- NB. render is not a 'R.Handle' as it returns an 'IO JSVal'
+             , ("render", s ^. pln . onRender . to JE.toJS')
              ] ++
              props)
             hdls
 
 type Display a mdl = R.Display a Plan mdl
 
-display :: (HasPlan pln, R.HasPlan mdl pln) => (J.JSVal -> G.WindowT mdl R.ReactMl ())
-     -> (mdl -> R.WindowAttrs) -> R.Display a Plan mdl
-display render wa = R.Display (mkPlan render) (const $ window wa)
+display
+    :: Lens' mdl Plan
+    -> (J.JSVal -> G.WindowT mdl R.ReactMl ())
+    -> (mdl -> R.WindowAttrs)
+    -> R.Display a Plan mdl
+display pln render wa = R.Display (mkPlan render) (const $ window pln wa)

@@ -8,7 +8,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Widgets.Input
     ( Action(..)
@@ -76,14 +75,20 @@ makeClassyPrisms ''Action
 makeClassy ''Plan
 makeClassy ''Schema
 
-mkPlan
-    :: R.HasModel mdl Detail Plan
-    => (mdl -> R.WindowAttrs)
+componentDisplay
+    :: Lens' mdl Detail
+    -> Lens' mdl Plan
+    -> (mdl -> R.WindowAttrs)
     -> (mdl -> R.RenderAttrs)
+    -> R.Display a D.Component.Plan mdl
+componentDisplay dtl pln wa ra = D.Component.display (pln . componentPlan) (const $ render dtl pln ra) wa
+
+mkPlan
+    :: R.Display Action D.Component.Plan mdl
     -> MVar mdl
     -> F (R.Maker Action) Plan
-mkPlan wa ra frm = Plan
-    <$> (R.mkPlan (D.Component.display (const $ render ra) wa) frm)
+mkPlan componentDisplay' frm = Plan
+    <$> (R.mkPlan componentDisplay' frm)
     <*> (R.mkHandler onKeyDown')
     <*> (R.mkHandler onBlur')
     <*> (R.mkHandler onChanged')
@@ -92,56 +97,32 @@ instance CD.Disposing Plan
 instance CD.Disposing Detail where
     disposing _ = CD.DisposeNone
 
--- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
-instance HasPlan pln => HasPlan (R.Model dtl pln) where
-    plan = R.plan . plan
--- | Undecidableinstances! This is safe because pln is smaller than mdl
-instance (HasPlan pln, R.HasModel mdl dtl pln) => HasPlan (R.Shared mdl) where
-    plan = R.plan . plan
-
-instance HasSchema dtl => HasSchema (R.Model dtl pln) where
-    schema = R.detail . schema
--- instance (R.HasModel mdl dtl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
-instance (HasSchema dtl, R.HasModel mdl dtl pln) => HasSchema (R.Shared mdl) where
-    schema = R.detail . schema
-
--- link the HasPlan for the composites
 instance D.Component.HasPlan Plan where
     plan = componentPlan
 
--- type Widget = R.Widget Action Outline Detail Plan Command
-
--- widget
---     :: (forall mdl. R.HasModel mdl Detail Plan => mdl -> R.WindowProps)
---     -> (forall mdl. R.HasModel mdl Detail Plan => mdl -> R.RenderProps)
---     -> Widget
--- widget windowProps renderProps = R.Widget
---     mkModel
---     (mkPlan renderProps)
---     (window windowProps)
---     gadget
-
--- -- | Exposed to parent components to render this component
--- window :: R.HasModel mdl Model Plan => (mdl -> R.WindowAttrs) -> G.WindowT mdl R.ReactMl ()
--- window = D.Component.window
+-- | Exposed to parent components to render this component
+window :: R.Display Action D.Component.Plan mdl
+    -> J.JSVal
+    -> G.WindowT mdl R.ReactMl ()
+window componentDisplay' = R.window componentDisplay'
 
 -- | Internal rendering used by the React render callback
-render :: (R.HasModel mdl dtl pln, HasSchema dtl, HasPlan pln) => (mdl -> R.RenderAttrs) -> G.WindowT mdl R.ReactMl ()
-render ra = do
+render :: Lens' mdl Detail -> Lens' mdl Plan -> (mdl -> R.RenderAttrs) -> G.WindowT mdl R.ReactMl ()
+render dtl pln ra = do
     s <- ask
     let R.RenderAttrs (props, hdls) = ra s
     lift $
         R.lf
             "input"
-            ([ ("key", s ^. R.model . plan . D.Component.key . to JE.toJS')
-             , ("className", s ^. R.model . className . to JE.toJS')
-             , ("placeholder", s ^. R.model . placeholder . to JE.toJS')
-             , ("autoFocus", s ^. R.model . autoFocus . to JE.toJS')
+            ([ ("key", s ^. pln . D.Component.key . to JE.toJS')
+             , ("className", s ^. dtl . className . to JE.toJS')
+             , ("placeholder", s ^. dtl . placeholder . to JE.toJS')
+             , ("autoFocus", s ^. dtl . autoFocus . to JE.toJS')
              ] ++
              props)
-            ([ ("onKeyDown", s ^. R.model . onKeyDown)
-             , ("onBlur", s ^. R.model . onBlur)
-             , ("onChanged", s ^. R.model . onChanged)
+            ([ ("onKeyDown", s ^. pln . onKeyDown)
+             , ("onBlur", s ^. pln . onBlur)
+             , ("onChanged", s ^. pln . onChanged)
              ] ++
              hdls)
 
@@ -195,9 +176,21 @@ onChanged' = R.eventHandlerM whenChanged goLazy
     goLazy :: (J.JSVal, J.JSString) -> MaybeT IO [Action]
     goLazy (j, s) = pure [ChangedAction j s]
 
--- gadget :: G.Gadget Action s (D.DList Command)
--- gadget = do
---     a <- ask
---     case a of
---         ResetAction j -> pure $ D.singleton $ G.Property.SetPropertyCommand j ("value", JE.toJS' J.empty)
---         _ -> pure mempty
+gadget :: G.Gadget Action (R.Shared mdl) (D.DList Command)
+gadget = do
+    a <- ask
+    case a of
+        ResetAction j -> pure $ D.singleton $ G.Property.SetPropertyCommand j ("value", JE.toJS' J.empty)
+        _ -> pure mempty
+
+-- type Widget = R.Widget Action Outline Detail Plan Command
+
+-- widget
+--     :: (forall mdl. R.HasModel mdl Detail Plan => mdl -> R.WindowProps)
+--     -> (forall mdl. R.HasModel mdl Detail Plan => mdl -> R.RenderProps)
+--     -> Widget
+-- widget windowProps renderProps = R.Widget
+--     mkModel
+--     (mkPlan renderProps)
+--     (window windowProps)
+--     gadget

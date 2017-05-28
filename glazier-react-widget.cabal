@@ -24,8 +24,8 @@ library
                        Glazier.React.Devices.Dispose.Run
                        Glazier.React.Devices.Render
                        Glazier.React.Devices.Render.Run
-                       -- Glazier.React.Widgets.Input
-                       -- Glazier.React.Widgets.Input.Run
+                       Glazier.React.Widgets.Input
+                       Glazier.React.Widgets.Input.Run
                        -- Glazier.React.Widgets.List
                        -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5

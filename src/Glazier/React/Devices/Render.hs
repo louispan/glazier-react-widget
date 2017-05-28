@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 -- {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Devices.Render
@@ -49,35 +50,30 @@ mkPlan = Plan
 
 instance CD.Disposing Plan
 
--- instance (R.HasPlan mdl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
---     plan = R.plan . plan
+-- instance (HasPlan mdl) => HasPlan (R.Shared mdl) where
+--     plan = R.ival . plan
+--     {-# INLINE plan #-}
 
--- instance HasPlan pln => HasPlan (R.Model dtl pln) where
---     plan = R.plan . plan
+windowAttrs :: Lens' mdl Plan -> mdl -> R.WindowAttrs
+windowAttrs pln mdl = R.WindowAttrs (mempty, [("ref", mdl ^. pln . onComponentRef)])
 
--- instance (R.HasPlan mdl pln, HasPlan pln) => HasPlan (R.Shared mdl) where
---     plan = R.plan . plan
-
-windowAttrs :: (R.HasPlan mdl pln, HasPlan pln) => mdl -> R.WindowAttrs
-windowAttrs mdl = R.WindowAttrs (mempty, [("ref", mdl ^. R.plan . onComponentRef)])
-
-gadget :: (R.HasPlan mdl pln, HasPlan pln) => G.Gadget Action (R.Shared mdl) (D.DList (Command mdl))
-gadget = do
+gadget :: Lens' mdl Plan -> G.Gadget Action (R.Shared mdl) (D.DList (Command mdl))
+gadget pln = do
     a <- ask
     case a of
         ComponentRefAction node -> do
-            (R.plan . componentRef) .= node
+            (R.ival . pln . componentRef) .= node
             pure mempty
 
         RenderAction -> do
             -- Just change the state to a different number so the React pureComponent will call render()
-            (R.plan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
-            i <- JE.toJS <$> use (R.plan . frameNum)
-            r <- use (R.plan . componentRef)
+            (R.ival . pln . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
+            i <- JE.toJS <$> use (R.ival . pln . frameNum)
+            r <- use (R.ival . pln . componentRef)
             s <- get
             pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
 
 type Device mdl = R.Device Action Plan (Command mdl) mdl
 
-device :: (R.HasPlan mdl pln, HasPlan pln) => R.Device Action Plan (Command mdl) mdl
-device = R.Device (const mkPlan) gadget windowAttrs (const mempty)
+device :: Lens' mdl Plan -> R.Device Action Plan (Command mdl) mdl
+device pln = R.Device (const mkPlan) (gadget pln) (windowAttrs pln) (const mempty)

@@ -54,8 +54,8 @@ instance CD.Disposing Plan
 --     plan = R.ival . plan
 --     {-# INLINE plan #-}
 
-windowAttrs :: Lens' mdl Plan -> mdl -> R.WindowAttrs
-windowAttrs pln mdl = R.WindowAttrs (mempty, [("ref", mdl ^. pln . onComponentRef)])
+windowAttributes :: Lens' mdl Plan -> mdl -> R.WindowAttributes
+windowAttributes pln mdl = R.WindowAttributes (mempty, [("ref", mdl ^. pln . onComponentRef)])
 
 gadget :: Lens' mdl Plan -> G.Gadget Action (R.Shared mdl) (D.DList (Command mdl))
 gadget pln = do
@@ -75,5 +75,5 @@ gadget pln = do
 
 type Device mdl = R.Device Action Plan (Command mdl) mdl
 
-device :: Lens' mdl Plan -> R.Device Action Plan (Command mdl) mdl
-device pln = R.Device (const mkPlan) (gadget pln) (windowAttrs pln) (const mempty)
+device :: Lens' mdl Plan -> Device mdl
+device pln = R.Device pln (const mkPlan) (gadget pln) (windowAttributes pln)

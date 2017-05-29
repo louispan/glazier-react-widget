@@ -10,7 +10,8 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Widgets.Input
-    ( Action(..)
+    ( Command
+    , Action(..)
     , AsAction(..)
     , Schema(..)
     , HasSchema(..)
@@ -18,10 +19,8 @@ module Glazier.React.Widgets.Input
     , HasPlan(..)
     , Outline
     , Detail
-    -- , Widget
-    -- , widget
-    , whenKeyDown
-    , whenBlur
+    , Widget
+    , widget
     ) where
 
 import Control.Applicative
@@ -59,7 +58,9 @@ data Schema = Schema
 
 type Detail = Schema
 type Outline = Schema
-instance R.ToOutline Detail Outline where outline = id
+
+outline :: Detail -> Outline
+outline = id
 
 mkDetail :: Outline -> F (R.Maker Action) Detail
 mkDetail = pure
@@ -75,20 +76,12 @@ makeClassyPrisms ''Action
 makeClassy ''Plan
 makeClassy ''Schema
 
-componentDisplay
-    :: Lens' mdl Detail
-    -> Lens' mdl Plan
-    -> (mdl -> R.WindowAttrs)
-    -> (mdl -> R.RenderAttrs)
-    -> R.Display a D.Component.Plan mdl
-componentDisplay dtl pln wa ra = D.Component.display (pln . componentPlan) (const $ render dtl pln ra) wa
-
 mkPlan
     :: R.Display Action D.Component.Plan mdl
     -> MVar mdl
     -> F (R.Maker Action) Plan
-mkPlan componentDisplay' frm = Plan
-    <$> (R.mkPlan componentDisplay' frm)
+mkPlan display frm = Plan
+    <$> (R.mkPlan display frm)
     <*> (R.mkHandler onKeyDown')
     <*> (R.mkHandler onBlur')
     <*> (R.mkHandler onChanged')
@@ -104,13 +97,13 @@ instance D.Component.HasPlan Plan where
 window :: R.Display Action D.Component.Plan mdl
     -> J.JSVal
     -> G.WindowT mdl R.ReactMl ()
-window componentDisplay' = R.window componentDisplay'
+window display = R.window display
 
 -- | Internal rendering used by the React render callback
-render :: Lens' mdl Detail -> Lens' mdl Plan -> (mdl -> R.RenderAttrs) -> G.WindowT mdl R.ReactMl ()
+render :: Lens' mdl Detail -> Lens' mdl Plan -> (mdl -> R.RenderAttributes) -> G.WindowT mdl R.ReactMl ()
 render dtl pln ra = do
     s <- ask
-    let R.RenderAttrs (props, hdls) = ra s
+    let R.RenderAttributes (props, hdls) = ra s
     lift $
         R.lf
             "input"
@@ -128,18 +121,18 @@ render dtl pln ra = do
 
 whenKeyDown :: J.JSVal -> MaybeT IO (J.JSVal, Maybe J.JSString)
 whenKeyDown evt = do
-        sevt <- MaybeT $ pure $ JE.fromJS evt
-        kevt <- MaybeT $ pure $ R.parseKeyboardEvent sevt
-        let evt' = R.parseEvent sevt
+        syn <- MaybeT $ pure $ JE.fromJS evt
+        kevt <- MaybeT $ pure $ R.parseKeyboardEvent syn
+        let evt' = R.parseEvent syn
             k = R.keyCode kevt
-        input <- lift $ pure . JE.toJS . R.target $ evt'
+        target <- lift $ pure . JE.toJS . R.target $ evt'
         case k of
             -- FIXME: ESCAPE_KEY
-            27 -> pure (input, Nothing)
+            27 -> pure (target, Nothing)
             -- FIXME: ENTER_KEY
             13 -> do
-                v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" input
-                pure (input, Just v)
+                v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" target
+                pure (target, Just v)
             _ -> empty
 
 onKeyDown' :: J.JSVal -> MaybeT IO [Action]
@@ -149,30 +142,21 @@ onKeyDown' = R.eventHandlerM whenKeyDown goLazy
     goLazy (j, ms) = pure $
         maybe [CancelAction j] (pure . SubmitAction j) ms
 
-whenBlur :: J.JSVal -> MaybeT IO J.JSVal
-whenBlur evt = do
-        sevt <- MaybeT $ pure $ JE.fromJS evt
-        let evt' = R.parseEvent sevt
-        lift $ pure . JE.toJS . R.target $ evt'
-
 onBlur' :: J.JSVal -> MaybeT IO [Action]
-onBlur' = R.eventHandlerM whenBlur goLazy
+onBlur' = R.eventHandlerM goStrict goLazy
   where
-    goLazy :: J.JSVal -> MaybeT IO [Action]
-    goLazy j = pure [BlurAction j]
+    goStrict evt = MaybeT . pure $ (JE.fromJS evt) <&> (R.target . R.parseEvent)
+    goLazy :: R.DOMEventTarget -> MaybeT IO [Action]
+    goLazy j = pure [BlurAction (JE.toJS j)]
 
-
-whenChanged :: J.JSVal -> MaybeT IO (J.JSVal, J.JSString)
-whenChanged evt = do
-        sevt <- MaybeT $ pure $ JE.fromJS evt
-        let evt' = R.parseEvent sevt
-        input <- lift $ pure . JE.toJS . R.target $ evt'
-        v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" input
-        pure (input, v)
 
 onChanged' :: J.JSVal -> MaybeT IO [Action]
-onChanged' = R.eventHandlerM whenChanged goLazy
+onChanged' = R.eventHandlerM goStrict goLazy
   where
+    goStrict evt = do
+        target <- MaybeT . pure $ (JE.fromJS evt) <&> (JE.toJS . R.target . R.parseEvent)
+        v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" target
+        pure (target, v)
     goLazy :: (J.JSVal, J.JSString) -> MaybeT IO [Action]
     goLazy (j, s) = pure [ChangedAction j s]
 
@@ -183,14 +167,21 @@ gadget = do
         ResetAction j -> pure $ D.singleton $ G.Property.SetPropertyCommand j ("value", JE.toJS' J.empty)
         _ -> pure mempty
 
--- type Widget = R.Widget Action Outline Detail Plan Command
+type Widget mdl = R.Widget Action Outline Detail Plan Command mdl
 
--- widget
---     :: (forall mdl. R.HasModel mdl Detail Plan => mdl -> R.WindowProps)
---     -> (forall mdl. R.HasModel mdl Detail Plan => mdl -> R.RenderProps)
---     -> Widget
--- widget windowProps renderProps = R.Widget
---     mkModel
---     (mkPlan renderProps)
---     (window windowProps)
---     gadget
+widget
+    :: Lens' mdl Detail
+    -> Lens' mdl Plan
+    -> (mdl -> R.WindowAttributes)
+    -> (mdl -> R.RenderAttributes)
+    -> Widget mdl
+widget dtl pln wa ra = R.Widget
+    outline
+    dtl
+    pln
+    mkDetail
+    (mkPlan display)
+    (window display)
+    gadget
+  where
+    display = D.Component.display (pln . componentPlan) (const $ render dtl pln ra) wa

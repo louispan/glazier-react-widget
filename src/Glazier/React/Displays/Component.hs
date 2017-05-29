@@ -41,15 +41,15 @@ mkPlan render frm = Plan
 
 instance CD.Disposing Plan
 
--- instance HasPlan mdl => HasPlan (R.Shared mdl) where
---     plan = R.ival . plan
+-- instance HasPlan mdl => HasPlan (R.Model dtl mdl) where
+--     plan = R.plan
 --     {-# INLINE plan #-}
 
 -- | Exposed to parent components to render this component
-window :: Lens' mdl Plan -> (mdl -> R.WindowAttrs) -> G.WindowT mdl R.ReactMl ()
+window :: Lens' mdl Plan -> (mdl -> R.WindowAttributes) -> G.WindowT mdl R.ReactMl ()
 window pln wa = do
     s <- ask
-    let R.WindowAttrs (props, hdls) = wa s
+    let R.WindowAttributes (props, hdls) = wa s
     lift $
         R.lf
             (s ^. pln . component . to JE.toJS')
@@ -65,6 +65,6 @@ type Display a mdl = R.Display a Plan mdl
 display
     :: Lens' mdl Plan
     -> (J.JSVal -> G.WindowT mdl R.ReactMl ())
-    -> (mdl -> R.WindowAttrs)
-    -> R.Display a Plan mdl
-display pln render wa = R.Display (mkPlan render) (const $ window pln wa)
+    -> (mdl -> R.WindowAttributes)
+    -> Display a mdl
+display pln render wa = R.Display pln (mkPlan render) (const $ window pln wa)

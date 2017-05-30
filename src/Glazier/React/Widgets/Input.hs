@@ -76,12 +76,12 @@ makeClassyPrisms ''Action
 makeClassy ''Plan
 makeClassy ''Schema
 
-mkPlan
+mkRenderingPlan
     :: R.Display Action D.Component.Plan mdl
     -> MVar mdl
     -> F (R.Maker Action) Plan
-mkPlan display frm = Plan
-    <$> (R.mkPlan display frm)
+mkRenderingPlan component' frm = Plan
+    <$> (R.mkRenderingPlan component' frm)
     <*> (R.mkHandler onKeyDown')
     <*> (R.mkHandler onBlur')
     <*> (R.mkHandler onChanged')
@@ -92,12 +92,6 @@ instance CD.Disposing Detail where
 
 instance D.Component.HasPlan Plan where
     plan = componentPlan
-
--- | Exposed to parent components to render this component
-window :: R.Display Action D.Component.Plan mdl
-    -> J.JSVal
-    -> G.WindowT mdl R.ReactMl ()
-window display = R.window display
 
 -- | Internal rendering used by the React render callback
 render :: Lens' mdl Detail -> Lens' mdl Plan -> (mdl -> R.RenderAttributes) -> G.WindowT mdl R.ReactMl ()
@@ -180,8 +174,8 @@ widget dtl pln wa ra = R.Widget
     dtl
     pln
     mkDetail
-    (mkPlan display)
-    (window display)
+    (mkRenderingPlan component')
+    (R.window component')
     gadget
   where
-    display = D.Component.display (pln . componentPlan) (const $ render dtl pln ra) wa
+    component' = D.Component.display (pln . componentPlan) (render dtl pln ra) wa

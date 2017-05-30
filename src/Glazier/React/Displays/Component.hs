@@ -27,23 +27,19 @@ import qualified JavaScript.Extras as JE
 data Plan = Plan
     { _component :: R.ReactComponent
     , _key :: J.JSString
-    , _onRender ::  J.Callback (J.JSVal -> IO J.JSVal)
+    , _onRender ::  J.Callback (IO J.JSVal)
     } deriving (G.Generic)
 
 makeClassy ''Plan
 
-mkPlan
-    :: (J.JSVal -> G.WindowT mdl R.ReactMl ()) -> MVar mdl -> F (R.Maker a) Plan
-mkPlan render frm = Plan
+mkRenderingPlan
+    :: G.WindowT mdl R.ReactMl () -> MVar mdl -> F (R.Maker a) Plan
+mkRenderingPlan render frm = Plan
     <$> R.getComponent
     <*> R.mkKey
-    <*> (R.mkRenderer frm render)
+    <*> (R.mkRenderer render frm)
 
 instance CD.Disposing Plan
-
--- instance HasPlan mdl => HasPlan (R.Model dtl mdl) where
---     plan = R.plan
---     {-# INLINE plan #-}
 
 -- | Exposed to parent components to render this component
 window :: Lens' mdl Plan -> (mdl -> R.WindowAttributes) -> G.WindowT mdl R.ReactMl ()
@@ -64,7 +60,7 @@ type Display a mdl = R.Display a Plan mdl
 
 display
     :: Lens' mdl Plan
-    -> (J.JSVal -> G.WindowT mdl R.ReactMl ())
+    -> G.WindowT mdl R.ReactMl ()
     -> (mdl -> R.WindowAttributes)
     -> Display a mdl
-display pln render wa = R.Display pln (mkPlan render) (const $ window pln wa)
+display pln render wa = R.Display pln (mkRenderingPlan render) (window pln wa)

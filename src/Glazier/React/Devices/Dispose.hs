@@ -66,4 +66,4 @@ gadget pln = do
 type Device mdl = R.Device Action Plan Command mdl
 
 device :: Lens' mdl Plan -> Device mdl
-device pln = R.Device pln (const mkPlan) (gadget pln) (windowAttributes pln)
+device pln = R.Device pln mkPlan (gadget pln) (windowAttributes pln)

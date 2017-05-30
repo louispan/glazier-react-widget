@@ -7,10 +7,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
--- {-# LANGUAGE UndecidableInstances #-}
--- {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DataKinds #-}
--- {-# LANGUAGE MonomorphismRestriction #-}
 
 module Glazier.React.Widgets.List where
     -- ( Command(..)
@@ -51,58 +48,59 @@ import qualified Glazier.React.Devices.Dispose as D.Dispose
 import qualified Glazier.React.Displays.Component as D.Component
 import qualified JavaScript.Extras as JE
 
--- -- | List specific command
--- data Command' k itemWidget = ItemCommand k (R.CommandOf itemWidget)
+-- | List specific command
+data Command' k w = ItemCommand k (R.CommandOf w)
 
--- -- | Combined Command
--- data Command k itemWidget
---     = RenderCommand (D.Render.Command (R.Shared (Model k itemWidget) Plan))
---     | DisposeCommand D.Dispose.Command
---     | MakerCommand (C.Maker.Command (Action k itemWidget))
---     | ListCommand (Command' k itemWidget)
+-- | Combined Command
+data Command k w mdl
+    = RenderCommand (D.Render.Command (R.Shared mdl))
+    | DisposeCommand D.Dispose.Command
+    | MakerCommand (C.Maker.Command (Action k w))
+    | ListCommand (Command' k w)
 
--- -- | List specific actions
--- data Action' k itemWidget
---     = DestroyItemAction k
---     | MakeItemAction (k -> k) (k -> F (R.Maker (R.ActionOf itemWidget)) (R.ModelOf itemWidget))
---     | AddItemAction k (R.GizmoOf itemWidget)
---     | ItemAction k (R.ActionOf itemWidget)
---     | SetFilterAction (R.OutlineOf itemWidget -> Bool)
+-- | List specific actions
+data Action' k w
+    = DestroyItemAction k
+    | MakeItemAction (k -> k) (k -> F (R.Maker (R.ActionOf w)) (R.ModelOf w))
+    | AddItemAction k (R.EntityOf w)
+    | ItemAction k (R.ActionOf w)
+    | SetFilterAction (R.OutlineOf w -> Bool)
 
--- -- | Combined Action
--- data Action k itemWidget
---     = RenderAction G.Render.Action
---     | DisposeAction G.Dispose.Action
---     | ListAction (Action' k itemWidget)
+-- | Combined Action
+data Action k w
+    = RenderAction D.Render.Action
+    | DisposeAction D.Dispose.Action
+    | ListAction (Action' k w)
 
-data Schema k itemWidget (p :: R.Part) = Schema
+data Schema k w (p :: R.Part) = Schema
     { _className :: J.JSString
     , _idx :: k
-    , _items :: M.Map k (R.Widget's p itemWidget)
-    , _itemsFilter :: R.OutlineOf itemWidget -> Bool
+    , _items :: M.Map k (R.Widget's p w)
+    , _itemsFilter :: R.OutlineOf w -> Bool
     }
 
-type Detail k itemWidget = Schema k itemWidget 'R.Entity'
-type Outline k itemWidget = Schema k itemWidget 'R.Outline'
+type Detail k w = Schema k w 'R.BaseEntity'
+type Outline k w = Schema k w 'R.Outline'
 
--- Top-level binding with no type signature:
---   outline :: forall t (t1 :: R.Part) k itemWidget (p :: R.Part) w.
---              (R.OutlineOf itemWidget ~ R.OutlineOf t,
---               R.OutlineOf w ~ R.Widget's p itemWidget,
---               R.HasIVal (R.Widget's t1 t) (R.ModelOf w), R.HasDetail w,
---               R.ToOutline w) =>
---              w -> Schema k t t1 -> Schema k itemWidget p
-
-outline :: (R.HasDetail itemWidget, R.ToOutline itemWidget) => itemWidget -> Detail k itemWidget -> Outline k itemWidget
+outline
+    :: ( R.ModelOf w ~ R.BaseModelOf w
+       , R.HasDetail w
+       , R.ToOutline w
+       )
+    => w -> Detail k w -> Outline k w
 outline w (Schema a b c d) =
-        Schema a b ((view (R.ival . R.detail w . to (R.outline w))) <$> c) d
+        Schema a b (view (R.ival . R.detail w . to (R.outline w)) <$> c) d
 
--- mkDetail :: R.IsWidget itemWidget => itemWidget -> Outline k itemWidget -> F (R.Maker (Action k itemWidget)) (Model k itemWidget)
--- mkDetail w (Schema a b c d) = Schema
---     <$> pure a
---     <*> pure b
---     <*> M.traverseWithKey (\k i -> R.hoistWithAction (ListAction . ItemAction k) (R.mkGizmo' w i)) c
---     <*> pure d
+mkDetail
+    :: (R.IsWidget w, R.ModelOf w ~ R.BaseModelOf w)
+    => w
+    -> Outline k w
+    -> F (R.Maker (Action k w)) (Detail k w)
+mkDetail w (Schema a b c d) = Schema
+    <$> pure a
+    <*> pure b
+    <*> M.traverseWithKey (\k i -> R.hoistWithAction (ListAction . ItemAction k) (R.mkBaseEntity' w i)) c
+    <*> pure d
 
 data Plan = Plan
     { _componentPlan :: D.Component.Plan
@@ -110,111 +108,103 @@ data Plan = Plan
     , _disposePlan :: D.Dispose.Plan
     } deriving (G.Generic)
 
--- makeClassyPrisms ''Action
--- makeClassyPrisms ''Action'
--- makeClassy ''Schema
--- makeClassy ''Plan
+makeClassyPrisms ''Action
+makeClassyPrisms ''Action'
+makeClassy ''Schema
+makeClassy ''Plan
 
--- mkPlan
---     :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget)
---     => R.ReactMlT Identity ()
---     -> G.WindowT (R.SceneOf itemWidget) (R.ReactMlT Identity) ()
---     -> (scn -> R.RenderProps)
---     -> MVar scn
---     -> F (R.Maker (Action k itemWidget)) Plan
--- mkPlan separator itemWindow renderProps frm = Plan
---     <$> (WComponent.mkPlan (render separator itemWindow renderProps) frm)
---     <*> (R.hoistWithAction RenderAction G.Render.mkPlan)
---     <*> (R.hoistWithAction DisposeAction G.Dispose.mkPlan)
+mkRenderingPlan
+    :: D.Component.Display (Action k w) mdl
+    -> D.Render.Device mdl
+    -> D.Dispose.Device mdl
+    -> MVar mdl
+    -> F (R.Maker (Action k w)) Plan
+mkRenderingPlan component' render' dispose' frm = Plan
+    <$> (R.mkRenderingPlan component' frm)
+    <*> (R.hoistWithAction RenderAction $ R.mkPlan render')
+    <*> (R.hoistWithAction DisposeAction $ R.mkPlan dispose')
 
 instance CD.Disposing Plan
 
--- -- | Undecidable instances because itemWidget appears more often in the constraint
--- -- but this is safe because @R.GizmoOf itemWidget@ is smaller than @Model k itemWidget@
--- instance (CD.Disposing (R.GizmoOf itemWidget)) =>
---          CD.Disposing (Model k itemWidget) where
---     disposing s = CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. items)
+instance (R.ModelOf w ~ R.BaseModelOf w, CD.Disposing (R.EntityOf w)) =>
+         CD.Disposing (Detail k w) where
+    disposing s = CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. items)
 
--- -- Link Glazier.React.Model's HasPlan/HasModel with this widget's HasPlan/HasModel from makeClassy
--- instance HasPlan pln => HasPlan (R.Scene (Model k itemWidget) pln) where
---     plan = R.plan . plan
--- instance HasPlan pln => HasPlan (R.Gizmo (Model k itemWidget) pln) where
---     plan = R.plan . plan
--- instance HasSchema mdl k itemWidget R.GizmoType =>
---          HasSchema (R.Scene mdl pln) k itemWidget R.GizmoType where
---     schema = R.model . schema
--- instance HasSchema mdl k itemWidget R.GizmoType =>
---          HasSchema (R.Gizmo mdl pln) k itemWidget R.GizmoType where
---     schema = R.scene . schema
+instance D.Component.HasPlan Plan where
+    plan = componentPlan
 
--- -- link the HasPlan for the composites
--- instance WComponent.HasPlan Plan where
---     plan = componentPlan
--- instance G.Render.HasPlan Plan where
---     plan = renderPlan
--- instance G.Dispose.HasPlan Plan where
---     plan = disposePlan
+instance D.Render.HasPlan Plan where
+    plan = renderPlan
 
--- type Widget k itemWidget = R.Widget (Action k itemWidget) (Outline k itemWidget) (Model k itemWidget) Plan (Command k itemWidget)
+instance D.Dispose.HasPlan Plan where
+    plan = disposePlan
+
+-- type Widget k w = R.Widget (Action k w) (Outline k w) (Model k w) Plan (Command k w)
 -- widget
---     :: (R.IsWidget itemWidget, Ord k)
+--     :: (R.IsWidget w, Ord k)
 --     => R.ReactMl ()
---     -> itemWidget
---     -> (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.WindowProps)
---     -> (forall scn. R.HasScene scn (Model k itemWidget) Plan => scn -> R.RenderProps)
---     -> Widget k itemWidget
--- widget separator itemWidget windowProps renderProps = R.Widget
---     (mkModel itemWidget)
---     (mkPlan separator (R.window itemWidget) renderProps)
+--     -> w
+--     -> (forall scn. R.HasScene scn (Model k w) Plan => scn -> R.WindowProps)
+--     -> (forall scn. R.HasScene scn (Model k w) Plan => scn -> R.RenderProps)
+--     -> Widget k w
+-- widget separator w windowProps renderProps = R.Widget
+--     (mkModel w)
+--     (mkPlan separator (R.window w) renderProps)
 --     (window windowProps)
---     (gadget (R.mkGizmo itemWidget) (R.gadget itemWidget))
+--     (gadget (R.mkGizmo w) (R.gadget w))
 
--- -- | Exposed to parent components to render this component
--- window :: R.HasScene scn (Model k itemWidget) Plan => (scn -> R.WindowProps) -> G.WindowT scn R.ReactMl ()
--- window windowProps = WComponent.window $ fold [windowProps, G.Render.windowProps, G.Dispose.windowProps]
+window :: R.Display (Action k w) D.Component.Plan mdl -> G.WindowT mdl R.ReactMl ()
+window component' = R.window component'
 
--- -- | Internal rendering used by the React render callback
+-- | Internal rendering used by the React render callback
 -- render
---     :: (R.HasScene scn (Model k itemWidget) Plan, R.IsWidget itemWidget)
+--     :: (R.HasScene scn (Model k w) Plan, R.IsWidget w)
 --     => R.ReactMlT Identity ()
---     -> G.WindowT (R.SceneOf itemWidget) R.ReactMl ()
+--     -> G.WindowT (R.SceneOf w) R.ReactMl ()
 --     -> (scn -> R.RenderProps)
 --     -> G.WindowT scn R.ReactMl ()
--- render separator itemWindow renderProps = do
---     s <- ask
---     let R.RenderProps (props, hdls) = renderProps s
---     xs <-
---         fmap (view R.scene) .
---         filter ((s ^. R.scene . itemsFilter) . R.outline . view R.model) .
---         fmap snd .
---         M.toList <$>
---         view (R.scene . items)
---     lift $
---         R.bh
---             "ul"
---             ([ ("key", s ^. R.scene . WComponent.key . to JE.toJS')
---             , ("className", s ^. R.scene . className . to JE.toJS')
---             ] ++ props)
---             hdls $ do
---         let itemsWindows = view G._WindowT itemWindow <$> xs
---             separatedWindows = DL.intersperse separator itemsWindows
---         sequenceA_ separatedWindows
-
+render
+    :: (R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w) => R.ReactMlT Identity ()
+    -> w
+    -> Lens' mdl (Detail k w)
+    -> Lens' mdl Plan
+    -> (mdl -> R.RenderAttributes)
+    -> G.WindowT mdl R.ReactMl ()
+render separator w dtl pln ra = do
+    s <- ask
+    let R.RenderAttributes (props, hdls) = ra s
+    xs <-
+        filter ((s ^. dtl . itemsFilter) . R.toOutline' w) .
+        fmap (view R.ival . snd) . -- get the item BaseModel
+        M.toList <$>
+        view (dtl . items) -- get the items
+    lift $
+        R.bh
+            "ul"
+            ([ ("key", s ^. pln . D.Component.key . to JE.toJS')
+            , ("className", s ^. dtl . className . to JE.toJS')
+            ] ++ props)
+            hdls $ do
+        let itemsWindows = view G._WindowT itemWindow <$> xs
+            separatedWindows = DL.intersperse separator itemsWindows
+        sequenceA_ separatedWindows
+  where
+    itemWindow = R.window w
 -- gadget
---     :: (Ord k, R.IsWidget itemWidget)
---     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
---     -> G.Gadget (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
---     -> G.Gadget (Action k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
+--     :: (Ord k, R.IsWidget w)
+--     => (R.ModelOf w -> F (R.Maker (R.ActionOf w)) (R.GizmoOf w))
+--     -> G.Gadget (R.ActionOf w) (R.GizmoOf w) (D.DList (R.CommandOf w))
+--     -> G.Gadget (Action k w) (R.Gizmo (Model k w) Plan) (D.DList (Command k w))
 -- gadget mkItemGizmo itemGadget =
 --         (fmap RenderCommand <$> magnify _RenderAction G.Render.gadget)
 --     <|> (fmap DisposeCommand <$> magnify _DisposeAction G.Dispose.gadget)
 --     <|> (magnify _ListAction (listGadget mkItemGizmo itemGadget))
 
 -- listGadget
---     :: (Ord k, R.IsWidget itemWidget)
---     => (R.ModelOf itemWidget -> F (R.Maker (R.ActionOf itemWidget)) (R.GizmoOf itemWidget))
---     -> G.Gadget (R.ActionOf itemWidget) (R.GizmoOf itemWidget) (D.DList (R.CommandOf itemWidget))
---     -> G.Gadget (Action' k itemWidget) (R.Gizmo (Model k itemWidget) Plan) (D.DList (Command k itemWidget))
+--     :: (Ord k, R.IsWidget w)
+--     => (R.ModelOf w -> F (R.Maker (R.ActionOf w)) (R.GizmoOf w))
+--     -> G.Gadget (R.ActionOf w) (R.GizmoOf w) (D.DList (R.CommandOf w))
+--     -> G.Gadget (Action' k w) (R.Gizmo (Model k w) Plan) (D.DList (Command k w))
 -- listGadget mkItemGizmo itemGadget = do
 --     a <- ask
 --     case a of

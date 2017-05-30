@@ -173,23 +173,23 @@ gadget
     :: (Ord k, R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w)
     => D.Render.Device mdl
     -> D.Dispose.Device mdl
+    -> w
     -> Lens' mdl (Detail k w)
     -> Lens' mdl Plan
-    -> w
     -> G.Gadget (Action k w) (R.Shared mdl) (D.DList (Command k w))
-gadget render' dispose' dtl pln w =
+gadget render' dispose' w dtl pln =
         (fmap RenderCommand <$> magnify _RenderAction (R.gadget render'))
     <|> (fmap DisposeCommand <$> magnify _DisposeAction (R.gadget dispose'))
-    <|> (magnify _ListAction (listGadget render' dtl pln w))
+    <|> (magnify _ListAction (listGadget render' w dtl pln))
 
 listGadget
     :: (Ord k, R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w)
     => D.Render.Device mdl
+    -> w
     -> Lens' mdl (Detail k w)
     -> Lens' mdl Plan
-    -> w
     -> G.Gadget (Action' k w) (R.Shared mdl) (D.DList (Command k w))
-listGadget render' dtl pln w = do
+listGadget render' w dtl pln = do
     a <- ask
     case a of
         DestroyItemAction k -> do
@@ -243,7 +243,7 @@ widget separator w dtl pln wa ra = R.Widget
     (mkDetail w)
     (mkRenderingPlan component' render' dispose')
     (R.window component')
-    (gadget render' dispose' dtl pln w)
+    (gadget render' dispose' w dtl pln)
   where
     component' = D.Component.display (pln . componentPlan) (render separator w dtl pln ra) wa
     render' = D.Render.device (pln . renderPlan)

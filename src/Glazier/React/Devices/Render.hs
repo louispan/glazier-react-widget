@@ -49,10 +49,6 @@ mkPlan = Plan
 
 instance CD.Disposing Plan
 
--- instance (HasPlan mdl) => HasPlan (R.Shared mdl) where
---     plan = R.ival . plan
---     {-# INLINE plan #-}
-
 windowAttributes :: Lens' mdl Plan -> mdl -> R.WindowAttributes
 windowAttributes pln mdl = R.WindowAttributes (mempty, [("ref", mdl ^. pln . onComponentRef)])
 

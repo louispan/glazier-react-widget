@@ -9,22 +9,22 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 
-module Glazier.React.Widgets.List where
-    -- ( Command(..)
-    -- , Command'(..)
-    -- , Action(..)
-    -- , AsAction(..)
-    -- , Action'(..)
-    -- , AsAction'(..)
-    -- , Schema(..)
-    -- , HasSchema(..)
-    -- , Plan(..)
-    -- , HasPlan(..)
-    -- , Outline
-    -- , Model
-    -- , Widget
-    -- , widget
-    -- ) where
+module Glazier.React.Widgets.List
+    ( Command(..)
+    , Command'(..)
+    , Action(..)
+    , AsAction(..)
+    , Action'(..)
+    , AsAction'(..)
+    , Schema(..)
+    , HasSchema(..)
+    , Plan(..)
+    , HasPlan(..)
+    , Outline
+    , Detail
+    , Widget
+    , widget
+    ) where
 
 import Control.Applicative
 import Control.Concurrent.MVar
@@ -52,8 +52,8 @@ import qualified JavaScript.Extras as JE
 data Command' k w = ItemCommand k (R.CommandOf w)
 
 -- | Combined Command
-data Command k w mdl
-    = RenderCommand (D.Render.Command (R.Shared mdl))
+data Command k w
+    = RenderCommand D.Render.Command
     | DisposeCommand D.Dispose.Command
     | MakerCommand (C.Maker.Command (Action k w))
     | ListCommand (Command' k w)
@@ -61,7 +61,7 @@ data Command k w mdl
 -- | List specific actions
 data Action' k w
     = DestroyItemAction k
-    | MakeItemAction (k -> k) (k -> F (R.Maker (R.ActionOf w)) (R.ModelOf w))
+    | MakeItemAction (k -> k) (k -> F (R.Maker (R.ActionOf w)) (R.OutlineOf w))
     | AddItemAction k (R.EntityOf w)
     | ItemAction k (R.ActionOf w)
     | SetFilterAction (R.OutlineOf w -> Bool)
@@ -139,32 +139,10 @@ instance D.Render.HasPlan Plan where
 instance D.Dispose.HasPlan Plan where
     plan = disposePlan
 
--- type Widget k w = R.Widget (Action k w) (Outline k w) (Model k w) Plan (Command k w)
--- widget
---     :: (R.IsWidget w, Ord k)
---     => R.ReactMl ()
---     -> w
---     -> (forall scn. R.HasScene scn (Model k w) Plan => scn -> R.WindowProps)
---     -> (forall scn. R.HasScene scn (Model k w) Plan => scn -> R.RenderProps)
---     -> Widget k w
--- widget separator w windowProps renderProps = R.Widget
---     (mkModel w)
---     (mkPlan separator (R.window w) renderProps)
---     (window windowProps)
---     (gadget (R.mkGizmo w) (R.gadget w))
-
-window :: R.Display (Action k w) D.Component.Plan mdl -> G.WindowT mdl R.ReactMl ()
-window component' = R.window component'
-
 -- | Internal rendering used by the React render callback
--- render
---     :: (R.HasScene scn (Model k w) Plan, R.IsWidget w)
---     => R.ReactMlT Identity ()
---     -> G.WindowT (R.SceneOf w) R.ReactMl ()
---     -> (scn -> R.RenderProps)
---     -> G.WindowT scn R.ReactMl ()
 render
-    :: (R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w) => R.ReactMlT Identity ()
+    :: (R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w)
+    => R.ReactMlT Identity ()
     -> w
     -> Lens' mdl (Detail k w)
     -> Lens' mdl Plan
@@ -190,53 +168,83 @@ render separator w dtl pln ra = do
         sequenceA_ separatedWindows
   where
     itemWindow = R.window w
--- gadget
---     :: (Ord k, R.IsWidget w)
---     => (R.ModelOf w -> F (R.Maker (R.ActionOf w)) (R.GizmoOf w))
---     -> G.Gadget (R.ActionOf w) (R.GizmoOf w) (D.DList (R.CommandOf w))
---     -> G.Gadget (Action k w) (R.Gizmo (Model k w) Plan) (D.DList (Command k w))
--- gadget mkItemGizmo itemGadget =
---         (fmap RenderCommand <$> magnify _RenderAction G.Render.gadget)
---     <|> (fmap DisposeCommand <$> magnify _DisposeAction G.Dispose.gadget)
---     <|> (magnify _ListAction (listGadget mkItemGizmo itemGadget))
 
--- listGadget
---     :: (Ord k, R.IsWidget w)
---     => (R.ModelOf w -> F (R.Maker (R.ActionOf w)) (R.GizmoOf w))
---     -> G.Gadget (R.ActionOf w) (R.GizmoOf w) (D.DList (R.CommandOf w))
---     -> G.Gadget (Action' k w) (R.Gizmo (Model k w) Plan) (D.DList (Command k w))
--- listGadget mkItemGizmo itemGadget = do
---     a <- ask
---     case a of
---         DestroyItemAction k -> do
---             -- queue up callbacks to be released after rerendering
---             ret <- runMaybeT $ do
---                 itemGizmo <- MaybeT $ use (items . at k)
---                 G.Dispose.deferredDisposables %= (`D.snoc` CD.disposing itemGizmo)
---                 -- Remove the todo from the model
---                 items %= M.delete k
---                 -- on re-render the todo Shim will not get rendered and will be removed by react
---                 lift doRender
---             maybe (pure mempty) pure ret
+gadget
+    :: (Ord k, R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w)
+    => D.Render.Device mdl
+    -> D.Dispose.Device mdl
+    -> Lens' mdl (Detail k w)
+    -> Lens' mdl Plan
+    -> w
+    -> G.Gadget (Action k w) (R.Shared mdl) (D.DList (Command k w))
+gadget render' dispose' dtl pln w =
+        (fmap RenderCommand <$> magnify _RenderAction (R.gadget render'))
+    <|> (fmap DisposeCommand <$> magnify _DisposeAction (R.gadget dispose'))
+    <|> (magnify _ListAction (listGadget render' dtl pln w))
 
---         MakeItemAction keyMaker itemModelMaker -> do
---             n <- keyMaker <$> use idx
---             idx .= n
---             pure $ D.singleton $ MakerCommand $ C.Maker.MakerCommand $ do
---                 sm <- R.hoistWithAction (ListAction . ItemAction n) (
---                     itemModelMaker n >>= mkItemGizmo)
---                 pure . ListAction $ AddItemAction n sm
+listGadget
+    :: (Ord k, R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w)
+    => D.Render.Device mdl
+    -> Lens' mdl (Detail k w)
+    -> Lens' mdl Plan
+    -> w
+    -> G.Gadget (Action' k w) (R.Shared mdl) (D.DList (Command k w))
+listGadget render' dtl pln w = do
+    a <- ask
+    case a of
+        DestroyItemAction k -> do
+            -- queue up callbacks to be released after rerendering
+            ret <- runMaybeT $ do
+                itemEntity <- MaybeT $ use (R.ival . dtl . items . at k)
+                (R.ival . pln . D.Dispose.deferredDisposables) %= (`D.snoc` CD.disposing itemEntity)
+                -- Remove the todo from the model
+                (R.ival . dtl . items) %= M.delete k
+                -- on re-render the todo Shim will not get rendered and will be removed by react
+                lift rerender
+            maybe (pure mempty) pure ret
 
---         AddItemAction n v -> do
---             items %= M.insert n v
---             doRender
+        MakeItemAction keyMaker mkItemOutline -> do
+            n <- keyMaker <$> use (R.ival . dtl . idx)
+            (R.ival . dtl . idx) .= n
+            pure $ D.singleton $ MakerCommand $ C.Maker.MakerCommand $ do
+                sm <- R.hoistWithAction (ListAction . ItemAction n) (
+                    mkItemOutline n >>= R.mkBaseEntity' w)
+                pure . ListAction $ AddItemAction n sm
 
---         ItemAction k _ -> fmap (ListCommand . ItemCommand k) <$>
---             (magnify (_ItemAction . to snd)
---             (zoom (items . at k . _Just) itemGadget))
+        AddItemAction n v -> do
+            (R.ival . dtl . items) %= M.insert n v
+            rerender
 
---         SetFilterAction ftr -> do
---             itemsFilter .= ftr
---             doRender
---   where
---       doRender = fmap RenderCommand <$> G.withGadgetT G.Render.RenderAction G.Render.gadget
+        ItemAction k _ -> fmap (ListCommand . ItemCommand k) <$>
+            (magnify (_ItemAction . to snd)
+            (zoom (R.ival . dtl . items . at k . _Just) (R.gadget w)))
+
+        SetFilterAction ftr -> do
+            (R.ival . dtl . itemsFilter) .= ftr
+            rerender
+  where
+      rerender = fmap RenderCommand <$> G.withGadgetT D.Render.RenderAction (R.gadget render')
+
+type Widget k w mdl = R.Widget (Action k w) (Outline k w) (Detail k w) Plan (Command k w) mdl
+
+widget
+    :: (Ord k, R.ModelOf w ~ R.BaseModelOf w, R.IsWidget w)
+    => R.ReactMlT Identity ()
+    -> w
+    -> Lens' mdl (Detail k w)
+    -> Lens' mdl Plan
+    -> (mdl -> R.WindowAttributes)
+    -> (mdl -> R.RenderAttributes)
+    -> Widget k w mdl
+widget separator w dtl pln wa ra = R.Widget
+    dtl
+    pln
+    (outline w)
+    (mkDetail w)
+    (mkRenderingPlan component' render' dispose')
+    (R.window component')
+    (gadget render' dispose' dtl pln w)
+  where
+    component' = D.Component.display (pln . componentPlan) (render separator w dtl pln ra) wa
+    render' = D.Render.device (pln . renderPlan)
+    dispose' = D.Dispose.device (pln . disposePlan)

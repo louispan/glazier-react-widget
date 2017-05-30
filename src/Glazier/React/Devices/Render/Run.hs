@@ -15,14 +15,14 @@ import Glazier.React.Devices.Render
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
-componentSetState :: (R.Shared mdl) -> [JE.Property] -> J.JSVal -> IO ()
+componentSetState :: R.Shared mdl -> [JE.Property] -> J.JSVal -> IO ()
 componentSetState s props j = do
     let mdl = s ^. R.ival
         frm = s ^. R.mvar
     void $ swapMVar frm mdl
     js_componentSetState (JE.fromProperties props) j
 
-run :: Command (R.Shared mdl) -> IO ()
+run :: Command -> IO ()
 run (RenderCommand s props j) = componentSetState s props j
 
 #ifdef __GHCJS__

@@ -170,9 +170,9 @@ widget
     -> (mdl -> R.RenderAttributes)
     -> Widget mdl
 widget dtl pln wa ra = R.Widget
-    outline
     dtl
     pln
+    outline
     mkDetail
     (mkRenderingPlan component')
     (R.window component')

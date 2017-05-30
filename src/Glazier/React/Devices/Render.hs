@@ -1,10 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
--- {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Devices.Render
     ( Command(..)
@@ -28,7 +27,7 @@ import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified JavaScript.Extras as JE
 
-data Command mdl = RenderCommand (R.Shared mdl) [JE.Property] J.JSVal
+data Command = forall mdl. RenderCommand (R.Shared mdl) [JE.Property] J.JSVal
 
 data Action
     = ComponentRefAction J.JSVal
@@ -57,7 +56,7 @@ instance CD.Disposing Plan
 windowAttributes :: Lens' mdl Plan -> mdl -> R.WindowAttributes
 windowAttributes pln mdl = R.WindowAttributes (mempty, [("ref", mdl ^. pln . onComponentRef)])
 
-gadget :: Lens' mdl Plan -> G.Gadget Action (R.Shared mdl) (D.DList (Command mdl))
+gadget :: Lens' mdl Plan -> G.Gadget Action (R.Shared mdl) (D.DList Command)
 gadget pln = do
     a <- ask
     case a of
@@ -73,7 +72,7 @@ gadget pln = do
             s <- get
             pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
 
-type Device mdl = R.Device Action Plan (Command mdl) mdl
+type Device mdl = R.Device Action Plan Command mdl
 
 device :: Lens' mdl Plan -> Device mdl
 device pln = R.Device pln mkPlan (gadget pln) (windowAttributes pln)

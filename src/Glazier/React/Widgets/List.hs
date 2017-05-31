@@ -13,9 +13,7 @@ module Glazier.React.Widgets.List
     ( Command(..)
     , Command'(..)
     , Action(..)
-    , AsAction(..)
     , Action'(..)
-    , AsAction'(..)
     , Schema(..)
     , HasSchema(..)
     , Plan(..)
@@ -36,16 +34,17 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.DList as D
 import Data.Foldable
+import Data.Semigroup
 import qualified Data.JSString as J
 import qualified Data.List as DL
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import qualified Glazier as G
 import qualified Glazier.React as R
+import qualified Glazier.React.Displays.Component as D.Component
 import qualified Glazier.React.Commands.Maker as C.Maker
 import qualified Glazier.React.Devices.Render as D.Render
 import qualified Glazier.React.Devices.Dispose as D.Dispose
-import qualified Glazier.React.Displays.Component as D.Component
 import qualified JavaScript.Extras as JE
 
 -- | List specific command
@@ -113,14 +112,14 @@ makeClassyPrisms ''Action'
 makeClassy ''Schema
 makeClassy ''Plan
 
-mkRenderingPlan
+mkComponentPlan
     :: D.Component.Display (Action k w) mdl
     -> D.Render.Device mdl
     -> D.Dispose.Device mdl
     -> MVar mdl
     -> F (R.Maker (Action k w)) Plan
-mkRenderingPlan component' render' dispose' frm = Plan
-    <$> (R.mkRenderingPlan component' frm)
+mkComponentPlan component' render' dispose' frm = Plan
+    <$> (R.mkComponentPlan component' frm)
     <*> (R.hoistWithAction RenderAction $ R.mkPlan render')
     <*> (R.hoistWithAction DisposeAction $ R.mkPlan dispose')
 
@@ -233,18 +232,22 @@ widget
     -> w
     -> Lens' mdl (Detail k w)
     -> Lens' mdl Plan
-    -> (mdl -> R.WindowAttributes)
     -> (mdl -> R.RenderAttributes)
     -> Widget k w mdl
-widget separator w dtl pln wa ra = R.Widget
-    dtl
-    pln
-    (outline w)
-    (mkDetail w)
-    (mkRenderingPlan component' render' dispose')
-    (R.window component')
-    (gadget render' dispose' w dtl pln)
+widget separator w dtl pln ra =
+    R.Widget
+        dtl
+        pln
+        (outline w)
+        (mkDetail w)
+        (mkComponentPlan component' render' dispose')
+        (R.window component')
+        (gadget render' dispose' w dtl pln)
   where
-    component' = D.Component.display (pln . componentPlan) (render separator w dtl pln ra) wa
+    component' =
+        D.Component.display
+            (pln . componentPlan)
+            (render separator w dtl pln ra)
+            (R.componentAttributes render' <> R.componentAttributes dispose')
     render' = D.Render.device (pln . renderPlan)
     dispose' = D.Dispose.device (pln . disposePlan)

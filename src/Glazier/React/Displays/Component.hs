@@ -32,9 +32,9 @@ data Plan = Plan
 
 makeClassy ''Plan
 
-mkRenderingPlan
+mkComponentPlan
     :: G.WindowT mdl R.ReactMl () -> MVar mdl -> F (R.Maker a) Plan
-mkRenderingPlan render frm = Plan
+mkComponentPlan render frm = Plan
     <$> R.getComponent
     <*> R.mkKey
     <*> (R.mkRenderer render frm)
@@ -42,10 +42,10 @@ mkRenderingPlan render frm = Plan
 instance CD.Disposing Plan
 
 -- | Exposed to parent components to render this component
-window :: Lens' mdl Plan -> (mdl -> R.WindowAttributes) -> G.WindowT mdl R.ReactMl ()
+window :: Lens' mdl Plan -> (mdl -> R.ComponentAttributes) -> G.WindowT mdl R.ReactMl ()
 window pln wa = do
     s <- ask
-    let R.WindowAttributes (props, hdls) = wa s
+    let R.ComponentAttributes (props, hdls) = wa s
     lift $
         R.lf
             (s ^. pln . component . to JE.toJS')
@@ -61,6 +61,6 @@ type Display a mdl = R.Display a Plan mdl
 display
     :: Lens' mdl Plan
     -> G.WindowT mdl R.ReactMl ()
-    -> (mdl -> R.WindowAttributes)
+    -> (mdl -> R.ComponentAttributes)
     -> Display a mdl
-display pln render wa = R.Display pln (mkRenderingPlan render) (window pln wa)
+display pln render ca = R.Display pln (mkComponentPlan render) (window pln ca)

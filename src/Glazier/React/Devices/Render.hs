@@ -49,8 +49,8 @@ mkPlan = Plan
 
 instance CD.Disposing Plan
 
-windowAttributes :: Lens' mdl Plan -> mdl -> R.WindowAttributes
-windowAttributes pln mdl = R.WindowAttributes (mempty, [("ref", mdl ^. pln . onComponentRef)])
+componentAttributes :: Lens' mdl Plan -> mdl -> R.ComponentAttributes
+componentAttributes pln mdl = R.ComponentAttributes (mempty, [("ref", mdl ^. pln . onComponentRef)])
 
 gadget :: Lens' mdl Plan -> G.Gadget Action (R.Shared mdl) (D.DList Command)
 gadget pln = do
@@ -71,4 +71,4 @@ gadget pln = do
 type Device mdl = R.Device Action Plan Command mdl
 
 device :: Lens' mdl Plan -> Device mdl
-device pln = R.Device pln mkPlan (gadget pln) (windowAttributes pln)
+device pln = R.Device pln mkPlan (componentAttributes pln) (gadget pln)

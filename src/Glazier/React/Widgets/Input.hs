@@ -43,10 +43,10 @@ import qualified JavaScript.Extras as JE
 type Command = C.Property.Command
 
 data Action
-    = SubmitAction R.DOMEventTarget J.JSString
-    | CancelAction R.DOMEventTarget
-    | ChangedAction R.DOMEventTarget J.JSString
-    | ResetAction R.DOMEventTarget
+    = SubmitAction R.EventTarget J.JSString
+    | CancelAction R.EventTarget
+    -- | ChangedAction R.EventTarget J.JSString
+    | ResetAction R.EventTarget
 
 data Schema = Schema
     { _className :: J.JSString
@@ -66,7 +66,7 @@ mkDetail = pure
 data Plan = Plan
     { _componentPlan :: D.Component.Plan
     , _onKeyDown :: J.Callback (J.JSVal -> IO ())
-    , _onChanged :: J.Callback (J.JSVal -> IO ())
+    -- , _onChanged :: J.Callback (J.JSVal -> IO ())
     } deriving (G.Generic)
 
 makeClassyPrisms ''Action
@@ -80,7 +80,7 @@ mkComponentPlan
 mkComponentPlan component' frm = Plan
     <$> (R.mkComponentPlan component' frm)
     <*> (R.mkHandler onKeyDown')
-    <*> (R.mkHandler onChanged')
+    -- <*> (R.mkHandler onChanged')
 
 instance CD.Disposing Plan
 instance CD.Disposing Detail where
@@ -103,11 +103,11 @@ render dtl pln ra = do
              ] ++
              props)
             ([ ("onKeyDown", s ^. pln . onKeyDown)
-             , ("onChanged", s ^. pln . onChanged)
+             -- , ("onChanged", s ^. pln . onChanged)
              ] ++
              hdls)
 
-whenKeyDown :: J.JSVal -> MaybeT IO (R.DOMEventTarget, Maybe J.JSString)
+whenKeyDown :: J.JSVal -> MaybeT IO (R.EventTarget, Maybe J.JSString)
 whenKeyDown evt = do
         syn <- MaybeT $ pure $ JE.fromJS evt
         kevt <- MaybeT $ pure $ R.parseKeyboardEvent syn
@@ -124,19 +124,19 @@ whenKeyDown evt = do
 onKeyDown' :: J.JSVal -> MaybeT IO [Action]
 onKeyDown' = R.eventHandlerM whenKeyDown lazily
   where
-    lazily :: (R.DOMEventTarget, Maybe J.JSString) -> MaybeT IO [Action]
+    lazily :: (R.EventTarget, Maybe J.JSString) -> MaybeT IO [Action]
     lazily (j, ms) = pure $
         maybe [CancelAction j] (pure . SubmitAction j) ms
 
-onChanged' :: J.JSVal -> MaybeT IO [Action]
-onChanged' = R.eventHandlerM strictly lazily
-  where
-    strictly evt = do
-        target <- MaybeT . pure $ (JE.fromJS evt) <&> (R.target . R.parseEvent)
-        v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" (JE.toJS target)
-        pure (target, v)
-    lazily :: (R.DOMEventTarget, J.JSString) -> MaybeT IO [Action]
-    lazily (j, s) = pure [ChangedAction j s]
+-- onChanged' :: J.JSVal -> MaybeT IO [Action]
+-- onChanged' = R.eventHandlerM strictly lazily
+--   where
+--     strictly evt = do
+--         target <- MaybeT . pure $ (JE.fromJS evt) <&> (R.target . R.parseEvent)
+--         v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" (JE.toJS target)
+--         pure (target, v)
+--     lazily :: (R.EventTarget, J.JSString) -> MaybeT IO [Action]
+--     lazily (j, s) = pure [ChangedAction j s]
 
 gadget :: G.Gadget Action (R.Shared mdl) (D.DList Command)
 gadget = do

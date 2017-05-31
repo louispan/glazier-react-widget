@@ -21,7 +21,7 @@ import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified JavaScript.Extras as JE
 
-newtype Action = EventTargetAction R.DOMEventTarget
+newtype Action = EventTargetAction R.EventTarget
 
 newtype Plan = Plan
     { _onTrigger :: J.Callback (J.JSVal -> IO ())
@@ -41,7 +41,7 @@ onTrigger' :: J.JSVal -> MaybeT IO [Action]
 onTrigger' = R.eventHandlerM strictly lazily
   where
     strictly evt = MaybeT . pure $ JE.fromJS evt <&> (R.target . R.parseEvent)
-    lazily :: R.DOMEventTarget -> MaybeT IO [Action]
+    lazily :: R.EventTarget -> MaybeT IO [Action]
     lazily j = pure [EventTargetAction j]
 
 

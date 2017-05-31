@@ -4,4 +4,4 @@ module Glazier.React.Commands.Focus
 
 import qualified Glazier.React as R
 
-data Command = FocusCommand R.DOMEventTarget
+data Command = FocusCommand R.EventTarget

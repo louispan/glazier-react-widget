@@ -16,11 +16,11 @@ run (FocusCommand j) = js_focus j
 
 foreign import javascript unsafe
   "if ($1 && $1['focus']) { $1['focus'](); }"
-  js_focus :: R.DOMEventTarget -> IO ()
+  js_focus :: R.EventTarget -> IO ()
 
 #else
 
-js_focus :: R.DOMEventTarget -> IO ()
+js_focus :: R.EventTarget -> IO ()
 js_focus _ = pure ()
 
 #endif

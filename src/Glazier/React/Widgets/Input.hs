@@ -23,7 +23,7 @@ module Glazier.React.Widgets.Input
     ) where
 
 import Control.Applicative
-import Control.Concurrent.MVar
+import Control.Concurrent.STM.TMVar
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Free.Church
@@ -75,7 +75,7 @@ makeClassy ''Schema
 
 mkComponentPlan
     :: R.Display Action D.Component.Plan mdl
-    -> MVar mdl
+    -> TMVar mdl
     -> F (R.Maker Action) Plan
 mkComponentPlan component' frm = Plan
     <$> (R.mkComponentPlan component' frm)

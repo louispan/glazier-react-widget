@@ -2,7 +2,7 @@ module Glazier.React.Commands.Maker.Run
     ( run
     ) where
 
-import Control.Concurrent.MVar
+import Control.Concurrent.STM.TMVar
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Free.Church
@@ -12,7 +12,7 @@ import Glazier.React.Commands.Maker
 import qualified Pipes.Concurrent as PC
 
 run
-    :: MVar Int
+    :: TMVar Int
     -> R.ReactComponent -- for Maker
     -> PC.Output a
     -> Command a

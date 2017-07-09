@@ -6,7 +6,7 @@ module Glazier.React.Devices.Render.Run
     ( run
     ) where
 
-import Control.Concurrent.MVar
+import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad
 import qualified GHCJS.Types as J
@@ -18,8 +18,8 @@ import qualified JavaScript.Object as JO
 componentSetState :: R.Shared mdl -> [JE.Property] -> J.JSVal -> IO ()
 componentSetState s props j = do
     let mdl = s ^. R.ival
-        frm = s ^. R.mvar
-    void $ swapMVar frm mdl
+        frm = s ^. R.tmvar
+    void $ atomically $ swapTMVar frm mdl
     js_componentSetState (JE.fromProperties props) j
 
 run :: Command -> IO ()

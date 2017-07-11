@@ -1,9 +1,8 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
@@ -12,9 +11,8 @@ module Glazier.React.Devices.Render
     ( Command(..)
     , Action(..)
     , Plan(..)
-    -- , HasPlan(..)
-    -- , Device
-    -- , device
+    , HasPlan(..)
+    , widget
     ) where
 
 import Control.Lens
@@ -23,7 +21,6 @@ import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as D
-import Data.Semigroup
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified GHC.Generics as G
@@ -54,11 +51,10 @@ mkPlan = Plan
 
 instance R.Dispose Plan
 
-componentListeners :: UniqueMember Plan plns => R.ComponentListeners plns
-componentListeners = R.ComponentListeners (\plns -> D.singleton ("ref", plns ^. item @Plan . onComponentRef))
+componentListener :: UniqueMember Plan plns => R.MkListener plns
+componentListener plns = D.singleton ("ref", plns ^. item @Plan . onComponentRef)
 
-
-gadget :: UniqueMember Plan plns => G.Gadget Action (R.Shared (R.BaseModel dtls plns)) (D.DList Command)
+gadget :: UniqueMember Plan plns => G.Gadget Action (R.BaseEntity dtls plns) (D.DList Command)
 gadget = do
     a <- ask
     case a of
@@ -74,10 +70,19 @@ gadget = do
             s <- get
             pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
   where
-    pln :: UniqueMember Plan plns => Lens' (R.Shared (R.BaseModel dtls plns)) Plan
-    pln = R.ival . R.plans . item @Plan
+    pln :: UniqueMember Plan plns => Lens' (R.BaseEntity dtls plns) Plan
+    pln = R.plans . item @Plan
 
--- type Device mdl = R.Device Action Plan Command mdl
-
--- device :: Lens' mdl Plan -> Device mdl
--- device pln = R.Device pln mkPlan (componentAttributes pln) (gadget pln)
+widget
+    :: ( UniqueMember Action acts
+       , UniqueMember Plan plns
+       , UniqueMember Command cmds
+       )
+    => R.Widget Plan acts dtls plns cmds
+widget =
+       R.hoistWithAction pick mkPlan
+    ./ componentListener
+    ./ pure mempty
+    ./ mempty
+    ./ (fmap pick <$> magnify (facet @Action) gadget)
+    ./ nil

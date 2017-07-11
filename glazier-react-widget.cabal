@@ -22,10 +22,10 @@ library
                        -- Glazier.React.Commands.Maker.Run
                        -- Glazier.React.Commands.Property
                        -- Glazier.React.Commands.Property.Run
-                       -- Glazier.React.Devices.Dispose
-                       -- Glazier.React.Devices.Dispose.Run
-                       -- Glazier.React.Devices.Render
-                       -- Glazier.React.Devices.Render.Run
+                       Glazier.React.Devices.Dispose
+                       Glazier.React.Devices.Dispose.Run
+                       Glazier.React.Devices.Render
+                       Glazier.React.Devices.Render.Run
                        -- Glazier.React.Displays.Component
                        -- Glazier.React.Triggers.EventTarget
                        -- Glazier.React.Widgets.Input

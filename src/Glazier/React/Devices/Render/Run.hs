@@ -10,7 +10,7 @@ import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad
 import qualified GHCJS.Types as J
-import qualified Glazier.React.Shared as R
+import qualified Glazier.React.Widget as R
 import Glazier.React.Devices.Render
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO

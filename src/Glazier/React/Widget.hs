@@ -8,6 +8,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
@@ -21,6 +22,7 @@ import Control.Concurrent.STM.TMVar
 import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Reader
+import Data.Coerce
 import Data.Diverse.Lens
 import qualified Data.DList as D
 import Data.Kind
@@ -125,50 +127,75 @@ instance HasComponentPlan (BaseEntity dtls plns) where
     componentPlan = ival . componentPlan
 
 ----------------------------------------------------------
+-- Two widgets can only be composed monoidally by converting to components (componentWindow
+-- Gizmos can be added to Widgets or Gizmos
 
-type MkPlan acts pln = F (R.Maker (Which acts)) pln
-type MkListener plns = Many plns -> D.DList R.Listener
-type MkProperty dtls plns = BaseModel dtls plns -> D.DList JE.Property
-type Window dtls plns = G.WindowT (BaseModel dtls plns) R.ReactMl ()
+newtype ComponentListener = ComponentListener { runComponentListener :: R.Listener }
+newtype ComponentProperty = ComponentProperty { runComponentProperty :: JE.Property }
+
+type MkPlan acts plns' = F (R.Maker (Which acts)) (Many plns')
+type MkComponentListener plns = Many plns -> D.DList ComponentListener
+type MkComponentProperty dtls plns = BaseModel dtls plns -> D.DList ComponentProperty
 type Gadget acts dtls plns cmds = G.Gadget (Which acts) (BaseEntity dtls plns) (D.DList (Which cmds))
+type Window dtls plns = G.WindowT (BaseModel dtls plns) R.ReactMl () --FIXME: use Maybe
 
-type Widget pln acts dtls plns cmds = Many
-                    '[ MkPlan acts pln
-                     , MkListener plns
-                     , MkProperty dtls plns
-                     , Window dtls plns
+
+type GizmoTypes p' acts dtls plns cmds =
+                    '[ MkPlan acts p'
+                     , MkComponentListener plns
+                     , MkComponentProperty dtls plns
                      , Gadget acts dtls plns cmds
                      ]
 
-combine
-    :: forall pln plns' acts dtls plns cmds.
-       Widget (Many plns') acts dtls plns cmds
-    -> Widget pln acts dtls plns cmds
-    -> Widget (Many (pln ': plns')) acts dtls plns cmds
-combine x y = x
-    & item' @(MkPlan acts (Many plns')) %~ (\mkPlans -> (./) <$> (y ^. (item @(MkPlan acts pln))) <*> mkPlans)
-    & item @(MkListener plns) %~ (<> (y ^. (item @(MkListener plns))))
-    & item @(MkProperty dtls plns) %~ (<> (y ^. (item @(MkProperty dtls plns))))
-    & item @(Window dtls plns) %~ (<> (y ^. (item @(Window dtls plns))))
-    & item @(Gadget acts dtls plns cmds) %~ (<> (y ^. (item @(Gadget acts dtls plns cmds))))
+type Gizmo a' p' c' acts dtls plns cmds = Many (GizmoTypes p' acts dtls plns cmds)
 
--- | Difference is gadget is combined using <|> instead of <>
-fallback
-    :: forall pln plns' acts dtls plns cmd.
-       Widget (Many plns') acts dtls plns cmd
-    -> Widget pln acts dtls plns cmd
-    -> Widget (Many (pln ': plns')) acts dtls plns cmd
-fallback x y = x
-    & item' @(MkPlan acts (Many plns')) %~ (\mkPlans -> (./) <$> (y ^. (item @(MkPlan acts pln))) <*> mkPlans)
-    & item @(MkListener plns) %~ (<> (y ^. (item @(MkListener plns))))
-    & item @(MkProperty dtls plns) %~ (<> (y ^. (item @(MkProperty dtls plns))))
-    & item @(Window dtls plns) %~ (<> (y ^. (item @(Window dtls plns))))
-    & item @(Gadget acts dtls plns cmd) %~ (<|> (y ^. (item @(Gadget acts dtls plns cmd))))
+-- type Widget pln acts dtls plns cmds = Many (Window dtls plns ': GizmoTypes pln acts dtls plns cmds)
+
+-- TODO: Make into class
+-- combine'
+--     :: forall pln plns' acts dtls plns cmds.
+--        Widget (Many plns') acts dtls plns cmds
+--     -> Gizmo pln acts dtls plns cmds
+--     -> Widget (Many (pln ': plns')) acts dtls plns cmds
+-- combine' x y = x
+--     & item' @(MkPlan acts (Many plns')) %~ (\mkPlans -> (./) <$> (y ^. (item @(MkPlan acts pln))) <*> mkPlans)
+--     & item @(MkComponentListener plns) %~ (<> (y ^. (item @(MkComponentListener plns))))
+--     & item @(MkComponentProperty dtls plns) %~ (<> (y ^. (item @(MkComponentProperty dtls plns))))
+--     & item @(Gadget acts dtls plns cmds) %~ (<|> (y ^. (item @(Gadget acts dtls plns cmds))))
+
+-- class Attach
+
+combine
+    :: forall a a' p p' c c' acts dtls plns cmds.
+       Gizmo a p c acts dtls plns cmds
+    -> Gizmo a' p' c' acts dtls plns cmds
+    -> Gizmo (Append a a') (Append p p') (Append c c') acts dtls plns cmds
+combine x y = x
+    & item' @(MkPlan acts p) %~ (\mkPlans -> (/./) <$> mkPlans <*> y ^. (item @(MkPlan acts p')))
+    & item @(MkComponentListener plns) %~ (<> (y ^. (item @(MkComponentListener plns))))
+    & item @(MkComponentProperty dtls plns) %~ (<> (y ^. (item @(MkComponentProperty dtls plns))))
+    & item @(Gadget acts dtls plns cmds) %~ (<|> (y ^. (item @(Gadget acts dtls plns cmds))))
+
+blank :: Gizmo '[] '[] '[] acts dtls plns cmds
+blank = pure nil
+    ./ mempty
+    ./ pure mempty
+    ./ empty
+    ./ nil
+
+-- -- | Convert a Widget (which has a Window) back into a Gizmo, by wrapping it around a Component.
+-- wack :: forall plns' acts dtls cmds. Widget (Many plns') acts dtls plns' cmds -> Many dtls -> F (R.Maker (Which acts)) (BaseEntity dtls plns')
+
+--      -- Gizmo (BaseEntity dtls plns') acts d p cmds
+-- wack w d = mkBaseEntity d mkPlns windw
+--   where
+--     mkPlns = w ^. (item @(MkPlan acts (Many plns')))
+--     windw = w ^. (item @(Window dtls plns'))
 
 ----------------------------------------------------------
 
 componentWindow
-    :: D.DList R.Listener -> D.DList JE.Property -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
+    :: D.DList ComponentListener -> D.DList ComponentProperty -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
 componentWindow ls ps = do
     s <- ask
     lift $
@@ -177,8 +204,8 @@ componentWindow ls ps = do
             ((D.fromList [ ("key", s ^. componentPlan . key . to JE.toJS')
                                      -- NB. render is not a 'R.Handle' as it returns an 'IO JSVal'
                                      , ("render", s ^. componentPlan . onRender . to JE.toJS')
-                                     ]) <> ps)
-            ls
+                                     ]) <> (coerce ps))
+            (coerce ls)
 
 -- | Make a BaseEntity given the Detail, where the Model type is
 -- a basic tuple of Detail and Plan.

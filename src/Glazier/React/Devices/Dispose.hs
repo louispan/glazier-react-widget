@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -12,7 +13,7 @@ module Glazier.React.Devices.Dispose
     , Action(..)
     , Plan(..)
     , HasPlan(..)
-    , widget
+    , gizmo
     ) where
 
 import Control.Lens
@@ -44,8 +45,8 @@ mkPlan = Plan
 
 instance R.Dispose Plan
 
-componentListener :: UniqueMember Plan plns => R.MkListener plns
-componentListener plns = D.singleton ("componentDidUpdate", plns ^. item @Plan . onComponentDidUpdate)
+componentListener :: UniqueMember Plan plns => R.MkComponentListener plns
+componentListener plns = D.singleton $ R.ComponentListener ("componentDidUpdate", plns ^. item @Plan . onComponentDidUpdate)
 
 gadget :: UniqueMember Plan plns => G.Gadget Action (R.BaseEntity dtls plns) (D.DList Command)
 gadget = do
@@ -58,16 +59,15 @@ gadget = do
     pln :: UniqueMember Plan plns => Lens' (R.BaseEntity dtls plns) Plan
     pln = R.plans . item @Plan
 
-widget
+gizmo
     :: ( UniqueMember Action acts
        , UniqueMember Plan plns
        , UniqueMember Command cmds
        )
-    => R.Widget Plan acts dtls plns cmds
-widget =
-       R.hoistWithAction pick mkPlan
+    => R.Gizmo '[Action] '[Plan] '[Command] acts dtls plns cmds
+gizmo =
+       (single <$> R.hoistWithAction pick mkPlan)
     ./ componentListener
     ./ pure mempty
-    ./ mempty
     ./ (fmap pick <$> magnify (facet @Action) gadget)
     ./ nil

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -11,21 +12,24 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Glazier.React.Widget where
 
-import Control.Applicative
 import Control.Concurrent.STM.TMVar
 import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Reader
+import Control.Monad.State.Strict
 import Data.Coerce
 import Data.Diverse.Lens
 import qualified Data.DList as D
 import Data.Kind
+import Data.Proxy
+import Data.Maybe
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
@@ -36,22 +40,63 @@ import qualified JavaScript.Extras as JE
 
 ----------------------------------------------------------
 
+-- | Something that has an immutable component, as well as a TMVar that
+-- can be used to share a value with other threads.
+-- This is used by the gadget to be able to purely manipulate a value
+-- as well as put it into an TMVar for other threads to access the value.
+newtype Shared a = Shared
+    { runShared :: (TMVar a, a)
+    } deriving G.Generic
+
+instance R.Dispose a => R.Dispose (Shared a) where
+    dispose (Shared (_, a)) = R.dispose a
+
+_Shared :: Iso' (Shared a) (TMVar a,  a)
+_Shared = iso runShared Shared
+
+tmvar :: Lens' (Shared a) (TMVar a)
+tmvar = _Shared . _1
+
+ival :: Lens' (Shared a) a
+ival = _Shared . _2
+
+----------------------------------------------------------
+
+data ComponentCommand
+    = forall mdl. RenderCommand (Shared mdl) [JE.Property] J.JSVal
+    | DisposeCommand (R.Disposable ())
+
+data ComponentAction
+    = ComponentRefAction J.JSVal
+    | RenderAction
+    | DisposeAction
+
 -- | ComponentPlan has to be stored differently to other plans because mkComponentPlan needs
 -- additional parameters
 data ComponentPlan = ComponentPlan
-    { _component :: R.ReactComponent
-    , _key :: J.JSString
+    { _key :: J.JSString
+    , _frameNum :: Int
+    , _component :: R.ReactComponent
+    , _componentRef :: J.JSVal
+    , _deferredDisposables :: R.Disposable ()
     , _onRender ::  J.Callback (IO J.JSVal)
+    , _onComponentRef :: J.Callback (J.JSVal -> IO ())
+    , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
     } deriving (G.Generic)
 
 makeClassy ''ComponentPlan
 
 mkComponentPlan
-    :: G.WindowT mdl R.ReactMl () -> TMVar mdl -> F (R.Maker act) ComponentPlan
-mkComponentPlan render frm = ComponentPlan
-    <$> R.getComponent
-    <*> R.mkKey
-    <*> (R.mkRenderer render frm)
+    :: UniqueMember ComponentAction acts => G.WindowT mdl R.ReactMl () -> TMVar mdl -> F (R.Maker (Which acts)) ComponentPlan
+mkComponentPlan render frm = R.hoistWithAction pick $ ComponentPlan
+    <$> R.mkKey -- key
+    <*> pure 0 -- frameNum
+    <*> R.getComponent -- component
+    <*> pure J.nullRef -- componentRef
+    <*> pure mempty -- deferredDisposables
+    <*> (R.mkRenderer render frm) -- onRender
+    <*> (R.mkHandler $ pure . pure . ComponentRefAction) -- onComponentRef
+    <*> (R.mkHandler $ pure . pure . const DisposeAction) -- onComponentDidUpdate
 
 instance R.Dispose ComponentPlan
 
@@ -95,26 +140,6 @@ _BaseModel = iso runBaseModel BaseModel
 
 ----------------------------------------------------------
 
--- | Something that has an immutable component, as well as a TMVar that
--- can be used to share a value with other threads.
--- This is used by the gadget to be able to purely manipulate a value
--- as well as put it into an TMVar for other threads to access the value.
-newtype Shared a = Shared
-    { runShared :: (TMVar a, a)
-    } deriving G.Generic
-
-instance R.Dispose a => R.Dispose (Shared a) where
-    dispose (Shared (_, a)) = R.dispose a
-
-_Shared :: Iso' (Shared a) (TMVar a,  a)
-_Shared = iso runShared Shared
-
-tmvar :: Lens' (Shared a) (TMVar a)
-tmvar = _Shared . _1
-
-ival :: Lens' (Shared a) a
-ival = _Shared . _2
-
 type BaseEntity dtls plns = Shared (BaseModel dtls plns)
 
 instance HasDetails (BaseEntity dtls plns) dtls where
@@ -127,93 +152,146 @@ instance HasComponentPlan (BaseEntity dtls plns) where
     componentPlan = ival . componentPlan
 
 ----------------------------------------------------------
--- Two widgets can only be composed monoidally by converting to components (componentWindow
--- Gizmos can be added to Widgets or Gizmos
 
-newtype ComponentListener = ComponentListener { runComponentListener :: R.Listener }
-newtype ComponentProperty = ComponentProperty { runComponentProperty :: JE.Property }
+componentGadget :: UniqueMember ComponentPlan plns => G.Gadget ComponentAction (BaseEntity dtls plns) (D.DList ComponentCommand)
+componentGadget = do
+    a <- ask
+    case a of
+        ComponentRefAction node -> do
+            (pln . componentRef) .= node
+            pure mempty
 
-type MkPlan acts plns' = F (R.Maker (Which acts)) (Many plns')
-type MkComponentListener plns = Many plns -> D.DList ComponentListener
-type MkComponentProperty dtls plns = BaseModel dtls plns -> D.DList ComponentProperty
-type Gadget acts dtls plns cmds = G.Gadget (Which acts) (BaseEntity dtls plns) (D.DList (Which cmds))
-type Window dtls plns = G.WindowT (BaseModel dtls plns) R.ReactMl () --FIXME: use Maybe
+        RenderAction -> do
+            -- Just change the state to a different number so the React PureComponent will call render()
+            (pln . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
+            i <- JE.toJS <$> use (pln . frameNum)
+            r <- use (pln . componentRef)
+            s <- get
+            pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
 
+        DisposeAction -> do
+            -- Run delayed commands that need to wait until frame is re-rendered
+            -- Eg focusing after other rendering changes
+            ds <- use (pln . deferredDisposables)
+            (pln . deferredDisposables) .= mempty
+            pure . D.singleton . DisposeCommand $ ds
+  where
+    pln :: UniqueMember ComponentPlan plns => Lens' (BaseEntity dtls plns) ComponentPlan
+    pln = plans . item @ComponentPlan
 
-type GizmoTypes p' acts dtls plns cmds =
-                    '[ MkPlan acts p'
-                     , MkComponentListener plns
-                     , MkComponentProperty dtls plns
-                     , Gadget acts dtls plns cmds
-                     ]
-
-type Gizmo a' p' c' acts dtls plns cmds = Many (GizmoTypes p' acts dtls plns cmds)
-
--- type Widget pln acts dtls plns cmds = Many (Window dtls plns ': GizmoTypes pln acts dtls plns cmds)
-
--- TODO: Make into class
--- combine'
---     :: forall pln plns' acts dtls plns cmds.
---        Widget (Many plns') acts dtls plns cmds
---     -> Gizmo pln acts dtls plns cmds
---     -> Widget (Many (pln ': plns')) acts dtls plns cmds
--- combine' x y = x
---     & item' @(MkPlan acts (Many plns')) %~ (\mkPlans -> (./) <$> (y ^. (item @(MkPlan acts pln))) <*> mkPlans)
---     & item @(MkComponentListener plns) %~ (<> (y ^. (item @(MkComponentListener plns))))
---     & item @(MkComponentProperty dtls plns) %~ (<> (y ^. (item @(MkComponentProperty dtls plns))))
---     & item @(Gadget acts dtls plns cmds) %~ (<|> (y ^. (item @(Gadget acts dtls plns cmds))))
-
--- class Attach
-
-combine
-    :: forall a a' p p' c c' acts dtls plns cmds.
-       Gizmo a p c acts dtls plns cmds
-    -> Gizmo a' p' c' acts dtls plns cmds
-    -> Gizmo (Append a a') (Append p p') (Append c c') acts dtls plns cmds
-combine x y = x
-    & item' @(MkPlan acts p) %~ (\mkPlans -> (/./) <$> mkPlans <*> y ^. (item @(MkPlan acts p')))
-    & item @(MkComponentListener plns) %~ (<> (y ^. (item @(MkComponentListener plns))))
-    & item @(MkComponentProperty dtls plns) %~ (<> (y ^. (item @(MkComponentProperty dtls plns))))
-    & item @(Gadget acts dtls plns cmds) %~ (<|> (y ^. (item @(Gadget acts dtls plns cmds))))
-
-blank :: Gizmo '[] '[] '[] acts dtls plns cmds
-blank = pure nil
-    ./ mempty
-    ./ pure mempty
-    ./ empty
-    ./ nil
-
--- -- | Convert a Widget (which has a Window) back into a Gizmo, by wrapping it around a Component.
--- wack :: forall plns' acts dtls cmds. Widget (Many plns') acts dtls plns' cmds -> Many dtls -> F (R.Maker (Which acts)) (BaseEntity dtls plns')
-
---      -- Gizmo (BaseEntity dtls plns') acts d p cmds
--- wack w d = mkBaseEntity d mkPlns windw
---   where
---     mkPlns = w ^. (item @(MkPlan acts (Many plns')))
---     windw = w ^. (item @(Window dtls plns'))
-
-----------------------------------------------------------
-
-componentWindow
-    :: D.DList ComponentListener -> D.DList ComponentProperty -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
-componentWindow ls ps = do
+componentWindow :: G.WindowT (BaseModel dtls plns) R.ReactMl ()
+componentWindow = do
     s <- ask
     lift $
         R.lf
             (s ^. componentPlan  . component . to JE.toJS')
-            ((D.fromList [ ("key", s ^. componentPlan . key . to JE.toJS')
-                                     -- NB. render is not a 'R.Handle' as it returns an 'IO JSVal'
-                                     , ("render", s ^. componentPlan . onRender . to JE.toJS')
-                                     ]) <> (coerce ps))
-            (coerce ls)
+            (D.fromList [ ("key", s ^. componentPlan . key . to JE.toJS')
+                        -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
+                        , ("render", s ^. componentPlan . onRender . to JE.toJS')
+                        ])
+            (D.fromList [ ("ref", s ^. componentPlan . onComponentRef)
+                        , ("componentDidUpdate", s ^. componentPlan . onComponentDidUpdate)
+                        ])
+
+
+-- Two widgets can only be composed monoidally by converting to components (componentWindow
+-- Gizmos can be added to Widgets or Gizmos
+
+-- blank :: Gizmo '[] '[] '[] acts dtls plns cmds
+-- blank = pure nil
+--     ./ mempty
+--     ./ pure mempty
+--     ./ empty
+--     ./ nil
+
+newtype WindowProperty = WindowProperty { runWindowProperty :: JE.Property }
+type ToWindowProperties dtls plns = BaseModel dtls plns -> D.DList WindowProperty
+
+newtype WindowListener = WindowListener { runWindowListener :: R.Listener }
+type ToWindowListeners dtls plns = BaseModel dtls plns -> D.DList WindowListener
+
+newtype ComponentListener = ComponentListener { runComponentListener :: R.Listener }
+type ToComponentListeners plns = Many plns -> D.DList ComponentListener
+
+type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
+type MkDetail ols dtls acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
+type ToOutline ols dtls = Many dtls -> Many ols
+type Device dtls plns acts cmds = G.Gadget (Which acts) (BaseEntity dtls plns) (D.DList (Which cmds))
+
+newtype Display dtls plns =
+    Display ( Maybe (ToWindowProperties dtls plns)
+            , Maybe (ToWindowListeners dtls plns)
+            , Maybe ( Maybe (ToWindowProperties dtls plns)
+                   -> Maybe (ToWindowListeners dtls plns)
+                   -> G.WindowT (BaseModel dtls plns) R.ReactMl ()))
+
+instance Semigroup (Display dtls plns) where
+    Display (ps, ls, Nothing) <> Display (ps', ls', w') =
+        Display (ps <> ps', ls <> ls', w')
+    Display (ps, ls, w) <> Display (ps', ls', Nothing) =
+        Display (ps <> ps', ls <> ls', w)
+    Display (ps, ls, Just w) <> Display (ps', ls', Just w') =
+        Display
+            ( Nothing
+            , Nothing
+            , Just (wrapWithDiv (w ps ls <> w' ps' ls')))
+
+-- | wrap with a div if there are properties and listeners
+wrapWithDiv
+    :: G.WindowT (BaseModel dtls plns) R.ReactMl ()
+    -> Maybe (ToWindowProperties dtls plns)
+    -> Maybe (ToWindowListeners dtls plns)
+    -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
+wrapWithDiv w Nothing Nothing = w
+wrapWithDiv w p l = do
+    s <- ask
+    let l' = coerce $ fromMaybe mempty l s
+        p' = coerce $ fromMaybe mempty p s
+    lift . R.bh "div" p' l' $ G.runWindowT' w s
+
+instance Monoid (Display dtls plns) where
+    mempty = Display (Nothing, Nothing, Nothing)
+    mappend = (<>)
+
+renderDisplay :: Display dtls plns -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
+renderDisplay (Display (p, l, w)) = fromMaybe mempty $ (\w' -> w' p l) <$> w
+
+----------------------------------------------------------
+
+newtype Gizmo ols d p dtls plns acts cmds = Gizmo (MkDetail ols d acts, ToOutline ols d, MkPlan p acts, Device dtls plns acts cmds)
+
+-- | Wrap a widget into a component with it's own render and dispose functions
+componentize
+    :: forall ols dtls plns cmds acts dtls' plns'.
+    ( UniqueMember ComponentAction acts
+    , UniqueMember (BaseEntity dtls plns) dtls')
+    => Display dtls plns
+    -> Gizmo ols dtls plns dtls plns acts cmds
+    -> (Display dtls' plns', Gizmo ols '[BaseEntity dtls plns] '[] dtls' plns' acts cmds)
+componentize dsp (Gizmo (mkDtl, toOl, mkPln, dev)) =
+    ( Display
+        ( Nothing
+        , Nothing
+        , Just (wrapWithDiv componentWindow))
+    , Gizmo (mkDtl', toOl', pure nil, dev'))
+  where
+    w' = renderDisplay dsp
+    mkDtl' o = do
+        d <- mkDtl o
+        single <$> mkBaseEntity d mkPln w'
+    toOl' d = toOl (d ^. item @(BaseEntity dtls plns) . details)
+    dev' = zoom (details . item @(BaseEntity dtls plns)) dev
+
+----------------------------------------------------------
 
 -- | Make a BaseEntity given the Detail, where the Model type is
 -- a basic tuple of Detail and Plan.
 mkBaseEntity
-    :: Many dtls
-    -> F (R.Maker act) (Many plns)
+    :: UniqueMember ComponentAction acts
+    => Many dtls
+    -> F (R.Maker (Which acts)) (Many plns)
     -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
-    -> F (R.Maker act) (BaseEntity dtls plns)
+    -> F (R.Maker (Which acts)) (BaseEntity dtls plns)
 mkBaseEntity dtls mkPlns render = do
     frm <- R.mkEmptyFrame
     mdl <- (\plns compPln -> BaseModel (dtls, plns, compPln)) <$> mkPlns <*> mkComponentPlan render frm

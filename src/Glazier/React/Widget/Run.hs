@@ -1,28 +1,31 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Glazier.React.Gadgets.Render.Run
+module Glazier.React.Widget.Run
     ( run
     ) where
 
-import Control.Concurrent.MVar
+import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad
 import qualified GHCJS.Types as J
-import qualified Glazier.React as R
-import Glazier.React.Gadgets.Render
+import Glazier.React.Widget
+import qualified Glazier.React.Dispose as R
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
-componentSetState :: R.HasGizmo giz mdl pln => giz -> [JE.Property] -> J.JSVal -> IO ()
-componentSetState giz props j = do
-    let scn = giz ^. R.scene
-        frm = giz ^. R.frame
-    void $ swapMVar frm scn
+componentSetState :: Shared mdl -> [JE.Property] -> J.JSVal -> IO ()
+componentSetState s props j = do
+    let mdl = s ^. ival
+        frm = s ^. tmvar
+    void $ atomically $ swapTMVar frm mdl
     js_componentSetState (JE.fromProperties props) j
 
-run :: R.HasGizmo giz mdl pln => Command giz -> IO ()
-run (RenderCommand giz props j) = componentSetState giz props j
+run :: ComponentCommand -> IO ()
+run (RenderCommand s props j) = componentSetState s props j
+
+run (DisposeCommand x) = R.runDisposable x
 
 #ifdef __GHCJS__
 

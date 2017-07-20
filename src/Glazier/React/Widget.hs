@@ -19,6 +19,7 @@
 
 module Glazier.React.Widget where
 
+import Control.Applicative
 import Control.Concurrent.STM.TMVar
 import Control.Lens
 import Control.Monad.Free.Church
@@ -153,31 +154,28 @@ instance HasComponentPlan (BaseEntity dtls plns) where
 
 ----------------------------------------------------------
 
-componentGadget :: UniqueMember ComponentPlan plns => G.Gadget ComponentAction (BaseEntity dtls plns) (D.DList ComponentCommand)
+componentGadget :: G.Gadget ComponentAction (BaseEntity dtls plns) (D.DList ComponentCommand)
 componentGadget = do
     a <- ask
     case a of
         ComponentRefAction node -> do
-            (pln . componentRef) .= node
+            (componentPlan . componentRef) .= node
             pure mempty
 
         RenderAction -> do
             -- Just change the state to a different number so the React PureComponent will call render()
-            (pln . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
-            i <- JE.toJS <$> use (pln . frameNum)
-            r <- use (pln . componentRef)
+            (componentPlan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
+            i <- JE.toJS <$> use (componentPlan . frameNum)
+            r <- use (componentPlan . componentRef)
             s <- get
             pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
 
         DisposeAction -> do
             -- Run delayed commands that need to wait until frame is re-rendered
             -- Eg focusing after other rendering changes
-            ds <- use (pln . deferredDisposables)
-            (pln . deferredDisposables) .= mempty
+            ds <- use (componentPlan . deferredDisposables)
+            (componentPlan . deferredDisposables) .= mempty
             pure . D.singleton . DisposeCommand $ ds
-  where
-    pln :: UniqueMember ComponentPlan plns => Lens' (BaseEntity dtls plns) ComponentPlan
-    pln = plans . item @ComponentPlan
 
 componentWindow :: G.WindowT (BaseModel dtls plns) R.ReactMl ()
 componentWindow = do
@@ -193,16 +191,6 @@ componentWindow = do
                         , ("componentDidUpdate", s ^. componentPlan . onComponentDidUpdate)
                         ])
 
-
--- Two widgets can only be composed monoidally by converting to components (componentWindow
--- Gizmos can be added to Widgets or Gizmos
-
--- blank :: Gizmo '[] '[] '[] acts dtls plns cmds
--- blank = pure nil
---     ./ mempty
---     ./ pure mempty
---     ./ empty
---     ./ nil
 
 newtype WindowProperty = WindowProperty { runWindowProperty :: JE.Property }
 type ToWindowProperties dtls plns = BaseModel dtls plns -> D.DList WindowProperty
@@ -264,6 +252,7 @@ newtype Gizmo ols d p dtls plns acts cmds = Gizmo (MkDetail ols d acts, ToOutlin
 componentize
     :: forall ols dtls plns cmds acts dtls' plns'.
     ( UniqueMember ComponentAction acts
+    , UniqueMember ComponentCommand cmds
     , UniqueMember (BaseEntity dtls plns) dtls')
     => Display dtls plns
     -> Gizmo ols dtls plns dtls plns acts cmds
@@ -280,7 +269,8 @@ componentize dsp (Gizmo (mkDtl, toOl, mkPln, dev)) =
         d <- mkDtl o
         single <$> mkBaseEntity d mkPln w'
     toOl' d = toOl (d ^. item @(BaseEntity dtls plns) . details)
-    dev' = zoom (details . item @(BaseEntity dtls plns)) dev
+    dev' = zoom (details . item @(BaseEntity dtls plns)) dev <|> componentGadget'
+    componentGadget' = (fmap pick) <$> magnify (facet @ComponentAction) (zoom (details . item @(BaseEntity dtls plns)) componentGadget)
 
 ----------------------------------------------------------
 

@@ -45,26 +45,36 @@ import qualified JavaScript.Extras as JE
 -- can be used to share a value with other threads.
 -- This is used by the gadget to be able to purely manipulate a value
 -- as well as put it into an TMVar for other threads to access the value.
-newtype Shared a = Shared
-    { runShared :: (TMVar a, a)
-    } deriving G.Generic
+newtype Shared i v = Shared
+    { runShared :: (i, ReifiedLens' v i, TMVar v)
+    }
 
-instance R.Dispose a => R.Dispose (Shared a) where
-    dispose (Shared (_, a)) = R.dispose a
-
-_Shared :: Iso' (Shared a) (TMVar a,  a)
+_Shared :: Iso
+    (Shared i v)
+    (Shared i' v')
+    (i, ReifiedLens' v i, TMVar v)
+    (i', ReifiedLens' v' i', TMVar v')
 _Shared = iso runShared Shared
 
-tmvar :: Lens' (Shared a) (TMVar a)
-tmvar = _Shared . _1
+instance R.Dispose i => R.Dispose (Shared i v) where
+    dispose (Shared (i, _, _)) = R.dispose i
 
-ival :: Lens' (Shared a) a
-ival = _Shared . _2
+-- | (tm)utable (var)iable
+tmvar :: Lens' (Shared i v) (TMVar v)
+tmvar = _Shared . _3
+
+-- | (i)mmutable (val)ue
+ival :: Lens' (Shared i v) i
+ival = _Shared . _1
+
+-- | (tm)var to (i)mmutable (l)ens
+tmil :: Lens' (Shared i v) (ReifiedLens' v i)
+tmil = _Shared . _2
 
 ----------------------------------------------------------
 
 data ComponentCommand
-    = forall mdl. RenderCommand (Shared mdl) [JE.Property] J.JSVal
+    = forall i v. RenderCommand (Shared i v) [JE.Property] J.JSVal
     | DisposeCommand (R.Disposable ())
 
 data ComponentAction
@@ -111,8 +121,8 @@ class HasPlans c plns | c -> plns where
 
 ----------------------------------------------------------
 
-newtype BaseModel (dtls :: [Type]) (plns :: [Type]) = BaseModel
-    { runBaseModel ::
+newtype Prototype (dtls :: [Type]) (plns :: [Type]) = Prototype
+    { runPrototype ::
         ( Many dtls
         , Many plns
         , ComponentPlan
@@ -120,41 +130,41 @@ newtype BaseModel (dtls :: [Type]) (plns :: [Type]) = BaseModel
     }
     deriving G.Generic
 
-instance (R.Dispose (Many dtls), R.Dispose (Many plns)) => R.Dispose (BaseModel dtls plns)
+instance (R.Dispose (Many dtls), R.Dispose (Many plns)) => R.Dispose (Prototype dtls plns)
 
-instance HasDetails (BaseModel dtls plns) dtls where
-    details = _BaseModel . _1
+instance HasDetails (Prototype dtls plns) dtls where
+    details = _Prototype . _1
 
-instance HasPlans (BaseModel dtls plns) plns where
-    plans = _BaseModel . _2
+instance HasPlans (Prototype dtls plns) plns where
+    plans = _Prototype . _2
 
-instance HasComponentPlan (BaseModel dtls plns) where
-    componentPlan = _BaseModel . _3
+instance HasComponentPlan (Prototype dtls plns) where
+    componentPlan = _Prototype . _3
 
-_BaseModel :: Iso'
-    (BaseModel dtls plns)
-    ( Many dtls
-    , Many plns
-    , ComponentPlan
-    )
-_BaseModel = iso runBaseModel BaseModel
+_Prototype :: Iso
+    (Prototype dtls plns)
+    (Prototype dtls' plns')
+    (Many dtls, Many plns, ComponentPlan)
+    (Many dtls', Many plns', ComponentPlan)
+_Prototype = iso runPrototype Prototype
 
 ----------------------------------------------------------
 
-type BaseEntity dtls plns = Shared (BaseModel dtls plns)
+type Entity dtls plns v = Shared (Prototype dtls plns) v
+type Entity' dtls plns = Shared (Prototype dtls plns) (Prototype dtls plns)
 
-instance HasDetails (BaseEntity dtls plns) dtls where
+instance HasDetails (Entity dtls plns v) dtls where
     details = ival . details
 
-instance HasPlans (BaseEntity dtls plns) plns where
+instance HasPlans (Entity dtls plns v) plns where
     plans = ival . plans
 
-instance HasComponentPlan (BaseEntity dtls plns) where
+instance HasComponentPlan (Entity dtls plns v) where
     componentPlan = ival . componentPlan
 
 ----------------------------------------------------------
 
-componentGadget :: G.Gadget ComponentAction (BaseEntity dtls plns) (D.DList ComponentCommand)
+componentGadget :: G.Gadget ComponentAction (Entity dtls plns v) (D.DList ComponentCommand)
 componentGadget = do
     a <- ask
     case a of
@@ -177,7 +187,7 @@ componentGadget = do
             (componentPlan . deferredDisposables) .= mempty
             pure . D.singleton . DisposeCommand $ ds
 
-componentWindow :: G.WindowT (BaseModel dtls plns) R.ReactMl ()
+componentWindow :: G.WindowT (Prototype dtls plns) R.ReactMl ()
 componentWindow = do
     s <- ask
     lift $
@@ -193,10 +203,10 @@ componentWindow = do
 
 
 newtype WindowProperty = WindowProperty { runWindowProperty :: JE.Property }
-type ToWindowProperties dtls plns = BaseModel dtls plns -> D.DList WindowProperty
+type ToWindowProperties dtls plns = Prototype dtls plns -> D.DList WindowProperty
 
 newtype WindowListener = WindowListener { runWindowListener :: R.Listener }
-type ToWindowListeners dtls plns = BaseModel dtls plns -> D.DList WindowListener
+type ToWindowListeners dtls plns = Prototype dtls plns -> D.DList WindowListener
 
 newtype ComponentListener = ComponentListener { runComponentListener :: R.Listener }
 type ToComponentListeners plns = Many plns -> D.DList ComponentListener
@@ -204,14 +214,14 @@ type ToComponentListeners plns = Many plns -> D.DList ComponentListener
 type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
 type MkDetail ols dtls acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
 type ToOutline ols dtls = Many dtls -> Many ols
-type Device dtls plns acts cmds = G.Gadget (Which acts) (BaseEntity dtls plns) (D.DList (Which cmds))
+type Device dtls plns v acts cmds = G.Gadget (Which acts) (Entity dtls plns v) (D.DList (Which cmds))
 
 newtype Display dtls plns =
     Display ( Maybe (ToWindowProperties dtls plns)
             , Maybe (ToWindowListeners dtls plns)
             , Maybe ( Maybe (ToWindowProperties dtls plns)
                    -> Maybe (ToWindowListeners dtls plns)
-                   -> G.WindowT (BaseModel dtls plns) R.ReactMl ()))
+                   -> G.WindowT (Prototype dtls plns) R.ReactMl ()))
 
 instance Semigroup (Display dtls plns) where
     Display (ps, ls, Nothing) <> Display (ps', ls', w') =
@@ -226,10 +236,10 @@ instance Semigroup (Display dtls plns) where
 
 -- | wrap with a div if there are properties and listeners
 wrapWithDiv
-    :: G.WindowT (BaseModel dtls plns) R.ReactMl ()
+    :: G.WindowT (Prototype dtls plns) R.ReactMl ()
     -> Maybe (ToWindowProperties dtls plns)
     -> Maybe (ToWindowListeners dtls plns)
-    -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
+    -> G.WindowT (Prototype dtls plns) R.ReactMl ()
 wrapWithDiv w Nothing Nothing = w
 wrapWithDiv w p l = do
     s <- ask
@@ -241,22 +251,22 @@ instance Monoid (Display dtls plns) where
     mempty = Display (Nothing, Nothing, Nothing)
     mappend = (<>)
 
-renderDisplay :: Display dtls plns -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
+renderDisplay :: Display dtls plns -> G.WindowT (Prototype dtls plns) R.ReactMl ()
 renderDisplay (Display (p, l, w)) = fromMaybe mempty $ (\w' -> w' p l) <$> w
 
 ----------------------------------------------------------
 
-newtype Gizmo ols d p dtls plns acts cmds = Gizmo (MkDetail ols d acts, ToOutline ols d, MkPlan p acts, Device dtls plns acts cmds)
+newtype Gizmo ols d p dtls plns v acts cmds = Gizmo (MkDetail ols d acts, ToOutline ols d, MkPlan p acts, Device dtls plns v acts cmds)
 
 -- | Wrap a widget into a component with it's own render and dispose functions
 componentize
-    :: forall ols dtls plns cmds acts dtls' plns'.
+    :: forall dtls' plns' ols dtls plns v acts cmds.
     ( UniqueMember ComponentAction acts
     , UniqueMember ComponentCommand cmds
-    , UniqueMember (BaseEntity dtls plns) dtls')
+    , UniqueMember (Entity dtls plns v) dtls')
     => Display dtls plns
-    -> Gizmo ols dtls plns dtls plns acts cmds
-    -> (Display dtls' plns', Gizmo ols '[BaseEntity dtls plns] '[] dtls' plns' acts cmds)
+    -> Gizmo ols dtls plns dtls plns v acts cmds
+    -> (Display dtls' plns', Gizmo ols '[Entity' dtls plns] '[] dtls' plns' v acts cmds)
 componentize dsp (Gizmo (mkDtl, toOl, mkPln, dev)) =
     ( Display
         ( Nothing
@@ -267,23 +277,40 @@ componentize dsp (Gizmo (mkDtl, toOl, mkPln, dev)) =
     w' = renderDisplay dsp
     mkDtl' o = do
         d <- mkDtl o
-        single <$> mkBaseEntity d mkPln w'
-    toOl' d = toOl (d ^. item @(BaseEntity dtls plns) . details)
-    dev' = zoom (details . item @(BaseEntity dtls plns)) dev <|> componentGadget'
-    componentGadget' = (fmap pick) <$> magnify (facet @ComponentAction) (zoom (details . item @(BaseEntity dtls plns)) componentGadget)
+        single <$> mkEntity' d mkPln w'
+    toOl' d = toOl (d ^. item @(Entity' dtls plns) . details)
+    dev' = zoom (details . item @(Entity dtls plns v)) dev <|> componentGadget'
+    componentGadget' = fmap pick <$> magnify (facet @ComponentAction) (zoom (details . item @(Entity dtls plns v)) componentGadget)
 
 ----------------------------------------------------------
 
--- | Make a BaseEntity given the Detail, where the Model type is
+-- | Make a Entity given the Detail, where the Model type is
 -- a basic tuple of Detail and Plan.
-mkBaseEntity
+mkEntity'
     :: UniqueMember ComponentAction acts
     => Many dtls
     -> F (R.Maker (Which acts)) (Many plns)
-    -> G.WindowT (BaseModel dtls plns) R.ReactMl ()
-    -> F (R.Maker (Which acts)) (BaseEntity dtls plns)
-mkBaseEntity dtls mkPlns render = do
+    -> G.WindowT (Prototype dtls plns) R.ReactMl ()
+    -> F (R.Maker (Which acts)) (Entity' dtls plns)
+mkEntity' dtls mkPlns render = do
     frm <- R.mkEmptyFrame
-    mdl <- (\plns compPln -> BaseModel (dtls, plns, compPln)) <$> mkPlns <*> mkComponentPlan render frm
+    mdl <- (\plns compPln -> Prototype (dtls, plns, compPln)) <$> mkPlns <*> mkComponentPlan render frm
     R.putFrame frm mdl
-    pure (Shared (frm, mdl))
+    pure $ Shared (mdl, Lens id, frm)
+
+embedOutline :: Iso' (Many ols') (Many ols) -> Gizmo ols d p dtls plns v acts cmds -> Gizmo ols' d p dtls plns v acts cmds
+embedOutline l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl . view l, review l . toOl, mkPln, dev)
+
+embedPrototype :: Iso' (Many plns') (Many plns) -> Iso' (Prototype dtls plns') (Prototype dtls plns)
+embedPrototype i = iso
+    (\(Prototype (d, p, c)) -> Prototype (d, p ^. i, c))
+    (\(Prototype (d, p, c)) -> Prototype (d, p ^. from i, c))
+
+embedEntity :: Iso' (Many plns') (Many plns) -> Iso' (Entity dtls plns' v) (Entity dtls plns v)
+embedEntity i = iso
+    (\(Shared (x, Lens l, v)) -> Shared (x & (_Prototype . _2) .~ (x ^. (_Prototype . _2 . i)), Lens (l . embedPrototype i), v))
+    (\(Shared (x, Lens l, v)) -> Shared (x & (_Prototype . _2) .~ (x ^. (_Prototype . _2 . from i)), Lens (l . from (embedPrototype i)), v))
+
+
+-- embedPlan :: Iso' (Many p') (Many p) -> Gizmo ols d p dtls plns acts cmds -> Gizmo ols d p' dtls plns' acts cmds
+-- embedPlan l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl, toOl, fmap (review l) mkPln, zoom () dev)

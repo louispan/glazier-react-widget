@@ -15,11 +15,14 @@ import qualified Glazier.React.Dispose as R
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
-componentSetState :: Shared mdl -> [JE.Property] -> J.JSVal -> IO ()
+componentSetState :: Shared v i -> [JE.Property] -> J.JSVal -> IO ()
 componentSetState s props j = do
     let mdl = s ^. ival
         frm = s ^. tmvar
-    void $ atomically $ swapTMVar frm mdl
+        lns = s ^. tmil . to runLens
+    void $ atomically $ do
+        v <- takeTMVar frm
+        putTMVar frm (v & lns .~ mdl)
     js_componentSetState (JE.fromProperties props) j
 
 run :: ComponentCommand -> IO ()

@@ -1,15 +1,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
@@ -37,15 +37,16 @@ module Glazier.React.Widget
     , ToWindowProperties
     , WindowListener(..)
     , ToWindowListeners
+    , Display(..)
     , MkPlan
     , MkDetail
     , ToOutline
     , Device
-    , Display(..)
     , Gizmo(..)
     , noop
     , Widget
-    , withProperties
+    , withProperty
+    , withStaticProperties
     , componentize
     , (+<>)
     , (+<|>)
@@ -57,12 +58,14 @@ import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Reader
 import Control.Monad.State.Strict
+import Data.Char
 import Data.Coerce
 import Data.Diverse.Lens
 import qualified Data.DList as D
+import qualified Data.JSString as JS
 import Data.Kind
-import Data.Proxy
 import Data.Maybe
+import Data.Proxy
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
@@ -240,11 +243,6 @@ type ToWindowProperties dtls plns = Prototype dtls plns -> D.DList WindowPropert
 newtype WindowListener = WindowListener { runWindowListener :: R.Listener }
 type ToWindowListeners dtls plns = Prototype dtls plns -> D.DList WindowListener
 
-type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
-type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
-type ToOutline ols dtls = Many dtls -> Many ols
-type Device dtls plns v acts cmds = G.Gadget (Which acts) (Entity dtls plns v) (D.DList (Which cmds))
-
 newtype Display dtls plns =
     Display ( ToWindowProperties dtls plns
             , ToWindowListeners dtls plns
@@ -291,6 +289,11 @@ renderDisplay (Display (p, l, w)) = fromMaybe mempty $ (\w' -> w' p l) <$> w
 
 ----------------------------------------------------------
 
+type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
+type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
+type ToOutline ols dtls = Many dtls -> Many ols
+type Device dtls plns v acts cmds = G.Gadget (Which acts) (Entity dtls plns v) (D.DList (Which cmds))
+
 newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo
     { runGizmo :: (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Device dtls plns v acts cmds)
     }
@@ -299,7 +302,7 @@ noop :: Gizmo '[] '[] '[] ols dtls plns v acts cmds
 noop = Gizmo ( const $ pure nil
           , const nil
           , pure nil
-          , mempty)
+          , empty)
 
 ----------------------------------------------------------
 
@@ -324,8 +327,31 @@ type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtl
 appendProxy :: Proxy a -> Proxy b -> Proxy (Append a b)
 appendProxy _ _ = Proxy
 
-withProperties :: [WindowProperty] -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-withProperties ps = (Proxy, Proxy, Display (const $ D.fromList ps, mempty, Nothing), noop)
+withStaticProperties :: [WindowProperty] -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
+withStaticProperties ps = (Proxy, Proxy, Display (const $ D.fromList ps, mempty, Nothing), noop)
+
+withProperty
+    :: forall t ols dtls plns v acts cmds proxy.
+       (Show t, UniqueMember (t, JE.JSVar) dtls, UniqueMember (t, JE.JSVar) ols)
+    => proxy t
+    -> Widget '[(t, JE.JSVar)] '[(t, JE.JSVar)] '[] '[] '[] ols dtls plns v acts cmds
+withProperty _ =
+    ( Proxy
+    , Proxy
+    , Display
+          ( \s ->
+                let (t, v) = s ^. details . item @(t, JE.JSVar)
+                in D.singleton $ WindowProperty (JS.pack . lowerFirstLetter . show $ t, v)
+          , mempty
+          , Nothing)
+    , Gizmo
+          ( \o -> pure (single $ o ^. item @(t, JE.JSVar))
+          , \d -> single $ d ^. item @(t, JE.JSVar)
+          , pure nil
+          , empty))
+  where
+    lowerFirstLetter [] = []
+    lowerFirstLetter (x : xs) = toLower x : xs
 
 -- | Wrap a widget into a component with it's own render and dispose functions
 componentize

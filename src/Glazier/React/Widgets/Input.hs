@@ -50,7 +50,7 @@ data Action
 
 data Schema = Schema
     { _className :: J.JSString
-    , _placeholder :: J.JSString
+    , _placeholder :: J.JSString -- This shows default text
     , _autoFocus :: Bool
     }
 

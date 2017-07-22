@@ -12,6 +12,7 @@
 
 module Glazier.React.Triggers.EventTarget where
 
+import Control.Applicative
 import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Trans.Maybe
@@ -66,7 +67,7 @@ widget t =
           ( const $ pure nil
           , const nil
           , single <$> R.hoistWithAction pick mkPlan
-          , mempty))
+          , empty))
 
 -- -- | Given the Tag of the event (KeyDown, Changed), fire an Action that contains the EventTarget.
 -- trigger :: forall t mdls. (Show t, UniqueMember (Plan t) mdls) => t -> Trigger t (Many mdls)

@@ -301,16 +301,32 @@ mkEntity' dtls mkPlns render = do
 embedOutline :: Iso' (Many ols') (Many ols) -> Gizmo ols d p dtls plns v acts cmds -> Gizmo ols' d p dtls plns v acts cmds
 embedOutline l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl . view l, review l . toOl, mkPln, dev)
 
-embedPrototype :: Iso' (Many plns') (Many plns) -> Iso' (Prototype dtls plns') (Prototype dtls plns)
-embedPrototype i = iso
-    (\(Prototype (d, p, c)) -> Prototype (d, p ^. i, c))
-    (\(Prototype (d, p, c)) -> Prototype (d, p ^. from i, c))
 
-embedEntity :: Iso' (Many plns') (Many plns) -> Iso' (Entity dtls plns' v) (Entity dtls plns v)
-embedEntity i = iso
-    (\(Shared (x, Lens l, v)) -> Shared (x & (_Prototype . _2) .~ (x ^. (_Prototype . _2 . i)), Lens (l . embedPrototype i), v))
-    (\(Shared (x, Lens l, v)) -> Shared (x & (_Prototype . _2) .~ (x ^. (_Prototype . _2 . from i)), Lens (l . from (embedPrototype i)), v))
+-- embedOutline2 :: UniqMember ols' old'' Iso' ols' (Many ols) -> Gizmo ols d p dtls plns v acts cmds -> Gizmo ols'' d p dtls plns v acts cmds
+-- embedOutline2 l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl . view l, review l . toOl, mkPln, dev)
 
+embedPlan
+    :: forall p' plns' ols d p dtls v acts cmds.
+       UniqueMember p' plns'
+    => Iso' p' (Many p)
+    -> Gizmo ols d p dtls p v acts cmds
+    -> Gizmo ols d '[p'] dtls plns' v acts cmds
+embedPlan l (Gizmo (mkDtl, toOl, mkPln, dev)) =
+    Gizmo
+        ( mkDtl
+        , toOl
+        , fmap (single . review l) mkPln
+        , zoom (embeddedPlanInEntity (item @p' . l)) dev)
 
--- embedPlan :: Iso' (Many p') (Many p) -> Gizmo ols d p dtls plns acts cmds -> Gizmo ols d p' dtls plns' acts cmds
--- embedPlan l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl, toOl, fmap (review l) mkPln, zoom () dev)
+embeddedPlanInPrototype :: Lens' (Many plns') (Many plns) -> Lens' (Prototype dtls plns') (Prototype dtls plns)
+embeddedPlanInPrototype l = lens
+    (\(Prototype (d, p, c)) -> Prototype (d, p ^. l, c))
+    (\(Prototype (_, p, _)) (Prototype (d', p', c')) -> Prototype (d', (p & l .~ p'), c'))
+
+embeddedPlanInEntity :: Lens' (Many plns') (Many plns) -> Lens' (Entity dtls plns' v) (Entity dtls plns v)
+embeddedPlanInEntity i = lens
+    (\(Shared (x, Lens n, v)) -> Shared (x & (_Prototype . _2) .~ (x ^. (_Prototype . _2 . i)), Lens (n . embeddedPlanInPrototype i), v))
+    (\(Shared (x, Lens n, _)) (Shared (x', _, v')) -> Shared
+        ( x & embeddedPlanInPrototype i .~ x'
+        , Lens n
+        , v'))

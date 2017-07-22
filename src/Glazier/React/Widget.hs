@@ -43,8 +43,10 @@ module Glazier.React.Widget
     , Device
     , Display(..)
     , Gizmo(..)
-    , componentize
+    , noop
     , Widget
+    , withProperties
+    , componentize
     , (+<>)
     , (+<|>)
     ) where
@@ -289,32 +291,15 @@ renderDisplay (Display (p, l, w)) = fromMaybe mempty $ (\w' -> w' p l) <$> w
 
 ----------------------------------------------------------
 
-newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo { runGizmo ::
-    (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Device dtls plns v acts cmds) }
+newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo
+    { runGizmo :: (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Device dtls plns v acts cmds)
+    }
 
--- | Wrap a widget into a component with it's own render and dispose functions
-componentize
-    :: forall dtls' plns' ols dtls plns v acts cmds.
-    ( UniqueMember ComponentAction acts
-    , UniqueMember ComponentCommand cmds
-    , UniqueMember (Entity dtls plns v) dtls')
-    => Display dtls plns
-    -> Gizmo ols dtls plns ols dtls plns v acts cmds
-    -> (Display dtls' plns', Gizmo ols '[Entity' dtls plns] '[] ols dtls' plns' v acts cmds)
-componentize dsp (Gizmo (mkDtl, toOl, mkPln, dev)) =
-    ( Display
-        ( mempty
-        , mempty
-        , Just (divWrapped componentWindow))
-    , Gizmo (mkDtl', toOl', pure nil, dev'))
-  where
-    w' = renderDisplay dsp
-    mkDtl' o = do
-        d <- mkDtl o
-        single <$> mkEntity' d mkPln w'
-    toOl' d = toOl (d ^. item @(Entity dtls plns v) . details)
-    dev' = zoom (details . item @(Entity dtls plns v)) dev <|> componentGadget'
-    componentGadget' = fmap pick <$> magnify (facet @ComponentAction) (zoom (details . item @(Entity dtls plns v)) componentGadget)
+noop :: Gizmo '[] '[] '[] ols dtls plns v acts cmds
+noop = Gizmo ( const $ pure nil
+          , const nil
+          , pure nil
+          , mempty)
 
 ----------------------------------------------------------
 
@@ -334,10 +319,39 @@ mkEntity' dtls mkPlns render = do
 
 ----------------------------------------------------------
 
+type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtls plns, Gizmo o d p ols dtls plns v acts cmds)
+
 appendProxy :: Proxy a -> Proxy b -> Proxy (Append a b)
 appendProxy _ _ = Proxy
 
-type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtls plns, Gizmo o d p ols dtls plns v acts cmds)
+withProperties :: [WindowProperty] -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
+withProperties ps = (Proxy, Proxy, Display (const $ D.fromList ps, mempty, Nothing), noop)
+
+-- | Wrap a widget into a component with it's own render and dispose functions
+componentize
+    :: forall dtls' plns' ols dtls plns v acts cmds.
+    ( UniqueMember ComponentAction acts
+    , UniqueMember ComponentCommand cmds
+    , UniqueMember (Entity dtls plns v) dtls')
+    => Widget ols dtls plns acts cmds ols dtls plns v acts cmds
+    -> (Widget ols '[Entity' dtls plns] '[] acts cmds ols dtls' plns' v acts cmds)
+componentize (pa, pc, dsp, Gizmo (mkDtl, toOl, mkPln, dev)) =
+    ( pa
+    , pc
+    , Display (mempty, mempty, Just (divWrapped componentWindow))
+    , Gizmo (mkDtl', toOl', pure nil, dev'))
+  where
+    w' = renderDisplay dsp
+    mkDtl' o = do
+        d <- mkDtl o
+        single <$> mkEntity' d mkPln w'
+    toOl' d = toOl (d ^. item @(Entity dtls plns v) . details)
+    dev' = zoom (details . item @(Entity dtls plns v)) dev <|> componentGadget'
+    componentGadget' =
+        fmap pick <$>
+        magnify
+            (facet @ComponentAction)
+            (zoom (details . item @(Entity dtls plns v)) componentGadget)
 
 (+<>)
     :: Widget o d p a c ols dtls plns v acts cmds

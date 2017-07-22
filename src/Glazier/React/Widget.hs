@@ -23,30 +23,37 @@ module Glazier.React.Widget
     , tmvar
     , ival
     , vlens
+
     , ComponentCommand(..)
     , ComponentAction(..)
     , ComponentPlan(..)
     , HasComponentPlan(..)
+
     , HasDetails(..)
     , HasPlans(..)
+
     , Prototype(..)
     , _Prototype
     , Entity
     , Entity'
+
     , WindowProperty(..)
     , ToWindowProperties
     , WindowListener(..)
     , ToWindowListeners
     , Display(..)
+
     , MkPlan
     , MkDetail
     , ToOutline
     , Device
     , Gizmo(..)
     , noop
+
     , Widget
     , withProperty
     , withStaticProperties
+    , attachDynamicProperties
     , componentize
     , (+<>)
     , (+<|>)
@@ -64,6 +71,7 @@ import Data.Diverse.Lens
 import qualified Data.DList as D
 import qualified Data.JSString as JS
 import Data.Kind
+import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Proxy
 import Data.Semigroup
@@ -327,9 +335,11 @@ type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtl
 appendProxy :: Proxy a -> Proxy b -> Proxy (Append a b)
 appendProxy _ _ = Proxy
 
+-- | Add a list of static properties to the rendered element.
 withStaticProperties :: [WindowProperty] -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
 withStaticProperties ps = (Proxy, Proxy, Display (const $ D.fromList ps, mempty, Nothing), noop)
 
+-- | Add a single property and its corresponding detail/outline to the rendered element.
 withProperty
     :: forall t ols dtls plns v acts cmds proxy.
        (Show t, UniqueMember (t, JE.JSVar) dtls, UniqueMember (t, JE.JSVar) ols)
@@ -352,6 +362,26 @@ withProperty _ =
   where
     lowerFirstLetter [] = []
     lowerFirstLetter (x : xs) = toLower x : xs
+
+-- | Add a single property and its corresponding detail/outline to the rendered element.
+attachDynamicProperties
+    :: forall ols dtls plns v acts cmds.
+       (UniqueMember (M.Map J.JSString JE.JSVar) dtls, UniqueMember (M.Map J.JSString JE.JSVar) ols)
+    => Widget '[M.Map J.JSString JE.JSVar] '[M.Map J.JSString JE.JSVar] '[] '[] '[] ols dtls plns v acts cmds
+attachDynamicProperties =
+    ( Proxy
+    , Proxy
+    , Display
+          ( \s ->
+                let m = s ^. details . item @(M.Map J.JSString JE.JSVar)
+                in D.fromList . coerce . M.toList $ m
+          , mempty
+          , Nothing)
+    , Gizmo
+          ( \o -> pure (single $ o ^. item @(M.Map J.JSString JE.JSVar))
+          , \d -> single $ d ^. item @(M.Map J.JSString JE.JSVar)
+          , pure nil
+          , empty))
 
 -- | Wrap a widget into a component with it's own render and dispose functions
 componentize

@@ -212,7 +212,7 @@ newtype ComponentListener = ComponentListener { runComponentListener :: R.Listen
 type ToComponentListeners plns = Many plns -> D.DList ComponentListener
 
 type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
-type MkDetail ols dtls acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
+type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
 type ToOutline ols dtls = Many dtls -> Many ols
 type Device dtls plns v acts cmds = G.Gadget (Which acts) (Entity dtls plns v) (D.DList (Which cmds))
 
@@ -232,16 +232,16 @@ instance Semigroup (Display dtls plns) where
         Display
             ( Nothing
             , Nothing
-            , Just (wrapWithDiv (w ps ls <> w' ps' ls')))
+            , Just (divWrapped (w ps ls <> w' ps' ls')))
 
 -- | wrap with a div if there are properties and listeners
-wrapWithDiv
+divWrapped
     :: G.WindowT (Prototype dtls plns) R.ReactMl ()
     -> Maybe (ToWindowProperties dtls plns)
     -> Maybe (ToWindowListeners dtls plns)
     -> G.WindowT (Prototype dtls plns) R.ReactMl ()
-wrapWithDiv w Nothing Nothing = w
-wrapWithDiv w p l = do
+divWrapped w Nothing Nothing = w
+divWrapped w p l = do
     s <- ask
     let l' = coerce $ fromMaybe mempty l s
         p' = coerce $ fromMaybe mempty p s
@@ -256,7 +256,7 @@ renderDisplay (Display (p, l, w)) = fromMaybe mempty $ (\w' -> w' p l) <$> w
 
 ----------------------------------------------------------
 
-newtype Gizmo ols d p dtls plns v acts cmds = Gizmo (MkDetail ols d acts, ToOutline ols d, MkPlan p acts, Device dtls plns v acts cmds)
+newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Device dtls plns v acts cmds)
 
 -- | Wrap a widget into a component with it's own render and dispose functions
 componentize
@@ -265,20 +265,20 @@ componentize
     , UniqueMember ComponentCommand cmds
     , UniqueMember (Entity dtls plns v) dtls')
     => Display dtls plns
-    -> Gizmo ols dtls plns dtls plns v acts cmds
-    -> (Display dtls' plns', Gizmo ols '[Entity' dtls plns] '[] dtls' plns' v acts cmds)
+    -> Gizmo ols dtls plns ols dtls plns v acts cmds
+    -> (Display dtls' plns', Gizmo ols '[Entity' dtls plns] '[] ols dtls' plns' v acts cmds)
 componentize dsp (Gizmo (mkDtl, toOl, mkPln, dev)) =
     ( Display
         ( Nothing
         , Nothing
-        , Just (wrapWithDiv componentWindow))
+        , Just (divWrapped componentWindow))
     , Gizmo (mkDtl', toOl', pure nil, dev'))
   where
     w' = renderDisplay dsp
     mkDtl' o = do
         d <- mkDtl o
         single <$> mkEntity' d mkPln w'
-    toOl' d = toOl (d ^. item @(Entity' dtls plns) . details)
+    toOl' d = toOl (d ^. item @(Entity dtls plns v) . details)
     dev' = zoom (details . item @(Entity dtls plns v)) dev <|> componentGadget'
     componentGadget' = fmap pick <$> magnify (facet @ComponentAction) (zoom (details . item @(Entity dtls plns v)) componentGadget)
 
@@ -298,35 +298,56 @@ mkEntity' dtls mkPlns render = do
     R.putFrame frm mdl
     pure $ Shared (mdl, Lens id, frm)
 
-embedOutline :: Iso' (Many ols') (Many ols) -> Gizmo ols d p dtls plns v acts cmds -> Gizmo ols' d p dtls plns v acts cmds
-embedOutline l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl . view l, review l . toOl, mkPln, dev)
+----------------------------------------------------------
+
+appendProxy :: Proxy a -> Proxy b -> Proxy (Append a b)
+appendProxy _ _ = Proxy
+
+type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtls plns, Gizmo o d p ols dtls plns v acts cmds)
+
+(+<>)
+    :: Widget o d p a c ols dtls plns v acts cmds
+    -> Widget o' d' p' a' c' ols dtls plns v acts cmds
+    -> Widget (Append o o') (Append d d') (Append p p') (Append a a') (Append c c') ols dtls plns v acts cmds
+(pa, pc, disp, Gizmo (mkDtl, toOl, mkPln, dev)) +<> (pa', pc', disp', Gizmo (mkDtl', toOl', mkPln', dev')) =
+    ( appendProxy pa pa'
+    , appendProxy pc pc'
+    , disp <> disp'
+    , Gizmo (\o -> (/./) <$> mkDtl o <*> mkDtl' o, undefined, undefined, undefined))
+infixr 6 +<> -- like <>
+
+-- infixl +<|> 3 -- like <|>
 
 
--- embedOutline2 :: UniqMember ols' old'' Iso' ols' (Many ols) -> Gizmo ols d p dtls plns v acts cmds -> Gizmo ols'' d p dtls plns v acts cmds
--- embedOutline2 l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl . view l, review l . toOl, mkPln, dev)
 
-embedPlan
-    :: forall p' plns' ols d p dtls v acts cmds.
-       UniqueMember p' plns'
-    => Iso' p' (Many p)
-    -> Gizmo ols d p dtls p v acts cmds
-    -> Gizmo ols d '[p'] dtls plns' v acts cmds
-embedPlan l (Gizmo (mkDtl, toOl, mkPln, dev)) =
-    Gizmo
-        ( mkDtl
-        , toOl
-        , fmap (single . review l) mkPln
-        , zoom (embeddedPlanInEntity (item @p' . l)) dev)
 
-embeddedPlanInPrototype :: Lens' (Many plns') (Many plns) -> Lens' (Prototype dtls plns') (Prototype dtls plns)
-embeddedPlanInPrototype l = lens
-    (\(Prototype (d, p, c)) -> Prototype (d, p ^. l, c))
-    (\(Prototype (_, p, _)) (Prototype (d', p', c')) -> Prototype (d', (p & l .~ p'), c'))
 
-embeddedPlanInEntity :: Lens' (Many plns') (Many plns) -> Lens' (Entity dtls plns' v) (Entity dtls plns v)
-embeddedPlanInEntity i = lens
-    (\(Shared (x, Lens n, v)) -> Shared (x & (_Prototype . _2) .~ (x ^. (_Prototype . _2 . i)), Lens (n . embeddedPlanInPrototype i), v))
-    (\(Shared (x, Lens n, _)) (Shared (x', _, v')) -> Shared
-        ( x & embeddedPlanInPrototype i .~ x'
-        , Lens n
-        , v'))
+
+-- embedOutline :: Iso' (Many ols') (Many ols) -> Gizmo ols d p dtls plns v acts cmds -> Gizmo ols' d p dtls plns v acts cmds
+-- embedOutline l (Gizmo (mkDtl, toOl, mkPln, dev)) = Gizmo (mkDtl . view l, review l . toOl, mkPln, dev)
+
+-- embedPlan
+--     :: forall p' plns' ols d p dtls v acts cmds.
+--        UniqueMember p' plns'
+--     => Iso' p' (Many p)
+--     -> Gizmo ols d p dtls p v acts cmds
+--     -> Gizmo ols d '[p'] dtls plns' v acts cmds
+-- embedPlan l (Gizmo (mkDtl, toOl, mkPln, dev)) =
+--     Gizmo
+--         ( mkDtl
+--         , toOl
+--         , fmap (single . review l) mkPln
+--         , zoom (embeddedPlanInEntity (item @p' . l)) dev)
+
+-- embeddedPlanInPrototype :: Lens' (Many plns') (Many plns) -> Lens' (Prototype dtls plns') (Prototype dtls plns)
+-- embeddedPlanInPrototype l = lens
+--     (\(Prototype (d, p, c)) -> Prototype (d, p ^. l, c))
+--     (\(Prototype (_, p, _)) (Prototype (d', p', c')) -> Prototype (d', (p & l .~ p'), c'))
+
+-- embeddedPlanInEntity :: Lens' (Many plns') (Many plns) -> Lens' (Entity dtls plns' v) (Entity dtls plns v)
+-- embeddedPlanInEntity i = lens
+--     (\(Shared (x, Lens n, v)) -> Shared (x & (_Prototype . _2) .~ (x ^. (_Prototype . _2 . i)), Lens (n . embeddedPlanInPrototype i), v))
+--     (\(Shared (x, Lens n, _)) (Shared (x', _, v')) -> Shared
+--         ( x & embeddedPlanInPrototype i .~ x'
+--         , Lens n
+--         , v'))

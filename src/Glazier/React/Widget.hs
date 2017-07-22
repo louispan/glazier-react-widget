@@ -217,10 +217,10 @@ type ToOutline ols dtls = Many dtls -> Many ols
 type Device dtls plns v acts cmds = G.Gadget (Which acts) (Entity dtls plns v) (D.DList (Which cmds))
 
 newtype Display dtls plns =
-    Display ( Maybe (ToWindowProperties dtls plns)
-            , Maybe (ToWindowListeners dtls plns)
-            , Maybe ( Maybe (ToWindowProperties dtls plns)
-                   -> Maybe (ToWindowListeners dtls plns)
+    Display ( ToWindowProperties dtls plns
+            , ToWindowListeners dtls plns
+            , Maybe ( ToWindowProperties dtls plns
+                   -> ToWindowListeners dtls plns
                    -> G.WindowT (Prototype dtls plns) R.ReactMl ()))
 
 instance Semigroup (Display dtls plns) where
@@ -230,25 +230,26 @@ instance Semigroup (Display dtls plns) where
         Display (ps <> ps', ls <> ls', w)
     Display (ps, ls, Just w) <> Display (ps', ls', Just w') =
         Display
-            ( Nothing
-            , Nothing
+            ( mempty
+            , mempty
             , Just (divWrapped (w ps ls <> w' ps' ls')))
 
 -- | wrap with a div if there are properties and listeners
 divWrapped
     :: G.WindowT (Prototype dtls plns) R.ReactMl ()
-    -> Maybe (ToWindowProperties dtls plns)
-    -> Maybe (ToWindowListeners dtls plns)
+    -> ToWindowProperties dtls plns
+    -> ToWindowListeners dtls plns
     -> G.WindowT (Prototype dtls plns) R.ReactMl ()
-divWrapped w Nothing Nothing = w
 divWrapped w p l = do
     s <- ask
-    let l' = coerce $ fromMaybe mempty l s
-        p' = coerce $ fromMaybe mempty p s
-    lift . R.bh "div" p' l' $ G.runWindowT' w s
+    let l' = coerce $ l s
+        p' = coerce $ p s
+    case (D.toList l', D.toList p') of
+        ([], []) -> w
+        _ -> lift . R.bh "div" p' l' $ G.runWindowT' w s
 
 instance Monoid (Display dtls plns) where
-    mempty = Display (Nothing, Nothing, Nothing)
+    mempty = Display (mempty, mempty, Nothing)
     mappend = (<>)
 
 renderDisplay :: Display dtls plns -> G.WindowT (Prototype dtls plns) R.ReactMl ()
@@ -269,8 +270,8 @@ componentize
     -> (Display dtls' plns', Gizmo ols '[Entity' dtls plns] '[] ols dtls' plns' v acts cmds)
 componentize dsp (Gizmo (mkDtl, toOl, mkPln, dev)) =
     ( Display
-        ( Nothing
-        , Nothing
+        ( mempty
+        , mempty
         , Just (divWrapped componentWindow))
     , Gizmo (mkDtl', toOl', pure nil, dev'))
   where

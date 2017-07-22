@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -15,7 +16,9 @@ import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
+import qualified Data.DList as D
 import qualified Data.JSString as JS
+import Data.Proxy
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -46,8 +49,24 @@ onEventName :: Show t => t -> J.JSString
 onEventName t = "on" `JS.append` (JS.pack $ show t)
 
 -- | @evt@ examples: onKeyDown, onChanged etc
-renderAttributes :: J.JSString -> Lens' mdl (Plan t) -> mdl -> R.RenderAttributes
-renderAttributes evt pln mdl = R.RenderAttributes (mempty, [(evt, mdl ^. pln . onTrigger)])
+toWindowListeners
+    :: forall t dtls plns.
+       (Show t, UniqueMember (Plan t) plns)
+    => t -> R.ToWindowListeners dtls plns
+toWindowListeners t p = D.singleton $ R.WindowListener (onEventName t, p ^. R.plans . item @(Plan t) . onTrigger)
+
+widget
+    :: (Show t, UniqueMember (Plan t) plns, UniqueMember (Action t) acts)
+    => t -> R.Widget '[] '[] '[Plan t] '[Action t] '[] ols dtls plns v acts cmds
+widget t =
+    ( Proxy
+    , Proxy
+    , R.Display (mempty, toWindowListeners t, Nothing)
+    , R.Gizmo
+          ( const $ pure nil
+          , const nil
+          , single <$> R.hoistWithAction pick mkPlan
+          , mempty))
 
 -- -- | Given the Tag of the event (KeyDown, Changed), fire an Action that contains the EventTarget.
 -- trigger :: forall t mdls. (Show t, UniqueMember (Plan t) mdls) => t -> Trigger t (Many mdls)

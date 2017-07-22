@@ -17,7 +17,37 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Glazier.React.Widget where
+module Glazier.React.Widget
+    ( Shared(..)
+    , _Shared
+    , tmvar
+    , ival
+    , vlens
+    , ComponentCommand(..)
+    , ComponentAction(..)
+    , ComponentPlan(..)
+    , HasComponentPlan(..)
+    , HasDetails(..)
+    , HasPlans(..)
+    , Prototype(..)
+    , _Prototype
+    , Entity
+    , Entity'
+    , WindowProperty(..)
+    , ToWindowProperties
+    , WindowListener(..)
+    , ToWindowListeners
+    , MkPlan
+    , MkDetail
+    , ToOutline
+    , Device
+    , Display(..)
+    , Gizmo(..)
+    , componentize
+    , Widget
+    , (+<>)
+    , (+<|>)
+    ) where
 
 import Control.Applicative
 import Control.Concurrent.STM.TMVar
@@ -67,9 +97,9 @@ tmvar = _Shared . _3
 ival :: Lens' (Shared i v) i
 ival = _Shared . _1
 
--- | (tm)var to (i)mmutable (l)ens
-tmil :: Lens' (Shared i v) (ReifiedLens' v i)
-tmil = _Shared . _2
+-- | tm(v)ar to immutable (v)alue (lens)
+vlens :: Lens' (Shared i v) (ReifiedLens' v i)
+vlens = _Shared . _2
 
 ----------------------------------------------------------
 
@@ -208,9 +238,6 @@ type ToWindowProperties dtls plns = Prototype dtls plns -> D.DList WindowPropert
 newtype WindowListener = WindowListener { runWindowListener :: R.Listener }
 type ToWindowListeners dtls plns = Prototype dtls plns -> D.DList WindowListener
 
-newtype ComponentListener = ComponentListener { runComponentListener :: R.Listener }
-type ToComponentListeners plns = Many plns -> D.DList ComponentListener
-
 type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
 type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
 type ToOutline ols dtls = Many dtls -> Many ols
@@ -223,6 +250,11 @@ newtype Display dtls plns =
                    -> ToWindowListeners dtls plns
                    -> G.WindowT (Prototype dtls plns) R.ReactMl ()))
 
+-- | If properties and listeners are combined if either or both windows are Nothing.
+-- If there is a window on both sides, then a new window is created to show both window
+-- with their respective set of properties/listeners, and the properties of this
+-- new Display is set to mempty.
+-- The new window uses a div if new properties are added to this Display.
 instance Semigroup (Display dtls plns) where
     Display (ps, ls, Nothing) <> Display (ps', ls', w') =
         Display (ps <> ps', ls <> ls', w')
@@ -257,7 +289,8 @@ renderDisplay (Display (p, l, w)) = fromMaybe mempty $ (\w' -> w' p l) <$> w
 
 ----------------------------------------------------------
 
-newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Device dtls plns v acts cmds)
+newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo { runGizmo ::
+    (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Device dtls plns v acts cmds) }
 
 -- | Wrap a widget into a component with it's own render and dispose functions
 componentize
@@ -314,10 +347,25 @@ type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtl
     ( appendProxy pa pa'
     , appendProxy pc pc'
     , disp <> disp'
-    , Gizmo (\o -> (/./) <$> mkDtl o <*> mkDtl' o, undefined, undefined, undefined))
+    , Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
+            , \d -> toOl d /./ toOl' d
+            , (/./) <$> mkPln <*> mkPln'
+            , dev <> dev'))
 infixr 6 +<> -- like <>
 
--- infixl +<|> 3 -- like <|>
+(+<|>)
+    :: Widget o d p a c ols dtls plns v acts cmds
+    -> Widget o' d' p' a' c' ols dtls plns v acts cmds
+    -> Widget (Append o o') (Append d d') (Append p p') (Append a a') (Append c c') ols dtls plns v acts cmds
+(pa, pc, disp, Gizmo (mkDtl, toOl, mkPln, dev)) +<|> (pa', pc', disp', Gizmo (mkDtl', toOl', mkPln', dev')) =
+    ( appendProxy pa pa'
+    , appendProxy pc pc'
+    , disp <> disp'
+    , Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
+            , \d -> toOl d /./ toOl' d
+            , (/./) <$> mkPln <*> mkPln'
+            , dev <|> dev'))
+infixl 3 +<|> -- like <|>
 
 
 

@@ -28,7 +28,7 @@ library
                        -- Glazier.React.Widget.Dispose.Run
                        -- Glazier.React.Widget.Rerender
                        -- Glazier.React.Widget.Rerender.Run
-                       -- Glazier.React.Triggers.EventTarget
+                       Glazier.React.Triggers.EventTarget
                        -- Glazier.React.Widgets.Input
                        -- Glazier.React.Widgets.Input.Run
                        -- Glazier.React.Widgets.List

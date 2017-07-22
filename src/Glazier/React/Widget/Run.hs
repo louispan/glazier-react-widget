@@ -17,12 +17,12 @@ import qualified JavaScript.Object as JO
 
 componentSetState :: Shared v i -> [JE.Property] -> J.JSVal -> IO ()
 componentSetState s props j = do
-    let mdl = s ^. ival
-        frm = s ^. tmvar
-        lns = s ^. tmil . to runLens
+    let i = s ^. ival
+        t = s ^. tmvar
+        l = s ^. vlens . to runLens
     void $ atomically $ do
-        v <- takeTMVar frm
-        putTMVar frm (v & lns .~ mdl)
+        v <- takeTMVar t
+        putTMVar t (v & l .~ i)
     js_componentSetState (JE.fromProperties props) j
 
 run :: ComponentCommand -> IO ()

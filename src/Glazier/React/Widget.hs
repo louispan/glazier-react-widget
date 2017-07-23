@@ -17,6 +17,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
+
 module Glazier.React.Widget
     ( Shared(..)
     , _Shared
@@ -51,9 +54,9 @@ module Glazier.React.Widget
     , noop
 
     , Widget
-    , withProperty
     , withStaticProperties
     , attachDynamicProperties
+    , withDynamicProperty
     , componentize
     , (+<>)
     , (+<|>)
@@ -328,6 +331,7 @@ mkEntity' dtls mkPlns render = do
     R.putFrame frm mdl
     pure $ Shared (mdl, Lens id, frm)
 
+
 ----------------------------------------------------------
 
 type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtls plns, Gizmo o d p ols dtls plns v acts cmds)
@@ -340,12 +344,12 @@ withStaticProperties :: [WindowProperty] -> Widget '[] '[] '[] '[] '[] ols dtls 
 withStaticProperties ps = (Proxy, Proxy, Display (const $ D.fromList ps, mempty, Nothing), noop)
 
 -- | Add a single property and its corresponding detail/outline to the rendered element.
-withProperty
+withDynamicProperty
     :: forall t ols dtls plns v acts cmds proxy.
        (Show t, UniqueMember (t, JE.JSVar) dtls, UniqueMember (t, JE.JSVar) ols)
     => proxy t
     -> Widget '[(t, JE.JSVar)] '[(t, JE.JSVar)] '[] '[] '[] ols dtls plns v acts cmds
-withProperty _ =
+withDynamicProperty _ =
     ( Proxy
     , Proxy
     , Display
@@ -363,7 +367,7 @@ withProperty _ =
     lowerFirstLetter [] = []
     lowerFirstLetter (x : xs) = toLower x : xs
 
--- | Add a single property and its corresponding detail/outline to the rendered element.
+-- | Add the ability to retrieved a list of properties from its corresponding detail/outline for the rendered element.
 attachDynamicProperties
     :: forall ols dtls plns v acts cmds.
        (UniqueMember (M.Map J.JSString JE.JSVar) dtls, UniqueMember (M.Map J.JSString JE.JSVar) ols)

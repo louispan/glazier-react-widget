@@ -58,8 +58,7 @@ module Glazier.React.Widget
     , attachDynamicProperties
     , withDynamicProperty
     , componentize
-    , (+<>)
-    , (+<|>)
+    , Attach(..)
     ) where
 
 import Control.Applicative
@@ -336,9 +335,6 @@ mkEntity' dtls mkPlns render = do
 
 type Widget o d p a c ols dtls plns v acts cmds = (Proxy a, Proxy c, Display dtls plns, Gizmo o d p ols dtls plns v acts cmds)
 
-appendProxy :: Proxy a -> Proxy b -> Proxy (Append a b)
-appendProxy _ _ = Proxy
-
 -- | Add a list of static properties to the rendered element.
 withStaticProperties :: [WindowProperty] -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
 withStaticProperties ps = (Proxy, Proxy, Display (const $ D.fromList ps, mempty, Nothing), noop)
@@ -413,37 +409,40 @@ componentize (pa, pc, dsp, Gizmo (mkDtl, toOl, mkPln, dev)) =
             (facet @ComponentAction)
             (zoom (details . item @(Entity dtls plns v)) componentGadget)
 
-(+<>)
-    :: Widget o d p a c ols dtls plns v acts cmds
-    -> Widget o' d' p' a' c' ols dtls plns v acts cmds
-    -> Widget (Append o o') (Append d d') (Append p p') (Append a a') (Append c c') ols dtls plns v acts cmds
-(pa, pc, disp, Gizmo (mkDtl, toOl, mkPln, dev)) +<> (pa', pc', disp', Gizmo (mkDtl', toOl', mkPln', dev')) =
-    ( appendProxy pa pa'
-    , appendProxy pc pc'
-    , disp <> disp'
-    , Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
-            , \d -> toOl d /./ toOl' d
-            , (/./) <$> mkPln <*> mkPln'
-            , dev <> dev'))
-infixr 6 +<> -- like <>
+----------------------------------------------------------
 
-(+<|>)
-    :: Widget o d p a c ols dtls plns v acts cmds
-    -> Widget o' d' p' a' c' ols dtls plns v acts cmds
-    -> Widget (Append o o') (Append d d') (Append p p') (Append a a') (Append c c') ols dtls plns v acts cmds
-(pa, pc, disp, Gizmo (mkDtl, toOl, mkPln, dev)) +<|> (pa', pc', disp', Gizmo (mkDtl', toOl', mkPln', dev')) =
-    ( appendProxy pa pa'
-    , appendProxy pc pc'
-    , disp <> disp'
-    , Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
-            , \d -> toOl d /./ toOl' d
-            , (/./) <$> mkPln <*> mkPln'
-            , dev <|> dev'))
-infixl 3 +<|> -- like <|>
+class Attach a b c where
+    (+<>+) :: a -> b -> c
+    (+<|>+) :: a -> b -> c
 
+infixr 6 +<>+ -- like <>
+infixl 3 +<|>+ -- like <|>
 
+instance c ~ Append a b => Attach (Proxy a) (Proxy b) (Proxy c) where
+    _ +<>+ _ = Proxy
+    (+<|>+) = (+<>+)
 
+instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2) =>
+         Attach (Gizmo o1 d1 p1 ols dtls plns v acts cmds)
+                (Gizmo o2 d2 p2 ols dtls plns v acts cmds)
+                (Gizmo o3 d3 p3 ols dtls plns v acts cmds) where
+    Gizmo (mkDtl, toOl, mkPln, dev) +<>+ Gizmo (mkDtl', toOl', mkPln', dev') =
+        Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
+              , \d -> toOl d /./ toOl' d
+              , (/./) <$> mkPln <*> mkPln'
+              , dev <> dev')
+    Gizmo (mkDtl, toOl, mkPln, dev) +<|>+ Gizmo (mkDtl', toOl', mkPln', dev') =
+        Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
+              , \d -> toOl d /./ toOl' d
+              , (/./) <$> mkPln <*> mkPln'
+              , dev <|> dev')
 
+instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2, a3 ~ Append a1 a2, c3 ~ Append c1 c2) =>
+         Attach (Widget o1 d1 p1 a1 c1 ols dtls plns v acts cmds)
+                (Widget o2 d2 p2 a2 c2 ols dtls plns v acts cmds)
+                (Widget o3 d3 p3 a3 c3 ols dtls plns v acts cmds) where
+     (pa, pc, disp, g) +<>+ (pa', pc', disp', g') =  (pa +<>+ pa', pc +<>+ pc', disp <> disp', g +<>+ g')
+     (pa, pc, disp, g) +<|>+ (pa', pc', disp', g') =  (pa +<|>+ pa', pc +<|>+ pc', disp <> disp', g +<|>+ g')
 
 
 -- embedOutline :: Iso' (Many ols') (Many ols) -> Gizmo ols d p dtls plns v acts cmds -> Gizmo ols' d p dtls plns v acts cmds

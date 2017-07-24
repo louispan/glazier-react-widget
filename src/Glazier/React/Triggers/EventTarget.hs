@@ -10,6 +10,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Triggers.EventTarget where
 
@@ -64,16 +65,15 @@ type TriggerHandler (a ::[Type]) acts = (Proxy a, TriggerAction -> [Which acts])
 onTrigger :: UniqueMember a acts => (TriggerAction -> a) -> TriggerHandler '[a] acts
 onTrigger f = (Proxy, pure . pick <$> f)
 
-combineTriggerHandler :: TriggerHandler a acts -> TriggerHandler b acts -> TriggerHandler (Append a b) acts
-combineTriggerHandler (_, f) (_, g) = (Proxy, f <> g)
-
--- | Only run right trigger handler if left trigger handler didn't produce any output
-combineTriggerHandler' :: TriggerHandler a acts -> TriggerHandler b acts -> TriggerHandler (Append a b) acts
-combineTriggerHandler' (_, f) (_, g) =
-    ( Proxy
-    , \x ->
+instance (a3 ~ Append a1 a2) =>
+         R.Attach (TriggerHandler a1 acts)
+                  (TriggerHandler a2 acts)
+                  (TriggerHandler a3 acts) where
+    (pa, f) +<>+ (pa', f') = (pa R.+<>+ pa', f <> f')
+    -- | Only run right trigger handler if left trigger handler didn't produce any output
+    (pa, f) +<|>+ (pa', f') = (pa R.+<>+ pa', \x ->
           case f x of
-              [] -> g x
+              [] -> f' x
               y -> y)
 
 triggerWidget

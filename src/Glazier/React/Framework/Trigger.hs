@@ -12,7 +12,15 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Trigger where
+module Glazier.React.Framework.Trigger
+    ( TriggerAction(..)
+    , TriggerPlan(..)
+    , HasTriggerPlan(..)
+    , TriggerHandler(..)
+    , ignore
+    , toTrigger
+    , triggerWidget
+    ) where
 
 import Control.Applicative
 import Control.Lens
@@ -61,8 +69,8 @@ doOnTrigger n = R.eventHandlerM strictly lazily
     strictly evt = MaybeT . pure $ JE.fromJS evt <&> (R.target . R.parseEvent)
     lazily j = pure $ TriggerAction n j
 
-handlersPlan :: J.JSString -> (TriggerAction -> [Which acts]) -> F (R.Maker (Which acts)) TriggerPlan
-handlersPlan n f = (TriggerPlan . M.singleton n) <$> R.mkHandler (fmap f <$> doOnTrigger n)
+mkTriggerPlan :: J.JSString -> (TriggerAction -> [Which acts]) -> F (R.Maker (Which acts)) TriggerPlan
+mkTriggerPlan n f = (TriggerPlan . M.singleton n) <$> R.mkHandler (fmap f <$> doOnTrigger n)
 
 newtype TriggerHandler (a :: [Type]) acts = Trigger
     { runTrigger :: (Proxy a, TriggerAction -> [Which acts])
@@ -98,5 +106,5 @@ triggerWidget n (Trigger (p, f)) = F.Widget
     , F.Gizmo
           ( const $ pure nil
           , const nil
-          , (single <$> handlersPlan n f)
+          , (single <$> mkTriggerPlan n f)
           , empty))

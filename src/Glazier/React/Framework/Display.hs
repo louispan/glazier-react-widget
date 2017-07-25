@@ -58,7 +58,7 @@ toDisplay f = Display (mempty, mempty, Just (\p l -> do
         l' = D.toList . coerce . l $ s
     lift $ f p' l'))
 
--- | wrap with a div if there are properties and listeners
+-- | wrap with a div iff there are properties and listeners
 divWrapped
     :: G.WindowT (F.Prototype dtls plns) R.ReactMl ()
     -> Display dtls plns

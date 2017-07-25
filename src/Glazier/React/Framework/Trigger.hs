@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Triggers.EventTarget where
+module Glazier.React.Framework.Trigger where
 
 import Control.Applicative
 import Control.Lens
@@ -29,7 +29,11 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Widget as R
+import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.Attach as F
+import qualified Glazier.React.Framework.Display as F
+import qualified Glazier.React.Framework.Gizmo as F
+import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
 data TriggerAction = TriggerAction JS.JSString R.EventTarget
@@ -46,10 +50,10 @@ instance R.Dispose TriggerPlan where
 toWindowListeners
     :: forall dtls plns.
        (UniqueMember TriggerPlan plns)
-    => R.ToWindowListeners dtls plns
+    => F.ToWindowListeners dtls plns
 toWindowListeners p =
-    let xs = p ^. R.plans . item @TriggerPlan . triggers
-    in  D.fromList . fmap R.WindowListener . M.toList $ xs
+    let xs = p ^. F.plans . item @TriggerPlan . triggers
+    in  D.fromList . fmap F.WindowListener . M.toList $ xs
 
 doOnTrigger :: JS.JSString -> J.JSVal -> MaybeT IO TriggerAction
 doOnTrigger n = R.eventHandlerM strictly lazily
@@ -60,30 +64,32 @@ doOnTrigger n = R.eventHandlerM strictly lazily
 handlersPlan :: J.JSString -> (TriggerAction -> [Which acts]) -> F (R.Maker (Which acts)) TriggerPlan
 handlersPlan n f = (TriggerPlan . M.singleton n) <$> R.mkHandler (fmap f <$> doOnTrigger n)
 
-type TriggerHandler (a ::[Type]) acts = (Proxy a, TriggerAction -> [Which acts])
+newtype TriggerHandler (a :: [Type]) acts = Trigger
+    { runTrigger :: (Proxy a, TriggerAction -> [Which acts])
+    }
 
 onTrigger :: UniqueMember a acts => (TriggerAction -> a) -> TriggerHandler '[a] acts
-onTrigger f = (Proxy, pure . pick <$> f)
+onTrigger f = Trigger (Proxy, pure . pick <$> f)
 
 instance (a3 ~ Append a1 a2) =>
-         R.Attach (TriggerHandler a1 acts)
+         F.Attach (TriggerHandler a1 acts)
                   (TriggerHandler a2 acts)
                   (TriggerHandler a3 acts) where
-    (pa, f) +<>+ (pa', f') = (pa R.+<>+ pa', f <> f')
+    Trigger (pa, f) +<>+ Trigger (pa', f') = Trigger (pa F.+<>+ pa', f <> f')
     -- | Only run right trigger handler if left trigger handler didn't produce any output
-    (pa, f) +<|>+ (pa', f') = (pa R.+<>+ pa', \x ->
+    Trigger (pa, f) +<|>+ Trigger (pa', f') = Trigger (pa F.+<>+ pa', \x ->
           case f x of
               [] -> f' x
               y -> y)
 
 triggerWidget
     :: (UniqueMember TriggerPlan plns)
-    => J.JSString -> TriggerHandler a acts -> R.Widget '[] '[] '[TriggerPlan] a '[] ols dtls plns v acts cmds
-triggerWidget n (p, f) =
+    => J.JSString -> TriggerHandler a acts -> F.Widget '[] '[] '[TriggerPlan] a '[] ols dtls plns v acts cmds
+triggerWidget n (Trigger (p, f)) = F.Widget
     ( p
     , Proxy
-    , R.Display (mempty, toWindowListeners, Nothing)
-    , R.Gizmo
+    , F.Display (mempty, toWindowListeners, Nothing)
+    , F.Gizmo
           ( const $ pure nil
           , const nil
           , (single <$> handlersPlan n f)

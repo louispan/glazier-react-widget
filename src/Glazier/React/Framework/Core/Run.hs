@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Glazier.React.Widget.Run
+module Glazier.React.Framework.Core.Run
     ( run
     ) where
 
@@ -10,12 +10,13 @@ import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad
 import qualified GHCJS.Types as J
-import Glazier.React.Widget
+import Glazier.React.Framework.Core
+import Glazier.React.Framework.Shared as F
 import qualified Glazier.React.Dispose as R
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
-componentSetState :: Shared v i -> [JE.Property] -> J.JSVal -> IO ()
+componentSetState :: F.Shared v i -> [JE.Property] -> J.JSVal -> IO ()
 componentSetState s props j = do
     let i = s ^. ival
         t = s ^. tmvar

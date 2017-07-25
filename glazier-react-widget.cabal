@@ -15,9 +15,15 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Glazier.React.Widget
-                       Glazier.React.Widget.Run
-                       -- Glazier.React.Widget
+  exposed-modules:     Glazier.React.Framework
+                       Glazier.React.Framework.Attach
+                       Glazier.React.Framework.Shared
+                       Glazier.React.Framework.Core
+                       Glazier.React.Framework.Core.Run
+                       Glazier.React.Framework.Display
+                       Glazier.React.Framework.Gizmo
+                       Glazier.React.Framework.Trigger
+                       Glazier.React.Framework.Widget
                        Glazier.React.Commands.Focus
                        Glazier.React.Commands.Focus.Run
                        Glazier.React.Commands.Maker
@@ -28,7 +34,6 @@ library
                        -- Glazier.React.Widget.Dispose.Run
                        -- Glazier.React.Widget.Rerender
                        -- Glazier.React.Widget.Rerender.Run
-                       Glazier.React.Triggers.EventTarget
                        -- Glazier.React.Widgets.Input
                        -- Glazier.React.Widgets.Input.Run
                        -- Glazier.React.Widgets.List

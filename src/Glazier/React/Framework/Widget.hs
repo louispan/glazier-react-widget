@@ -6,15 +6,20 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Widget where
+module Glazier.React.Framework.Widget
+    ( Widget(..)
+    , dummy
+    , statically
+    , dynamically
+    , attributes
+    , componentize
+    ) where
 
 import Control.Applicative
 import Control.Lens
-import Data.Char
 import Data.Coerce
 import Data.Diverse.Lens
 import qualified Data.DList as D
-import qualified Data.JSString as JS
 import Data.Kind
 import Data.Proxy
 import qualified Data.Map.Strict as M
@@ -39,40 +44,25 @@ instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2, a3 ~ Append a
      Widget (pa, pc, disp, g) +<|>+ Widget (pa', pc', disp', g') =
          Widget (pa F.+<|>+ pa', pc F.+<|>+ pc', disp <> disp', g F.+<|>+ g')
 
--- | Add a list of static properties to the rendered element.
-withStaticProperties :: [F.WindowProperty] -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-withStaticProperties ps = Widget (Proxy, Proxy, F.Display (const $ D.fromList ps, mempty, Nothing), F.noop)
+instance F.AttachId (Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds) where
+    aempty = dummy
 
--- | Add a single property and its corresponding detail/outline to the rendered element.
-withDynamicProperty
-    :: forall t ols dtls plns v acts cmds proxy.
-       (Show t, UniqueMember (t, JE.JSVar) dtls, UniqueMember (t, JE.JSVar) ols)
-    => proxy t
-    -> Widget '[(t, JE.JSVar)] '[(t, JE.JSVar)] '[] '[] '[] ols dtls plns v acts cmds
-withDynamicProperty _ = Widget
-    ( Proxy
-    , Proxy
-    , F.Display
-          ( \s ->
-                let (t, v) = s ^. F.details . item @(t, JE.JSVar)
-                in D.singleton $ F.WindowProperty (JS.pack . lowerFirstLetter . show $ t, v)
-          , mempty
-          , Nothing)
-    , F.Gizmo
-          ( \o -> pure (single $ o ^. item @(t, JE.JSVar))
-          , \d -> single $ d ^. item @(t, JE.JSVar)
-          , pure nil
-          , empty))
-  where
-    lowerFirstLetter [] = []
-    lowerFirstLetter (x : xs) = toLower x : xs
+-- | identity for 'F.Attach'
+dummy :: Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
+dummy = Widget (Proxy, Proxy, F.blank, F.noop)
+
+statically :: F.Display dtls plns -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
+statically disp = Widget (Proxy, Proxy, disp, F.aempty)
+
+dynamically :: F.Gizmo '[] '[] '[] ols dtls plns v acts cmds -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
+dynamically gad = Widget (Proxy, Proxy, mempty, gad)
 
 -- | Add the ability to retrieved a list of properties from its corresponding detail/outline for the rendered element.
-attachDynamicProperties
+attributes
     :: forall ols dtls plns v acts cmds.
        (UniqueMember (M.Map J.JSString JE.JSVar) dtls, UniqueMember (M.Map J.JSString JE.JSVar) ols)
     => Widget '[M.Map J.JSString JE.JSVar] '[M.Map J.JSString JE.JSVar] '[] '[] '[] ols dtls plns v acts cmds
-attachDynamicProperties = Widget
+attributes = Widget
     ( Proxy
     , Proxy
     , F.Display
@@ -87,9 +77,7 @@ attachDynamicProperties = Widget
           , pure nil
           , empty))
 
-
-
--- | Wrap a widget into a component with it's own render and dispose functions
+-- | Wrap an 'Glazier.React.Component' (with its own render and dispose functions) around a 'Widget'
 componentize
     :: forall dtls' plns' ols dtls plns v acts cmds.
     ( UniqueMember F.ComponentAction acts
@@ -100,7 +88,7 @@ componentize
 componentize (Widget (pa, pc, dsp, F.Gizmo (mkDtl, toOl, mkPln, dev))) = Widget
     ( pa
     , pc
-    , F.Display (mempty, mempty, Just (F.divWrapped F.componentWindow))
+    , F.divWrapped F.componentWindow
     , F.Gizmo (mkDtl', toOl', pure nil, dev'))
   where
     w' = F.renderDisplay dsp
@@ -114,3 +102,27 @@ componentize (Widget (pa, pc, dsp, F.Gizmo (mkDtl, toOl, mkPln, dev))) = Widget
         magnify
             (facet @F.ComponentAction)
             (zoom (F.details . item @(F.Entity dtls plns v)) F.componentGadget)
+
+-- -- | Add a single property and its corresponding detail/outline to the rendered element.
+-- withDynamicProperty
+--     :: forall t ols dtls plns v acts cmds proxy.
+--        (Show t, UniqueMember (t, JE.JSVar) dtls, UniqueMember (t, JE.JSVar) ols)
+--     => proxy t
+--     -> Widget '[(t, JE.JSVar)] '[(t, JE.JSVar)] '[] '[] '[] ols dtls plns v acts cmds
+-- withDynamicProperty _ = Widget
+--     ( Proxy
+--     , Proxy
+--     , F.Display
+--           ( \s ->
+--                 let (t, v) = s ^. F.details . item @(t, JE.JSVar)
+--                 in D.singleton $ F.WindowProperty (JS.pack . lowerFirstLetter . show $ t, v)
+--           , mempty
+--           , Nothing)
+--     , F.Gizmo
+--           ( \o -> pure (single $ o ^. item @(t, JE.JSVar))
+--           , \d -> single $ d ^. item @(t, JE.JSVar)
+--           , pure nil
+--           , empty))
+--   where
+--     lowerFirstLetter [] = []
+--     lowerFirstLetter (x : xs) = toLower x : xs

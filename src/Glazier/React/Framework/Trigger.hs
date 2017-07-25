@@ -68,9 +68,6 @@ newtype TriggerHandler (a :: [Type]) acts = Trigger
     { runTrigger :: (Proxy a, TriggerAction -> [Which acts])
     }
 
-onTrigger :: UniqueMember a acts => (TriggerAction -> a) -> TriggerHandler '[a] acts
-onTrigger f = Trigger (Proxy, pure . pick <$> f)
-
 instance (a3 ~ Append a1 a2) =>
          F.Attach (TriggerHandler a1 acts)
                   (TriggerHandler a2 acts)
@@ -81,6 +78,15 @@ instance (a3 ~ Append a1 a2) =>
           case f x of
               [] -> f' x
               y -> y)
+
+instance F.AttachId (TriggerHandler '[] acts) where
+    aempty = ignore
+
+ignore :: TriggerHandler '[] acts
+ignore = Trigger (Proxy, const [])
+
+onTrigger :: UniqueMember a acts => (TriggerAction -> a) -> TriggerHandler '[a] acts
+onTrigger f = Trigger (Proxy, pure . pick <$> f)
 
 triggerWidget
     :: (UniqueMember TriggerPlan plns)

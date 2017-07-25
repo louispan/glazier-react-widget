@@ -147,13 +147,13 @@ componentWindow = do
     lift $
         R.lf
             (s ^. componentPlan  . component . to JE.toJS')
-            (D.fromList [ ("key", s ^. componentPlan . key . to JE.toJS')
-                        -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
-                        , ("render", s ^. componentPlan . onRender . to JE.toJS')
-                        ])
-            (D.fromList [ ("ref", s ^. componentPlan . onComponentRef)
-                        , ("componentDidUpdate", s ^. componentPlan . onComponentDidUpdate)
-                        ])
+            [ ("key", s ^. componentPlan . key . to JE.toJS')
+            -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
+            , ("render", s ^. componentPlan . onRender . to JE.toJS')
+            ]
+            [ ("ref", s ^. componentPlan . onComponentRef)
+            , ("componentDidUpdate", s ^. componentPlan . onComponentDidUpdate)
+            ]
 
 ----------------------------------------------------------
 

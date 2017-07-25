@@ -19,14 +19,15 @@ newtype WindowListener = WindowListener { runWindowListener :: R.Listener }
 type ToWindowListeners dtls plns = F.Prototype dtls plns -> D.DList WindowListener
 
 newtype Display dtls plns =
-    Display ( ToWindowProperties dtls plns
-            , ToWindowListeners dtls plns
-            , Maybe ( ToWindowProperties dtls plns
-                   -> ToWindowListeners dtls plns
-                   -> G.WindowT (F.Prototype dtls plns) R.ReactMl ()))
+    Display { runDisplay :: ( ToWindowProperties dtls plns
+                            , ToWindowListeners dtls plns
+                            , Maybe ( ToWindowProperties dtls plns
+                                    -> ToWindowListeners dtls plns
+                                    -> G.WindowT (F.Prototype dtls plns) R.ReactMl ()))
+            }
 
 instance Monoid (Display dtls plns) where
-    mempty = Display (mempty, mempty, Nothing)
+    mempty = blank
     mappend = (<>)
 
 -- | If properties and listeners are combined if either or both windows are Nothing.
@@ -39,25 +40,27 @@ instance Semigroup (Display dtls plns) where
         Display (ps <> ps', ls <> ls', w')
     Display (ps, ls, w) <> Display (ps', ls', Nothing) =
         Display (ps <> ps', ls <> ls', w)
-    Display (ps, ls, Just w) <> Display (ps', ls', Just w') =
-        Display
-            ( mempty
-            , mempty
-            , Just (divWrapped (w ps ls <> w' ps' ls')))
+    Display (ps, ls, Just w) <> Display (ps', ls', Just w') = divWrapped (w ps ls <> w' ps' ls')
+
+-- | identity for 'Monoid'
+blank :: Display dtls plns
+blank = Display (mempty, mempty, Nothing)
+
+-- | Add a list of static properties to the rendered element.
+hardcode :: [WindowProperty] -> Display dtls plns
+hardcode ps = Display (const $ D.fromList ps, mempty, Nothing)
 
 -- | wrap with a div if there are properties and listeners
 divWrapped
     :: G.WindowT (F.Prototype dtls plns) R.ReactMl ()
-    -> ToWindowProperties dtls plns
-    -> ToWindowListeners dtls plns
-    -> G.WindowT (F.Prototype dtls plns) R.ReactMl ()
-divWrapped w p l = do
+    -> Display dtls plns
+divWrapped w = Display (mempty, mempty, Just $ \p l -> do
     s <- ask
-    let l' = coerce $ l s
-        p' = coerce $ p s
-    case (D.toList l', D.toList p') of
+    let p' = D.toList . coerce . p $ s
+        l' = D.toList . coerce . l $ s
+    case (l', p') of
         ([], []) -> w
-        _ -> lift . R.bh "div" p' l' $ G.runWindowT' w s
+        _ -> lift . R.bh "div" p' l' $ G.runWindowT' w s)
 
 renderDisplay :: Display dtls plns -> G.WindowT (F.Prototype dtls plns) R.ReactMl ()
 renderDisplay (Display (p, l, w)) = fromMaybe mempty $ (\w' -> w' p l) <$> w

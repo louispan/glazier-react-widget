@@ -50,6 +50,14 @@ blank = Display (mempty, mempty, Nothing)
 hardcode :: [WindowProperty] -> Display dtls plns
 hardcode ps = Display (const $ D.fromList ps, mempty, Nothing)
 
+-- | lift a 'ReactMl ()' into a 'Display'
+toDisplay :: ([JE.Property] -> [R.Listener] -> R.ReactMl ()) -> Display dtls plns
+toDisplay f = Display (mempty, mempty, Just (\p l -> do
+    s <- ask
+    let p' = D.toList . coerce . p $ s
+        l' = D.toList . coerce . l $ s
+    lift $ f p' l'))
+
 -- | wrap with a div if there are properties and listeners
 divWrapped
     :: G.WindowT (F.Prototype dtls plns) R.ReactMl ()

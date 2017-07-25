@@ -48,3 +48,10 @@ noop = Gizmo ( const $ pure nil
           , const nil
           , pure nil
           , empty)
+
+-- | lift a 'Device' into a 'Gizmo'
+toGizmo :: Device dtls plns v acts cmds -> Gizmo '[] '[] '[] ols dtls plns v acts cmds
+toGizmo dev = Gizmo ( const $ pure nil
+          , const nil
+          , pure nil
+          , dev)

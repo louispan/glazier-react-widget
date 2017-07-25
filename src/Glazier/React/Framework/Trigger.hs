@@ -85,8 +85,8 @@ instance F.AttachId (TriggerHandler '[] acts) where
 ignore :: TriggerHandler '[] acts
 ignore = Trigger (Proxy, const [])
 
-onTrigger :: UniqueMember a acts => (TriggerAction -> a) -> TriggerHandler '[a] acts
-onTrigger f = Trigger (Proxy, pure . pick <$> f)
+toTrigger :: UniqueMember a acts => (TriggerAction -> a) -> TriggerHandler '[a] acts
+toTrigger f = Trigger (Proxy, pure . pick <$> f)
 
 triggerWidget
     :: (UniqueMember TriggerPlan plns)

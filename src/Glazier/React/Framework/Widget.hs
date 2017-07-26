@@ -1,130 +1,212 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Glazier.React.Framework.Widget
-    ( Widget(..)
-    , dummy
-    , statically
-    , dynamically
-    -- , attributes
-    -- , componentize
-    ) where
+module Glazier.React.Framework.Widget where
 
-import Control.Applicative
+import Control.Concurrent.STM.TMVar
 import Control.Lens
-import Data.Coerce
+import Control.Monad.Free.Church
+import Control.Monad.Reader
+import Control.Monad.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as D
 import Data.Kind
-import Data.Proxy
 import qualified Data.Map.Strict as M
 import Data.Semigroup
+import qualified GHC.Generics as G
+import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
-import qualified Glazier.React.Framework.Attach as F
-import qualified Glazier.React.Framework.Core as F
-import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Gizmo as F
+import qualified Glazier as G
+import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Shared as F
+import qualified Glazier.React.Framework.Trigger as F
 import qualified JavaScript.Extras as JE
 
-newtype Widget (o :: [Type]) (d :: [Type]) (p :: [Type]) (a :: [Type]) (c :: [Type]) ols dtls plns v acts cmds = Widget
-    { runWidget :: (Proxy a, Proxy c, F.Display dtls plns, F.Gizmo o d p ols dtls plns v acts cmds)
+data WidgetCommand
+    = forall i v. RenderCommand (F.Shared i v) [JE.Property] J.JSVal
+    | DisposeCommand (R.Disposable ())
+
+data WidgetAction
+    = ComponentRefAction J.JSVal
+    | RenderAction
+    | DisposeAction
+----------------------------------------------------------
+
+newtype WidgetDetail = WidgetDetail
+    { _properties :: [JE.Property]
+    } deriving (G.Generic)
+
+class HasWidgetDetail c where
+    widgetDetail :: Lens' c WidgetDetail
+    properties :: Lens' c [JE.Property]
+    properties = widgetDetail . go
+      where go k (WidgetDetail a) = k a <&> \a' -> WidgetDetail a'
+
+instance HasWidgetDetail WidgetDetail where
+    widgetDetail = id
+
+instance R.Dispose WidgetDetail where
+    dispose _ = pure ()
+
+----------------------------------------------------------
+
+-- | WidgetPlan has to be stored differently to other plans because mkWidgetPlan needs
+-- additional parameters
+data WidgetPlan = WidgetPlan
+    { _key :: J.JSString
+    , _frameNum :: Int
+    , _component :: R.ReactComponent
+    , _componentRef :: J.JSVal
+    , _deferredDisposables :: R.Disposable ()
+    , _onRender ::  J.Callback (IO J.JSVal)
+    , _onComponentRef :: J.Callback (J.JSVal -> IO ())
+    , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
+    , _listeners :: [R.Listener]
+    } deriving (G.Generic)
+
+makeClassy ''WidgetPlan
+
+mkWidgetPlan
+    :: UniqueMember WidgetAction acts
+    => G.WindowT mdl R.ReactMl ()
+    -> TMVar mdl
+    -> [(J.JSString, F.TriggerAction -> [Which acts])]
+    -> F (R.Maker (Which acts)) WidgetPlan
+mkWidgetPlan render frm ts = R.hoistWithAction pick (WidgetPlan
+    <$> R.mkKey -- key
+    <*> pure 0 -- frameNum
+    <*> R.getComponent -- component
+    <*> pure J.nullRef -- componentRef
+    <*> pure mempty -- deferredDisposables
+    <*> (R.mkRenderer render frm) -- onRender
+    <*> (R.mkHandler $ pure . pure . ComponentRefAction) -- onComponentRef
+    <*> (R.mkHandler $ pure . pure . const DisposeAction) -- onComponentDidUpdate
+    )
+    <*> (traverse go . M.toList . M.fromListWith (<>) $ ts) -- triggers
+  where
+    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (fmap f <$> F.onTrigger n)
+
+instance R.Dispose WidgetPlan
+
+----------------------------------------------------------
+
+class HasDetails c dtls | c -> dtls where
+    details :: Lens' c (Many dtls)
+
+class HasPlans c plns | c -> plns where
+    plans :: Lens' c (Many plns)
+
+----------------------------------------------------------
+
+newtype Design (dtls :: [Type]) (plns :: [Type]) = Design
+    { getDesign ::
+        ( Many dtls
+        , WidgetDetail
+        , Many plns
+        , WidgetPlan
+        )
     }
+    deriving G.Generic
 
--- | The action and command types are merged, not appended
-instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2, a3 ~ AppendUnique a1 a2, c3 ~ AppendUnique c1 c2) =>
-         F.Attach (Widget o1 d1 p1 a1 c1 ols dtls plns v acts cmds)
-                (Widget o2 d2 p2 a2 c2 ols dtls plns v acts cmds)
-                (Widget o3 d3 p3 a3 c3 ols dtls plns v acts cmds) where
-     Widget (_, _, disp, g) +<>+ Widget (_, _, disp', g') =
-         Widget (Proxy, Proxy, disp <> disp', g F.+<>+ g')
-     Widget (_, _, disp, g) +<|>+ Widget (_, _, disp', g') =
-         Widget (Proxy, Proxy, disp <> disp', g F.+<|>+ g')
+instance (R.Dispose (Many dtls), R.Dispose (Many plns)) => R.Dispose (Design dtls plns)
 
-instance F.AttachId (Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds) where
-    aempty = dummy
+instance HasDetails (Design dtls plns) dtls where
+    details = _Design . _1
 
--- | identity for 'F.Attach'
-dummy :: Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-dummy = Widget (Proxy, Proxy, F.blank, F.noop)
+instance HasWidgetDetail (Design dtls plns) where
+    widgetDetail = _Design . _2
 
-statically :: F.Display dtls plns -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-statically disp = Widget (Proxy, Proxy, disp, F.aempty)
+instance HasPlans (Design dtls plns) plns where
+    plans = _Design . _3
 
-dynamically :: F.Gizmo '[] '[] '[] ols dtls plns v acts cmds -> Widget '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-dynamically gad = Widget (Proxy, Proxy, mempty, gad)
+instance HasWidgetPlan (Design dtls plns) where
+    widgetPlan = _Design . _4
 
--- -- | Wrap an 'Glazier.React.Component' (with its own render and dispose functions) around a 'Widget'
--- -- replace original dtls plns with Entity.
--- componentize
---     :: forall dtls' plns' ols dtls plns v acts cmds.
---     ( UniqueMember F.ComponentAction acts
---     , UniqueMember F.ComponentCommand cmds
---     , UniqueMember (F.Entity dtls plns v) dtls')
---     => Widget ols dtls plns acts cmds ols dtls plns v acts cmds
---     -> Widget ols '[F.Entity' dtls plns] '[] acts cmds ols dtls' plns' v acts cmds
--- componentize (Widget (pa, pc, dsp, F.Gizmo (mkDtl, toOl, mkPln, dev))) = Widget
---     ( pa
---     , pc
---     , F.divWrapped F.componentWindow
---     , F.Gizmo (mkDtl', toOl', pure nil, dev'))
---   where
---     w' = F.renderDisplay dsp
---     mkDtl' o = do
---         d <- mkDtl o
---         single <$> F.mkEntity' d mkPln w'
---     toOl' d = toOl (d ^. item @(F.Entity dtls plns v) . F.details)
---     dev' = zoom (F.details . item @(F.Entity dtls plns v)) dev <|> componentGadget'
---     componentGadget' =
---         fmap pick <$>
---         magnify
---             (facet @F.ComponentAction)
---             (zoom (F.details . item @(F.Entity dtls plns v)) F.componentGadget)
+_Design :: Iso
+    (Design dtls plns)
+    (Design dtls' plns')
+    (Many dtls, WidgetDetail, Many plns, WidgetPlan)
+    (Many dtls', WidgetDetail, Many plns', WidgetPlan)
+_Design = iso getDesign Design
 
--- -- | Add the ability to retrieved a list of properties from its corresponding detail/outline for the rendered element.
--- attributes
---     :: forall ols dtls plns v acts cmds.
---        (UniqueMember (M.Map J.JSString JE.JSVar) dtls, UniqueMember (M.Map J.JSString JE.JSVar) ols)
---     => Widget '[M.Map J.JSString JE.JSVar] '[M.Map J.JSString JE.JSVar] '[] '[] '[] ols dtls plns v acts cmds
--- attributes = Widget
---     ( Proxy
---     , Proxy
---     , F.Display
---           ( \s ->
---                 let m = s ^. F.details . item @(M.Map J.JSString JE.JSVar)
---                 in D.fromList . coerce . M.toList $ m
---           , mempty
---           , Nothing)
---     , F.Gizmo
---           ( \o -> pure (single $ o ^. item @(M.Map J.JSString JE.JSVar))
---           , \d -> single $ d ^. item @(M.Map J.JSString JE.JSVar)
---           , pure nil
---           , empty))
+----------------------------------------------------------
 
--- -- | Add a single property and its corresponding detail/outline to the rendered element.
--- withDynamicProperty
---     :: forall t ols dtls plns v acts cmds proxy.
---        (Show t, UniqueMember (t, JE.JSVar) dtls, UniqueMember (t, JE.JSVar) ols)
---     => proxy t
---     -> Widget '[(t, JE.JSVar)] '[(t, JE.JSVar)] '[] '[] '[] ols dtls plns v acts cmds
--- withDynamicProperty _ = Widget
---     ( Proxy
---     , Proxy
---     , F.Display
---           ( \s ->
---                 let (t, v) = s ^. F.details . item @(t, JE.JSVar)
---                 in D.singleton $ F.WindowProperty (JS.pack . lowerFirstLetter . show $ t, v)
---           , mempty
---           , Nothing)
---     , F.Gizmo
---           ( \o -> pure (single $ o ^. item @(t, JE.JSVar))
---           , \d -> single $ d ^. item @(t, JE.JSVar)
---           , pure nil
---           , empty))
---   where
---     lowerFirstLetter [] = []
---     lowerFirstLetter (x : xs) = toLower x : xs
+type Entity dtls plns v = F.Shared (Design dtls plns) v
+type Entity' dtls plns = F.Shared (Design dtls plns) (Design dtls plns)
+
+instance HasDetails (Entity dtls plns v) dtls where
+    details = F.ival . details
+
+instance HasWidgetDetail (Entity dtls plns v) where
+    widgetDetail = F.ival . widgetDetail
+
+instance HasPlans (Entity dtls plns v) plns where
+    plans = F.ival . plans
+
+instance HasWidgetPlan (Entity dtls plns v) where
+    widgetPlan = F.ival . widgetPlan
+
+----------------------------------------------------------
+
+componentGadget :: G.Gadget WidgetAction (Entity dtls plns v) (D.DList WidgetCommand)
+componentGadget = do
+    a <- ask
+    case a of
+        ComponentRefAction node -> do
+            (widgetPlan . componentRef) .= node
+            pure mempty
+
+        RenderAction -> do
+            -- Just change the state to a different number so the React PureComponent will call render()
+            (widgetPlan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
+            i <- JE.toJS <$> use (widgetPlan . frameNum)
+            r <- use (widgetPlan . componentRef)
+            s <- get
+            pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
+
+        DisposeAction -> do
+            -- Run delayed commands that need to wait until frame is re-rendered
+            -- Eg focusing after other rendering changes
+            ds <- use (widgetPlan . deferredDisposables)
+            (widgetPlan . deferredDisposables) .= mempty
+            pure . D.singleton . DisposeCommand $ ds
+
+componentWindow :: G.WindowT (Design dtls plns) R.ReactMl ()
+componentWindow = do
+    s <- ask
+    lift $
+        R.lf
+            (s ^. widgetPlan  . component . to JE.toJS')
+            [ ("ref", s ^. widgetPlan . onComponentRef)
+            , ("componentDidUpdate", s ^. widgetPlan . onComponentDidUpdate)
+            ]
+            [ ("key", s ^. widgetPlan . key . to JE.toJS')
+            -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
+            , ("render", s ^. widgetPlan . onRender . to JE.toJS')
+            ]
+
+----------------------------------------------------------
+
+-- | Make a Entity given the Detail, where the Model type is
+-- a basic tuple of Detail and Plan.
+mkEntity'
+    :: UniqueMember WidgetAction acts
+    => Many dtls
+    -> [JE.Property]
+    -> [(J.JSString, F.TriggerAction -> [Which acts])]
+    -> F (R.Maker (Which acts)) (Many plns)
+    -> G.WindowT (Design dtls plns) R.ReactMl ()
+    -> F (R.Maker (Which acts)) (Entity' dtls plns)
+mkEntity' dtls ps ts mkPlns render = do
+    frm <- R.mkEmptyFrame
+    mdl <- (\plns compPln -> Design (dtls, WidgetDetail ps, plns, compPln)) <$> mkPlns <*> mkWidgetPlan render frm ts
+    R.putFrame frm mdl
+    pure $ F.Shared (mdl, Lens id, frm)

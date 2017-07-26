@@ -10,21 +10,21 @@ import Data.Maybe
 import Data.Semigroup
 import qualified Glazier as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
-newtype WindowProperty = WindowProperty { runWindowProperty :: JE.Property }
-type ToWindowProperties dtls plns = F.Prototype dtls plns -> D.DList WindowProperty
+newtype WindowProperty = WindowProperty JE.Property
+type ToWindowProperties dtls plns = F.Design dtls plns -> D.DList WindowProperty
 
-newtype WindowListener = WindowListener { runWindowListener :: R.Listener }
-type ToWindowListeners dtls plns = F.Prototype dtls plns -> D.DList WindowListener
+newtype WindowListener = WindowListener R.Listener
+type ToWindowListeners dtls plns = F.Design dtls plns -> D.DList WindowListener
 
 newtype Display dtls plns =
     Display { runDisplay :: ( ToWindowListeners dtls plns
                             , ToWindowProperties dtls plns
                             , Maybe (  ToWindowListeners dtls plns
                                     -> ToWindowProperties dtls plns
-                                    -> G.WindowT (F.Prototype dtls plns) R.ReactMl ()))
+                                    -> G.WindowT (F.Design dtls plns) R.ReactMl ()))
             }
 
 instance Monoid (Display dtls plns) where
@@ -55,16 +55,16 @@ hardcode ps = Display (mempty, const $ D.fromList ps, Nothing)
 toDisplay :: ([R.Listener] -> [JE.Property] -> R.ReactMl ()) -> Display dtls plns
 toDisplay f = Display (mempty, mempty, Just (\l p -> do
     s <- ask
-    let ls = s ^. F.componentPlan . F.listeners
-        k = s ^. F.componentPlan . F.key
-        ps = s ^. F.componentDetail . F.properties
+    let ls = s ^. F.widgetPlan . F.listeners
+        k = s ^. F.widgetPlan . F.key
+        ps = s ^. F.widgetDetail . F.properties
         l' = D.toList (D.fromList ls <> coerce (l s))
         p' = D.toList (D.singleton ("key", JE.toJS' k) <> D.fromList ps <> coerce (p s))
     lift $ f l' p'))
 
 -- | wrap with a div iff there are properties and listeners
 divWrapped
-    :: G.WindowT (F.Prototype dtls plns) R.ReactMl ()
+    :: G.WindowT (F.Design dtls plns) R.ReactMl ()
     -> Display dtls plns
 divWrapped w = Display (mempty, mempty, Just $ \l p -> do
     s <- ask
@@ -72,8 +72,8 @@ divWrapped w = Display (mempty, mempty, Just $ \l p -> do
         l' = D.toList . coerce . l $ s
     case (l', p') of
         ([], []) -> w
-        _ -> lift . R.bh "div" l' p' $ G.runWindowT' w s)
+        _ -> lift . R.bh "div" l' p' $ G.runWindowT w s)
 
 -- | Convert a 'Display' into a @WindowT s ReactMl@
-renderDisplay :: Display dtls plns -> G.WindowT (F.Prototype dtls plns) R.ReactMl ()
+renderDisplay :: Display dtls plns -> G.WindowT (F.Design dtls plns) R.ReactMl ()
 renderDisplay (Display (l, p, w)) = fromMaybe mempty $ (\w' -> w' l p) <$> w

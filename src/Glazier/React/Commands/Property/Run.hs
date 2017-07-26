@@ -1,10 +1,7 @@
-module Glazier.React.Commands.Property.Run
-    ( run
-    ) where
+module Glazier.React.Commands.Property.Run where
 
 import qualified JavaScript.Extras as JE
 import Glazier.React.Commands.Property
 
-run :: Command -> IO ()
-
-run (SetPropertyCommand j prop) = JE.setProperty prop j
+runProperty :: PropertyCommand -> IO ()
+runProperty (SetPropertyCommand j prop) = JE.setProperty prop j

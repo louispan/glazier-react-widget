@@ -18,16 +18,16 @@ library
   exposed-modules:     Glazier.React.Framework
                        Glazier.React.Framework.Attach
                        Glazier.React.Framework.Shared
-                       Glazier.React.Framework.Core
-                       Glazier.React.Framework.Core.Run
                        Glazier.React.Framework.Display
                        Glazier.React.Framework.Gizmo
+                       Glazier.React.Framework.Prototype
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget
+                       Glazier.React.Framework.Widget.Run
                        Glazier.React.Commands.Focus
                        Glazier.React.Commands.Focus.Run
-                       Glazier.React.Commands.Maker
-                       Glazier.React.Commands.Maker.Run
+                       Glazier.React.Commands.Create
+                       Glazier.React.Commands.Create.Run
                        Glazier.React.Commands.Property
                        Glazier.React.Commands.Property.Run
                        -- Glazier.React.Widget.Dispose

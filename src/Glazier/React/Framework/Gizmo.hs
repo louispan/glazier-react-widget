@@ -12,7 +12,7 @@ import qualified Data.DList as D
 import Data.Semigroup
 import qualified Glazier as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.Widget as F
 import qualified Glazier.React.Framework.Attach as F
 
 type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)

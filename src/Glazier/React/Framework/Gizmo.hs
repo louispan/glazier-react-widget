@@ -18,10 +18,10 @@ import qualified Glazier.React.Framework.Attach as F
 type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
 type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
 type ToOutline ols dtls = Many dtls -> Many ols
-type Device dtls plns v acts cmds = G.Gadget (Which acts) (F.Entity dtls plns v) (D.DList (Which cmds))
+type Gadgetry dtls plns v acts cmds = G.Gadget (Which acts) (F.Entity dtls plns v) (D.DList (Which cmds))
 
 newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo
-    { runGizmo :: (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Device dtls plns v acts cmds)
+    { runGizmo :: (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Gadgetry dtls plns v acts cmds)
     }
 
 instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2) =>
@@ -49,8 +49,8 @@ noop = Gizmo ( const $ pure nil
           , pure nil
           , empty)
 
--- | lift a 'Device' into a 'Gizmo'
-toGizmo :: Device dtls plns v acts cmds -> Gizmo '[] '[] '[] ols dtls plns v acts cmds
+-- | lift a 'Gadgetry' into a 'Gizmo'
+toGizmo :: Gadgetry dtls plns v acts cmds -> Gizmo '[] '[] '[] ols dtls plns v acts cmds
 toGizmo dev = Gizmo ( const $ pure nil
           , const nil
           , pure nil

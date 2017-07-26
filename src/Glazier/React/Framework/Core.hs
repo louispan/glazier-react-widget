@@ -19,12 +19,15 @@ import Control.Monad.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as D
 import Data.Kind
+import qualified Data.Map.Strict as M
+import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Shared as F
+import qualified Glazier.React.Framework.Trigger as F
 import qualified JavaScript.Extras as JE
 
 data ComponentCommand
@@ -35,6 +38,25 @@ data ComponentAction
     = ComponentRefAction J.JSVal
     | RenderAction
     | DisposeAction
+----------------------------------------------------------
+
+newtype ComponentDetail = ComponentDetail
+    { _properties :: [JE.Property]
+    } deriving (G.Generic)
+
+class HasComponentDetail c where
+    componentDetail :: Lens' c ComponentDetail
+    properties :: Lens' c [JE.Property]
+    properties = componentDetail . go
+      where go k (ComponentDetail a) = k a <&> \a' -> ComponentDetail a'
+
+instance HasComponentDetail ComponentDetail where
+    componentDetail = id
+
+instance R.Dispose ComponentDetail where
+    dispose _ = pure ()
+
+----------------------------------------------------------
 
 -- | ComponentPlan has to be stored differently to other plans because mkComponentPlan needs
 -- additional parameters
@@ -47,13 +69,18 @@ data ComponentPlan = ComponentPlan
     , _onRender ::  J.Callback (IO J.JSVal)
     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
     , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
+    , _listeners :: [R.Listener]
     } deriving (G.Generic)
 
 makeClassy ''ComponentPlan
 
 mkComponentPlan
-    :: UniqueMember ComponentAction acts => G.WindowT mdl R.ReactMl () -> TMVar mdl -> F (R.Maker (Which acts)) ComponentPlan
-mkComponentPlan render frm = R.hoistWithAction pick $ ComponentPlan
+    :: UniqueMember ComponentAction acts
+    => G.WindowT mdl R.ReactMl ()
+    -> TMVar mdl
+    -> [(J.JSString, F.TriggerAction -> [Which acts])]
+    -> F (R.Maker (Which acts)) ComponentPlan
+mkComponentPlan render frm ts = R.hoistWithAction pick (ComponentPlan
     <$> R.mkKey -- key
     <*> pure 0 -- frameNum
     <*> R.getComponent -- component
@@ -62,6 +89,10 @@ mkComponentPlan render frm = R.hoistWithAction pick $ ComponentPlan
     <*> (R.mkRenderer render frm) -- onRender
     <*> (R.mkHandler $ pure . pure . ComponentRefAction) -- onComponentRef
     <*> (R.mkHandler $ pure . pure . const DisposeAction) -- onComponentDidUpdate
+    )
+    <*> (traverse go . M.toList . M.fromListWith (<>) $ ts) -- triggers
+  where
+    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (fmap f <$> F.onTrigger n)
 
 instance R.Dispose ComponentPlan
 
@@ -78,6 +109,7 @@ class HasPlans c plns | c -> plns where
 newtype Prototype (dtls :: [Type]) (plns :: [Type]) = Prototype
     { runPrototype ::
         ( Many dtls
+        , ComponentDetail
         , Many plns
         , ComponentPlan
         )
@@ -90,16 +122,19 @@ instance HasDetails (Prototype dtls plns) dtls where
     details = _Prototype . _1
 
 instance HasPlans (Prototype dtls plns) plns where
-    plans = _Prototype . _2
+    plans = _Prototype . _3
+
+instance HasComponentDetail (Prototype dtls plns) where
+    componentDetail = _Prototype . _2
 
 instance HasComponentPlan (Prototype dtls plns) where
-    componentPlan = _Prototype . _3
+    componentPlan = _Prototype . _4
 
 _Prototype :: Iso
     (Prototype dtls plns)
     (Prototype dtls' plns')
-    (Many dtls, Many plns, ComponentPlan)
-    (Many dtls', Many plns', ComponentPlan)
+    (Many dtls, ComponentDetail, Many plns, ComponentPlan)
+    (Many dtls', ComponentDetail, Many plns', ComponentPlan)
 _Prototype = iso runPrototype Prototype
 
 ----------------------------------------------------------
@@ -147,12 +182,12 @@ componentWindow = do
     lift $
         R.lf
             (s ^. componentPlan  . component . to JE.toJS')
+            [ ("ref", s ^. componentPlan . onComponentRef)
+            , ("componentDidUpdate", s ^. componentPlan . onComponentDidUpdate)
+            ]
             [ ("key", s ^. componentPlan . key . to JE.toJS')
             -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
             , ("render", s ^. componentPlan . onRender . to JE.toJS')
-            ]
-            [ ("ref", s ^. componentPlan . onComponentRef)
-            , ("componentDidUpdate", s ^. componentPlan . onComponentDidUpdate)
             ]
 
 ----------------------------------------------------------
@@ -162,11 +197,13 @@ componentWindow = do
 mkEntity'
     :: UniqueMember ComponentAction acts
     => Many dtls
+    -> [JE.Property]
+    -> [(J.JSString, F.TriggerAction -> [Which acts])]
     -> F (R.Maker (Which acts)) (Many plns)
     -> G.WindowT (Prototype dtls plns) R.ReactMl ()
     -> F (R.Maker (Which acts)) (Entity' dtls plns)
-mkEntity' dtls mkPlns render = do
+mkEntity' dtls ps ts mkPlns render = do
     frm <- R.mkEmptyFrame
-    mdl <- (\plns compPln -> Prototype (dtls, plns, compPln)) <$> mkPlns <*> mkComponentPlan render frm
+    mdl <- (\plns compPln -> Prototype (dtls, ComponentDetail ps, plns, compPln)) <$> mkPlns <*> mkComponentPlan render frm ts
     R.putFrame frm mdl
     pure $ F.Shared (mdl, Lens id, frm)

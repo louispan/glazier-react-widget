@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Glazier.React.Framework
+                       Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Attach
                        Glazier.React.Framework.Shared
                        Glazier.React.Framework.Display

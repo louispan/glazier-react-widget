@@ -20,7 +20,7 @@ newtype WindowListener = WindowListener R.Listener
 type ToWindowListeners dtls plns = F.Design dtls plns -> D.DList WindowListener
 
 newtype Display dtls plns =
-    Display { runDisplay :: ( ToWindowListeners dtls plns
+    Display { getDisplay :: ( ToWindowListeners dtls plns
                             , ToWindowProperties dtls plns
                             , Maybe (  ToWindowListeners dtls plns
                                     -> ToWindowProperties dtls plns
@@ -57,7 +57,7 @@ toDisplay f = Display (mempty, mempty, Just (\l p -> do
     s <- ask
     let ls = s ^. F.widgetPlan . F.listeners
         k = s ^. F.widgetPlan . F.key
-        ps = s ^. F.widgetDetail . F.properties
+        ps = s ^. F.properties
         l' = D.toList (D.fromList ls <> coerce (l s))
         p' = D.toList (D.singleton ("key", JE.toJS' k) <> D.fromList ps <> coerce (p s))
     lift $ f l' p'))

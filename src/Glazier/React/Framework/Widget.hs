@@ -40,21 +40,19 @@ data WidgetAction
     | DisposeAction
 ----------------------------------------------------------
 
-newtype WidgetDetail = WidgetDetail
-    { _properties :: [JE.Property]
-    } deriving (G.Generic)
+-- newtype WidgetDetail = WidgetDetail
+--     { _properties :: [JE.Property]
+--     } deriving (G.Generic)
 
-class HasWidgetDetail c where
-    widgetDetail :: Lens' c WidgetDetail
+class HasProperties c where
+    -- widgetDetail :: Lens' c WidgetDetail
     properties :: Lens' c [JE.Property]
-    properties = widgetDetail . go
-      where go k (WidgetDetail a) = k a <&> \a' -> WidgetDetail a'
 
-instance HasWidgetDetail WidgetDetail where
-    widgetDetail = id
-
-instance R.Dispose WidgetDetail where
-    dispose _ = pure ()
+instance HasProperties [JE.Property] where
+    properties = id
+    -- widgetDetail = id
+    -- properties = widgetDetail . go
+    --   where go k (WidgetDetail a) = k a <&> \a' -> WidgetDetail a'
 
 ----------------------------------------------------------
 
@@ -108,8 +106,8 @@ class HasPlans c plns | c -> plns where
 
 newtype Design (dtls :: [Type]) (plns :: [Type]) = Design
     { getDesign ::
-        ( Many dtls
-        , WidgetDetail
+        ( [JE.Property]
+        , Many dtls
         , Many plns
         , WidgetPlan
         )
@@ -118,11 +116,11 @@ newtype Design (dtls :: [Type]) (plns :: [Type]) = Design
 
 instance (R.Dispose (Many dtls), R.Dispose (Many plns)) => R.Dispose (Design dtls plns)
 
-instance HasDetails (Design dtls plns) dtls where
-    details = _Design . _1
+instance HasProperties (Design dtls plns) where
+    properties = _Design . _1
 
-instance HasWidgetDetail (Design dtls plns) where
-    widgetDetail = _Design . _2
+instance HasDetails (Design dtls plns) dtls where
+    details = _Design . _2
 
 instance HasPlans (Design dtls plns) plns where
     plans = _Design . _3
@@ -133,8 +131,8 @@ instance HasWidgetPlan (Design dtls plns) where
 _Design :: Iso
     (Design dtls plns)
     (Design dtls' plns')
-    (Many dtls, WidgetDetail, Many plns, WidgetPlan)
-    (Many dtls', WidgetDetail, Many plns', WidgetPlan)
+    ([JE.Property], Many dtls, Many plns, WidgetPlan)
+    ([JE.Property], Many dtls', Many plns', WidgetPlan)
 _Design = iso getDesign Design
 
 ----------------------------------------------------------
@@ -145,8 +143,8 @@ type Entity' dtls plns = F.Shared (Design dtls plns) (Design dtls plns)
 instance HasDetails (Entity dtls plns v) dtls where
     details = F.ival . details
 
-instance HasWidgetDetail (Entity dtls plns v) where
-    widgetDetail = F.ival . widgetDetail
+instance HasProperties (Entity dtls plns v) where
+    properties = F.ival . properties
 
 instance HasPlans (Entity dtls plns v) plns where
     plans = F.ival . plans
@@ -156,8 +154,8 @@ instance HasWidgetPlan (Entity dtls plns v) where
 
 ----------------------------------------------------------
 
-componentGadget :: G.Gadget WidgetAction (Entity dtls plns v) (D.DList WidgetCommand)
-componentGadget = do
+widgetGadget :: G.Gadget WidgetAction (Entity dtls plns v) (D.DList WidgetCommand)
+widgetGadget = do
     a <- ask
     case a of
         ComponentRefAction node -> do
@@ -179,8 +177,8 @@ componentGadget = do
             (widgetPlan . deferredDisposables) .= mempty
             pure . D.singleton . DisposeCommand $ ds
 
-componentWindow :: G.WindowT (Design dtls plns) R.ReactMl ()
-componentWindow = do
+widgetWindow :: G.WindowT (Design dtls plns) R.ReactMl ()
+widgetWindow = do
     s <- ask
     lift $
         R.lf
@@ -199,14 +197,18 @@ componentWindow = do
 -- a basic tuple of Detail and Plan.
 mkEntity'
     :: UniqueMember WidgetAction acts
-    => Many dtls
-    -> [JE.Property]
+    => [JE.Property]
+    -> Many dtls
     -> [(J.JSString, F.TriggerAction -> [Which acts])]
     -> F (R.Maker (Which acts)) (Many plns)
     -> G.WindowT (Design dtls plns) R.ReactMl ()
     -> F (R.Maker (Which acts)) (Entity' dtls plns)
-mkEntity' dtls ps ts mkPlns render = do
+mkEntity' ps dtls ts mkPlns render = do
     frm <- R.mkEmptyFrame
-    mdl <- (\plns compPln -> Design (dtls, WidgetDetail ps, plns, compPln)) <$> mkPlns <*> mkWidgetPlan render frm ts
+    mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkPlns <*> mkWidgetPlan render frm ts
     R.putFrame frm mdl
     pure $ F.Shared (mdl, Lens id, frm)
+
+----------------------------------------------------------
+
+type Gadgetry dtls plns v acts cmds = G.Gadget (Which acts) (Entity dtls plns v) (D.DList (Which cmds))

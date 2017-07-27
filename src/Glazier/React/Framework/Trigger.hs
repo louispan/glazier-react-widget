@@ -22,7 +22,7 @@ import qualified JavaScript.Extras as JE
 data TriggerAction = TriggerAction J.JSString R.EventTarget
 
 newtype Trigger (a :: [Type]) acts = Trigger
-    { runTrigger :: (Proxy a, M.Map J.JSString (TriggerAction -> [Which acts]))
+    { getTrigger :: (Proxy a, M.Map J.JSString (TriggerAction -> [Which acts]))
     }
 
 -- | The action types are merged, not appended

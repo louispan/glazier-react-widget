@@ -8,34 +8,31 @@ module Glazier.React.Framework.Gizmo where
 import Control.Applicative
 import Control.Monad.Free.Church
 import Data.Diverse.Lens
-import qualified Data.DList as D
 import Data.Semigroup
-import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
 import qualified Glazier.React.Framework.Attach as F
 
 type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
 type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
-type ToOutline ols dtls = Many dtls -> Many ols
-type Gadgetry dtls plns v acts cmds = G.Gadget (Which acts) (F.Entity dtls plns v) (D.DList (Which cmds))
+type FromDetail ols dtls = Many dtls -> Many ols
 
 newtype Gizmo o d p ols dtls plns v acts cmds = Gizmo
-    { runGizmo :: (MkDetail d ols acts, ToOutline o dtls, MkPlan p acts, Gadgetry dtls plns v acts cmds)
+    { getGizmo :: (MkDetail d ols acts, FromDetail o dtls, MkPlan p acts, F.Gadgetry dtls plns v acts cmds)
     }
 
 instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2) =>
          F.Attach (Gizmo o1 d1 p1 ols dtls plns v acts cmds)
                 (Gizmo o2 d2 p2 ols dtls plns v acts cmds)
                 (Gizmo o3 d3 p3 ols dtls plns v acts cmds) where
-    Gizmo (mkDtl, toOl, mkPln, dev) +<>+ Gizmo (mkDtl', toOl', mkPln', dev') =
+    Gizmo (mkDtl, fromDtl, mkPln, dev) +<>+ Gizmo (mkDtl', fromDtl', mkPln', dev') =
         Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
-              , \d -> toOl d /./ toOl' d
+              , \d -> fromDtl d /./ fromDtl' d
               , (/./) <$> mkPln <*> mkPln'
               , dev <> dev')
-    Gizmo (mkDtl, toOl, mkPln, dev) +<|>+ Gizmo (mkDtl', toOl', mkPln', dev') =
+    Gizmo (mkDtl, fromDtl, mkPln, dev) +<|>+ Gizmo (mkDtl', fromDtl', mkPln', dev') =
         Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
-              , \d -> toOl d /./ toOl' d
+              , \d -> fromDtl d /./ fromDtl' d
               , (/./) <$> mkPln <*> mkPln'
               , dev <|> dev')
 
@@ -50,7 +47,7 @@ noop = Gizmo ( const $ pure nil
           , empty)
 
 -- | lift a 'Gadgetry' into a 'Gizmo'
-toGizmo :: Gadgetry dtls plns v acts cmds -> Gizmo '[] '[] '[] ols dtls plns v acts cmds
+toGizmo :: F.Gadgetry dtls plns v acts cmds -> Gizmo '[] '[] '[] ols dtls plns v acts cmds
 toGizmo dev = Gizmo ( const $ pure nil
           , const nil
           , pure nil

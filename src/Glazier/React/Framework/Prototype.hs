@@ -11,28 +11,22 @@ module Glazier.React.Framework.Prototype
     , dummy
     , statically
     , dynamically
+    , triggering
     -- , attributes
     -- , componentize
     ) where
 
-import Control.Applicative
-import Control.Lens
-import Data.Coerce
-import Data.Diverse.Lens
-import qualified Data.DList as D
+import Data.Diverse
 import Data.Kind
 import Data.Proxy
-import qualified Data.Map.Strict as M
 import Data.Semigroup
-import qualified GHCJS.Types as J
 import qualified Glazier.React.Framework.Attach as F
-import qualified Glazier.React.Framework.Widget as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Gizmo as F
-import qualified JavaScript.Extras as JE
+import qualified Glazier.React.Framework.Trigger as F
 
 newtype Prototype (o :: [Type]) (d :: [Type]) (p :: [Type]) (a :: [Type]) (c :: [Type]) ols dtls plns v acts cmds = Prototype
-    { runPrototype :: (Proxy a, Proxy c, F.Display dtls plns, F.Gizmo o d p ols dtls plns v acts cmds)
+    { runPrototype :: (Proxy c, F.Display dtls plns, F.Trigger a acts, F.Gizmo o d p ols dtls plns v acts cmds)
     }
 
 -- | The action and command types are merged, not appended
@@ -40,50 +34,26 @@ instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2, a3 ~ AppendUn
          F.Attach (Prototype o1 d1 p1 a1 c1 ols dtls plns v acts cmds)
                 (Prototype o2 d2 p2 a2 c2 ols dtls plns v acts cmds)
                 (Prototype o3 d3 p3 a3 c3 ols dtls plns v acts cmds) where
-     Prototype (_, _, disp, g) +<>+ Prototype (_, _, disp', g') =
-         Prototype (Proxy, Proxy, disp <> disp', g F.+<>+ g')
-     Prototype (_, _, disp, g) +<|>+ Prototype (_, _, disp', g') =
-         Prototype (Proxy, Proxy, disp <> disp', g F.+<|>+ g')
+     Prototype (_, d, t, g) +<>+ Prototype (_, d', t', g') =
+         Prototype (Proxy, d <> d', t F.+<>+ t', g F.+<>+ g')
+     Prototype (_, d, t, g) +<|>+ Prototype (_, d', t', g') =
+         Prototype (Proxy, d <> d', t F.+<|>+ t', g F.+<|>+ g')
 
 instance F.AttachId (Prototype '[] '[] '[] '[] '[] ols dtls plns v acts cmds) where
     aempty = dummy
 
 -- | identity for 'F.Attach'
 dummy :: Prototype '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-dummy = Prototype (Proxy, Proxy, F.blank, F.noop)
+dummy = Prototype (Proxy, F.blank, F.ignore, F.noop)
 
 statically :: F.Display dtls plns -> Prototype '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-statically disp = Prototype (Proxy, Proxy, disp, F.aempty)
+statically d = Prototype (Proxy, d, F.ignore, F.noop)
 
 dynamically :: F.Gizmo '[] '[] '[] ols dtls plns v acts cmds -> Prototype '[] '[] '[] '[] '[] ols dtls plns v acts cmds
-dynamically gad = Prototype (Proxy, Proxy, mempty, gad)
+dynamically g = Prototype (Proxy, mempty, F.ignore, g)
 
--- -- | Wrap an 'Glazier.React.Component' (with its own render and dispose functions) around a 'Prototype'
--- -- replace original dtls plns with Entity.
--- componentize
---     :: forall dtls' plns' ols dtls plns v acts cmds.
---     ( UniqueMember F.ComponentAction acts
---     , UniqueMember F.ComponentCommand cmds
---     , UniqueMember (F.Entity dtls plns v) dtls')
---     => Prototype ols dtls plns acts cmds ols dtls plns v acts cmds
---     -> Prototype ols '[F.Entity' dtls plns] '[] acts cmds ols dtls' plns' v acts cmds
--- componentize (Prototype (pa, pc, dsp, F.Gizmo (mkDtl, toOl, mkPln, dev))) = Prototype
---     ( pa
---     , pc
---     , F.divWrapped F.componentWindow
---     , F.Gizmo (mkDtl', toOl', pure nil, dev'))
---   where
---     w' = F.renderDisplay dsp
---     mkDtl' o = do
---         d <- mkDtl o
---         single <$> F.mkEntity' d mkPln w'
---     toOl' d = toOl (d ^. item @(F.Entity dtls plns v) . F.details)
---     dev' = zoom (F.details . item @(F.Entity dtls plns v)) dev <|> componentGadget'
---     componentGadget' =
---         fmap pick <$>
---         magnify
---             (facet @F.ComponentAction)
---             (zoom (F.details . item @(F.Entity dtls plns v)) F.componentGadget)
+triggering :: F.Trigger a acts -> Prototype '[] '[] '[] a '[] ols dtls plns v acts cmds
+triggering t = Prototype (Proxy, mempty, t, F.noop)
 
 -- -- | Add the ability to retrieved a list of properties from its corresponding detail/outline for the rendered element.
 -- attributes

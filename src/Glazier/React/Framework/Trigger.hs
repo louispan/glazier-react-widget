@@ -16,7 +16,6 @@ import Data.Proxy
 import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Attach as F
 import qualified JavaScript.Extras as JE
 
 data TriggerAction = TriggerAction J.JSString R.EventTarget
@@ -25,20 +24,16 @@ newtype Trigger (a :: [Type]) acts = Trigger
     (Proxy a, M.Map J.JSString (TriggerAction -> [Which acts]))
 
 -- | The action types are merged, not appended
-instance (a3 ~ AppendUnique a1 a2) =>
-         F.Attach (Trigger a1 acts)
-                  (Trigger a2 acts)
-                  (Trigger a3 acts) where
-    Trigger (_, f) +<>+ Trigger (_, f') = Trigger (Proxy, M.unionWith (<>) f f')
-    -- | Only run right trigger handler if left trigger handler didn't produce any output
-    Trigger (_, f) +<|>+ Trigger (_, f') = Trigger (Proxy, M.unionWith go f f')
-        where
-          go g g' x = case g x of
-                          [] -> g' x
-                          y -> y
+andTrigger :: Trigger a1 acts -> Trigger a2 acts -> Trigger (AppendUnique a1 a2) acts
+andTrigger (Trigger (_, f)) (Trigger (_, f') )= Trigger (Proxy, M.unionWith (<>) f f')
 
-instance F.AttachId (Trigger '[] acts) where
-    aempty = ignore
+-- | Only run right trigger handler if left trigger handler didn't produce any output
+orTrigger :: Trigger a1 acts -> Trigger a2 acts -> Trigger (AppendUnique a1 a2) acts
+orTrigger (Trigger (_, f)) (Trigger (_, f')) = Trigger (Proxy, M.unionWith go f f')
+  where
+    go g g' x = case g x of
+                    [] -> g' x
+                    y -> y
 
 instance Semigroup (Trigger a acts) where
     Trigger (_, m) <> Trigger (_, m') = Trigger (Proxy, M.unionWith (<>) m m')

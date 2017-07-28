@@ -17,7 +17,6 @@ library
   hs-source-dirs:      src
   exposed-modules:     Glazier.React.Framework
                        Glazier.React.Framework.Archetype
-                       Glazier.React.Framework.Attach
                        Glazier.React.Framework.Shared
                        Glazier.React.Framework.Display
                        Glazier.React.Framework.Gizmo
@@ -35,7 +34,7 @@ library
                        -- Glazier.React.Widget.Dispose.Run
                        -- Glazier.React.Widget.Rerender
                        -- Glazier.React.Widget.Rerender.Run
-                       -- Glazier.React.Widgets.Input
+                       Glazier.React.Widgets.Input
                        -- Glazier.React.Widgets.Input.Run
                        -- Glazier.React.Widgets.List
                        -- Glazier.React.Widgets.List.Run

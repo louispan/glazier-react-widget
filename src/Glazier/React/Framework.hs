@@ -1,6 +1,5 @@
 module Glazier.React.Framework
     ( module Glazier.React.Framework.Archetype
-    , module Glazier.React.Framework.Attach
     , module Glazier.React.Framework.Shared
     , module Glazier.React.Framework.Display
     , module Glazier.React.Framework.Gizmo
@@ -10,7 +9,6 @@ module Glazier.React.Framework
     , module Glazier.React.Framework.Widget.Run
     ) where
 
-import Glazier.React.Framework.Attach
 import Glazier.React.Framework.Archetype
 import Glazier.React.Framework.Shared
 import Glazier.React.Framework.Display

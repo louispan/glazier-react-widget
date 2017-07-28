@@ -17,7 +17,6 @@ import qualified Data.DList as D
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
-import qualified Glazier.React.Framework.Attach as F
 
 type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
 type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
@@ -26,25 +25,25 @@ type Gadgetry dtls plns acts cmds = G.Gadget (Which acts) (F.Entity dtls plns) (
 
 newtype Gizmo o ols d dtls p plns acts cmds = Gizmo (MkDetail d ols acts, FromDetail o dtls, MkPlan p acts, Gadgetry dtls plns acts cmds)
 
-instance (o3 ~ Append o1 o2, d3 ~ Append d1 d2, p3 ~ Append p1 p2) =>
-         F.Attach (Gizmo o1 ols d1 dtls p1 plns acts cmds)
-                (Gizmo o2 ols d2 dtls p2 plns acts cmds)
-                (Gizmo o3 ols d3 dtls p3 plns acts cmds) where
-    Gizmo (mkDtl, fromDtl, mkPln, dev) +<>+ Gizmo (mkDtl', fromDtl', mkPln', dev') =
+andGizmo :: Gizmo o1 ols d1 dtls p1 plns acts cmds
+         -> Gizmo o2 ols d2 dtls p2 plns acts cmds
+         -> Gizmo (Append o1 o2) ols (Append d1 d2) dtls (Append p1 p2) plns acts cmds
+andGizmo (Gizmo (mkDtl, fromDtl, mkPln, dev)) (Gizmo (mkDtl', fromDtl', mkPln', dev')) =
         Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
               , \d -> fromDtl d /./ fromDtl' d
               , (/./) <$> mkPln <*> mkPln'
               , dev <> dev')
-    Gizmo (mkDtl, fromDtl, mkPln, dev) +<|>+ Gizmo (mkDtl', fromDtl', mkPln', dev') =
+
+orGizmo :: Gizmo o1 ols d1 dtls p1 plns acts cmds
+        -> Gizmo o2 ols d2 dtls p2 plns acts cmds
+        -> Gizmo (Append o1 o2) ols (Append d1 d2) dtls (Append p1 p2) plns acts cmds
+orGizmo (Gizmo (mkDtl, fromDtl, mkPln, dev)) (Gizmo (mkDtl', fromDtl', mkPln', dev')) =
         Gizmo ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
               , \d -> fromDtl d /./ fromDtl' d
               , (/./) <$> mkPln <*> mkPln'
               , dev <|> dev')
 
-instance F.AttachId (Gizmo '[] ols '[] dtls '[] plns acts cmds) where
-    aempty = noop
-
--- | Identify for 'F.Attach'
+-- | Identify for 'orGizmo' or 'andGizmo'
 noop :: Gizmo '[] ols '[] dtls '[] plns acts cmds
 noop = Gizmo ( const $ pure nil
           , const nil
@@ -62,5 +61,5 @@ gadgetry
     :: forall a c dtls plns acts cmds.
        (UniqueMember a acts, UniqueMember c cmds)
     => G.Gadget a (F.Entity dtls plns) (D.DList c)
-    -> G.Gadget (Which acts) (F.Entity dtls plns) (D.DList (Which cmds))
+    -> Gadgetry dtls plns acts cmds
 gadgetry g = magnify (facet @a) (fmap (pick @_ @c) <$> g)

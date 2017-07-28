@@ -24,8 +24,7 @@ inputPrototype
     => F.Prototype '[] ols '[] dtls '[] plns '[InputAction] acts '[C.PropertyCommand] cmds
 inputPrototype =
     (F.statically $ F.display d) `F.orPrototype`
-    (F.dynamically (F.gizmo
-         (F.gadgetry gadget)))
+    (F.dynamically (F.gadgetry gadget))
   where
     d ls ps = lift $ R.lf "input" ls ps
 

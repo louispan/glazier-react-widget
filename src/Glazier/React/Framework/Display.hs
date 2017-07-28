@@ -27,7 +27,7 @@ newtype Display dtls plns =
                     -> G.WindowT (F.Design dtls plns) R.ReactMl ()))
 
 instance Monoid (Display dtls plns) where
-    mempty = blank
+    mempty = clear
     mappend = (<>)
 
 -- | If properties and listeners are combined if either or both windows are Nothing.
@@ -42,9 +42,17 @@ instance Semigroup (Display dtls plns) where
         Display (ls <> ls', ps <> ps', w)
     Display (ls, ps, Just w) <> Display (ls', ps', Just w') = divWrapped (w ls ps <> w' ls' ps')
 
+-- FIXME: Add MaybeT to Window
+-- instance F.Firsts (Display dtls plns) where
+--     Display (ls, ps, Nothing) <<|>> Display (ls', ps', w') =
+--         Display (ls <> ls', ps <> ps', w')
+--     Display (ls, ps, w) <<|>> Display (ls', ps', Nothing) =
+--         Display (ls <> ls', ps <> ps', w)
+--     Display (ls, ps, Just w) <<|>> Display (ls', ps', Just w') = divWrapped (w ls ps <|> w' ls' ps')
+
 -- | identity for 'Monoid'
-blank :: Display dtls plns
-blank = Display (mempty, mempty, Nothing)
+clear :: Display dtls plns
+clear = Display (mempty, mempty, Nothing)
 
 -- | Add a list of static properties to the rendered element.
 hardcode :: [WindowProperty] -> Display dtls plns

@@ -19,7 +19,9 @@ library
                        Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Shared
                        Glazier.React.Framework.Display
-                       Glazier.React.Framework.Gizmo
+                       Glazier.React.Framework.Factory
+                       Glazier.React.Framework.Firsts
+                       Glazier.React.Framework.Gadgetry
                        Glazier.React.Framework.Prototype
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget

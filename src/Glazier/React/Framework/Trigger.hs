@@ -16,6 +16,7 @@ import Data.Proxy
 import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Firsts as F
 import qualified JavaScript.Extras as JE
 
 data TriggerAction = TriggerAction J.JSString R.EventTarget
@@ -37,6 +38,13 @@ orTrigger (Trigger (_, f)) (Trigger (_, f')) = Trigger (Proxy, M.unionWith go f 
 
 instance Semigroup (Trigger a acts) where
     Trigger (_, m) <> Trigger (_, m') = Trigger (Proxy, M.unionWith (<>) m m')
+
+instance F.Firsts (Trigger a acts) where
+    Trigger (_, m) <<|>> Trigger (_, m') = Trigger (Proxy, M.unionWith go m m')
+      where
+        go g g' x = case g x of
+                        [] -> g' x
+                        y -> y
 
 ignore :: Trigger '[] acts
 ignore = Trigger (Proxy, mempty)

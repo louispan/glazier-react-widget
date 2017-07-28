@@ -18,7 +18,8 @@ import qualified Data.Map.Strict as M
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Gizmo as F
+import qualified Glazier.React.Framework.Factory as F
+import qualified Glazier.React.Framework.Gadgetry as F
 import qualified Glazier.React.Framework.Prototype as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.Widget as F
@@ -40,18 +41,17 @@ commission :: forall o d p a c o' a' c'.
     )
     => F.Prototype o  o' d d p p a a' c c'
     -> Archetype (Many o') (F.Entity d p) (Which a') (D.DList (Which c'))
-commission (F.Prototype (d, F.Trigger (_, t), F.Gizmo (_, _, mkDtl, fromDtl, mkPln, g))) = Archetype
-    ( mkEnt
-    , fromEnt
-    , g)
+commission (F.Prototype (d, F.Trigger (_, t), F.Factory (mkDtl, fromDtl, mkPln), F.Gadgetry (_, _, g))) =
+    Archetype (mkEnt, fromEnt, g)
   where
     w' = F.renderDisplay d
     mkEnt o = do
         dtls <- mkDtl o
         let ps = o ^. item @[JE.Property]
         F.mkEntity ps dtls (M.toList t) mkPln w'
-    fromEnt e = let ps = e ^. F.properties
-                in ps ./ fromDtl (e ^. F.details)
+    fromEnt e =
+        let ps = e ^. F.properties
+        in ps ./ fromDtl (e ^. F.details)
 
 instance Functor (Archetype o s a) where
     fmap f (Archetype (mkEnt, fromEnt, gad)) = Archetype (mkEnt, fromEnt, f <$> gad)

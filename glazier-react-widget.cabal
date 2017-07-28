@@ -47,7 +47,6 @@ library
                      , free >= 4.12 && < 5
                      , glazier >= 0.12 && < 1
                      , glazier-react >= 0.7 && < 1
-                     , haskus-utils >= 0.6 && < 1
                      , javascript-extras >= 0.3.2.0 && < 1
                      , lens >= 4 && < 5
                      , mmorph >= 1 && < 2

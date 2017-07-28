@@ -31,7 +31,7 @@ import qualified Glazier.React.Framework.Trigger as F
 import qualified JavaScript.Extras as JE
 
 data WidgetCommand
-    = forall i v. RenderCommand (F.Shared i v) [JE.Property] J.JSVal
+    = forall i. RenderCommand (F.Shared i) [JE.Property] J.JSVal
     | DisposeCommand (R.Disposable ())
 
 data WidgetAction
@@ -90,7 +90,7 @@ mkWidgetPlan render frm ts = R.hoistWithAction pick (WidgetPlan
     )
     <*> (traverse go . M.toList . M.fromListWith (<>) $ ts) -- triggers
   where
-    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (fmap f <$> F.onTrigger n)
+    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (fmap f <$> F.onEvent n)
 
 instance R.Dispose WidgetPlan
 
@@ -137,24 +137,23 @@ _Design = iso getDesign Design
 
 ----------------------------------------------------------
 
-type Entity dtls plns v = F.Shared (Design dtls plns) v
-type Entity' dtls plns = F.Shared (Design dtls plns) (Design dtls plns)
+type Entity dtls plns = F.Shared (Design dtls plns)
 
-instance HasDetails (Entity dtls plns v) dtls where
+instance HasDetails (Entity dtls plns) dtls where
     details = F.ival . details
 
-instance HasProperties (Entity dtls plns v) where
+instance HasProperties (Entity dtls plns) where
     properties = F.ival . properties
 
-instance HasPlans (Entity dtls plns v) plns where
+instance HasPlans (Entity dtls plns) plns where
     plans = F.ival . plans
 
-instance HasWidgetPlan (Entity dtls plns v) where
+instance HasWidgetPlan (Entity dtls plns) where
     widgetPlan = F.ival . widgetPlan
 
 ----------------------------------------------------------
 
-widgetGadget :: G.Gadget WidgetAction (Entity dtls plns v) (D.DList WidgetCommand)
+widgetGadget :: G.Gadget WidgetAction (Entity dtls plns) (D.DList WidgetCommand)
 widgetGadget = do
     a <- ask
     case a of
@@ -195,20 +194,16 @@ widgetWindow = do
 
 -- | Make a Entity given the Detail, where the Model type is
 -- a basic tuple of Detail and Plan.
-mkEntity'
+mkEntity
     :: UniqueMember WidgetAction acts
     => [JE.Property]
     -> Many dtls
     -> [(J.JSString, F.TriggerAction -> [Which acts])]
     -> F (R.Maker (Which acts)) (Many plns)
     -> G.WindowT (Design dtls plns) R.ReactMl ()
-    -> F (R.Maker (Which acts)) (Entity' dtls plns)
-mkEntity' ps dtls ts mkPlns render = do
+    -> F (R.Maker (Which acts)) (Entity dtls plns)
+mkEntity ps dtls ts mkPlns render = do
     frm <- R.mkEmptyFrame
     mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkPlns <*> mkWidgetPlan render frm ts
     R.putFrame frm mdl
-    pure $ F.Shared (mdl, Lens id, frm)
-
-----------------------------------------------------------
-
-type Gadgetry dtls plns v acts cmds = G.Gadget (Which acts) (Entity dtls plns v) (D.DList (Which cmds))
+    pure $ F.Shared (mdl, frm)

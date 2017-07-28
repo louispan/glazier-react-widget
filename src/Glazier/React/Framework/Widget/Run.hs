@@ -16,15 +16,12 @@ import qualified Glazier.React.Dispose as R
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
-widgetSetState :: F.Shared v i -> [JE.Property] -> J.JSVal -> IO ()
+widgetSetState :: F.Shared i -> [JE.Property] -> J.JSVal -> IO ()
 widgetSetState s props j = do
     let i = s ^. ival
         t = s ^. tmvar
-        l = s ^. vlens . to runLens
-    void $ atomically $ do
-        v <- takeTMVar t
-        putTMVar t (v & l .~ i)
-    js_widgetSetState (JE.fromProperties props) j
+    void $ atomically $ swapTMVar t i -- update the TMVar with the latest model
+    js_widgetSetState (JE.fromProperties props) j -- trigger a react render
 
 runWidget :: WidgetCommand -> IO ()
 runWidget (RenderCommand s props j) = widgetSetState s props j

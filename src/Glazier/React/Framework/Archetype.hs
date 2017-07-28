@@ -1,6 +1,8 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -11,9 +13,9 @@ module Glazier.React.Framework.Archetype where
 import Control.Lens
 import Control.Monad.Free.Church
 import Data.Diverse.Lens
-import Data.Kind
+import qualified Data.DList as D
 import qualified Data.Map.Strict as M
-import Data.Proxy
+import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Gizmo as F
@@ -22,28 +24,24 @@ import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
-type MkEntity' dtls plns ols acts = Many ols -> F (R.Maker (Which acts)) (F.Entity' dtls plns)
-type FromEntity' ols dtls plns = F.Entity' dtls plns -> Many ols
-
 -- | NB. o must contain [JE.Property], a must contain WidgetAction, c must contain WidgetCommand
-newtype Archetype (o :: [Type]) (d :: [Type]) (p :: [Type]) (a :: [Type]) (c :: [Type]) ols v acts cmds = Archetype
-    { getArchetype :: (Proxy a, Proxy c, MkEntity' d p ols acts, FromEntity' o d p, F.Gadgetry d p v acts cmds)
-    }
+newtype Archetype o s a c = Archetype (o -> F (R.Maker a) s, s -> o, G.Gadget a s c)
 
 -- | Finalize the design of a 'Prototype'
 -- and convert the make functions into making an Entity'.
 -- NB. the window function is just F.widgetWindow
 -- This also adds [JE.Property] to o, WidgetAction to a, WidgetCommand to c
-commission :: forall o d p a c ols v acts cmds.
-    ( UniqueMember F.WidgetAction acts
-    , UniqueMember [JE.Property] ols
+commission :: forall o d p a c o' a' c'.
+    ( UniqueMember [JE.Property] o'
+    , UniqueMember F.WidgetAction a'
+    , o' ~ ([JE.Property] ': o)
+    , a' ~ (F.WidgetAction ': a)
+    , c' ~ (F.WidgetCommand ': c) -- redundant constraint
     )
-    => F.Prototype o d p a c ols d p v acts cmds
-    -> Archetype ([JE.Property] ': o) d p (F.WidgetAction ': a) (F.WidgetCommand ': c) ols v acts cmds
+    => F.Prototype o  o' d d p p a a' c c'
+    -> Archetype (Many o') (F.Entity d p) (Which a') (D.DList (Which c'))
 commission (F.Prototype (_, d, F.Trigger (_, t), F.Gizmo (mkDtl, fromDtl, mkPln, g))) = Archetype
-    ( Proxy
-    , Proxy
-    , mkEnt
+    ( mkEnt
     , fromEnt
     , g)
   where
@@ -51,12 +49,27 @@ commission (F.Prototype (_, d, F.Trigger (_, t), F.Gizmo (mkDtl, fromDtl, mkPln,
     mkEnt o = do
         dtls <- mkDtl o
         let ps = o ^. item @[JE.Property]
-        F.mkEntity' ps dtls (M.toList t) mkPln w'
+        F.mkEntity ps dtls (M.toList t) mkPln w'
     fromEnt e = let ps = e ^. F.properties
                 in ps ./ fromDtl (e ^. F.details)
---     dev' = zoom (F.details . item @(F.Entity dtls plns v)) dev <|> widgetGadget'
---     g' =
---         fmap pick <$>
---         magnify
---             (facet @F.WidgetAction)
---             (zoom (F.details . item @(F.Entity dtls plns v)) F.widgetGadget)
+
+instance Functor (Archetype o s a) where
+    fmap f (Archetype (mkEnt, fromEnt, gad)) = Archetype (mkEnt, fromEnt, f <$> gad)
+
+dispatch :: Monoid c => Prism' a' a -> Archetype o s a c -> Archetype o s a' c
+dispatch l (Archetype (mkEnt, fromEnt, gad)) =
+        Archetype ( R.hoistWithAction (review l) . mkEnt
+                  , fromEnt
+                  , magnify l gad)
+
+embed :: Iso' s' s -> Archetype o s a c -> Archetype o s' a c
+embed l (Archetype (mkEnt, fromEnt, gad)) =
+        Archetype ( fmap (review l) . mkEnt
+                  , fromEnt . view l
+                  , zoom l gad)
+
+onto :: Iso' o' o -> Archetype o s a c -> Archetype o' s a c
+onto l (Archetype (mkEnt, fromEnt, gad)) =
+        Archetype ( mkEnt . view l
+                  , review l . fromEnt
+                  , gad)

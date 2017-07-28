@@ -22,8 +22,7 @@ import qualified JavaScript.Extras as JE
 data TriggerAction = TriggerAction J.JSString R.EventTarget
 
 newtype Trigger (a :: [Type]) acts = Trigger
-    { getTrigger :: (Proxy a, M.Map J.JSString (TriggerAction -> [Which acts]))
-    }
+    (Proxy a, M.Map J.JSString (TriggerAction -> [Which acts]))
 
 -- | The action types are merged, not appended
 instance (a3 ~ AppendUnique a1 a2) =>
@@ -47,11 +46,11 @@ instance Semigroup (Trigger a acts) where
 ignore :: Trigger '[] acts
 ignore = Trigger (Proxy, mempty)
 
-toTrigger :: UniqueMember a acts => J.JSString -> (TriggerAction -> a) -> Trigger '[a] acts
-toTrigger n f = Trigger (Proxy, M.singleton n (pure . pick <$> f))
+trigger :: UniqueMember a acts => J.JSString -> (TriggerAction -> a) -> Trigger '[a] acts
+trigger n f = Trigger (Proxy, M.singleton n (pure . pick <$> f))
 
-onTrigger :: J.JSString -> J.JSVal -> MaybeT IO TriggerAction
-onTrigger n = R.eventHandlerM strictly lazily
+onEvent :: J.JSString -> J.JSVal -> MaybeT IO TriggerAction
+onEvent n = R.eventHandlerM strictly lazily
   where
     strictly evt = MaybeT . pure $ JE.fromJS evt <&> (R.target . R.parseEvent)
     lazily j = pure $ TriggerAction n j

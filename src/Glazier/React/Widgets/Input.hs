@@ -2,13 +2,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Glazier.React.Widgets.Input where
 
 import Control.Monad.Reader
 import Data.Diverse.Lens
-import Data.Proxy
 import qualified Data.DList as D
 import qualified Data.JSString as J
 import qualified Glazier as G
@@ -26,10 +24,8 @@ inputPrototype
     => F.Prototype '[] ols '[] dtls '[] plns '[InputAction] acts '[C.PropertyCommand] cmds
 inputPrototype =
     (F.statically $ F.display d) `F.orPrototype`
-    (F.dynamically
-         (Proxy @'[InputAction])
-         (Proxy @'[C.PropertyCommand])
-         (F.gizmo $ F.gadgetry gadget))
+    (F.dynamically (F.gizmo
+         (F.gadgetry gadget)))
   where
     d ls ps = lift $ R.lf "input" ls ps
 

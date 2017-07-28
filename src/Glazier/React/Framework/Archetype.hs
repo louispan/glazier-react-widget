@@ -40,7 +40,7 @@ commission :: forall o d p a c o' a' c'.
     )
     => F.Prototype o  o' d d p p a a' c c'
     -> Archetype (Many o') (F.Entity d p) (Which a') (D.DList (Which c'))
-commission (F.Prototype (_, d, F.Trigger (_, t), F.Gizmo (mkDtl, fromDtl, mkPln, g))) = Archetype
+commission (F.Prototype (d, F.Trigger (_, t), F.Gizmo (_, _, mkDtl, fromDtl, mkPln, g))) = Archetype
     ( mkEnt
     , fromEnt
     , g)

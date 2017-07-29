@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Factory where
+module Glazier.React.Framework.Create where
 
 import Control.Monad.Free.Church
 import Data.Diverse.Lens
@@ -19,31 +19,31 @@ type MkPlan plns acts = F (R.Maker (Which acts)) (Many plns)
 type MkDetail dtls ols acts = Many ols -> F (R.Maker (Which acts)) (Many dtls)
 type FromDetail ols dtls = Many dtls -> Many ols
 
-newtype Factory (o :: [Type]) ols (d :: [Type]) dtls (p :: [Type]) plns acts =
-    Factory (MkDetail d ols acts, FromDetail o dtls, MkPlan p acts)
+newtype Create (o :: [Type]) ols (d :: [Type]) dtls (p :: [Type]) plns acts =
+    Create (MkDetail d ols acts, FromDetail o dtls, MkPlan p acts)
 
-andFactory
-    :: Factory o1 ols d1 dtls p1 plns acts
-    -> Factory o2 ols d2 dtls p2 plns acts
-    -> Factory (Append o1 o2) ols (Append d1 d2) dtls (Append p1 p2) plns acts
-andFactory (Factory (mkDtl, fromDtl, mkPln)) (Factory (mkDtl', fromDtl', mkPln')) =
-        Factory ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
+andCreate
+    :: Create o1 ols d1 dtls p1 plns acts
+    -> Create o2 ols d2 dtls p2 plns acts
+    -> Create (Append o1 o2) ols (Append d1 d2) dtls (Append p1 p2) plns acts
+andCreate (Create (mkDtl, fromDtl, mkPln)) (Create (mkDtl', fromDtl', mkPln')) =
+        Create ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
                 , \d -> fromDtl d /./ fromDtl' d
                 , (/./) <$> mkPln <*> mkPln')
 
--- | Identity for 'andFactory'
-idle :: Factory '[] ols '[] dtls '[] plns acts
-idle = Factory ( const $ pure nil
+-- | Identity for 'andCreate'
+idle :: Create '[] ols '[] dtls '[] plns acts
+idle = Create ( const $ pure nil
                , const nil
                , pure nil)
 
 -- | Add a type @o@ into the factory
-factory
+create
     :: forall o ols dtls plns acts.
        (UniqueMember o ols, UniqueMember o dtls)
-    => Proxy o -> Factory '[o] ols '[o] dtls '[] plns acts
-factory _ =
-    Factory
+    => Proxy o -> Create '[o] ols '[o] dtls '[] plns acts
+create _ =
+    Create
         ( pure . single . fetch @o
         , single . fetch @o
         , pure nil)

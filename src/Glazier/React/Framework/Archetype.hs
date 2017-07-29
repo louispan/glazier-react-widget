@@ -17,8 +17,8 @@ import qualified Data.DList as D
 import qualified Data.Map.Strict as M
 import qualified Glazier as G
 import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Create as F
 import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Factory as F
 import qualified Glazier.React.Framework.Gadgetry as F
 import qualified Glazier.React.Framework.Prototype as F
 import qualified Glazier.React.Framework.Trigger as F
@@ -26,7 +26,7 @@ import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
 -- | NB. o must contain [JE.Property], a must contain WidgetAction, c must contain WidgetCommand
-newtype Archetype o s a c = Archetype (o -> F (R.Maker a) s, s -> o, G.Gadget a s c)
+newtype Archetype o s a c = Archetype (G.Gadget a s c, o -> F (R.Maker a) s, s -> o)
 
 -- | Finalize the design of a 'Prototype'
 -- and convert the make functions into making an Entity'.
@@ -41,8 +41,8 @@ commission :: forall o d p a c o' a' c'.
     )
     => F.Prototype o  o' d d p p a a' c c'
     -> Archetype (Many o') (F.Entity d p) (Which a') (D.DList (Which c'))
-commission (F.Prototype (d, F.Trigger (_, t), F.Factory (mkDtl, fromDtl, mkPln), F.Gadgetry (_, _, g))) =
-    Archetype (mkEnt, fromEnt, g)
+commission (F.Prototype (d, F.Gadgetry (_, _, g), F.Trigger (_, t), F.Create (mkDtl, fromDtl, mkPln))) =
+    Archetype (g, mkEnt, fromEnt)
   where
     w' = F.renderDisplay d
     mkEnt o = do
@@ -54,22 +54,22 @@ commission (F.Prototype (d, F.Trigger (_, t), F.Factory (mkDtl, fromDtl, mkPln),
         in ps ./ fromDtl (e ^. F.details)
 
 instance Functor (Archetype o s a) where
-    fmap f (Archetype (mkEnt, fromEnt, gad)) = Archetype (mkEnt, fromEnt, f <$> gad)
+    fmap f (Archetype (gad, mkEnt, fromEnt)) = Archetype (f <$> gad, mkEnt, fromEnt)
 
 dispatch :: Monoid c => Prism' a' a -> Archetype o s a c -> Archetype o s a' c
-dispatch l (Archetype (mkEnt, fromEnt, gad)) =
-        Archetype ( R.hoistWithAction (review l) . mkEnt
-                  , fromEnt
-                  , magnify l gad)
+dispatch l (Archetype (gad, mkEnt, fromEnt)) =
+        Archetype ( magnify l gad
+                  , R.hoistWithAction (review l) . mkEnt
+                  , fromEnt)
 
 embed :: Iso' s' s -> Archetype o s a c -> Archetype o s' a c
-embed l (Archetype (mkEnt, fromEnt, gad)) =
-        Archetype ( fmap (review l) . mkEnt
-                  , fromEnt . view l
-                  , zoom l gad)
+embed l (Archetype (gad, mkEnt, fromEnt)) =
+        Archetype ( zoom l gad
+                  , fmap (review l) . mkEnt
+                  , fromEnt . view l)
 
 onto :: Iso' o' o -> Archetype o s a c -> Archetype o' s a c
-onto l (Archetype (mkEnt, fromEnt, gad)) =
-        Archetype ( mkEnt . view l
-                  , review l . fromEnt
-                  , gad)
+onto l (Archetype (gad, mkEnt, fromEnt)) =
+        Archetype ( gad
+                  , mkEnt . view l
+                  , review l . fromEnt)

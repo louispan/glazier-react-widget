@@ -2,6 +2,7 @@
 
 module Glazier.React.Framework.Display where
 
+import Control.Applicative
 import Control.Lens
 import Control.Monad.Reader
 import Data.Coerce
@@ -10,6 +11,7 @@ import Data.Maybe
 import Data.Semigroup
 import qualified Glazier as G
 import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
@@ -42,13 +44,12 @@ instance Semigroup (Display dtls plns) where
         Display (ls <> ls', ps <> ps', w)
     Display (ls, ps, Just w) <> Display (ls', ps', Just w') = divWrapped (w ls ps <> w' ls' ps')
 
--- FIXME: Add MaybeT to Window
--- instance F.Firsts (Display dtls plns) where
---     Display (ls, ps, Nothing) <<|>> Display (ls', ps', w') =
---         Display (ls <> ls', ps <> ps', w')
---     Display (ls, ps, w) <<|>> Display (ls', ps', Nothing) =
---         Display (ls <> ls', ps <> ps', w)
---     Display (ls, ps, Just w) <<|>> Display (ls', ps', Just w') = divWrapped (w ls ps <|> w' ls' ps')
+instance F.Firsts (Display dtls plns) where
+    Display (ls, ps, Nothing) <<|>> Display (ls', ps', w') =
+        Display (ls <> ls', ps <> ps', w')
+    Display (ls, ps, w) <<|>> Display (ls', ps', Nothing) =
+        Display (ls <> ls', ps <> ps', w)
+    Display (ls, ps, Just w) <<|>> Display (ls', ps', Just w') = divWrapped (w ls ps <|> w' ls' ps')
 
 -- | identity for 'Monoid'
 clear :: Display dtls plns
@@ -79,7 +80,7 @@ divWrapped w = Display (mempty, mempty, Just $ \l p -> do
         l' = D.toList . coerce . l $ s
     case (l', p') of
         ([], []) -> w
-        _ -> lift . R.bh "div" l' p' $ G.runWindowT w s)
+        _ -> G.mkWindowT (R.bh "div" l' p' . G.runWindowT w))
 
 -- | Convert a 'Display' into a @WindowT s ReactMl@
 renderDisplay :: Display dtls plns -> G.WindowT (F.Design dtls plns) R.ReactMl ()

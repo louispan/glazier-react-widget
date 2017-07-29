@@ -11,14 +11,12 @@ module Glazier.React.Framework.Gadgetry where
 
 import Control.Applicative
 import Control.Lens
-import Control.Monad.Free.Church
 import Data.Diverse.Lens
 import Data.Kind
 import Data.Proxy
 import Data.Semigroup
 import qualified Data.DList as D
 import qualified Glazier as G
-import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Widget as F
 

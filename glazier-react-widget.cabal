@@ -26,16 +26,15 @@ library
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget
                        Glazier.React.Framework.Widget.Run
+                       Glazier.React.Commands
                        Glazier.React.Commands.Focus
                        Glazier.React.Commands.Focus.Run
                        Glazier.React.Commands.Make
                        Glazier.React.Commands.Make.Run
                        Glazier.React.Commands.Property
                        Glazier.React.Commands.Property.Run
+                       Glazier.React.Triggers
                        Glazier.React.Triggers.KeyDownKey
-                       -- Glazier.React.Widget.Dispose.Run
-                       -- Glazier.React.Widget.Rerender
-                       -- Glazier.React.Widget.Rerender.Run
                        Glazier.React.Widgets.Input
                        Glazier.React.Widgets.Input.TextInput
                        -- Glazier.React.Widgets.List

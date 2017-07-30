@@ -52,7 +52,7 @@ commission (F.Prototype (d, F.Gadgetry (_, _, g), F.Trigger (_, _, t), F.Create 
     fromEnt e =
         let ps = e ^. F.properties
         in ps ./ fromDtl (e ^. F.details)
-    hls = M.toList ((\(a, b) -> fmap (D.toList . b) <$> a) <$> t)
+    hls = M.toList ((\(f, g) a -> f a >>= g >>= pure . D.toList) <$> t)
 
 instance Functor (Archetype o s a) where
     fmap f (Archetype (gad, mkEnt, fromEnt)) = Archetype (f <$> gad, mkEnt, fromEnt)

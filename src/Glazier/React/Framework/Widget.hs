@@ -11,11 +11,13 @@
 
 module Glazier.React.Framework.Widget where
 
+import Control.Applicative
 import Control.Concurrent.STM.TMVar
 import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Reader
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified Data.DList as D
 import Data.Kind
@@ -27,7 +29,6 @@ import qualified GHCJS.Types as J
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Shared as F
-import qualified Glazier.React.Framework.Trigger as F
 import qualified JavaScript.Extras as JE
 
 data WidgetCommand
@@ -76,9 +77,9 @@ mkWidgetPlan
     :: UniqueMember WidgetAction acts
     => G.WindowT mdl R.ReactMl ()
     -> TMVar mdl
-    -> [(J.JSString, F.TriggerAction -> [Which acts])]
+    -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
     -> F (R.Maker (Which acts)) WidgetPlan
-mkWidgetPlan render frm ts = R.hoistWithAction pick (WidgetPlan
+mkWidgetPlan render frm hls = R.hoistWithAction pick (WidgetPlan
     <$> R.mkKey -- key
     <*> pure 0 -- frameNum
     <*> R.getComponent -- component
@@ -88,9 +89,10 @@ mkWidgetPlan render frm ts = R.hoistWithAction pick (WidgetPlan
     <*> (R.mkHandler $ pure . pure . ComponentRefAction) -- onComponentRef
     <*> (R.mkHandler $ pure . pure . const DisposeAction) -- onComponentDidUpdate
     )
-    <*> (traverse go . M.toList . M.fromListWith (<>) $ ts) -- triggers
+    <*> (traverse go . M.toList . M.fromListWith (liftA2 combine) $ hls) -- triggers
   where
-    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (fmap f <$> F.onEvent n)
+    combine f g = ((<>) <$> f <*> g) <|> f <|> g -- combine all results that succeed
+    go (n, f) = (\a -> (n, a)) <$> R.mkHandler f
 
 instance R.Dispose WidgetPlan
 
@@ -198,12 +200,12 @@ mkEntity
     :: UniqueMember WidgetAction acts
     => [JE.Property]
     -> Many dtls
-    -> [(J.JSString, F.TriggerAction -> [Which acts])]
+    -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
     -> F (R.Maker (Which acts)) (Many plns)
     -> G.WindowT (Design dtls plns) R.ReactMl ()
     -> F (R.Maker (Which acts)) (Entity dtls plns)
-mkEntity ps dtls ts mkPlns render = do
+mkEntity ps dtls hls mkPlns render = do
     frm <- R.mkEmptyFrame
-    mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkPlns <*> mkWidgetPlan render frm ts
+    mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkPlns <*> mkWidgetPlan render frm hls
     R.putFrame frm mdl
     pure $ F.Shared (mdl, frm)

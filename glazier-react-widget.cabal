@@ -37,7 +37,7 @@ library
                        -- Glazier.React.Widget.Rerender
                        -- Glazier.React.Widget.Rerender.Run
                        Glazier.React.Widgets.Input
-                       -- Glazier.React.Widgets.Input.Run
+                       Glazier.React.Widgets.Input.TextInput
                        -- Glazier.React.Widgets.List
                        -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5

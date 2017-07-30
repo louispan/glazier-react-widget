@@ -15,17 +15,11 @@ import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
-newtype WindowProperty = WindowProperty JE.Property
-type ToWindowProperties dtls plns = F.Design dtls plns -> D.DList WindowProperty
-
-newtype WindowListener = WindowListener R.Listener
-type ToWindowListeners dtls plns = F.Design dtls plns -> D.DList WindowListener
-
 newtype Display dtls plns =
-    Display ( ToWindowListeners dtls plns
-            , ToWindowProperties dtls plns
-            , Maybe (  ToWindowListeners dtls plns
-                    -> ToWindowProperties dtls plns
+    Display ( F.Design dtls plns -> D.DList R.Listener
+            , F.Design dtls plns -> D.DList JE.Property
+            , Maybe (  (F.Design dtls plns -> D.DList R.Listener)
+                    -> (F.Design dtls plns -> D.DList JE.Property)
                     -> G.WindowT (F.Design dtls plns) R.ReactMl ()))
 
 instance Monoid (Display dtls plns) where
@@ -56,7 +50,7 @@ clear :: Display dtls plns
 clear = Display (mempty, mempty, Nothing)
 
 -- | Add a list of static properties to the rendered element.
-hardcode :: [WindowProperty] -> Display dtls plns
+hardcode :: [JE.Property] -> Display dtls plns
 hardcode ps = Display (mempty, const $ D.fromList ps, Nothing)
 
 -- | lift a 'ReactMl ()' into a 'Display'

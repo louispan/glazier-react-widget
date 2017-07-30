@@ -7,53 +7,96 @@
 
 module Glazier.React.Framework.Trigger where
 
-import Control.Lens
 import Control.Monad.Trans.Maybe
 import Data.Diverse
+import qualified Data.DList as D
 import Data.Kind
 import qualified Data.Map.Strict as M
 import Data.Proxy
 import Data.Semigroup
 import qualified GHCJS.Types as J
-import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Firsts as F
-import qualified JavaScript.Extras as JE
 
-data TriggerAction = TriggerAction J.JSString R.EventTarget
+newtype TriggerAction t = TriggerAction t
 
-newtype Trigger (a :: [Type]) acts = Trigger
-    (Proxy a, M.Map J.JSString (TriggerAction -> [Which acts]))
+newtype Trigger (t :: [Type]) trigs (a :: [Type]) acts =
+    Trigger ( Proxy t
+            , Proxy a
+            , M.Map J.JSString
+              ( J.JSVal -> MaybeT IO (Which trigs) -- triggers
+              , Which trigs -> D.DList (Which acts))  -- trigger handlers
+            )
 
--- | The action types are merged, not appended
-andTrigger :: Trigger a1 acts -> Trigger a2 acts -> Trigger (AppendUnique a1 a2) acts
-andTrigger (Trigger (_, f)) (Trigger (_, f') )= Trigger (Proxy, M.unionWith (<>) f f')
-
--- | Only run right trigger handler if left trigger handler didn't produce any output
-orTrigger :: Trigger a1 acts -> Trigger a2 acts -> Trigger (AppendUnique a1 a2) acts
-orTrigger (Trigger (_, f)) (Trigger (_, f')) = Trigger (Proxy, M.unionWith go f f')
+andTrigger
+    :: Trigger t1 trigs a1 acts
+    -> Trigger t2 trigs a2 acts
+    -> Trigger (AppendUnique t1 t2) trigs (AppendUnique a1 a2) acts
+andTrigger (Trigger (_, _, x)) (Trigger (_, _, x')) =
+    Trigger ( Proxy
+            , Proxy
+            , M.unionWith combine x x')
   where
-    go g g' x = case g x of
-                    [] -> g' x
-                    y -> y
+    combine (f, g) (_, g') =
+        ( f -- only left trigger is kept
+        , g <> g') -- all handlers are combined
 
-instance Semigroup (Trigger a acts) where
-    Trigger (_, m) <> Trigger (_, m') = Trigger (Proxy, M.unionWith (<>) m m')
+orTrigger
+    :: Trigger t1 trigs a1 acts
+    -> Trigger t2 trigs a2 acts
+    -> Trigger (AppendUnique t1 t2) trigs (AppendUnique a1 a2) acts
+orTrigger (Trigger (_, _, x)) (Trigger (_, _, x')) =
+    Trigger ( Proxy
+            , Proxy
+            , M.unionWith combine x x')
+  where
+    combine (f, g) (_, g') =
+        ( f -- only left trigger is kept
+        , combine' g g') -- handlers are combined only if existing handler produce nothing
+    combine' g g' a = case D.toList (g a) of
+                         [] -> g' a
+                         y -> D.fromList y
 
-instance F.Firsts (Trigger a acts) where
-    Trigger (_, m) <<|>> Trigger (_, m') = Trigger (Proxy, M.unionWith go m m')
+instance Semigroup (Trigger t trigs a acts) where
+    (Trigger (_, _, x)) <> (Trigger (_, _, x')) =
+        Trigger ( Proxy
+                , Proxy
+                , M.unionWith combine x x')
       where
-        go g g' x = case g x of
-                        [] -> g' x
-                        y -> y
+        combine (f, g) (_, g') =
+            ( f -- only left trigger is kept
+            , g <> g') -- all handlers are combined
 
-ignore :: Trigger '[] acts
-ignore = Trigger (Proxy, mempty)
+instance F.Firsts (Trigger t trigs a acts) where
+    (Trigger (_, _, x)) <<|>> (Trigger (_, _, x')) =
+        Trigger ( Proxy
+                , Proxy
+                , M.unionWith combine x x')
+      where
+        combine (f, g) (_, g') =
+            ( f -- only left trigger is kept
+            , combine' g g') -- handlers are combined only if existing handler produce nothing
+        combine' g g' a = case D.toList (g a) of
+                             [] -> g' a
+                             y -> D.fromList y
 
-trigger :: UniqueMember a acts => J.JSString -> (TriggerAction -> a) -> Trigger '[a] acts
-trigger n f = Trigger (Proxy, M.singleton n (pure . pick <$> f))
+ignore :: Trigger '[] trigs '[] acts
+ignore = Trigger (Proxy, Proxy, mempty)
 
-onEvent :: J.JSString -> J.JSVal -> MaybeT IO TriggerAction
-onEvent n = R.eventHandlerM strictly lazily
+trigger
+    :: ( UniqueMember a acts
+       , UniqueMember t trigs)
+    => J.JSString
+    -> (J.JSVal -> MaybeT IO t)
+    -> (t -> a)
+    -> Trigger '[t] trigs '[a] acts
+trigger n f g = Trigger (Proxy, Proxy, M.singleton n (fmap pick <$> f, g'))
   where
-    strictly evt = MaybeT . pure $ JE.fromJS evt <&> (R.target . R.parseEvent)
-    lazily j = pure $ TriggerAction n j
+    g' x = case trial x of
+               Left _ -> mempty
+               Right x' -> D.singleton . pick $ g x'
+
+-- onEvent :: J.JSString -> J.JSVal -> MaybeT IO TriggerAction
+-- onEvent n = R.eventHandlerM strictly lazily
+--   where
+--     strictly evt = MaybeT . pure $ JE.fromJS evt <&> (R.target . R.parseEvent)
+--     lazily j = pure $ TriggerAction n j

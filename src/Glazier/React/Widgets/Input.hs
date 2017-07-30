@@ -3,7 +3,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Widgets.Input where
+module Glazier.React.Widgets.Input
+    ( InputAction(..)
+    , inputPrototype
+    ) where
 
 import Control.Monad.Reader
 import Data.Diverse.Lens
@@ -21,7 +24,7 @@ data InputAction
 
 inputPrototype
     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
-    => F.Prototype '[] ols '[] dtls '[] plns '[InputAction] acts '[C.PropertyCommand] cmds
+    => F.Prototype '[] ols '[] dtls '[] plns '[] trigs '[InputAction] acts '[C.PropertyCommand] cmds
 inputPrototype =
     (F.statically $ F.display d) `F.orPrototype`
     (F.dynamically (F.gadgetry gadget))

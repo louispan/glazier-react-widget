@@ -32,26 +32,27 @@ newtype Archetype o s a c = Archetype (G.Gadget a s c, o -> F (R.Maker a) s, s -
 -- and convert the make functions into making an Entity'.
 -- NB. the window function is just F.widgetWindow
 -- This also adds [JE.Property] to o, WidgetAction to a, WidgetCommand to c
-commission :: forall o d p a c o' a' c'.
+commission :: forall o d p t a c o' a' c'.
     ( UniqueMember [JE.Property] o'
     , UniqueMember F.WidgetAction a'
     , o' ~ ([JE.Property] ': o)
     , a' ~ (F.WidgetAction ': a)
     , c' ~ (F.WidgetCommand ': c) -- redundant constraint
     )
-    => F.Prototype o  o' d d p p a a' c c'
+    => F.Prototype o o' d d p p t t a a' c c'
     -> Archetype (Many o') (F.Entity d p) (Which a') (D.DList (Which c'))
-commission (F.Prototype (d, F.Gadgetry (_, _, g), F.Trigger (_, t), F.Create (mkDtl, fromDtl, mkPln))) =
+commission (F.Prototype (d, F.Gadgetry (_, _, g), F.Trigger (_, _, t), F.Create (mkDtl, fromDtl, mkPln))) =
     Archetype (g, mkEnt, fromEnt)
   where
     w' = F.renderDisplay d
     mkEnt o = do
         dtls <- mkDtl o
         let ps = o ^. item @[JE.Property]
-        F.mkEntity ps dtls (M.toList t) mkPln w'
+        F.mkEntity ps dtls hls mkPln w'
     fromEnt e =
         let ps = e ^. F.properties
         in ps ./ fromDtl (e ^. F.details)
+    hls = M.toList ((\(a, b) -> fmap (D.toList . b) <$> a) <$> t)
 
 instance Functor (Archetype o s a) where
     fmap f (Archetype (gad, mkEnt, fromEnt)) = Archetype (f <$> gad, mkEnt, fromEnt)

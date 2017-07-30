@@ -32,7 +32,7 @@ library
                        Glazier.React.Commands.Make.Run
                        Glazier.React.Commands.Property
                        Glazier.React.Commands.Property.Run
-                       -- Glazier.React.Widget.Dispose
+                       Glazier.React.Triggers.KeyDownKey
                        -- Glazier.React.Widget.Dispose.Run
                        -- Glazier.React.Widget.Rerender
                        -- Glazier.React.Widget.Rerender.Run

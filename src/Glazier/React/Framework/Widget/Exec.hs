@@ -2,8 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Glazier.React.Framework.Widget.Run
-    ( runWidget
+module Glazier.React.Framework.Widget.Exec
+    ( execWidget
     ) where
 
 import Control.Concurrent.STM
@@ -23,10 +23,10 @@ widgetSetState s props j = do
     void $ atomically $ swapTMVar t i -- update the TMVar with the latest model
     js_widgetSetState (JE.fromProperties props) j -- trigger a react render
 
-runWidget :: WidgetCommand -> IO ()
-runWidget (RenderCommand s props j) = widgetSetState s props j
+execWidget :: WidgetCommand -> IO ()
+execWidget (RenderCommand s props j) = widgetSetState s props j
 
-runWidget (DisposeCommand x) = R.getDisposable x
+execWidget (DisposeCommand x) = R.getDisposable x
 
 #ifdef __GHCJS__
 

@@ -15,24 +15,27 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Glazier.React.Framework
+  exposed-modules:     Glazier.React.Commands
+                       Glazier.React.Commands.Focus
+                       Glazier.React.Commands.Focus.Exec
+                       Glazier.React.Commands.Make
+                       Glazier.React.Commands.Make.Exec
+                       Glazier.React.Commands.Property
+                       Glazier.React.Commands.Property.Exec
+                       Glazier.React.Framework
                        Glazier.React.Framework.Archetype
-                       Glazier.React.Framework.Shared
-                       Glazier.React.Framework.Create
+                       Glazier.React.Framework.Build
                        Glazier.React.Framework.Display
+                       Glazier.React.Framework.Execute
                        Glazier.React.Framework.Firsts
                        Glazier.React.Framework.Gadgetry
                        Glazier.React.Framework.Prototype
+                       Glazier.React.Framework.Shared
                        Glazier.React.Framework.Trigger
+                       Glazier.React.Framework.TypeLevel
+                       Glazier.React.Framework.TypeLevel.Internal
                        Glazier.React.Framework.Widget
-                       Glazier.React.Framework.Widget.Run
-                       Glazier.React.Commands
-                       Glazier.React.Commands.Focus
-                       Glazier.React.Commands.Focus.Run
-                       Glazier.React.Commands.Make
-                       Glazier.React.Commands.Make.Run
-                       Glazier.React.Commands.Property
-                       Glazier.React.Commands.Property.Run
+                       Glazier.React.Framework.Widget.Exec
                        Glazier.React.Triggers
                        Glazier.React.Triggers.KeyDownKey
                        Glazier.React.Widgets.Input
@@ -41,7 +44,7 @@ library
                        -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5 && < 0.6
-                     , data-diverse >= 0.8.1.0 && < 1
+                     , data-diverse >= 0.9 && < 1
                      , data-diverse-lens >= 0.1.0.0 && < 1
                      , dlist >= 0.8 && < 0.9
                      , free >= 4.12 && < 5

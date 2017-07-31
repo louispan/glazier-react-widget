@@ -24,7 +24,13 @@ data InputAction
 
 inputPrototype
     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
-    => F.Prototype '[] ols '[] dtls '[] plns '[] trigs '[InputAction] acts '[C.PropertyCommand] cmds
+    => Applicative m => F.Prototype m '[] ols
+                                      '[] dtls
+                                      '[] plns
+                                      '[] trigs
+                                      '[] '[InputAction] acts
+                                      '[C.PropertyCommand] '[] cmds
+                                      '[] envs
 inputPrototype =
     (F.statically $ F.display d) `F.orPrototype`
     (F.dynamically (F.gadgetry gadget))

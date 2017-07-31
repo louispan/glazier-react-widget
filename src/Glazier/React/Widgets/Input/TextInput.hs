@@ -19,8 +19,15 @@ import qualified JavaScript.Extras as JE
 textInputPrototype
     :: ( UniqueMember W.InputAction acts
        , UniqueMember C.PropertyCommand cmds
-       , UniqueMember T.KeyDownKeyTrigger trigs)
-    => F.Prototype '[] ols '[] dtls '[] plns '[T.KeyDownKeyTrigger] trigs '[W.InputAction] acts '[C.PropertyCommand] cmds
+       , UniqueMember T.KeyDownKeyTrigger trigs
+       )
+    => Applicative m => F.Prototype m '[] ols
+                                      '[] dtls
+                                      '[] plns
+                                      '[T.KeyDownKeyTrigger] trigs
+                                      '[W.InputAction] '[W.InputAction] acts
+                                      '[C.PropertyCommand] '[] cmds
+                                      '[] envs
 textInputPrototype =
     W.inputPrototype
     `F.andPrototype` (F.statically $ F.hardcode [("type", "text")])

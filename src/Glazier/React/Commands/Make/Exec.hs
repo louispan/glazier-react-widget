@@ -1,4 +1,4 @@
-module Glazier.React.Commands.Make.Run where
+module Glazier.React.Commands.Make.Exec where
 
 import Control.Concurrent.STM.TMVar
 import Control.Concurrent.STM
@@ -8,12 +8,12 @@ import qualified Glazier.React as R
 import Glazier.React.Commands.Make
 import qualified Pipes.Concurrent as PC
 
-runMake
+execMake
     :: TMVar Int
     -> R.ReactComponent -- for Maker
     -> PC.Output a
     -> MakeCommand a
     -> IO ()
-runMake muid comp output (MakeCommand mks) = do
+execMake muid comp output (MakeCommand mks) = do
     act <- iterM (R.runMaker muid comp output) mks
     void $ atomically $ PC.send output act

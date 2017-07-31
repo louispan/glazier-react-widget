@@ -1,15 +1,14 @@
 {-# LANGUAGE CPP #-}
 
-module Glazier.React.Commands.Focus.Run
-    ( run
+module Glazier.React.Commands.Focus.Exec
+    ( execFocus
     ) where
 
 import qualified Glazier.React as R
 import Glazier.React.Commands.Focus
 
-run :: Command -> IO ()
-
-run (FocusCommand j) = js_focus j
+execFocus :: Command -> IO ()
+execFocus (FocusCommand j) = js_focus j
 
 
 #ifdef __GHCJS__

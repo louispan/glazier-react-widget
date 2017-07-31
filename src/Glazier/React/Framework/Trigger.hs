@@ -86,8 +86,9 @@ instance F.Firsts (Trigger t trigs a acts) where
                 [] -> g'
                 y -> pure $ D.fromList y
 
-ignore :: Trigger '[] trigs '[] acts
-ignore = Trigger (Proxy, Proxy, mempty)
+-- | Identity for 'andTrigger' and 'orTrigger'
+boring :: Trigger '[] trigs '[] acts
+boring = Trigger (Proxy, Proxy, mempty)
 
 trigger
     :: ( UniqueMember a acts

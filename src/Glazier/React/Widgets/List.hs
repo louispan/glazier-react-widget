@@ -11,19 +11,32 @@
 
 module Glazier.React.Widgets.List where
 
+import Control.Monad.Free.Church
 import Control.Monad.Reader
 import Data.Diverse.Lens
 import qualified Data.DList as D
 import qualified Data.JSString as J
+import qualified Data.Map.Strict as M
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Commands.Make as C
 import qualified JavaScript.Extras as JE
 
-data InputAction
-    = SubmitAction R.EventTarget J.JSString
-    | CancelAction R.EventTarget
+type ListItems k s = M.Map k s
+
+listPrototype
+    :: (Applicative m, UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
+    => Archetype m o s a c e
+    -> (s -> k)
+    -> F.Prototype m '[M.Map k s] ols
+                     '[M.Map k s] dtls
+                     '[] plns
+                     '[] trigs
+                     '[] '[ListAction] acts
+                     '[C.MakeCommand] '[] cmds
+                     '[] envs
+listPrototype i k =
 
 -- listPrototype
 --     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
@@ -42,24 +55,18 @@ data InputAction
 --         _ -> pure mempty
 
 -- | Combined Command
-data Command c
-    = MakerCommand (C.MakeCommand ListAction)
-    | ListCommand c
+newtype ListCommand c = ListCommand c
+    -- = MakerCommand (C.MakeCommand ListAction)
 
 -- | List specific actions
-data Action' k o
+data ListAction k a o s
     = DestroyItemAction k
-    | MakeItemAction (k -> k) (k -> F (R.Maker a) o)
-    -- | AddItemAction k (R.EntityOf w)
-    -- | ItemAction k (R.ActionOf w)
+    | MakeItemAction (Int -> F (R.Maker a) o)
+    | AddItemAction k s
+    | ItemAction k a
     -- | SetFilterAction (R.OutlineOf w -> Bool)
+    -- | SetSortAction (R.OutlineOf w -> Bool)
 
-
--- -- | Combined Action
--- data Action k w
---     = RenderAction D.Render.Action
---     | DisposeAction D.Dispose.Action
---     | ListAction (Action' k w)
 
 -- data Schema k w (p :: R.Part) = Schema
 --     { _className :: J.JSString

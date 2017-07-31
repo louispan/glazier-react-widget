@@ -21,13 +21,14 @@ textInputPrototype
        , UniqueMember C.PropertyCommand cmds
        , UniqueMember T.KeyDownKeyTrigger trigs
        )
-    => Applicative m => F.Prototype m '[] ols
-                                      '[] dtls
-                                      '[] plns
-                                      '[T.KeyDownKeyTrigger] trigs
-                                      '[W.InputAction] '[W.InputAction] acts
-                                      '[C.PropertyCommand] '[] cmds
-                                      '[] envs
+    => Applicative m => F.Prototype m output
+                                    '[] ols
+                                    '[] dtls
+                                    '[] plns
+                                    '[T.KeyDownKeyTrigger] trigs
+                                    '[W.InputAction] '[W.InputAction] acts
+                                    '[C.PropertyCommand] '[] cmds
+                                    '[] envs
 textInputPrototype =
     W.inputPrototype
     `F.andPrototype` (F.statically $ F.hardcode [("type", "text")])

@@ -26,7 +26,7 @@ newtype Gadgetry dtls plns (a :: [Type]) acts (c :: [Type]) cmds =
 andGadgetry
     :: Gadgetry dtls plns a1 acts c1 cmds
     -> Gadgetry dtls plns a2 acts c2 cmds
-    -> Gadgetry dtls plns (AppendUnique a1 a2) acts (AppendUnique c1 c2) cmds
+    -> Gadgetry dtls plns (Append a1 a2) acts (Append c1 c2) cmds
 andGadgetry (Gadgetry (_, _, g)) (Gadgetry (_, _, g')) =
     Gadgetry (Proxy, Proxy, g <> g')
 
@@ -36,9 +36,6 @@ orGadgetry
     -> Gadgetry dtls plns (AppendUnique a1 a2) acts (AppendUnique c1 c2) cmds
 orGadgetry (Gadgetry (_, _, g)) (Gadgetry (_, _, g')) =
     Gadgetry (Proxy, Proxy, g <|> g')
-
-instance Semigroup (Gadgetry dtls plns a acts c cmds) where
-    Gadgetry (_, _, g) <> Gadgetry (_, _, g') = Gadgetry (Proxy, Proxy, g <> g')
 
 instance F.Firsts (Gadgetry dtls plns a acts c cmds) where
     Gadgetry (_, _, g) <<|>> Gadgetry (_, _, g') = Gadgetry (Proxy, Proxy, g <|> g')

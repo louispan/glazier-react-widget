@@ -18,7 +18,7 @@ import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Gadgetry as F
 import qualified Glazier.React.Framework.Trigger as F
 
-newtype Prototype m output
+newtype Prototype m u
                     (o :: [Type]) ols
                     (d :: [Type]) dtls
                     (p :: [Type]) plns
@@ -32,20 +32,20 @@ newtype Prototype m output
                 , F.Display dtls plns
                 , F.Trigger t trigs a acts
                 , F.Gadgetry dtls plns a' acts c cmds
-                , F.Execute m output acts c' cmds e envs )
+                , F.Execute m u acts c' cmds e envs )
 
 -- | The action and command types are merged, not appended
 andPrototype
-    :: Applicative m
-    => Prototype m output o1 ols d1 dtls p1 plns t1 trigs a1 a1' acts c1 c1' cmds e1 envs
-    -> Prototype m output o2 ols d2 dtls p2 plns t2 trigs a2 a2' acts c2 c2' cmds e2 envs
-    -> Prototype m output
+    :: Monad m
+    => Prototype m u o1 ols d1 dtls p1 plns t1 trigs a1 a1' acts c1 c1' cmds e1 envs
+    -> Prototype m u o2 ols d2 dtls p2 plns t2 trigs a2 a2' acts c2 c2' cmds e2 envs
+    -> Prototype m u
                  (Append o1 o2) ols
                  (Append d1 d2) dtls
                  (Append p1 p2) plns
                  (AppendUnique t1 t2) trigs
-                 (AppendUnique a1 a2) (AppendUnique a1' a2') acts
-                 (AppendUnique c1 c2) (AppendUnique c1' c2') cmds
+                 (Append a1 a2) (Append a1' a2') acts
+                 (Append c1 c2) (Append c1' c2') cmds
                  (AppendUnique e1 e2) envs
 andPrototype (Prototype (b, d, t, g, e)) (Prototype (b', d', t', g', e')) =
     Prototype ( b `F.andBuild` b'
@@ -55,10 +55,10 @@ andPrototype (Prototype (b, d, t, g, e)) (Prototype (b', d', t', g', e')) =
               , e `F.andExecute` e')
 
 orPrototype
-    :: Applicative m
-    => Prototype m output o1 ols d1 dtls p1 plns t1 trigs a1 a1' acts c1 c1' cmds e1 envs
-    -> Prototype m output o2 ols d2 dtls p2 plns t2 trigs a2 a2' acts c2 c2' cmds e2 envs
-    -> Prototype m output
+    :: Monad m
+    => Prototype m u o1 ols d1 dtls p1 plns t1 trigs a1 a1' acts c1 c1' cmds e1 envs
+    -> Prototype m u o2 ols d2 dtls p2 plns t2 trigs a2 a2' acts c2 c2' cmds e2 envs
+    -> Prototype m u
                  (Append o1 o2) ols
                  (Append d1 d2) dtls
                  (Append p1 p2) plns
@@ -71,15 +71,10 @@ orPrototype (Prototype (b, d, t, g, e)) (Prototype (b', d', t', g', e')) =
                    , d F.<<|>> d'
                    , t `F.orTrigger` t'
                    , g `F.orGadgetry` g'
-                   , e `F.andExecute` e')
-
-instance Applicative m =>
-         Semigroup (Prototype m output o ols d dtls p plns t trigs a a' acts c c' cmds e envs) where
-    (Prototype (b, d, t, g, e)) <> (Prototype (_, d', t', g', e')) =
-        Prototype (b, d <> d', t <> t', g <> g', e <> e')
+                   , e `F.orExecute` e')
 
 -- | identity for 'andPrototype' and 'orPrototype'
-blank :: Applicative m => Prototype m output
+blank :: Monad m => Prototype m u
                                     '[] ols
                                     '[] dtls
                                     '[] plns
@@ -90,9 +85,9 @@ blank :: Applicative m => Prototype m output
 blank = Prototype (F.idle, mempty, F.boring, F.noop, F.ignore)
 
 statically
-    :: Applicative m
+    :: Monad m
     => F.Display dtls plns
-    -> Prototype m output
+    -> Prototype m u
                  '[] ols
                  '[] dtls
                  '[] plns
@@ -103,9 +98,9 @@ statically
 statically d = Prototype (F.idle, d, F.boring, F.noop, F.ignore)
 
 dynamically
-    :: Applicative m
+    :: Monad m
     => F.Gadgetry dtls plns a acts c cmds
-    -> Prototype m output
+    -> Prototype m u
                  '[] ols
                  '[] dtls
                  '[] plns
@@ -120,9 +115,9 @@ dynamically g = Prototype ( F.idle
                           , F.ignore)
 
 triggering
-    :: Applicative m
+    :: Monad m
     => F.Trigger t trigs a acts
-    -> Prototype m output
+    -> Prototype m u
                  '[] ols
                  '[] dtls
                  '[] pln
@@ -133,9 +128,9 @@ triggering
 triggering t = Prototype (F.idle, mempty, t, F.noop, F.ignore)
 
 building
-    :: Applicative m
+    :: Monad m
     => F.Build o ols d dtls p plns acts
-    -> Prototype m output
+    -> Prototype m u
                  o ols
                  d dtls
                  p plns
@@ -146,8 +141,8 @@ building
 building b = Prototype (b, mempty, F.boring, F.noop, F.ignore)
 
 executing
-    :: F.Execute m output acts c cmds e envs
-    -> Prototype m output
+    :: F.Execute m u acts c cmds e envs
+    -> Prototype m u
                  '[] ols
                  '[] dtls
                  '[] plns

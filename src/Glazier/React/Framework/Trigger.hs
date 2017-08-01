@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -31,7 +33,7 @@ newtype Trigger (t :: [Type]) trigs (a :: [Type]) acts =
 andTrigger
     :: Trigger t1 trigs a1 acts
     -> Trigger t2 trigs a2 acts
-    -> Trigger (AppendUnique t1 t2) trigs (AppendUnique a1 a2) acts
+    -> Trigger (AppendUnique t1 t2) trigs (Append a1 a2) acts
 andTrigger (Trigger (_, _, x)) (Trigger (_, _, x')) =
     Trigger ( Proxy
             , Proxy
@@ -40,7 +42,13 @@ andTrigger (Trigger (_, _, x)) (Trigger (_, _, x')) =
     combine (f, g) (_, g') =
         ( f -- only left trigger is kept
         , liftA2 combine' g g') -- all handlers are combined
-    combine' f g = (liftA2 (<>) f g) <|> f <|> g
+    combine' f g = MaybeT $ do
+        a <- runMaybeT f
+        b <- runMaybeT g
+        case (a, b) of
+            (Nothing, b') -> pure b'
+            (a', Nothing) -> pure a'
+            (Just a', Just b') -> pure (Just (a' <> b'))
 
 orTrigger
     :: Trigger t1 trigs a1 acts
@@ -69,7 +77,13 @@ instance Semigroup (Trigger t trigs a acts) where
         combine (f, g) (_, g') =
             ( f -- only left trigger is kept
             , liftA2 combine' g g') -- all handlers are combined
-        combine' f g = (liftA2 (<>) f g) <|> f <|> g
+        combine' f g = MaybeT $ do
+            a <- runMaybeT f
+            b <- runMaybeT g
+            case (a, b) of
+                (Nothing, b') -> pure b'
+                (a', Nothing) -> pure a'
+                (Just a', Just b') -> pure (Just (a' <> b'))
 
 instance F.Firsts (Trigger t trigs a acts) where
     (Trigger (_, _, x)) <<|>> (Trigger (_, _, x')) =
@@ -90,6 +104,8 @@ instance F.Firsts (Trigger t trigs a acts) where
 boring :: Trigger '[] trigs '[] acts
 boring = Trigger (Proxy, Proxy, mempty)
 
+-- | The (J.JSVal -> MaybeT IO t) is assumed the same for all
+-- Triggers of type t.
 trigger
     :: ( UniqueMember a acts
        , UniqueMember t trigs)
@@ -102,3 +118,10 @@ trigger n f g = Trigger (Proxy, Proxy, M.singleton n (fmap pick <$> f, g'))
     g' x = case trial x of
                Left _ -> pure mempty
                Right x' -> D.singleton . pick <$> g x'
+
+-- | Use to indicate that we are expecting an action fired
+-- from other widgets instead directly from event listeners.
+expect
+    :: UniqueMember a acts -- Has redundant constraint warning, but I want to ensure that a is in acts.
+    => Proxy a -> Trigger '[] trigs '[a] acts
+expect _ = Trigger (Proxy, Proxy, mempty)

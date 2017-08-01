@@ -1,15 +1,20 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Glazier.React.Commands.Focus.Exec
     ( execFocus
     ) where
 
+import Control.Monad.Trans
+import Data.Diverse
+import qualified JavaScript.Extras as JE
 import qualified Glazier.React as R
+import Glazier.React.Framework.Execute as F
 import Glazier.React.Commands.Focus
 
-execFocus :: Command -> IO ()
-execFocus (FocusCommand j) = js_focus j
-
+execFocus :: UniqueMember FocusCommand cmds => F.Execute IO u acts '[FocusCommand] cmds '[] envs
+execFocus = F.execute' $ \_ (FocusCommand j) -> lift $ js_focus j
 
 #ifdef __GHCJS__
 

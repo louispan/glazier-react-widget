@@ -1,6 +1,4 @@
-module Glazier.React.Commands.Make
-    ( MakeCommand(..)
-    ) where
+module Glazier.React.Commands.Make where
 
 import Control.Monad.Free.Church
 import Data.Diverse

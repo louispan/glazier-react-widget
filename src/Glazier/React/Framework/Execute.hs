@@ -4,36 +4,51 @@
 
 module Glazier.React.Framework.Execute where
 
+import Control.Applicative
+import Control.Monad.Trans.Maybe
 import Data.Kind
 import Data.Proxy
 import Data.Diverse
 import Data.Semigroup
 
-newtype Execute m output acts (c :: [Type]) cmds (e :: [Type]) envs =
+newtype Execute m u acts (c :: [Type]) cmds (e :: [Type]) envs =
     Execute ( Proxy c
             , Proxy e
-            , output (Which acts) -> Many envs -> Which cmds -> m ())
+            , u (Which acts) -> Many envs -> Which cmds -> MaybeT m ())
 
 andExecute
-    :: Applicative m
-    => Execute m output acts c1 cmds e1 envs
-    -> Execute m output acts c2 cmds e2 envs
-    -> Execute m output acts (AppendUnique c1 c2) cmds (AppendUnique e1 e2) envs
+    :: Monad m
+    => Execute m u acts c1 cmds e1 envs
+    -> Execute m u acts c2 cmds e2 envs
+    -> Execute m u acts (Append c1 c2) cmds (AppendUnique e1 e2) envs
 andExecute (Execute (_, _, r)) (Execute (_, _, r')) =
-    Execute (Proxy, Proxy, \output e c -> r output e c *> r' output e c)
+    Execute (Proxy, Proxy, \u e c -> MaybeT $ do
+                    x <- runMaybeT $ r u e c
+                    y <- runMaybeT $ r' u e c
+                    pure (x <> y))
 
-instance Applicative m =>
-         Semigroup (Execute m output acts c cmds e envs) where
-    (Execute (_, _, r)) <> (Execute (_, _, r')) =
-        Execute (Proxy, Proxy, \output e c -> r output e c *> r' output e c)
+orExecute
+    :: Monad m
+    => Execute m u acts c1 cmds e1 envs
+    -> Execute m u acts c2 cmds e2 envs
+    -> Execute m u acts (AppendUnique c1 c2) cmds (AppendUnique e1 e2) envs
+orExecute (Execute (_, _, r)) (Execute (_, _, r')) =
+    Execute (Proxy, Proxy, \u e c -> r u e c <|> r' u e c)
 
 -- | Identity for 'andExecute'
-ignore :: Applicative m => Execute m output acts '[] cmds '[] envs
+ignore :: Monad m => Execute m u acts '[] cmds '[] envs
 ignore = Execute (Proxy, Proxy, \_ _ _ -> pure ())
 
+
 execute
-    :: (Applicative m, UniqueMember c cmds, Select e envs)
-    => (output (Which acts) -> Many e -> c -> m ()) -> Execute m output acts '[c] cmds e envs
-execute f = Execute (Proxy, Proxy, \output env cmd -> case trial cmd of
+    :: (Monad m, UniqueMember c cmds)
+    => Proxy e -> (u (Which acts) -> Many envs -> c -> MaybeT m ()) -> Execute m u acts '[c] cmds e envs
+execute pe f = Execute (Proxy, pe, \u env cmd -> case trial cmd of
                       Left _ -> pure ()
-                      Right cmd' -> f output (select env) cmd')
+                      Right cmd' -> f u env cmd')
+execute'
+    :: (Monad m, UniqueMember c cmds)
+    => (u (Which acts) -> c -> MaybeT m ()) -> Execute m u acts '[c] cmds e envs
+execute' f = Execute (Proxy, Proxy, \u _ cmd -> case trial cmd of
+                      Left _ -> pure ()
+                      Right cmd' -> f u cmd')

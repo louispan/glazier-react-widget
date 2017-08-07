@@ -10,6 +10,7 @@
 module Glazier.React.Framework.Gadgetry where
 
 import Control.Applicative
+import Control.Concurrent.STM
 import Control.Lens
 import Data.Diverse.Lens
 import Data.Kind
@@ -21,7 +22,7 @@ import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Widget as F
 
 newtype Gadgetry dtls plns (a :: [Type]) acts (c :: [Type]) cmds =
-    Gadgetry (Proxy a, Proxy c, G.Gadget (Which acts) (F.Entity dtls plns) (D.DList (Which cmds)))
+    Gadgetry (Proxy a, Proxy c, G.GadgetT (Which acts) (F.Design dtls plns) STM (D.DList (Which cmds)))
 
 andGadgetry
     :: Gadgetry dtls plns a1 acts c1 cmds
@@ -47,6 +48,6 @@ noop = Gadgetry (Proxy, Proxy, empty)
 gadgetry
     :: forall a c dtls plns acts cmds.
        (UniqueMember a acts, UniqueMember c cmds)
-    => G.Gadget a (F.Entity dtls plns) (D.DList c)
+    => G.GadgetT a (F.Design dtls plns) STM (D.DList c)
     -> Gadgetry dtls plns '[a] acts '[c] cmds
 gadgetry g = Gadgetry (Proxy, Proxy, magnify (facet @a) (fmap (pick @_ @c) <$> g))

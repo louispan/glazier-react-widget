@@ -9,14 +9,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Glazier.React.Framework.Widget where
+module Glazier.React.Framework.Widget
+  ( WidgetCommand(..)
+  , WidgetAction(..)
+  , HasProperties(..)
+  , HasWidgetPlan(..)
+  , HasDetails(..)
+  , HasPlans(..)
+  , Design(..)
+  , _Design
+  , Entity
+  , withTVar
+  , inTVar
+  , widgetGadget
+  , widgetWindow
+  , mkEntity
+  ) where
+-- We want to hide mkWidgetPlan
 
 import Control.Applicative
-import Control.Concurrent.STM.TMVar
+import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Reader
-import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified Data.DList as D
@@ -25,14 +40,14 @@ import qualified Data.Map.Strict as M
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
+import qualified GHCJS.Foreign.Callback.Internal as J
 import qualified GHCJS.Types as J
 import qualified Glazier as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Shared as F
 import qualified JavaScript.Extras as JE
 
 data WidgetCommand
-    = forall i. RenderCommand (F.Shared i) [JE.Property] J.JSVal
+    = RenderCommand [JE.Property] J.JSVal
     | DisposeCommand (R.Disposable ())
 
 data WidgetAction
@@ -41,19 +56,11 @@ data WidgetAction
     | DisposeAction
 ----------------------------------------------------------
 
--- newtype WidgetDetail = WidgetDetail
---     { _properties :: [JE.Property]
---     } deriving (G.Generic)
-
 class HasProperties c where
-    -- widgetDetail :: Lens' c WidgetDetail
     properties :: Lens' c [JE.Property]
 
 instance HasProperties [JE.Property] where
     properties = id
-    -- widgetDetail = id
-    -- properties = widgetDetail . go
-    --   where go k (WidgetDetail a) = k a <&> \a' -> WidgetDetail a'
 
 ----------------------------------------------------------
 
@@ -73,19 +80,18 @@ data WidgetPlan = WidgetPlan
 
 makeClassy ''WidgetPlan
 
+-- | NB. This createsa a dummy onRender callback!
 mkWidgetPlan
     :: UniqueMember WidgetAction acts
-    => G.WindowT mdl R.ReactMl ()
-    -> TMVar mdl
-    -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
+    => [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
     -> F (R.Maker (Which acts)) WidgetPlan
-mkWidgetPlan render frm hls = R.hoistWithAction pick (WidgetPlan
-    <$> R.mkKey -- key
+mkWidgetPlan hls = R.hoistWithAction pick (WidgetPlan
+    <$> R.mkKey' -- key
     <*> pure 0 -- frameNum
     <*> R.getComponent -- component
     <*> pure J.nullRef -- componentRef
     <*> pure mempty -- deferredDisposables
-    <*> (R.mkRenderer render frm) -- onRender
+    <*> pure (J.Callback J.nullRef) -- onRender (dummy for now)
     <*> (R.mkHandler $ pure . pure . ComponentRefAction) -- onComponentRef
     <*> (R.mkHandler $ pure . pure . const DisposeAction) -- onComponentDidUpdate
     )
@@ -110,8 +116,8 @@ newtype Design (dtls :: [Type]) (plns :: [Type]) = Design
     { getDesign ::
         ( [JE.Property]
         , Many dtls
-        , Many plns
         , WidgetPlan
+        , Many plns
         )
     }
     deriving G.Generic
@@ -124,38 +130,27 @@ instance HasProperties (Design dtls plns) where
 instance HasDetails (Design dtls plns) dtls where
     details = _Design . _2
 
-instance HasPlans (Design dtls plns) plns where
-    plans = _Design . _3
-
 instance HasWidgetPlan (Design dtls plns) where
-    widgetPlan = _Design . _4
+    widgetPlan = _Design . _3
+
+instance HasPlans (Design dtls plns) plns where
+    plans = _Design . _4
 
 _Design :: Iso
     (Design dtls plns)
     (Design dtls' plns')
-    ([JE.Property], Many dtls, Many plns, WidgetPlan)
-    ([JE.Property], Many dtls', Many plns', WidgetPlan)
+    ([JE.Property], Many dtls, WidgetPlan, Many plns)
+    ([JE.Property], Many dtls', WidgetPlan, Many plns')
 _Design = iso getDesign Design
 
 ----------------------------------------------------------
 
-type Entity dtls plns = F.Shared (Design dtls plns)
-
-instance HasDetails (Entity dtls plns) dtls where
-    details = F.ival . details
-
-instance HasProperties (Entity dtls plns) where
-    properties = F.ival . properties
-
-instance HasPlans (Entity dtls plns) plns where
-    plans = F.ival . plans
-
-instance HasWidgetPlan (Entity dtls plns) where
-    widgetPlan = F.ival . widgetPlan
+-- type Entity dtls plns = F.Shared (Design dtls plns)
+type Entity dtls plns = TVar (Design dtls plns)
 
 ----------------------------------------------------------
 
-widgetGadget :: G.Gadget WidgetAction (Entity dtls plns) (D.DList WidgetCommand)
+widgetGadget :: G.GadgetT WidgetAction (Design dtls plns) STM (D.DList WidgetCommand)
 widgetGadget = do
     a <- ask
     case a of
@@ -168,8 +163,7 @@ widgetGadget = do
             (widgetPlan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
             i <- JE.toJS <$> use (widgetPlan . frameNum)
             r <- use (widgetPlan . componentRef)
-            s <- get
-            pure . D.singleton $ RenderCommand s [("frameNum", JE.JSVar i)] r
+            pure . D.singleton $ RenderCommand [("frameNum", JE.JSVar i)] r
 
         DisposeAction -> do
             -- Run delayed commands that need to wait until frame is re-rendered
@@ -178,7 +172,22 @@ widgetGadget = do
             (widgetPlan . deferredDisposables) .= mempty
             pure . D.singleton . DisposeCommand $ ds
 
-widgetWindow :: G.WindowT (Design dtls plns) R.ReactMl ()
+withTVar :: TVar s -> G.GadgetT a s STM c -> G.WindowT a STM c
+withTVar v' = G.mkWindowT . go v' . G.runGadgetT
+  where
+    go :: TVar s -> (a -> s -> STM (Maybe c, s)) -> a -> STM (Maybe c)
+    go v f a = do
+        s <- readTVar v
+        (c, s') <- f a s
+        writeTVar v s'
+        pure c
+
+inTVar :: (Monad (t STM), MonadTrans t) => G.WindowT s (t STM) c -> G.WindowT (TVar s) (t STM) c
+inTVar w = G.mkWindowT $ \s -> do
+        s' <- lift $ readTVar s
+        G.runWindowT w s'
+
+widgetWindow :: G.WindowT (Design dtls plns) (R.ReactMlT STM) ()
 widgetWindow = do
     s <- ask
     lift $
@@ -202,10 +211,11 @@ mkEntity
     -> Many dtls
     -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
     -> F (R.Maker (Which acts)) (Many plns)
-    -> G.WindowT (Design dtls plns) R.ReactMl ()
+    -> G.WindowT (Entity dtls plns) (R.ReactMlT STM) ()
     -> F (R.Maker (Which acts)) (Entity dtls plns)
 mkEntity ps dtls hls mkPlns render = do
-    frm <- R.mkEmptyFrame
-    mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkPlns <*> mkWidgetPlan render frm hls
-    R.putFrame frm mdl
-    pure $ F.Shared (mdl, frm)
+    mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkWidgetPlan hls <*> mkPlns
+    v <- R.mkTVar mdl
+    rnd <- R.mkRenderer render v
+    R.changeTVar v ((widgetPlan . onRender) .~ rnd)
+    pure v

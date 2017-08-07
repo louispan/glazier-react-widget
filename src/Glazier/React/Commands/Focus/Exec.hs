@@ -8,7 +8,6 @@ module Glazier.React.Commands.Focus.Exec
 
 import Control.Monad.Trans
 import Data.Diverse
-import qualified JavaScript.Extras as JE
 import qualified Glazier.React as R
 import Glazier.React.Framework.Execute as F
 import Glazier.React.Commands.Focus

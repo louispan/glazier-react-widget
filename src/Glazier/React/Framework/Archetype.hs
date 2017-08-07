@@ -10,6 +10,7 @@
 module Glazier.React.Framework.Archetype where
 
 import Control.Applicative
+import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Free.Church
 import Control.Monad.Trans.Maybe
@@ -25,7 +26,6 @@ import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Execute as F
 import qualified Glazier.React.Framework.Gadgetry as F
 import qualified Glazier.React.Framework.Prototype as F
-import qualified Glazier.React.Framework.Shared as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.TypeLevel as F
 import qualified Glazier.React.Framework.Widget as F
@@ -33,9 +33,9 @@ import qualified JavaScript.Extras as JE
 
 -- | NB. o must contain [JE.Property], a must contain WidgetAction, c must contain WidgetCommand
 newtype Archetype m u o s a c e = Archetype ( o -> F (R.Maker a) s
-                                          , s -> o
-                                          , G.WindowT s R.ReactMl ()
-                                          , G.Gadget a s c
+                                          , s -> STM o
+                                          , G.WindowT s (R.ReactMlT STM) ()
+                                          , s -> G.WindowT a STM c
                                           , u a -> e -> c -> MaybeT m ())
 
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
@@ -68,19 +68,20 @@ complete (F.Prototype ( F.Build (mkDtl, fromDtl, mkPln)
                       , F.Execute (_, _, e))) =
     Archetype ( mkEnt
               , fromEnt
-              , magnify F.ival F.widgetWindow
-              , g' <|> g
+              , F.inTVar F.widgetWindow
+              , \s -> F.withTVar s (g' <|> g)
               , \u env cmds -> traverse_ (e u env) (D.toList cmds))
   where
     g' = magnify facet (fmap pick <$> F.widgetGadget)
-    w' = F.renderDisplay d
+    w' = F.inTVar (F.renderDisplay d)
     mkEnt o = do
         dtls <- mkDtl o
         let ps = o ^. item -- @[JE.Property]
         F.mkEntity ps dtls hls mkPln w'
-    fromEnt ent =
-        let ps = ent ^. F.properties
-        in ps ./ fromDtl (ent ^. F.details)
+    fromEnt ent = do
+        ent' <- readTVar ent
+        let ps = ent' ^. F.properties
+        (./) <$> pure ps <*> fromDtl (ent' ^. F.details)
     hls = M.toList ((\(f, f') a -> f a >>= f' >>= pure . D.toList) <$> t)
 
 -- | Create a Prototype from an Archetype.
@@ -104,11 +105,12 @@ redraft (Archetype (mkEnt, fromEnt, disp, gad, e)) = F.Prototype
     ( F.Build (mkDtl, fromDtl, mkPln)
     , F.divWrapped (magnify (F.details . item) disp)
     , F.boring
-    , F.gadgetry (D.singleton <$> zoom (F.details . item) gad)
+    , F.gadgetry (D.singleton <$> zoom (F.details . item) gad')
     , F.execute Proxy e')
   where
+    gad' = G.mkGadgetT $ \a s -> (\c -> (c, s)) <$> G.runWindowT (gad s) a
     mkDtl o = let o' = fetch o in R.hoistWithAction pick (single <$> mkEnt o')
-    fromDtl d = let d' = fetch d in single $ fromEnt d'
+    fromDtl d = let d' = fetch d in single <$> fromEnt d'
     mkPln = pure nil
     e' u env = e (contramap pick u) (fetch env)
 
@@ -125,25 +127,29 @@ dispatchAction l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
         Archetype ( R.hoistWithAction (review l) . mkEnt
                   , fromEnt
                   , disp
-                  , magnify l gad
+                  , \s -> magnify l (gad s)
                   , e . contramap (review l))
 
 translateCommand :: Iso' c' c -> Archetype m u o s a c e -> Archetype m u o s a c' e
 translateCommand l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
-        Archetype (mkEnt, fromEnt, disp, review l <$> gad, \u env cmd -> e u env (view l cmd))
+        Archetype ( mkEnt
+                  , fromEnt
+                  , disp
+                  , \s -> review l <$> gad s
+                  , \u env cmd -> e u env (view l cmd))
 
 translateState :: Iso' s' s -> Archetype m u o s a c e -> Archetype m u o s' a c e
 translateState l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
-        Archetype ( fmap (review l) . mkEnt
+        Archetype ( \o -> fmap (review l) (mkEnt o)
                   , fromEnt . view l
                   , magnify l disp
-                  , zoom l gad
+                  , \s -> gad (view l s)
                   , e)
 
 translateOutline :: Iso' o' o -> Archetype m u o s a c e -> Archetype m u o' s a c e
 translateOutline l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
         Archetype ( mkEnt . view l
-                  , review l . fromEnt
+                  , \s -> review l <$> fromEnt s
                   , disp
                   , gad
                   , e)

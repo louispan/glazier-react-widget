@@ -6,7 +6,6 @@ module Glazier.React.Framework
     , module Glazier.React.Framework.Firsts
     , module Glazier.React.Framework.Gadgetry
     , module Glazier.React.Framework.Prototype
-    , module Glazier.React.Framework.Shared
     , module Glazier.React.Framework.Trigger
     , module Glazier.React.Framework.TypeLevel
     , module Glazier.React.Framework.Widget
@@ -20,7 +19,6 @@ import Glazier.React.Framework.Execute
 import Glazier.React.Framework.Firsts
 import Glazier.React.Framework.Gadgetry
 import Glazier.React.Framework.Prototype
-import Glazier.React.Framework.Shared
 import Glazier.React.Framework.Trigger
 import Glazier.React.Framework.TypeLevel
 import Glazier.React.Framework.Widget

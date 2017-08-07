@@ -30,7 +30,6 @@ library
                        Glazier.React.Framework.Firsts
                        Glazier.React.Framework.Gadgetry
                        Glazier.React.Framework.Prototype
-                       Glazier.React.Framework.Shared
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.TypeLevel
                        Glazier.React.Framework.TypeLevel.Internal

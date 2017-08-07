@@ -9,6 +9,7 @@
 
 module Glazier.React.Framework.Build where
 
+import Control.Concurrent.STM
 import Control.Monad.Free.Church
 import Data.Diverse.Lens
 import Data.Kind
@@ -17,7 +18,7 @@ import qualified Glazier.React as R
 
 newtype Build (o :: [Type]) ols (d :: [Type]) dtls (p :: [Type]) plns acts =
     Build ( Many ols -> F (R.Maker (Which acts)) (Many d) -- make details
-          , Many dtls -> Many o -- from details
+          , Many dtls -> STM (Many o) -- from details
           , F (R.Maker (Which acts)) (Many p)) -- make plans
 
 andBuild
@@ -26,13 +27,13 @@ andBuild
     -> Build (Append o1 o2) ols (Append d1 d2) dtls (Append p1 p2) plns acts
 andBuild (Build (mkDtl, fromDtl, mkPln)) (Build (mkDtl', fromDtl', mkPln')) =
         Build ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
-                , \d -> fromDtl d /./ fromDtl' d
+                , \d -> (/./) <$> fromDtl d <*> fromDtl' d
                 , (/./) <$> mkPln <*> mkPln')
 
 -- | Identity for 'andBuild'
 idle :: Build '[] ols '[] dtls '[] plns acts
 idle = Build ( const $ pure nil
-               , const nil
+               , const (pure nil)
                , pure nil)
 
 -- | Add a type @o@ into the factory
@@ -43,5 +44,5 @@ build
 build _ =
     Build
         ( pure . single . fetch @o
-        , single . fetch @o
+        , pure . single . fetch @o
         , pure nil)

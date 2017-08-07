@@ -6,26 +6,17 @@ module Glazier.React.Framework.Widget.Exec
     ( execWidget
     ) where
 
-import Control.Concurrent.STM
-import Control.Lens
-import Control.Monad
 import qualified GHCJS.Types as J
 import Glazier.React.Framework.Widget
-import Glazier.React.Framework.Shared as F
 import qualified Glazier.React.Dispose as R
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
-widgetSetState :: F.Shared i -> [JE.Property] -> J.JSVal -> IO ()
-widgetSetState s props j = do
-    let i = s ^. ival
-        t = s ^. tmvar
-    void $ atomically $ swapTMVar t i -- update the TMVar with the latest model
-    js_widgetSetState (JE.fromProperties props) j -- trigger a react render
+widgetSetState :: [JE.Property] -> J.JSVal -> IO ()
+widgetSetState props = js_widgetSetState (JE.fromProperties props) -- trigger a react render
 
 execWidget :: WidgetCommand -> IO ()
-execWidget (RenderCommand s props j) = widgetSetState s props j
-
+execWidget (RenderCommand props j) = widgetSetState props j
 execWidget (DisposeCommand x) = R.getDisposable x
 
 #ifdef __GHCJS__

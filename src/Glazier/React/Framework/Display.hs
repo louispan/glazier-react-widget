@@ -3,6 +3,7 @@
 module Glazier.React.Framework.Display where
 
 import Control.Applicative
+import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Reader
 import Data.Coerce
@@ -20,7 +21,7 @@ newtype Display dtls plns =
             , F.Design dtls plns -> D.DList JE.Property
             , Maybe (  (F.Design dtls plns -> D.DList R.Listener)
                     -> (F.Design dtls plns -> D.DList JE.Property)
-                    -> G.WindowT (F.Design dtls plns) R.ReactMl ()))
+                    -> G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()))
 
 instance Monoid (Display dtls plns) where
     mempty = clear
@@ -54,7 +55,7 @@ hardcode :: [JE.Property] -> Display dtls plns
 hardcode ps = Display (mempty, const $ D.fromList ps, Nothing)
 
 -- | lift a 'ReactMl ()' into a 'Display'
-display :: ([R.Listener] -> [JE.Property] -> G.WindowT (F.Design dtls plns) R.ReactMl ()) -> Display dtls plns
+display :: ([R.Listener] -> [JE.Property] -> G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()) -> Display dtls plns
 display f = Display (mempty, mempty, Just (\l p -> do
     s <- ask
     let ls = s ^. F.widgetPlan . F.listeners
@@ -66,7 +67,7 @@ display f = Display (mempty, mempty, Just (\l p -> do
 
 -- | wrap with a div iff there are properties and listeners
 divWrapped
-    :: G.WindowT (F.Design dtls plns) R.ReactMl ()
+    :: G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()
     -> Display dtls plns
 divWrapped w = Display (mempty, mempty, Just $ \l p -> do
     s <- ask
@@ -77,5 +78,5 @@ divWrapped w = Display (mempty, mempty, Just $ \l p -> do
         _ -> G.mkWindowT (R.bh "div" l' p' . G.runWindowT w))
 
 -- | Convert a 'Display' into a @WindowT s ReactMl@
-renderDisplay :: Display dtls plns -> G.WindowT (F.Design dtls plns) R.ReactMl ()
+renderDisplay :: Display dtls plns -> G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()
 renderDisplay (Display (l, p, w)) = fromMaybe mempty $ (\w' -> w' l p) <$> w

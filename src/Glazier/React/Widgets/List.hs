@@ -37,6 +37,7 @@ listPrototype
                      '[] envs
 listPrototype e = undefined
 
+-- listBuild
 -- listPrototype
 --     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
 --     => F.Prototype '[] ols '[] dtls '[] plns '[] trigs '[InputAction] acts '[C.PropertyCommand] cmds
@@ -203,7 +204,7 @@ data ListAction a o s
 --         MakeItemAction keyGlaze mkItemOutline -> do
 --             n <- keyGlaze <$> use (R.ival . dtl . idx)
 --             (R.ival . dtl . idx) .= n
---             pure $ D.singleton $ GlazeCommand $ C.Glaze.GlazeCommand $ do
+--             pure $ D.singleton $ GlazeCommand $ C.Glaze.Glaze Command $ do
 --                 sm <- R.hoistWithAction (ListAction . ItemAction n) (
 --                     mkItemOutline n >>= R.mkBaseEntity' w)
 --                 pure . ListAction $ AddItemAction n sm

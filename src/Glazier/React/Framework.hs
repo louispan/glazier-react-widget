@@ -1,8 +1,8 @@
 module Glazier.React.Framework
     ( module Glazier.React.Framework.Archetype
-    , module Glazier.React.Framework.Build
+    , module Glazier.React.Framework.Builder
     , module Glazier.React.Framework.Display
-    , module Glazier.React.Framework.Execute
+    , module Glazier.React.Framework.Executor
     , module Glazier.React.Framework.Firsts
     , module Glazier.React.Framework.Gadgetry
     , module Glazier.React.Framework.Prototype
@@ -13,9 +13,9 @@ module Glazier.React.Framework
     ) where
 
 import Glazier.React.Framework.Archetype
-import Glazier.React.Framework.Build
+import Glazier.React.Framework.Builder
 import Glazier.React.Framework.Display
-import Glazier.React.Framework.Execute
+import Glazier.React.Framework.Executor
 import Glazier.React.Framework.Firsts
 import Glazier.React.Framework.Gadgetry
 import Glazier.React.Framework.Prototype

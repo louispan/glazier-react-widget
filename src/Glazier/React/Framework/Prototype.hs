@@ -11,9 +11,9 @@ module Glazier.React.Framework.Prototype where
 import Data.Diverse
 import Data.Kind
 import Data.Semigroup
-import qualified Glazier.React.Framework.Build as F
+import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Execute as F
+import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Gadgetry as F
 import qualified Glazier.React.Framework.Trigger as F
@@ -28,11 +28,11 @@ newtype Prototype m
                     -- commands from Gadgetry vs commands handled by Execute
                     (c :: [Type]) (c' :: [Type]) cmds
                     (e :: [Type]) envs
-    = Prototype ( F.Build o ols d dtls p plns acts
+    = Prototype ( F.Builder o ols d dtls p plns acts
                 , F.Display dtls plns
                 , F.Trigger t trigs a acts
                 , F.Gadgetry dtls plns a' acts c cmds
-                , F.Execute m c' cmds e envs )
+                , F.Executor m c' cmds e envs )
 
 -- | The action and command types are merged, not appended
 andPrototype
@@ -48,11 +48,11 @@ andPrototype
                  (Append c1 c2) (Append c1' c2') cmds
                  (AppendUnique e1 e2) envs
 andPrototype (Prototype (b, d, t, g, e)) (Prototype (b', d', t', g', e')) =
-    Prototype ( b `F.andBuild` b'
+    Prototype ( b `F.andBuilder` b'
               , d <> d'
               , t `F.andTrigger` t'
               , g `F.andGadgetry` g'
-              , e `F.andExecute` e')
+              , e `F.andExecutor` e')
 
 orPrototype
     :: Monad m
@@ -67,11 +67,11 @@ orPrototype
                  (AppendUnique c1 c2) (AppendUnique c1' c2') cmds
                  (AppendUnique e1 e2) envs
 orPrototype (Prototype (b, d, t, g, e)) (Prototype (b', d', t', g', e')) =
-         Prototype ( b `F.andBuild` b'
+         Prototype ( b `F.andBuilder` b'
                    , d F.<<|>> d'
                    , t `F.orTrigger` t'
                    , g `F.orGadgetry` g'
-                   , e `F.orExecute` e')
+                   , e `F.orExecutor` e')
 
 -- | identity for 'andPrototype' and 'orPrototype'
 blank :: Monad m => Prototype m
@@ -129,7 +129,7 @@ triggering t = Prototype (F.idle, mempty, t, F.noop, F.ignore)
 
 building
     :: Monad m
-    => F.Build o ols d dtls p plns acts
+    => F.Builder o ols d dtls p plns acts
     -> Prototype m
                  o ols
                  d dtls
@@ -141,7 +141,7 @@ building
 building b = Prototype (b, mempty, F.boring, F.noop, F.ignore)
 
 executing
-    :: F.Execute m c cmds e envs
+    :: F.Executor m c cmds e envs
     -> Prototype m
                  '[] ols
                  '[] dtls

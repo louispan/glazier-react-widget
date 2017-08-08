@@ -9,7 +9,7 @@ import Control.Monad.Trans
 import Data.Diverse
 import Data.Proxy
 import qualified Glazier.React as R
-import Glazier.React.Framework.Execute as F
+import Glazier.React.Framework as F
 import Glazier.React.Commands.Glaze
 
 execGlaze
@@ -17,8 +17,8 @@ execGlaze
        , UniqueMember (TMVar Int) envs
        , UniqueMember R.ReactComponent envs
        )
-    => F.Execute IO '[GlazeCommand a] cmds '[TMVar Int, R.ReactComponent] envs
-execGlaze = F.execute Proxy $ \env (GlazeCommand output mks) ->
+    => F.Executor IO '[GlazeCommand a] cmds '[TMVar Int, R.ReactComponent] envs
+execGlaze = F.executor Proxy $ \env (GlazeCommand output mks) ->
     let muid = fetch env
         comp = fetch env
     in lift $ iterM (R.runGlaze muid comp output) mks

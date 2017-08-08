@@ -21,9 +21,9 @@ import Data.Proxy
 import qualified Data.Map.Strict as M
 import qualified Glazier as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Build as F
+import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Execute as F
+import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Gadgetry as F
 import qualified Glazier.React.Framework.Prototype as F
 import qualified Glazier.React.Framework.Trigger as F
@@ -62,11 +62,11 @@ complete ::
                    c1 c2 c'
                    e e
     -> Archetype m (Many o') (F.Entity d p) (Which a') (D.DList (Which c')) (Many e)
-complete (F.Prototype ( F.Build (mkDtl, fromDtl, mkPln)
+complete (F.Prototype ( F.Builder (mkDtl, fromDtl, mkPln)
                       , d
                       , F.Trigger (_, _, t)
                       , F.Gadgetry (_, _, g)
-                      , F.Execute (_, _, e))) =
+                      , F.Executor (_, _, e))) =
     Archetype ( mkEnt
               , fromEnt
               , F.inTVar F.widgetWindow
@@ -102,11 +102,11 @@ redraft
     => Archetype m o s a c e
     -> F.Prototype m '[o] ols '[s] dtls '[] plns '[] trigs '[] '[a] acts '[c] '[c] cmds '[e] envs
 redraft (Archetype (mkEnt, fromEnt, disp, gad, e)) = F.Prototype
-    ( F.Build (mkDtl, fromDtl, mkPln)
+    ( F.Builder (mkDtl, fromDtl, mkPln)
     , F.divWrapped (magnify (F.details . item) disp)
     , F.boring
     , F.gadgetry (\out -> D.singleton <$> zoom (F.details . item) (gad' (contramap pick out)))
-    , F.execute Proxy e')
+    , F.executor Proxy e')
   where
     gad' out = G.mkGadgetT $ \a s -> (\c -> (c, s)) <$> G.runWindowT (gad out s) a
     mkDtl o = let o' = fetch o in R.hoistWithAction pick (single <$> mkEnt o')

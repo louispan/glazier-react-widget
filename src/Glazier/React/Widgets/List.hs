@@ -16,27 +16,26 @@ import Control.Monad.Reader
 import Data.Diverse.Lens
 import qualified Data.DList as D
 import qualified Data.JSString as J
-import qualified Data.Map.Strict as M
+import qualified Data.Sequence as S
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Commands.Make as C
 import qualified JavaScript.Extras as JE
 
-type ListItems k s = M.Map k s
+type ListItems s = S.Seq s
 
 listPrototype
-    :: (Applicative m, UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
-    => Archetype m o s a c e
-    -> (s -> k)
-    -> F.Prototype m '[M.Map k s] ols
-                     '[M.Map k s] dtls
+    :: Monad m
+    => F.Archetype m o s a c e
+    -> F.Prototype m '[S.Seq s] ols
+                     '[S.Seqs s] dtls
                      '[] plns
                      '[] trigs
                      '[] '[ListAction] acts
                      '[C.MakeCommand] '[] cmds
                      '[] envs
-listPrototype i k =
+listPrototype e = undefined
 
 -- listPrototype
 --     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
@@ -56,16 +55,18 @@ listPrototype i k =
 
 -- | Combined Command
 newtype ListCommand c = ListCommand c
-    -- = MakerCommand (C.MakeCommand ListAction)
+    -- MakeCommand (PC.Output a) (F (R.Maker a) ())
 
 -- | List specific actions
-data ListAction k a o s
-    = DestroyItemAction k
-    | MakeItemAction (Int -> F (R.Maker a) o)
-    | AddItemAction k s
-    | ItemAction k a
+data ListAction a o s
+    = DestroyItemAction s
+    | MakeItemAction (F (R.Maker a) o)
+    | AddItemAction s
+    | ItemAction a
     -- | SetFilterAction (R.OutlineOf w -> Bool)
     -- | SetSortAction (R.OutlineOf w -> Bool)
+
+-- TODO: add separator
 
 
 -- data Schema k w (p :: R.Part) = Schema

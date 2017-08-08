@@ -18,7 +18,7 @@ textInputPrototype
        , UniqueMember W.InputAction acts
        , UniqueMember C.SetPropertyCommand cmds
        )
-    => F.Prototype IO output
+    => F.Prototype IO
                    '[] ols
                    '[] dtls
                    '[] plns

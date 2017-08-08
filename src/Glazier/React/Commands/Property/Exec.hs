@@ -9,5 +9,5 @@ import qualified JavaScript.Extras as JE
 import Glazier.React.Framework.Execute as F
 import Glazier.React.Commands.Property
 
-execProperty :: UniqueMember SetPropertyCommand cmds => F.Execute IO u acts '[SetPropertyCommand] cmds '[] envs
-execProperty = F.execute' $ \_ (SetPropertyCommand j prop) -> lift $ JE.setProperty prop j
+execProperty :: UniqueMember SetPropertyCommand cmds => F.Execute IO '[SetPropertyCommand] cmds '[] envs
+execProperty = F.execute' $ \(SetPropertyCommand j prop) -> lift $ JE.setProperty prop j

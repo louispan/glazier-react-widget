@@ -9,6 +9,7 @@ module Glazier.React.Widgets.Input
     ) where
 
 import Control.Applicative
+import Control.Concurrent.STM
 import Control.Monad.Trans.Maybe
 import Control.Monad.Reader
 import Data.Diverse.Lens
@@ -29,7 +30,7 @@ inputPrototype
     :: ( UniqueMember T.KeyDownKeyTrigger trigs
        , UniqueMember InputAction acts
        , UniqueMember C.SetPropertyCommand cmds)
-    => F.Prototype IO u
+    => F.Prototype IO
                   '[] ols
                   '[] dtls
                   '[] plns
@@ -40,7 +41,7 @@ inputPrototype
 inputPrototype = F.Prototype ( F.idle
                              , F.display d
                              , F.trigger "onKeyDown" T.keyDownKeyTrigger go
-                             , F.gadgetry gadget
+                             , F.gadgetry (const gadget)
                              , C.execProperty
                              )
   where
@@ -52,7 +53,7 @@ inputPrototype = F.Prototype ( F.idle
             pure $ SubmitAction target v
         _ -> empty
 
-gadget :: G.Gadget InputAction (F.Entity dtls plns) (D.DList C.SetPropertyCommand)
+gadget :: G.GadgetT InputAction (F.Design dtls plns) STM (D.DList C.SetPropertyCommand)
 gadget = do
     a <- ask
     case a of

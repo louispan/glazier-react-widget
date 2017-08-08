@@ -16,15 +16,12 @@ import Glazier.React.Commands.Make
 import qualified Pipes.Concurrent as PC
 
 execMake
-    :: ( UniqueMember a acts
-       , UniqueMember (MakeCommand a acts) cmds
+    :: ( UniqueMember (MakeCommand a) cmds
        , UniqueMember (TMVar Int) envs
        , UniqueMember R.ReactComponent envs
        )
-    => F.Execute IO PC.Output acts '[MakeCommand a acts] cmds '[TMVar Int, R.ReactComponent] envs
-execMake = F.execute Proxy $ \u env (MakeCommand mks) ->
+    => F.Execute IO '[MakeCommand a] cmds '[TMVar Int, R.ReactComponent] envs
+execMake = F.execute Proxy $ \env (MakeCommand output mks) ->
     let muid = fetch env
         comp = fetch env
-    in do
-        act <- lift $ iterM (R.execMaker muid comp u) mks
-        lift (atomically $ PC.send u (pick act)) >>= guard
+    in lift $ iterM (R.execMaker muid comp output) mks

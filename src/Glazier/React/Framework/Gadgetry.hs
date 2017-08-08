@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -20,9 +19,10 @@ import qualified Data.DList as D
 import qualified Glazier as G
 import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Widget as F
+import Pipes.Concurrent as PC
 
 newtype Gadgetry dtls plns (a :: [Type]) acts (c :: [Type]) cmds =
-    Gadgetry (Proxy a, Proxy c, G.GadgetT (Which acts) (F.Design dtls plns) STM (D.DList (Which cmds)))
+    Gadgetry (Proxy a, Proxy c, PC.Output (Which acts) -> G.GadgetT (Which acts) (F.Design dtls plns) STM (D.DList (Which cmds)))
 
 andGadgetry
     :: Gadgetry dtls plns a1 acts c1 cmds
@@ -36,18 +36,17 @@ orGadgetry
     -> Gadgetry dtls plns a2 acts c2 cmds
     -> Gadgetry dtls plns (AppendUnique a1 a2) acts (AppendUnique c1 c2) cmds
 orGadgetry (Gadgetry (_, _, g)) (Gadgetry (_, _, g')) =
-    Gadgetry (Proxy, Proxy, g <|> g')
+    Gadgetry (Proxy, Proxy, \output -> g output <|> g' output)
 
 instance F.Firsts (Gadgetry dtls plns a acts c cmds) where
-    Gadgetry (_, _, g) <<|>> Gadgetry (_, _, g') = Gadgetry (Proxy, Proxy, g <|> g')
+    Gadgetry (_, _, g) <<|>> Gadgetry (_, _, g') = Gadgetry (Proxy, Proxy, \output -> g output <|> g' output)
 
 -- | Identify for 'orGadgetry' or 'andGadgetry'
 noop :: Gadgetry dtls plns '[] acts '[] cmds
-noop = Gadgetry (Proxy, Proxy, empty)
+noop = Gadgetry (Proxy, Proxy, const empty)
 
 gadgetry
-    :: forall a c dtls plns acts cmds.
-       (UniqueMember a acts, UniqueMember c cmds)
-    => G.GadgetT a (F.Design dtls plns) STM (D.DList c)
+    :: (UniqueMember a acts, UniqueMember c cmds)
+    => (PC.Output (Which acts) -> G.GadgetT a (F.Design dtls plns) STM (D.DList c))
     -> Gadgetry dtls plns '[a] acts '[c] cmds
-gadgetry g = Gadgetry (Proxy, Proxy, magnify (facet @a) (fmap (pick @_ @c) <$> g))
+gadgetry g = Gadgetry (Proxy, Proxy, \output -> magnify facet (fmap pick <$> g output))

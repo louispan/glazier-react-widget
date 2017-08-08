@@ -30,13 +30,14 @@ import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.TypeLevel as F
 import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
+import qualified Pipes.Concurrent as PC
 
 -- | NB. o must contain [JE.Property], a must contain WidgetAction, c must contain WidgetCommand
-newtype Archetype m u o s a c e = Archetype ( o -> F (R.Maker a) s
+newtype Archetype m o s a c e = Archetype ( o -> F (R.Maker a) s
                                           , s -> STM o
                                           , G.WindowT s (R.ReactMlT STM) ()
-                                          , s -> G.WindowT a STM c
-                                          , u a -> e -> c -> MaybeT m ())
+                                          , PC.Output a -> s -> G.WindowT a STM c
+                                          , e -> c -> MaybeT m ())
 
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to o, WidgetAction to a, WidgetCommand to c, and also add widgetGadget.
@@ -52,7 +53,7 @@ complete ::
     , F.SameMembers a1 a2
     , F.SameMembers c2 c'
     )
-    => F.Prototype m u
+    => F.Prototype m
                    o o'
                    d d
                    p p
@@ -60,7 +61,7 @@ complete ::
                    a1 a2 a'
                    c1 c2 c'
                    e e
-    -> Archetype m u (Many o') (F.Entity d p) (Which a') (D.DList (Which c')) (Many e)
+    -> Archetype m (Many o') (F.Entity d p) (Which a') (D.DList (Which c')) (Many e)
 complete (F.Prototype ( F.Build (mkDtl, fromDtl, mkPln)
                       , d
                       , F.Trigger (_, _, t)
@@ -69,8 +70,8 @@ complete (F.Prototype ( F.Build (mkDtl, fromDtl, mkPln)
     Archetype ( mkEnt
               , fromEnt
               , F.inTVar F.widgetWindow
-              , \s -> F.withTVar s (g' <|> g)
-              , \u env cmds -> traverse_ (e u env) (D.toList cmds))
+              , \out s -> F.withTVar s (g' <|> g out)
+              , \env cmds -> traverse_ (e env) (D.toList cmds))
   where
     g' = magnify facet (fmap pick <$> F.widgetGadget)
     w' = F.inTVar (F.renderDisplay d)
@@ -92,61 +93,60 @@ complete (F.Prototype ( F.Build (mkDtl, fromDtl, mkPln)
 -- @
 redraft
     :: ( Monad m
-       , Contravariant u
        , UniqueMember o ols
        , UniqueMember s dtls
        , UniqueMember a acts
        , UniqueMember c cmds
        , UniqueMember e envs
        )
-    => Archetype m u o s a c e
-    -> F.Prototype m u '[o] ols '[s] dtls '[] plns '[] trigs '[] '[a] acts '[c] '[c] cmds '[e] envs
+    => Archetype m o s a c e
+    -> F.Prototype m '[o] ols '[s] dtls '[] plns '[] trigs '[] '[a] acts '[c] '[c] cmds '[e] envs
 redraft (Archetype (mkEnt, fromEnt, disp, gad, e)) = F.Prototype
     ( F.Build (mkDtl, fromDtl, mkPln)
     , F.divWrapped (magnify (F.details . item) disp)
     , F.boring
-    , F.gadgetry (D.singleton <$> zoom (F.details . item) gad')
+    , F.gadgetry (\out -> D.singleton <$> zoom (F.details . item) (gad' (contramap pick out)))
     , F.execute Proxy e')
   where
-    gad' = G.mkGadgetT $ \a s -> (\c -> (c, s)) <$> G.runWindowT (gad s) a
+    gad' out = G.mkGadgetT $ \a s -> (\c -> (c, s)) <$> G.runWindowT (gad out s) a
     mkDtl o = let o' = fetch o in R.hoistWithAction pick (single <$> mkEnt o')
     fromDtl d = let d' = fetch d in single <$> fromEnt d'
     mkPln = pure nil
-    e' u env = e (contramap pick u) (fetch env)
+    e' env = e (fetch env)
 
-mapEnvironment :: (e' -> e) -> Archetype m u o s a c e -> Archetype m u o s a c e'
+mapEnvironment :: (e' -> e) -> Archetype m o s a c e -> Archetype m o s a c e'
 mapEnvironment f (Archetype (mkEnt, fromEnt, disp, gad, e)) =
-        Archetype (mkEnt, fromEnt, disp, gad, \u env cmd -> e u (f env) cmd)
+        Archetype (mkEnt, fromEnt, disp, gad, \env cmd -> e (f env) cmd)
 
 dispatchAction
-    :: (Contravariant u, Monoid c)
+    :: Monoid c
     => Prism' a' a
-    -> Archetype m u o s a c e
-    -> Archetype m u o s a' c e
+    -> Archetype m o s a c e
+    -> Archetype m o s a' c e
 dispatchAction l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
         Archetype ( R.hoistWithAction (review l) . mkEnt
                   , fromEnt
                   , disp
-                  , \s -> magnify l (gad s)
-                  , e . contramap (review l))
+                  , \out s -> magnify l (gad (contramap (review l) out) s)
+                  , e)
 
-translateCommand :: Iso' c' c -> Archetype m u o s a c e -> Archetype m u o s a c' e
+translateCommand :: Iso' c' c -> Archetype m o s a c e -> Archetype m o s a c' e
 translateCommand l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
         Archetype ( mkEnt
                   , fromEnt
                   , disp
-                  , \s -> review l <$> gad s
-                  , \u env cmd -> e u env (view l cmd))
+                  , \out s -> review l <$> gad out s
+                  , \env cmd -> e env (view l cmd))
 
-translateState :: Iso' s' s -> Archetype m u o s a c e -> Archetype m u o s' a c e
+translateState :: Iso' s' s -> Archetype m o s a c e -> Archetype m o s' a c e
 translateState l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
         Archetype ( \o -> fmap (review l) (mkEnt o)
                   , fromEnt . view l
                   , magnify l disp
-                  , \s -> gad (view l s)
+                  , \out s -> gad out (view l s)
                   , e)
 
-translateOutline :: Iso' o' o -> Archetype m u o s a c e -> Archetype m u o' s a c e
+translateOutline :: Iso' o' o -> Archetype m o s a c e -> Archetype m o' s a c e
 translateOutline l (Archetype (mkEnt, fromEnt, disp, gad, e)) =
         Archetype ( mkEnt . view l
                   , \s -> review l <$> fromEnt s

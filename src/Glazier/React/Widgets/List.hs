@@ -20,24 +20,44 @@ import qualified Data.Sequence as S
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
-import qualified Glazier.React.Commands.Make as C
+import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
 
-type ListItems s = S.Seq s
+-- type ListItems s = S.Seq s
 
-listPrototype
-    :: Monad m
+-- listPrototype
+--     :: Monad m
+--     => F.Archetype m o s a c e
+--     -> F.Prototype m '[S.Seq s] ols
+--                      '[S.Seq s] dtls
+--                      '[] plns
+--                      '[] trigs
+--                      '[] '[ListAction] acts
+--                      '[C.GlazeCommand] '[] cmds
+--                      '[] envs
+-- listPrototype e = undefined
+
+listBuilder
+    :: ( UniqueMember a acts
+       , UniqueMember (S.Seq o) ols
+       , UniqueMember (S.Seq s) dtls
+       )
     => F.Archetype m o s a c e
-    -> F.Prototype m '[S.Seq s] ols
-                     '[S.Seqs s] dtls
-                     '[] plns
-                     '[] trigs
-                     '[] '[ListAction] acts
-                     '[C.MakeCommand] '[] cmds
-                     '[] envs
-listPrototype e = undefined
+    -> F.Builder '[S.Seq o] ols '[S.Seq s] dtls '[] plns acts
+listBuilder (F.Archetype (mkEnt, frmEnt, _, _, _)) = F.Builder (mkDtls, frmDtls, mkPlns)
+  where
+    mkDtls o = single <$> traverse (R.hoistWithAction pick . mkEnt) (fetch o)
+    frmDtls d = single <$> traverse frmEnt (fetch d)
+    mkPlns = pure nil
 
--- listBuild
+-- listDisplay
+--     :: UniqueMember (S.Seq s) dtls
+--     => F.Archetype m o s a c e
+--     -> F.Display dtls plns
+-- listDisplay (F.Archetype (_, _, disp, _, _)) = F.Display (mempty, mempty, Just disp')
+--   where
+--     disp' ls ps = 
+
 -- listPrototype
 --     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
 --     => F.Prototype '[] ols '[] dtls '[] plns '[] trigs '[InputAction] acts '[C.PropertyCommand] cmds

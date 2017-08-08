@@ -84,7 +84,7 @@ makeClassy ''WidgetPlan
 mkWidgetPlan
     :: UniqueMember WidgetAction acts
     => [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
-    -> F (R.Maker (Which acts)) WidgetPlan
+    -> F (R.Glaze (Which acts)) WidgetPlan
 mkWidgetPlan hls = R.hoistWithAction pick (WidgetPlan
     <$> R.mkKey' -- key
     <*> pure 0 -- frameNum
@@ -210,9 +210,9 @@ mkEntity
     => [JE.Property]
     -> Many dtls
     -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
-    -> F (R.Maker (Which acts)) (Many plns)
+    -> F (R.Glaze (Which acts)) (Many plns)
     -> G.WindowT (Entity dtls plns) (R.ReactMlT STM) ()
-    -> F (R.Maker (Which acts)) (Entity dtls plns)
+    -> F (R.Glaze (Which acts)) (Entity dtls plns)
 mkEntity ps dtls hls mkPlns render = do
     mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkWidgetPlan hls <*> mkPlns
     v <- R.mkTVar mdl

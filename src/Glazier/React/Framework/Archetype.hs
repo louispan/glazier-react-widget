@@ -33,7 +33,7 @@ import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 
 -- | NB. o must contain [JE.Property], a must contain WidgetAction, c must contain WidgetCommand
-newtype Archetype m o s a c e = Archetype ( o -> F (R.Maker a) s
+newtype Archetype m o s a c e = Archetype ( o -> F (R.Glaze a) s
                                           , s -> STM o
                                           , G.WindowT s (R.ReactMlT STM) ()
                                           , PC.Output a -> s -> G.WindowT a STM c

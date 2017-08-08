@@ -17,9 +17,9 @@ import Data.Proxy
 import qualified Glazier.React as R
 
 newtype Build (o :: [Type]) ols (d :: [Type]) dtls (p :: [Type]) plns acts =
-    Build ( Many ols -> F (R.Maker (Which acts)) (Many d) -- make details
+    Build ( Many ols -> F (R.Glaze (Which acts)) (Many d) -- make details
           , Many dtls -> STM (Many o) -- from details
-          , F (R.Maker (Which acts)) (Many p)) -- make plans
+          , F (R.Glaze (Which acts)) (Many p)) -- make plans
 
 andBuild
     :: Build o1 ols d1 dtls p1 plns acts

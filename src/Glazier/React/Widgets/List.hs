@@ -55,12 +55,12 @@ listPrototype e = undefined
 
 -- | Combined Command
 newtype ListCommand c = ListCommand c
-    -- MakeCommand (PC.Output a) (F (R.Maker a) ())
+    -- MakeCommand (PC.Output a) (F (R.Glaze a) ())
 
 -- | List specific actions
 data ListAction a o s
     = DestroyItemAction s
-    | MakeItemAction (F (R.Maker a) o)
+    | MakeItemAction (F (R.Glaze a) o)
     | AddItemAction s
     | ItemAction a
     -- | SetFilterAction (R.OutlineOf w -> Bool)
@@ -92,7 +92,7 @@ data ListAction a o s
 --     :: (R.IsWidget w, R.ModelOf w ~ R.BaseModelOf w)
 --     => w
 --     -> Outline k w
---     -> F (R.Maker (Action k w)) (Detail k w)
+--     -> F (R.Glaze (Action k w)) (Detail k w)
 -- mkDetail w (Schema a b c d) = Schema
 --     <$> pure a
 --     <*> pure b
@@ -115,7 +115,7 @@ data ListAction a o s
 --     -> D.Render.Device mdl
 --     -> D.Dispose.Device mdl
 --     -> MVar mdl
---     -> F (R.Maker (Action k w)) Plan
+--     -> F (R.Glaze (Action k w)) Plan
 -- mkComponentPlan component' render' dispose' frm = Plan
 --     <$> (R.mkComponentPlan component' frm)
 --     <*> (R.hoistWithAction RenderAction $ R.mkPlan render')
@@ -200,10 +200,10 @@ data ListAction a o s
 --                 lift rerender
 --             maybe (pure mempty) pure ret
 
---         MakeItemAction keyMaker mkItemOutline -> do
---             n <- keyMaker <$> use (R.ival . dtl . idx)
+--         MakeItemAction keyGlaze mkItemOutline -> do
+--             n <- keyGlaze <$> use (R.ival . dtl . idx)
 --             (R.ival . dtl . idx) .= n
---             pure $ D.singleton $ MakerCommand $ C.Maker.MakerCommand $ do
+--             pure $ D.singleton $ GlazeCommand $ C.Glaze.GlazeCommand $ do
 --                 sm <- R.hoistWithAction (ListAction . ItemAction n) (
 --                     mkItemOutline n >>= R.mkBaseEntity' w)
 --                 pure . ListAction $ AddItemAction n sm

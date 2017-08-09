@@ -152,14 +152,10 @@ type Entity dtls plns = TVar (Design dtls plns)
 ----------------------------------------------------------
 
 renderGadget :: UniqueMember WidgetCommand cmds => G.GadgetT acts (Design dtls plns) STM (D.DList (Which cmds))
-renderGadget = do
-    -- Just change the state to a different number so the React PureComponent will call render()
-    (widgetPlan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
-    i <- JE.toJS <$> use (widgetPlan . frameNum)
-    r <- use (widgetPlan . componentRef)
-    pure . D.singleton . pick $ RenderCommand [("frameNum", JE.JSVar i)] r
+renderGadget = fmap pick <$> G.gadgetWith RenderAction widgetGadget
 
-widgetGadget :: G.GadgetT WidgetAction (Design dtls plns) STM (D.DList WidgetCommand)
+widgetGadget
+    :: G.GadgetT WidgetAction (Design dtls plns) STM (D.DList WidgetCommand)
 widgetGadget = do
     a <- ask
     case a of
@@ -179,7 +175,7 @@ widgetGadget = do
             -- Eg focusing after other rendering changes
             ds <- use (widgetPlan . deferredDisposables)
             (widgetPlan . deferredDisposables) .= mempty
-            pure . D.singleton . DisposeCommand $ ds
+            pure . D.singleton  $ DisposeCommand ds
 
 withTVar :: TVar s -> G.GadgetT a s STM c -> G.WindowT a STM c
 withTVar v' = review G._WRMT' . go v' . view G._GRMST'

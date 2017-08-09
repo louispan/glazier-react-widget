@@ -22,7 +22,9 @@ import qualified Glazier.React.Framework.Widget as F
 import Pipes.Concurrent as PC
 
 newtype Gadgetry dtls plns (a :: [Type]) acts (c :: [Type]) cmds =
-    Gadgetry (Proxy a, Proxy c, PC.Output (Which acts) -> G.GadgetT (Which acts) (F.Design dtls plns) STM (D.DList (Which cmds)))
+    Gadgetry (Proxy a
+             , Proxy c
+             , PC.Output (Which acts) -> G.GadgetT (Which acts) (F.Design dtls plns) STM (D.DList (Which cmds)))
 
 andGadgetry
     :: Gadgetry dtls plns a1 acts c1 cmds
@@ -50,3 +52,9 @@ gadgetry
     => (PC.Output (Which acts) -> G.GadgetT a (F.Design dtls plns) STM (D.DList c))
     -> Gadgetry dtls plns '[a] acts '[c] cmds
 gadgetry g = Gadgetry (Proxy, Proxy, \output -> magnify facet (fmap pick <$> g output))
+
+-- gadgetry'
+--     :: (UniqueMember a acts)
+--     => Proxy c -> (PC.Output (Which acts) -> G.GadgetT a (F.Design dtls plns) STM (D.DList (Which cmds)))
+--     -> Gadgetry dtls plns '[a] acts c cmds
+-- gadgetry' pc g = Gadgetry (Proxy, pc, \output -> magnify facet (g output))

@@ -101,18 +101,23 @@ listGadgetry
        )
     => F.Archetype m o s a c e
     -> F.Gadgetry dtls plns '[ListAction o s a] acts '[c, F.WidgetCommand] cmds
-listGadgetry (F.Archetype (mkEnt, _, _, g, _)) = F.Gadgetry (Proxy, Proxy, \output -> do
-    a <- ask
-    case trial @(ListAction o s a) a of
-        Left _ -> empty
-        Right a' -> case a' of
-            ItemListAction s a'' -> (D.singleton . pick) <$> (G.GadgetT . lift $ hoist lift go)
-              where go = view G._WRT' (g (contramap (pick . ItemListAction s) output) s) a''
+listGadgetry (F.Archetype (mkEnt, _, _, g, _)) =
+    F.Gadgetry (Proxy
+               , Proxy
+               , magnify (facet @(ListAction o s a)) . listGadgetry')
+  where
+    listGadgetry' out = do
+        a <- ask
+        case a of
+            ItemListAction s a' -> (D.singleton . pick) <$> (G.GadgetT . lift $ hoist lift go)
+              where
+                go = view G._WRT' (g out' s) a'
+                out' = contramap (pick @_ @(ListAction o s a) . ItemListAction s) out
 
             DestroyItemListAction s -> do
                 xs <- use (F.details . item)
                 let i = S.findIndexL (s ==) xs
-                guard (isNothing i)
+                guard (isJust i)
                 case i of
                     Nothing -> empty
                     Just i' -> (F.details . item @(S.Seq s)) %= go
@@ -125,7 +130,6 @@ listGadgetry (F.Archetype (mkEnt, _, _, g, _)) = F.Gadgetry (Proxy, Proxy, \outp
                 F.renderGadget
 
             MakeItemListAction o -> empty
-    )
 
 -- listPrototype
 --     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)

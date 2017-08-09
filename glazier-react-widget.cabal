@@ -18,10 +18,10 @@ library
   exposed-modules:     Glazier.React.Commands
                        Glazier.React.Commands.Focus
                        Glazier.React.Commands.Focus.Exec
-                       Glazier.React.Commands.Glaze
-                       Glazier.React.Commands.Glaze.Exec
                        Glazier.React.Commands.Property
                        Glazier.React.Commands.Property.Exec
+                       Glazier.React.Commands.Reactor
+                       Glazier.React.Commands.Reactor.Exec
                        Glazier.React.Framework
                        Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Builder

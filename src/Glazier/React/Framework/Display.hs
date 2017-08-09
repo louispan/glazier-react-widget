@@ -75,7 +75,7 @@ divWrapped w = Display (mempty, mempty, Just $ \l p -> do
         l' = D.toList . coerce . l $ s
     case (l', p') of
         ([], []) -> w
-        _ -> G.mkWindowT (R.bh "div" l' p' . G.runWindowT w))
+        _ -> review G._WRMT' (R.bh "div" l' p' . view G._WRMT' w))
 
 -- | Convert a 'Display' into a @WindowT s ReactMl@
 renderDisplay :: Display dtls plns -> G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()

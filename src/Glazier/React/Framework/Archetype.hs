@@ -33,7 +33,7 @@ import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 
 -- | NB. o must contain [JE.Property], a must contain WidgetAction, c must contain WidgetCommand
-newtype Archetype m o s a c e = Archetype ( o -> F (R.Glaze a) s
+newtype Archetype m o s a c e = Archetype ( o -> F (R.Reactor a) s
                                           , s -> STM o
                                           , G.WindowT s (R.ReactMlT STM) ()
                                           , PC.Output a -> s -> G.WindowT a STM c
@@ -108,7 +108,7 @@ redraft (Archetype (mkEnt, fromEnt, disp, gad, e)) = F.Prototype
     , F.gadgetry (\out -> D.singleton <$> zoom (F.details . item) (gad' (contramap pick out)))
     , F.executor Proxy e')
   where
-    gad' out = G.mkGadgetT $ \a s -> (\c -> (c, s)) <$> G.runWindowT (gad out s) a
+    gad' out = review G._GRMST' $ \a s -> (\c -> (c, s)) <$> view G._WRMT' (gad out s) a
     mkDtl o = let o' = fetch o in R.hoistWithAction pick (single <$> mkEnt o')
     fromDtl d = let d' = fetch d in single <$> fromEnt d'
     mkPln = pure nil

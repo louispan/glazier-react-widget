@@ -21,6 +21,7 @@ module Glazier.React.Framework.Widget
   , Entity
   , withTVar
   , inTVar
+  , renderGadget
   , widgetGadget
   , widgetWindow
   , mkEntity
@@ -84,7 +85,7 @@ makeClassy ''WidgetPlan
 mkWidgetPlan
     :: UniqueMember WidgetAction acts
     => [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
-    -> F (R.Glaze (Which acts)) WidgetPlan
+    -> F (R.Reactor (Which acts)) WidgetPlan
 mkWidgetPlan hls = R.hoistWithAction pick (WidgetPlan
     <$> R.mkKey' -- key
     <*> pure 0 -- frameNum
@@ -150,6 +151,14 @@ type Entity dtls plns = TVar (Design dtls plns)
 
 ----------------------------------------------------------
 
+renderGadget :: UniqueMember WidgetCommand cmds => G.GadgetT acts (Design dtls plns) STM (D.DList (Which cmds))
+renderGadget = do
+    -- Just change the state to a different number so the React PureComponent will call render()
+    (widgetPlan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
+    i <- JE.toJS <$> use (widgetPlan . frameNum)
+    r <- use (widgetPlan . componentRef)
+    pure . D.singleton . pick $ RenderCommand [("frameNum", JE.JSVar i)] r
+
 widgetGadget :: G.GadgetT WidgetAction (Design dtls plns) STM (D.DList WidgetCommand)
 widgetGadget = do
     a <- ask
@@ -173,7 +182,7 @@ widgetGadget = do
             pure . D.singleton . DisposeCommand $ ds
 
 withTVar :: TVar s -> G.GadgetT a s STM c -> G.WindowT a STM c
-withTVar v' = G.mkWindowT . go v' . G.runGadgetT
+withTVar v' = review G._WRMT' . go v' . view G._GRMST'
   where
     go :: TVar s -> (a -> s -> STM (Maybe c, s)) -> a -> STM (Maybe c)
     go v f a = do
@@ -183,9 +192,9 @@ withTVar v' = G.mkWindowT . go v' . G.runGadgetT
         pure c
 
 inTVar :: (Monad (t STM), MonadTrans t) => G.WindowT s (t STM) c -> G.WindowT (TVar s) (t STM) c
-inTVar w = G.mkWindowT $ \s -> do
+inTVar w = review G._WRMT' $ \s -> do
         s' <- lift $ readTVar s
-        G.runWindowT w s'
+        view G._WRMT' w s'
 
 widgetWindow :: G.WindowT (Design dtls plns) (R.ReactMlT STM) ()
 widgetWindow = do
@@ -210,9 +219,9 @@ mkEntity
     => [JE.Property]
     -> Many dtls
     -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
-    -> F (R.Glaze (Which acts)) (Many plns)
+    -> F (R.Reactor (Which acts)) (Many plns)
     -> G.WindowT (Entity dtls plns) (R.ReactMlT STM) ()
-    -> F (R.Glaze (Which acts)) (Entity dtls plns)
+    -> F (R.Reactor (Which acts)) (Entity dtls plns)
 mkEntity ps dtls hls mkPlns render = do
     mdl <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkWidgetPlan hls <*> mkPlns
     v <- R.mkTVar mdl

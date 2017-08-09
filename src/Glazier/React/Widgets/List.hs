@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -5,23 +6,47 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Glazier.React.Widgets.List where
 
+import Control.Applicative
+import Control.Concurrent.STM
+import Control.Lens
 import Control.Monad.Free.Church
+import Control.Monad.Morph
 import Control.Monad.Reader
+import Control.Monad.State.Strict
+import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified Data.DList as D
+import Data.Foldable
+import qualified Data.List as DL
 import qualified Data.JSString as J
+import Data.Maybe
+import Data.Proxy
 import qualified Data.Sequence as S
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
+import qualified Pipes.Concurrent as PC
+
+-- newtype ListCommand c = ListCommand c
+
+-- | List specific actions
+data ListAction o s a
+    = ItemListAction s a
+    | DestroyItemListAction s
+    | MakeItemListAction o
+    -- | MakeItemAction (F (R.Reactor a) o)
+    -- | SetFilterAction (R.OutlineOf w -> Bool)
+    -- | SetSortAction (R.OutlineOf w -> Bool)
 
 -- type ListItems s = S.Seq s
 
@@ -33,7 +58,7 @@ import qualified JavaScript.Extras as JE
 --                      '[] plns
 --                      '[] trigs
 --                      '[] '[ListAction] acts
---                      '[C.GlazeCommand] '[] cmds
+--                      '[C.ReactorCommand] '[] cmds
 --                      '[] envs
 -- listPrototype e = undefined
 
@@ -50,13 +75,57 @@ listBuilder (F.Archetype (mkEnt, frmEnt, _, _, _)) = F.Builder (mkDtls, frmDtls,
     frmDtls d = single <$> traverse frmEnt (fetch d)
     mkPlns = pure nil
 
--- listDisplay
---     :: UniqueMember (S.Seq s) dtls
---     => F.Archetype m o s a c e
---     -> F.Display dtls plns
--- listDisplay (F.Archetype (_, _, disp, _, _)) = F.Display (mempty, mempty, Just disp')
---   where
---     disp' ls ps = 
+listDisplay
+    :: forall m o s a c e dtls plns. UniqueMember (S.Seq s) dtls
+    => R.ReactMlT STM ()
+    -> F.Archetype m o s a c e
+    -> F.Display dtls plns
+listDisplay separator (F.Archetype (_, _, disp, _, _)) = F.display disp'
+  where
+    disp' ls ps = do
+        xs <- view (F.details . item @(S.Seq s))
+        let xs' = (toLi . view G._WRT' disp) <$> xs
+            toLi a = MaybeT $ R.bh "li" [] [] (runMaybeT a)
+            xs'' = foldl' (\x y -> (x >> lift separator >> y) <|> x <|> y) empty xs'
+            xs''' = void $ runMaybeT xs''
+        lift $ R.bh "ul" ls ps xs'''
+
+listGadgetry
+    :: forall m o s a c e dtls plns acts cmds.
+       ( Eq s
+       , UniqueMember (S.Seq s) dtls
+       , UniqueMember (ListAction o s a) acts
+       , UniqueMember c cmds
+       , UniqueMember F.WidgetCommand cmds
+       , R.Dispose s
+       )
+    => F.Archetype m o s a c e
+    -> F.Gadgetry dtls plns '[ListAction o s a] acts '[c, F.WidgetCommand] cmds
+listGadgetry (F.Archetype (mkEnt, _, _, g, _)) = F.Gadgetry (Proxy, Proxy, \output -> do
+    a <- ask
+    case trial @(ListAction o s a) a of
+        Left _ -> empty
+        Right a' -> case a' of
+            ItemListAction s a'' -> (D.singleton . pick) <$> (G.GadgetT . lift $ hoist lift go)
+              where go = view G._WRT' (g (contramap (pick . ItemListAction s) output) s) a''
+
+            DestroyItemListAction s -> do
+                xs <- use (F.details . item)
+                let i = S.findIndexL (s ==) xs
+                guard (isNothing i)
+                case i of
+                    Nothing -> empty
+                    Just i' -> (F.details . item @(S.Seq s)) %= go
+                      where
+                        go ys = let (x, y) = S.splitAt i' ys
+                                    in case S.viewl y of
+                                       S.EmptyL -> x
+                                       _ S.:< y' -> x S.>< y'
+                (F.widgetPlan . F.deferredDisposables) %= (>> R.dispose s)
+                F.renderGadget
+
+            MakeItemListAction o -> empty
+    )
 
 -- listPrototype
 --     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)
@@ -66,28 +135,6 @@ listBuilder (F.Archetype (mkEnt, frmEnt, _, _, _)) = F.Builder (mkDtls, frmDtls,
 --     (F.dynamically (F.gadgetry gadget))
 --   where
 --     d ls ps = lift $ R.lf "input" ls ps
-
--- gadget :: G.Gadget InputAction (F.Entity dtls plns) (D.DList C.PropertyCommand)
--- gadget = do
---     a <- ask
---     case a of
---         CancelAction j -> pure $ D.singleton $ C.SetPropertyCommand (JE.toJS j) ("value", JE.toJS' J.empty)
---         _ -> pure mempty
-
--- | Combined Command
-newtype ListCommand c = ListCommand c
-    -- MakeCommand (PC.Output a) (F (R.Glaze a) ())
-
--- | List specific actions
-data ListAction a o s
-    = DestroyItemAction s
-    | MakeItemAction (F (R.Glaze a) o)
-    | AddItemAction s
-    | ItemAction a
-    -- | SetFilterAction (R.OutlineOf w -> Bool)
-    -- | SetSortAction (R.OutlineOf w -> Bool)
-
--- TODO: add separator
 
 
 -- data Schema k w (p :: R.Part) = Schema
@@ -113,7 +160,7 @@ data ListAction a o s
 --     :: (R.IsWidget w, R.ModelOf w ~ R.BaseModelOf w)
 --     => w
 --     -> Outline k w
---     -> F (R.Glaze (Action k w)) (Detail k w)
+--     -> F (R.Reactor (Action k w)) (Detail k w)
 -- mkDetail w (Schema a b c d) = Schema
 --     <$> pure a
 --     <*> pure b
@@ -136,7 +183,7 @@ data ListAction a o s
 --     -> D.Render.Device mdl
 --     -> D.Dispose.Device mdl
 --     -> MVar mdl
---     -> F (R.Glaze (Action k w)) Plan
+--     -> F (R.Reactor (Action k w)) Plan
 -- mkComponentPlan component' render' dispose' frm = Plan
 --     <$> (R.mkComponentPlan component' frm)
 --     <*> (R.hoistWithAction RenderAction $ R.mkPlan render')
@@ -221,10 +268,10 @@ data ListAction a o s
 --                 lift rerender
 --             maybe (pure mempty) pure ret
 
---         MakeItemAction keyGlaze mkItemOutline -> do
---             n <- keyGlaze <$> use (R.ival . dtl . idx)
+--         MakeItemAction keyReactor mkItemOutline -> do
+--             n <- keyReactor <$> use (R.ival . dtl . idx)
 --             (R.ival . dtl . idx) .= n
---             pure $ D.singleton $ GlazeCommand $ C.Glaze.Glaze Command $ do
+--             pure $ D.singleton $ ReactorCommand $ C.Reactor.Reactor Command $ do
 --                 sm <- R.hoistWithAction (ListAction . ItemAction n) (
 --                     mkItemOutline n >>= R.mkBaseEntity' w)
 --                 pure . ListAction $ AddItemAction n sm

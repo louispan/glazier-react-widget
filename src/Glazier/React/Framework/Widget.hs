@@ -21,7 +21,6 @@ module Glazier.React.Framework.Widget
   , Entity
   , withTVar
   , inTVar
-  , renderGadget
   , widgetGadget
   , widgetWindow
   , mkEntity
@@ -151,8 +150,8 @@ type Entity dtls plns = TVar (Design dtls plns)
 
 ----------------------------------------------------------
 
-renderGadget :: UniqueMember WidgetCommand cmds => G.GadgetT acts (Design dtls plns) STM (D.DList (Which cmds))
-renderGadget = fmap pick <$> G.gadgetWith RenderAction widgetGadget
+-- renderGadget :: G.GadgetT acts (Design dtls plns) STM (D.DList WidgetCommand)
+-- renderGadget = G.gadgetWith RenderAction widgetGadget
 
 widgetGadget
     :: G.GadgetT WidgetAction (Design dtls plns) STM (D.DList WidgetCommand)

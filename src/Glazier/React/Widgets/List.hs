@@ -14,6 +14,8 @@
 
 module Glazier.React.Widgets.List where
 
+import Control.Monad.Plus as MP
+import Control.Applicative.Alternative as A
 import Control.Applicative
 import Control.Concurrent.STM
 import Control.Lens
@@ -39,11 +41,15 @@ import qualified Pipes.Concurrent as PC
 
 -- newtype ListCommand c = ListCommand c
 
+
 -- | List specific actions
-data ListAction o s a
-    = ItemListAction s a
-    | DestroyItemListAction s
+data ListAction o s
+    = DestroyItemListAction s
     | MakeItemListAction o
+
+data ListItemAction s a = ListItemAction s a
+
+
     -- | MakeItemAction (F (R.Reactor a) o)
     -- | SetFilterAction (R.OutlineOf w -> Bool)
     -- | SetSortAction (R.OutlineOf w -> Bool)
@@ -90,46 +96,63 @@ listDisplay separator (F.Archetype (_, _, disp, _, _)) = F.display disp'
             xs''' = void $ runMaybeT xs''
         lift $ R.bh "ul" ls ps xs'''
 
-listGadgetry
-    :: forall m o s a c e dtls plns acts cmds.
+-- TODO: use a Prism' a (ListAction o s) to get list actions from items to be wrapped in lists
+listItemGadget'
+    :: forall m o s a c e dtls plns.
+       F.Archetype m o s a c e
+    -> PC.Output (ListItemAction s a)
+    -> G.GadgetT (ListItemAction s a) (F.Design dtls plns) STM (D.DList c)
+listItemGadget' (F.Archetype (_, _, _, g, _)) out = do
+    (ListItemAction s a) <- ask
+    let go = view G._WRMT' (g out' s) a
+        out' = contramap (ListItemAction s) out
+    D.singleton <$> MP.mcatMaybes (lift go)
+
+listGadget'
+    :: forall m o s a c e dtls plns cmds.
        ( Eq s
        , UniqueMember (S.Seq s) dtls
-       , UniqueMember (ListAction o s a) acts
-       , UniqueMember c cmds
        , UniqueMember F.WidgetCommand cmds
+       , UniqueMember (C.ReactorCommand (ListAction o s)) cmds
        , R.Dispose s
        )
     => F.Archetype m o s a c e
-    -> F.Gadgetry dtls plns '[ListAction o s a] acts '[c, F.WidgetCommand] cmds
-listGadgetry (F.Archetype (mkEnt, _, _, g, _)) =
-    F.Gadgetry (Proxy
-               , Proxy
-               , magnify (facet @(ListAction o s a)) . listGadgetry')
-  where
-    listGadgetry' out = do
-        a <- ask
-        case a of
-            ItemListAction s a' -> (D.singleton . pick) <$> (G.GadgetT . lift $ hoist lift go)
-              where
-                go = view G._WRT' (g out' s) a'
-                out' = contramap (pick @_ @(ListAction o s a) . ItemListAction s) out
+    -> PC.Output (ListAction o s)
+    -> G.GadgetT (ListAction o s) (F.Design dtls plns) STM (D.DList (Which cmds))
+listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
+    a <- ask
+    case a of
+        DestroyItemListAction s -> do
+            xs <- use (F.details . item)
+            let i = S.findIndexL (s ==) xs
+            i' <- A.afromMaybe i
+            let deleteAt j ys = let (x, y) = S.splitAt j ys
+                                in case S.viewl y of
+                                   S.EmptyL -> x
+                                   _ S.:< y' -> x S.>< y'
+            (F.details . item @(S.Seq s)) %= deleteAt i'
+            (F.widgetPlan . F.deferredDisposables) %= (>> R.dispose s)
+            fmap pick <$> G.gadgetWith F.RenderAction F.widgetGadget
+        MakeItemListAction o -> do
+            pure $ D.singleton $ C.ReactorCommand out mkEnt
 
-            DestroyItemListAction s -> do
-                xs <- use (F.details . item)
-                let i = S.findIndexL (s ==) xs
-                guard (isJust i)
-                case i of
-                    Nothing -> empty
-                    Just i' -> (F.details . item @(S.Seq s)) %= go
-                      where
-                        go ys = let (x, y) = S.splitAt i' ys
-                                    in case S.viewl y of
-                                       S.EmptyL -> x
-                                       _ S.:< y' -> x S.>< y'
-                (F.widgetPlan . F.deferredDisposables) %= (>> R.dispose s)
-                F.renderGadget
 
-            MakeItemListAction o -> empty
+-- listGadgetry
+--     :: forall m o s a c e dtls plns acts cmds case'.
+--        ( Eq s
+--        , Reinterpret '[ListItemAction s a, ListAction s] acts
+--        , UniqueMember (S.Seq s) dtls
+--        , UniqueMember (ListItemAction s a) acts
+--        , UniqueMember (ListAction s) acts
+--        , UniqueMember c cmds
+--        , UniqueMember F.WidgetCommand cmds
+--        , R.Dispose s
+--        )
+--     => F.Archetype m o s a c e
+--     -> F.Gadgetry dtls plns '[ListItemAction s a, ListAction s] acts '[c, F.WidgetCommand] cmds
+
+
+
 
 -- listPrototype
 --     :: (UniqueMember InputAction acts, UniqueMember C.PropertyCommand cmds)

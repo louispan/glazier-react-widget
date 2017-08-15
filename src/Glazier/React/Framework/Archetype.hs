@@ -42,7 +42,7 @@ newtype Archetype m o s a c e = Archetype ( o -> F (R.Reactor a) s
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to o, WidgetAction to a, WidgetCommand to c, and also add widgetGadget.
 -- but the Prototype must already have an Execute for WidgetCommand
-complete ::
+commission ::
     ( Monad m
     , UniqueMember [JE.Property] o'
     , UniqueMember F.WidgetAction a'
@@ -62,7 +62,7 @@ complete ::
                    c1 c2 c'
                    e e
     -> Archetype m (Many o') (F.Entity d p) (Which a') (D.DList (Which c')) (Many e)
-complete (F.Prototype ( F.Builder (mkDtl, fromDtl, mkPln)
+commission (F.Prototype ( F.Builder (mkDtl, fromDtl, mkPln)
                       , d
                       , F.Trigger (_, _, t)
                       , F.Gadgetry (_, _, g)

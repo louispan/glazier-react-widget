@@ -37,10 +37,10 @@ idle = Builder ( const $ pure nil
                , pure nil)
 
 -- | Add a type @o@ into the factory
-builder
+build
     :: (UniqueMember o atrs, UniqueMember o dtls)
     => Proxy o -> Builder '[o] atrs '[o] dtls '[] plns
-builder _ =
+build _ =
     Builder
         ( pure . single . fetch
         , pure . single . fetch

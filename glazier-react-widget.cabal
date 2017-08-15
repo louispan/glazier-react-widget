@@ -24,7 +24,7 @@ library
                        -- Glazier.React.Commands.Reactor
                        -- Glazier.React.Commands.Reactor.Exec
                        -- Glazier.React.Framework
-                       -- Glazier.React.Framework.Archetype
+                       Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Builder
                        Glazier.React.Framework.Display
                        -- Glazier.React.Framework.Executor

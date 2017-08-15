@@ -15,10 +15,6 @@ import qualified Data.DList as D
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Widget as F
--- import qualified Glazier.React.Framework.Executor as F
--- import qualified Glazier.React.Framework.Firsts as F
--- import qualified Glazier.React.Framework.Gadgetry as F
--- import qualified Glazier.React.Framework.Trigger as F
 
 newtype Prototype (a :: [Type]) atrs (d :: [Type]) dtls (p :: [Type]) plns =
     Prototype (F.Builder a atrs d dtls p plns, F.Display dtls plns, D.DList (F.Trigger dtls plns))
@@ -36,46 +32,19 @@ andPrototype (Prototype (b, d, t)) (Prototype (b', d', t')) =
               , t <> t')
 
 -- | identity for 'andPrototype'
-blank :: Prototype '[] atrs '[] dtls '[] plns
-blank = Prototype (F.idle, mempty, mempty)
+dummy :: Prototype '[] atrs '[] dtls '[] plns
+dummy = Prototype (F.idle, mempty, mempty)
 
 displaying :: F.Display dtls plns -> Prototype '[] atrs '[] dtls '[] plns
 displaying d = Prototype (F.idle, d, mempty)
 
--- triggering
---     :: Monad m
---     => F.Trigger t trigs a acts
---     -> Prototype m
---                  '[] atrs
---                  '[] dtls
---                  '[] pln
---                  t trigs
---                  a '[] acts
---                  '[] '[] cmds
---                  '[] envs
--- triggering t = Prototype (F.idle, mempty, t, F.noop, F.ignore)
+triggering :: D.DList (F.Trigger dtls plns)
+           -> Prototype '[] atrs '[] dtls '[] plns
+triggering t = Prototype (F.idle, mempty, t)
 
--- building
---     :: Monad m
---     => F.Builder o atrs d dtls p plns acts
---     -> Prototype m
---                  o atrs
---                  d dtls
---                  p plns
---                  '[] trigs
---                  '[] '[] acts
---                  '[] '[] cmds
---                  '[] envs
--- building b = Prototype (b, mempty, F.boring, F.noop, F.ignore)
-
--- executing
---     :: F.Executor m c cmds e envs
---     -> Prototype m
---                  '[] atrs
---                  '[] dtls
---                  '[] plns
---                  '[] trigs
---                  '[] '[] acts
---                  '[] c cmds
---                  e envs
--- executing e = Prototype (F.idle, mempty, F.boring, F.noop, e)
+building
+    :: F.Builder a atrs d dtls p plns
+    -> Prototype a atrs
+                 d dtls
+                 p plns
+building b = Prototype (b, mempty, mempty)

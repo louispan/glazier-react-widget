@@ -45,8 +45,8 @@ blank = Display (mempty, mempty, Nothing)
 decorate :: [JE.Property] -> Display dtls plns
 decorate ps = Display (mempty, const ps, Nothing)
 
-windowed :: Window dtls plns -> Display dtls plns
-windowed w = Display (mempty, mempty, Just w)
+display :: Window dtls plns -> Display dtls plns
+display w = Display (mempty, mempty, Just w)
 
 -- | Given a initial set of listeners and properties, create a display
 -- that also includes the key and properties from the WidgetPlan

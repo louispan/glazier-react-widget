@@ -10,18 +10,18 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
-type ToListeners dtls plns = F.Design dtls plns -> [R.Listener]
-type ToProperties dtls plns = F.Design dtls plns -> [JE.Property]
-type Window dtls plns = ToListeners dtls plns -> ToProperties dtls plns
-                      -> F.Design dtls plns -> R.ReactMlT STM ()
+type ToListeners dtls = F.Design dtls -> [R.Listener]
+type ToProperties dtls = F.Design dtls -> [JE.Property]
+type Window dtls = ToListeners dtls -> ToProperties dtls
+                      -> F.Design dtls -> R.ReactMlT STM ()
 
-newtype Display dtls plns =
-    Display ( ToListeners dtls plns
-            , ToProperties dtls plns
-            , Maybe (Window dtls plns)
+newtype Display dtls =
+    Display ( ToListeners dtls
+            , ToProperties dtls
+            , Maybe (Window dtls)
             )
 
-instance Monoid (Display dtls plns) where
+instance Monoid (Display dtls) where
     mempty = blank
     mappend = (<>)
 
@@ -30,7 +30,7 @@ instance Monoid (Display dtls plns) where
 -- with their respective set of properties/listeners, and the properties of this
 -- new Display is set to mempty.
 -- The new window uses a div if new properties are added to this Display.
-instance Semigroup (Display dtls plns) where
+instance Semigroup (Display dtls) where
     Display (ls, ps, Nothing) <> Display (ls', ps', w') =
         Display (ls <> ls', ps <> ps', w')
     Display (ls, ps, w) <> Display (ls', ps', Nothing) =
@@ -38,28 +38,28 @@ instance Semigroup (Display dtls plns) where
     Display (ls, ps, Just w) <> Display (ls', ps', Just w') = divIfNeeded (w ls ps <> w' ls' ps')
 
 -- | identity for 'Monoid'
-blank :: Display dtls plns
+blank :: Display dtls
 blank = Display (mempty, mempty, Nothing)
 
 -- | Add a list of static properties to the rendered element.
-decorate :: [JE.Property] -> Display dtls plns
+decorate :: [JE.Property] -> Display dtls
 decorate ps = Display (mempty, const ps, Nothing)
 
-display :: Window dtls plns -> Display dtls plns
+display :: Window dtls -> Display dtls
 display w = Display (mempty, mempty, Just w)
 
 -- | Given a initial set of listeners and properties, create a display
 -- that also includes the key and properties from the WidgetPlan
-widgetDisplay :: Display dtls plns
+widgetDisplay :: Display dtls
 widgetDisplay = Display (ls, ps, Nothing)
   where
-    ls s = s ^. F.widgetPlan . F.listeners
+    ls s = s ^. F.plan . F.listeners
     ps s = ("key", JE.toJS' $ k s) : p s
     p s = s ^. F.properties
-    k s = s ^. F.widgetPlan . F.key
+    k s = s ^. F.plan . F.key
 
 -- | wrap with a div iff there are properties and listeners
-divIfNeeded :: (F.Design dtls plns -> R.ReactMlT STM ()) -> Display dtls plns
+divIfNeeded :: (F.Design dtls -> R.ReactMlT STM ()) -> Display dtls
 divIfNeeded w = Display (mempty, mempty, Just go)
   where
     go l p s = do
@@ -69,6 +69,6 @@ divIfNeeded w = Display (mempty, mempty, Just go)
             ([], []) -> w s
             _ -> R.bh "div" l' p' (w s)
 
--- | Convert a 'Display' into a @F.Design dtls plns -> R.ReactMlT STM ()@
-renderDisplay :: Display dtls plns -> F.Design dtls plns -> R.ReactMlT STM ()
+-- | Convert a 'Display' into a @F.Design dtls -> R.ReactMlT STM ()@
+renderDisplay :: Display dtls -> F.Design dtls -> R.ReactMlT STM ()
 renderDisplay (Display (l, p, w)) = fromMaybe mempty $ (\w' -> w' l p) <$> w

@@ -16,32 +16,28 @@ import Data.Kind
 import Data.Proxy
 import qualified Glazier.React as R
 
-newtype Builder (a :: [Type]) atrs (d :: [Type]) dtls (p :: [Type]) plns =
+newtype Builder (a :: [Type]) atrs (d :: [Type]) dtls =
     Builder ( Many atrs -> F R.Reactor (Many d) -- make details
             , Many dtls -> STM (Many a) -- from details
-            , F R.Reactor (Many p)) -- make plans
+            )
 
 andBuilder
-    :: Builder a1 atrs d1 dtls p1 plns
-    -> Builder a2 atrs d2 dtls p2 plns
-    -> Builder (Append a1 a2) atrs (Append d1 d2) dtls (Append p1 p2) plns
-andBuilder (Builder (mkDtl, fromDtl, mkPln)) (Builder (mkDtl', fromDtl', mkPln')) =
+    :: Builder a1 atrs d1 dtls
+    -> Builder a2 atrs d2 dtls
+    -> Builder (Append a1 a2) atrs (Append d1 d2) dtls
+andBuilder (Builder (mkDtl, fromDtl)) (Builder (mkDtl', fromDtl')) =
     Builder ( \o -> (/./) <$> mkDtl o <*> mkDtl' o
             , \d -> (/./) <$> fromDtl d <*> fromDtl' d
-            , (/./) <$> mkPln <*> mkPln')
+            )
 
 -- | Identity for 'andBuild'
-idle :: Builder '[] atrs '[] dtls '[] plns
+idle :: Builder '[] atrs '[] dtls
 idle = Builder ( const $ pure nil
                , const (pure nil)
-               , pure nil)
+               )
 
 -- | Add a type @o@ into the factory
-build
-    :: (UniqueMember o atrs, UniqueMember o dtls)
-    => Proxy o -> Builder '[o] atrs '[o] dtls '[] plns
-build _ =
-    Builder
-        ( pure . single . fetch
-        , pure . single . fetch
-        , pure nil)
+build :: (UniqueMember o atrs, UniqueMember o dtls) => Proxy o -> Builder '[o] atrs '[o] dtls
+build _ = Builder ( pure . single . fetch
+                  , pure . single . fetch
+                  )

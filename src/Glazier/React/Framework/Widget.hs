@@ -9,12 +9,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Widget where
 --   ( WidgetCommand(..)
 --   , WidgetAction(..)
 --   , HasProperties(..)
---   , HasWidgetPlan(..)
+--   , HasPlan(..)
 --   , HasDetails(..)
 --   , HasPlans(..)
 --   , Design(..)
@@ -26,7 +27,7 @@ module Glazier.React.Framework.Widget where
 --   , widgetWindow
 --   , putEntity
 --   ) where
--- -- We want to hide mkWidgetPlan
+-- -- We want to hide mkPlan
 
 import Control.Concurrent.STM
 import Control.Lens
@@ -53,12 +54,12 @@ instance HasProperties [JE.Property] where
 
 ----------------------------------------------------------
 
--- | WidgetPlan has to be stored differently to other plans because mkWidgetPlan needs
+-- | Plan has to be stored differently to other plans because mkPlan needs
 -- additional parameters
 newtype ComponentRef = ComponentRef J.JSVal deriving R.Dispose
 newtype FrameNum = FrameNum Int deriving R.Dispose
 
-data WidgetPlan = WidgetPlan
+data Plan = Plan
     { _key :: J.JSString
     , _frameNum :: FrameNum
     , _component :: R.ReactComponent
@@ -70,54 +71,47 @@ data WidgetPlan = WidgetPlan
     , _listeners :: [R.Listener]
     } deriving (G.Generic)
 
-makeClassy ''WidgetPlan
+makeClassy ''Plan
 
-instance R.Dispose WidgetPlan
+instance R.Dispose Plan
 
 ----------------------------------------------------------
 
 class HasDetails c dtls | c -> dtls where
     details :: Lens' c (Many dtls)
 
-class HasPlans c plns | c -> plns where
-    plans :: Lens' c (Many plns)
-
 ----------------------------------------------------------
 
-newtype Design (dtls :: [Type]) (plns :: [Type]) = Design
-    { getDesign ::
-        ( [JE.Property]
-        , Many dtls
-        , WidgetPlan
-        , Many plns
-        )
+newtype Design (dtls :: [Type]) = Design
+    { unDesign ::
+        ( Plan
+        , [JE.Property]
+        , Many dtls)
     }
     deriving G.Generic
 
-instance (R.Dispose (Many dtls), R.Dispose (Many plns)) => R.Dispose (Design dtls plns)
+-- | UndecidableInstances, but safe because @Many dtls@ is smaller than @Design dtls@
+instance (R.Dispose (Many dtls)) => R.Dispose (Design dtls)
 
-instance HasProperties (Design dtls plns) where
-    properties = _Design . _1
+instance HasPlan (Design dtls) where
+    plan = _Design . _1
 
-instance HasDetails (Design dtls plns) dtls where
-    details = _Design . _2
+instance HasProperties (Design dtls) where
+    properties = _Design . _2
 
-instance HasWidgetPlan (Design dtls plns) where
-    widgetPlan = _Design . _3
-
-instance HasPlans (Design dtls plns) plns where
-    plans = _Design . _4
+instance HasDetails (Design dtls) dtls where
+    details = _Design . _3
 
 _Design :: Iso
-    (Design dtls plns)
-    (Design dtls' plns')
-    ([JE.Property], Many dtls, WidgetPlan, Many plns)
-    ([JE.Property], Many dtls', WidgetPlan, Many plns')
-_Design = iso getDesign Design
+    (Design dtls)
+    (Design dtls')
+    (Plan, [JE.Property], Many dtls)
+    (Plan, [JE.Property], Many dtls')
+_Design = iso unDesign Design
 
 ----------------------------------------------------------
 
-type Entity dtls plns = TMVar (Design dtls plns)
+-- type Entity dtls = TMVar (Design dtls)
 
 withTMVar :: TMVar s -> StateT s STM a -> STM a
 withTMVar v m = do
@@ -134,36 +128,36 @@ post o = void . PC.send o
 
 data Rerender = Rerender ComponentRef [JE.Property]
 
-rerender :: StateT (Design dtls plns) STM Rerender
+rerender :: StateT (Design dtls) STM Rerender
 rerender = do
     -- Just change the state to a different number so the React PureComponent will call render()
-    (widgetPlan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
-    FrameNum i <- use (widgetPlan . frameNum)
-    r <- use (widgetPlan . componentRef)
+    (plan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
+    FrameNum i <- use (plan . frameNum)
+    r <- use (plan . componentRef)
     pure $ Rerender r [("frameNum", JE.JSVar $ JE.toJS i)]
 
 ----------------------------------------------------------
 
-doOnComponentRef :: J.JSVal -> StateT (Design dtls plns) STM ()
-doOnComponentRef j = (widgetPlan . componentRef) .= ComponentRef j
+doOnComponentRef :: J.JSVal -> StateT (Design dtls) STM ()
+doOnComponentRef j = (plan . componentRef) .= ComponentRef j
 
-doOnComponentDidUpdate :: StateT (Design dtls plns) STM (R.Disposable ())
+doOnComponentDidUpdate :: StateT (Design dtls) STM (R.Disposable ())
 doOnComponentDidUpdate = do
     -- Run delayed commands that need to wait until frame is re-rendered
     -- Eg focusing after other rendering changes
-    ds <- use (widgetPlan . deferredDisposables)
-    (widgetPlan . deferredDisposables) .= mempty
+    ds <- use (plan . deferredDisposables)
+    (plan . deferredDisposables) .= mempty
     pure ds
 
-type Trigger dtls plns  = (J.JSString, Entity dtls plns -> J.JSVal -> IO ())
+type Trigger dtls  = (J.JSString, TMVar (Design dtls) -> J.JSVal -> IO ())
 
-mkWidgetPlan
+mkPlan
     :: PC.Output (R.Disposable ())
-    -> (Design dtls plns -> R.ReactMlT STM ())
-    -> [Trigger dtls plns]
-    -> Entity dtls plns
-    -> F R.Reactor WidgetPlan
-mkWidgetPlan disp w ts v = WidgetPlan
+    -> (Design dtls -> R.ReactMlT STM ())
+    -> [Trigger dtls]
+    -> TMVar (Design dtls)
+    -> F R.Reactor Plan
+mkPlan disp w ts v = Plan
     <$> R.mkKey' -- key
     <*> pure (FrameNum 0) -- frameNum
     <*> R.getComponent -- component
@@ -178,26 +172,25 @@ mkWidgetPlan disp w ts v = WidgetPlan
     go (n, f) = (\a -> (n, a)) <$> R.mkHandler (f v)
 
 mkDesign
-    :: Entity dtls plns -- This must be empty!
+    :: TMVar (Design dtls) -- This must be empty!
     -> PC.Output (R.Disposable ())
-    -> (Design dtls plns -> R.ReactMlT STM ())
-    -> [Trigger dtls plns]
+    -> (Design dtls -> R.ReactMlT STM ())
+    -> [Trigger dtls]
     -> [JE.Property]
     -> Many dtls
-    -> F R.Reactor (Many plns)
-    -> F R.Reactor (Design dtls plns)
-mkDesign v disp w hdls ps dtls mkPlns = (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkWidgetPlan disp w hdls v <*> mkPlns
+    -> F R.Reactor (Design dtls)
+mkDesign v disp w hdls ps dtls = (\pln -> Design (pln, ps, dtls)) <$> mkPlan disp w hdls v
 
-componentWindow :: Design dtls plns -> R.ReactMlT STM ()
+componentWindow :: Design dtls -> R.ReactMlT STM ()
 componentWindow s = do
     R.lf
-        (s ^. widgetPlan  . component . to JE.toJS')
-        [ ("ref", s ^. widgetPlan . onComponentRef)
-        , ("componentDidUpdate", s ^. widgetPlan . onComponentDidUpdate)
+        (s ^. plan  . component . to JE.toJS')
+        [ ("ref", s ^. plan . onComponentRef)
+        , ("componentDidUpdate", s ^. plan . onComponentDidUpdate)
         ]
-        [ ("key", s ^. widgetPlan . key . to JE.toJS')
+        [ ("key", s ^. plan . key . to JE.toJS')
         -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
-        , ("render", s ^. widgetPlan . onRender . to JE.toJS')
+        , ("render", s ^. plan . onRender . to JE.toJS')
         ]
 
 -- data Widget s i o = Widget

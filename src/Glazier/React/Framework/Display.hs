@@ -2,29 +2,27 @@
 
 module Glazier.React.Framework.Display where
 
-import Control.Applicative
 import Control.Concurrent.STM
 import Control.Lens
-import Control.Monad.Reader
-import Data.Coerce
-import qualified Data.DList as D
 import Data.Maybe
 import Data.Semigroup
-import qualified Glazier as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Firsts as F
 import qualified Glazier.React.Framework.Widget as F
 import qualified JavaScript.Extras as JE
 
+type ToListeners dtls plns = F.Design dtls plns -> [R.Listener]
+type ToProperties dtls plns = F.Design dtls plns -> [JE.Property]
+type Window dtls plns = ToListeners dtls plns -> ToProperties dtls plns
+                      -> F.Design dtls plns -> R.ReactMlT STM ()
+
 newtype Display dtls plns =
-    Display ( F.Design dtls plns -> D.DList R.Listener
-            , F.Design dtls plns -> D.DList JE.Property
-            , Maybe (  (F.Design dtls plns -> D.DList R.Listener)
-                    -> (F.Design dtls plns -> D.DList JE.Property)
-                    -> G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()))
+    Display ( ToListeners dtls plns
+            , ToProperties dtls plns
+            , Maybe (Window dtls plns)
+            )
 
 instance Monoid (Display dtls plns) where
-    mempty = clear
+    mempty = blank
     mappend = (<>)
 
 -- | If properties and listeners are combined if either or both windows are Nothing.
@@ -37,46 +35,40 @@ instance Semigroup (Display dtls plns) where
         Display (ls <> ls', ps <> ps', w')
     Display (ls, ps, w) <> Display (ls', ps', Nothing) =
         Display (ls <> ls', ps <> ps', w)
-    Display (ls, ps, Just w) <> Display (ls', ps', Just w') = divWrapped (w ls ps <> w' ls' ps')
-
-instance F.Firsts (Display dtls plns) where
-    Display (ls, ps, Nothing) <<|>> Display (ls', ps', w') =
-        Display (ls <> ls', ps <> ps', w')
-    Display (ls, ps, w) <<|>> Display (ls', ps', Nothing) =
-        Display (ls <> ls', ps <> ps', w)
-    Display (ls, ps, Just w) <<|>> Display (ls', ps', Just w') = divWrapped (w ls ps <|> w' ls' ps')
+    Display (ls, ps, Just w) <> Display (ls', ps', Just w') = divIfNeeded (w ls ps <> w' ls' ps')
 
 -- | identity for 'Monoid'
-clear :: Display dtls plns
-clear = Display (mempty, mempty, Nothing)
+blank :: Display dtls plns
+blank = Display (mempty, mempty, Nothing)
 
 -- | Add a list of static properties to the rendered element.
-hardcode :: [JE.Property] -> Display dtls plns
-hardcode ps = Display (mempty, const $ D.fromList ps, Nothing)
+decorate :: [JE.Property] -> Display dtls plns
+decorate ps = Display (mempty, const ps, Nothing)
 
--- | lift a 'ReactMl ()' into a 'Display'
-display :: ([R.Listener] -> [JE.Property] -> G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()) -> Display dtls plns
-display f = Display (mempty, mempty, Just (\l p -> do
-    s <- ask
-    let ls = s ^. F.widgetPlan . F.listeners
-        k = s ^. F.widgetPlan . F.key
-        ps = s ^. F.properties
-        l' = D.toList (D.fromList ls <> coerce (l s))
-        p' = D.toList (D.singleton ("key", JE.toJS' k) <> D.fromList ps <> coerce (p s))
-    f l' p'))
+windowed :: Window dtls plns -> Display dtls plns
+windowed w = Display (mempty, mempty, Just w)
+
+-- | Given a initial set of listeners and properties, create a display
+-- that also includes the key and properties from the WidgetPlan
+widgetDisplay :: Display dtls plns
+widgetDisplay = Display (ls, ps, Nothing)
+  where
+    ls s = s ^. F.widgetPlan . F.listeners
+    ps s = ("key", JE.toJS' $ k s) : p s
+    p s = s ^. F.properties
+    k s = s ^. F.widgetPlan . F.key
 
 -- | wrap with a div iff there are properties and listeners
-divWrapped
-    :: G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()
-    -> Display dtls plns
-divWrapped w = Display (mempty, mempty, Just $ \l p -> do
-    s <- ask
-    let p' = D.toList . coerce . p $ s
-        l' = D.toList . coerce . l $ s
-    case (l', p') of
-        ([], []) -> w
-        _ -> review G._WRMT' (R.bh "div" l' p' . view G._WRMT' w))
+divIfNeeded :: (F.Design dtls plns -> R.ReactMlT STM ()) -> Display dtls plns
+divIfNeeded w = Display (mempty, mempty, Just go)
+  where
+    go l p s = do
+        let p' = p s
+            l' = l s
+        case (l', p') of
+            ([], []) -> w s
+            _ -> R.bh "div" l' p' (w s)
 
--- | Convert a 'Display' into a @WindowT s ReactMl@
-renderDisplay :: Display dtls plns -> G.WindowT (F.Design dtls plns) (R.ReactMlT STM) ()
+-- | Convert a 'Display' into a @F.Design dtls plns -> R.ReactMlT STM ()@
+renderDisplay :: Display dtls plns -> F.Design dtls plns -> R.ReactMlT STM ()
 renderDisplay (Display (l, p, w)) = fromMaybe mempty $ (\w' -> w' l p) <$> w

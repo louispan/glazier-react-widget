@@ -1,60 +1,48 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE ExistentialQuantification #-}
+-- {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Glazier.React.Framework.Widget
-  ( WidgetCommand(..)
-  , WidgetAction(..)
-  , HasProperties(..)
-  , HasWidgetPlan(..)
-  , HasDetails(..)
-  , HasPlans(..)
-  , Design(..)
-  , _Design
-  , Entity
-  , withTMVar
-  , inTMVar
-  , widgetGadget
-  , widgetWindow
-  , putEntity
-  ) where
--- We want to hide mkWidgetPlan
+module Glazier.React.Framework.Widget where
+--   ( WidgetCommand(..)
+--   , WidgetAction(..)
+--   , HasProperties(..)
+--   , HasWidgetPlan(..)
+--   , HasDetails(..)
+--   , HasPlans(..)
+--   , Design(..)
+--   , _Design
+--   , Entity
+--   , withTMVar
+--   , inTMVar
+--   , widgetGadget
+--   , widgetWindow
+--   , putEntity
+--   ) where
+-- -- We want to hide mkWidgetPlan
 
-import Control.Applicative
 import Control.Concurrent.STM
 import Control.Lens
+import Control.Monad
 import Control.Monad.Free.Church
-import Control.Monad.Reader
-import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
-import qualified Data.DList as D
 import Data.Kind
-import qualified Data.Map.Strict as M
-import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
-import qualified GHCJS.Foreign.Callback.Internal as JI
 import qualified GHCJS.Types as J
-import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 
-data WidgetCommand
-    = RenderCommand [JE.Property] J.JSVal
-    | DisposeCommand (R.Disposable ())
-
-data WidgetAction
-    = ComponentRefAction J.JSVal
-    | RenderAction
-    | DisposeAction
 ----------------------------------------------------------
 
 class HasProperties c where
@@ -67,11 +55,14 @@ instance HasProperties [JE.Property] where
 
 -- | WidgetPlan has to be stored differently to other plans because mkWidgetPlan needs
 -- additional parameters
+newtype ComponentRef = ComponentRef J.JSVal deriving R.Dispose
+newtype FrameNum = FrameNum Int deriving R.Dispose
+
 data WidgetPlan = WidgetPlan
     { _key :: J.JSString
-    , _frameNum :: Int
+    , _frameNum :: FrameNum
     , _component :: R.ReactComponent
-    , _componentRef :: J.JSVal
+    , _componentRef :: ComponentRef
     , _deferredDisposables :: R.Disposable ()
     , _onRender ::  J.Callback (IO J.JSVal)
     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
@@ -80,27 +71,6 @@ data WidgetPlan = WidgetPlan
     } deriving (G.Generic)
 
 makeClassy ''WidgetPlan
-
--- | NB. This createsa a dummy onRender callback!
-mkWidgetPlan
-    :: UniqueMember WidgetAction acts
-    => PC.Output (Which acts)
-    -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
-    -> F R.Reactor WidgetPlan
-mkWidgetPlan o hdls = WidgetPlan
-    <$> R.mkKey' -- key
-    <*> pure 0 -- frameNum
-    <*> R.getComponent -- component
-    <*> pure J.nullRef -- componentRef
-    <*> pure mempty -- deferredDisposables
-    -- <*> (R.mkRenderer rnd v) -- onRender
-    <*> pure (J.Callback J.nullRef) -- onRender (dummy)
-    <*> (R.mkHandler o $ pure . pure . pick . ComponentRefAction) -- onComponentRef
-    <*> (R.mkHandler o $ pure . pure . pick . const DisposeAction) -- onComponentDidUpdate
-    <*> (traverse go . M.toList . M.fromListWith (liftA2 combine) $ hdls) -- triggers
-  where
-    combine f g = ((<>) <$> f <*> g) <|> f <|> g -- combine all results that succeed
-    go (n, f) = (\a -> (n, a)) <$> R.mkHandler o f
 
 instance R.Dispose WidgetPlan
 
@@ -147,79 +117,95 @@ _Design = iso getDesign Design
 
 ----------------------------------------------------------
 
-type Entity dtls plns = TVar (Design dtls plns)
+type Entity dtls plns = TMVar (Design dtls plns)
+
+withTMVar :: TMVar s -> StateT s STM a -> STM a
+withTMVar v m = do
+    s <- takeTMVar v
+    (a, s') <- runStateT m s
+    putTMVar v s'
+    pure a
+
+-- | Send widget output into a queue to be process by a separate worker.
+post :: PC.Output o -> o -> STM ()
+post o = void . PC.send o
 
 ----------------------------------------------------------
 
--- renderGadget :: G.GadgetT acts (Design dtls plns) STM (D.DList WidgetCommand)
--- renderGadget = G.gadgetWith RenderAction widgetGadget
+data Rerender = Rerender ComponentRef [JE.Property]
 
-widgetGadget
-    :: G.GadgetT WidgetAction (Design dtls plns) STM (D.DList WidgetCommand)
-widgetGadget = do
-    a <- ask
-    case a of
-        ComponentRefAction node -> do
-            (widgetPlan . componentRef) .= node
-            pure mempty
+rerender :: StateT (Design dtls plns) STM Rerender
+rerender = do
+    -- Just change the state to a different number so the React PureComponent will call render()
+    (widgetPlan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
+    FrameNum i <- use (widgetPlan . frameNum)
+    r <- use (widgetPlan . componentRef)
+    pure $ Rerender r [("frameNum", JE.JSVar $ JE.toJS i)]
 
-        RenderAction -> do
-            -- Just change the state to a different number so the React PureComponent will call render()
-            (widgetPlan . frameNum) %= (\i -> (i `mod` JE.maxSafeInteger) + 1)
-            i <- JE.toJS <$> use (widgetPlan . frameNum)
-            r <- use (widgetPlan . componentRef)
-            pure . D.singleton $ RenderCommand [("frameNum", JE.JSVar i)] r
+----------------------------------------------------------
 
-        DisposeAction -> do
-            -- Run delayed commands that need to wait until frame is re-rendered
-            -- Eg focusing after other rendering changes
-            ds <- use (widgetPlan . deferredDisposables)
-            (widgetPlan . deferredDisposables) .= mempty
-            pure . D.singleton  $ DisposeCommand ds
+doOnComponentRef :: J.JSVal -> StateT (Design dtls plns) STM ()
+doOnComponentRef j = (widgetPlan . componentRef) .= ComponentRef j
 
-withTMar :: TVar s -> G.GadgetT a s STM c -> G.WindowT a STM c
-withTMVar v' = review G._WRMT' . go v' . view G._GRMST'
+doOnComponentDidUpdate :: StateT (Design dtls plns) STM (R.Disposable ())
+doOnComponentDidUpdate = do
+    -- Run delayed commands that need to wait until frame is re-rendered
+    -- Eg focusing after other rendering changes
+    ds <- use (widgetPlan . deferredDisposables)
+    (widgetPlan . deferredDisposables) .= mempty
+    pure ds
+
+type Trigger dtls plns  = (J.JSString, Entity dtls plns -> J.JSVal -> IO ())
+
+mkWidgetPlan
+    :: PC.Output (R.Disposable ())
+    -> (Design dtls plns -> R.ReactMlT STM ())
+    -> [Trigger dtls plns]
+    -> Entity dtls plns
+    -> F R.Reactor WidgetPlan
+mkWidgetPlan disp w ts v = WidgetPlan
+    <$> R.mkKey' -- key
+    <*> pure (FrameNum 0) -- frameNum
+    <*> R.getComponent -- component
+    <*> pure (ComponentRef J.nullRef) -- componentRef
+    <*> pure mempty -- deferredDisposables
+    <*> (R.mkRenderer rnd) -- onRender
+    <*> R.mkHandler (atomically . withTMVar v . doOnComponentRef) -- onComponentRef
+    <*> R.mkHandler (atomically . (>>= post disp) . withTMVar v . const doOnComponentDidUpdate) --onComopnentDidUpdate
+    <*> (traverse go ts) -- triggers
   where
-    go :: TVar s -> (a -> s -> STM (Maybe c, s)) -> a -> STM (Maybe c)
-    go v f a = do
-        s <- takeTMVar v
-        (c, s') <- f a s
-        putTMVar v s'
-        pure c
+    rnd = lift (takeTMVar v) >>= w
+    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (f v)
 
-inTMVar :: (Monad (t STM), MonadTrans t) => G.WindowT s (t STM) c -> G.WindowT (TVar s) (t STM) c
-inTMVar w = review G._WRMT' $ \s -> do
-        s' <- lift $ readTVar s
-        view G._WRMT' w s'
-
-widgetWindow :: G.WindowT (Design dtls plns) (R.ReactMlT STM) ()
-widgetWindow = do
-    s <- ask
-    lift $
-        R.lf
-            (s ^. widgetPlan  . component . to JE.toJS')
-            [ ("ref", s ^. widgetPlan . onComponentRef)
-            , ("componentDidUpdate", s ^. widgetPlan . onComponentDidUpdate)
-            ]
-            [ ("key", s ^. widgetPlan . key . to JE.toJS')
-            -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
-            , ("render", s ^. widgetPlan . onRender . to JE.toJS')
-            ]
-
-----------------------------------------------------------
-
--- | Make a Entity given the Detail, where the Model type is
--- a basic tuple of Detail and Plan.
-mkEntity
-    :: UniqueMember WidgetAction acts
-    => (Entity dtls plns -> Which acts -> b)
-    -> PC.Output b
-    -> G.WindowT (Entity dtls plns) (R.ReactMlT STM) ()
+mkDesign
+    :: Entity dtls plns -- This must be empty!
+    -> PC.Output (R.Disposable ())
+    -> (Design dtls plns -> R.ReactMlT STM ())
+    -> [Trigger dtls plns]
     -> [JE.Property]
     -> Many dtls
-    -> [(J.JSString, J.JSVal -> MaybeT IO [Which acts])]
     -> F R.Reactor (Many plns)
-    -> F R.Reactor (Entity dtls plns)
-putEntity f rnd o ps dtls hdls mkPlns = do
-    dsn <- (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkWidgetPlan o hdls <*> mkPlns
-    R.doPutTMVar v dsn
+    -> F R.Reactor (Design dtls plns)
+mkDesign v disp w hdls ps dtls mkPlns = (\plns compPln -> Design (ps, dtls, plns, compPln)) <$> mkWidgetPlan disp w hdls v <*> mkPlns
+
+componentWindow :: Design dtls plns -> R.ReactMlT STM ()
+componentWindow s = do
+    R.lf
+        (s ^. widgetPlan  . component . to JE.toJS')
+        [ ("ref", s ^. widgetPlan . onComponentRef)
+        , ("componentDidUpdate", s ^. widgetPlan . onComponentDidUpdate)
+        ]
+        [ ("key", s ^. widgetPlan . key . to JE.toJS')
+        -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
+        , ("render", s ^. widgetPlan . onRender . to JE.toJS')
+        ]
+
+-- data Widget s i o = Widget
+--     { input :: TVar (G.GizmoT i STM ())
+--     , output :: TVar (MaybeT STM o)
+--     , model :: TVar s
+--     , gadget :: G.GizmoT i (StateT s STM) o
+--     , window :: G.GizmoT s (R.ReactMlT STM) ()
+--     -- , builder ::
+--     -- Executors
+--     }

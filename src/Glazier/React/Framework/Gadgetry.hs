@@ -22,7 +22,7 @@ import qualified Glazier.React.Framework.Widget as F
 import Pipes.Concurrent as PC
 
 newtype Gadgetry dtls plns (a :: [Type]) acts (c :: [Type]) cmds =
-    Gadgetry (Proxy a
+    Gadgetry ( Proxy a
              , Proxy c
              , PC.Output (Which acts) -> G.GadgetT (Which acts) (F.Design dtls plns) STM (D.DList (Which cmds)))
 

@@ -16,15 +16,13 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:
-                       -- Glazier.React.Commands
-                       -- Glazier.React.Commands.Focus
-                       -- Glazier.React.Commands.Focus.Exec
-                       -- Glazier.React.Commands.Property
-                       -- Glazier.React.Commands.Property.Exec
-                       -- Glazier.React.Commands.Reactor
-                       -- Glazier.React.Commands.Reactor.Exec
-                       Glazier.React.Executors
-                       Glazier.React.Executors.Rerender
+                       Glazier.React.Commands
+                       Glazier.React.Commands.FocusElement
+                       Glazier.React.Commands.FocusElement.Exec
+                       Glazier.React.Commands.Rerender
+                       Glazier.React.Commands.Rerender.Exec
+                       Glazier.React.Commands.SetProperty
+                       Glazier.React.Commands.SetProperty.Exec
                        Glazier.React.Framework
                        Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Builder

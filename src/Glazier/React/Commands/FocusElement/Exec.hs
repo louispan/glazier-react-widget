@@ -2,18 +2,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Glazier.React.Commands.Focus.Exec
-    ( execFocus
+module Glazier.React.Commands.FocusElement.Exec
+    ( execFocusElement
     ) where
 
-import Control.Monad.Trans
-import Data.Diverse
 import qualified Glazier.React as R
-import Glazier.React.Framework as F
-import Glazier.React.Commands.Focus
+import Glazier.React.Commands.FocusElement
 
-execFocus :: UniqueMember FocusCommand cmds => F.Executor IO '[FocusCommand] cmds '[] envs
-execFocus = F.executor' $ \(FocusCommand j) -> lift $ js_focus j
+execFocusElement :: FocusElement -> IO ()
+execFocusElement (FocusElement j) = js_focus j
 
 #ifdef __GHCJS__
 

@@ -40,8 +40,8 @@ import Data.Kind
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
-import qualified GHCJS.Marshal.Pure as J
 import qualified Glazier.React as R
+import qualified Glazier.React.Commands.Rerender as C
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 
@@ -57,9 +57,6 @@ instance HasProperties [JE.Property] where
 
 -- | Plan has to be stored differently to other plans because mkPlan needs
 -- additional parameters
-newtype ComponentRef = ComponentRef J.JSVal
-    deriving (R.Dispose, J.PToJSVal, JE.ToJS)
-instance J.IsJSVal ComponentRef
 
 newtype FrameNum = FrameNum Int deriving R.Dispose
 
@@ -67,7 +64,7 @@ data Plan = Plan
     { _key :: J.JSString
     , _frameNum :: FrameNum
     , _component :: R.ReactComponent
-    , _componentRef :: ComponentRef
+    , _componentRef :: C.ComponentRef
     , _deferredDisposables :: R.Disposable ()
     , _onRender ::  J.Callback (IO J.JSVal)
     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
@@ -130,20 +127,18 @@ post o = void . PC.send o
 
 ----------------------------------------------------------
 
-data Rerender = Rerender ComponentRef [JE.Property]
-
-rerender :: StateT (Design specs) STM Rerender
+rerender :: StateT (Design specs) STM C.Rerender
 rerender = do
     -- Just change the state to a different number so the React PureComponent will call render()
     (plan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
     FrameNum i <- use (plan . frameNum)
     r <- use (plan . componentRef)
-    pure $ Rerender r [("frameNum", JE.JSVar $ JE.toJS i)]
+    pure $ C.Rerender r [("frameNum", JE.JSVar $ JE.toJS i)]
 
 ----------------------------------------------------------
 
 doOnComponentRef :: J.JSVal -> StateT (Design specs) STM ()
-doOnComponentRef j = (plan . componentRef) .= ComponentRef j
+doOnComponentRef j = (plan . componentRef) .= C.ComponentRef j
 
 doOnComponentDidUpdate :: StateT (Design specs) STM (R.Disposable ())
 doOnComponentDidUpdate = do
@@ -165,7 +160,7 @@ mkPlan dc w ts v = Plan
     <$> R.mkKey' -- key
     <*> pure (FrameNum 0) -- frameNum
     <*> R.getComponent -- component
-    <*> pure (ComponentRef J.nullRef) -- componentRef
+    <*> pure (C.ComponentRef J.nullRef) -- componentRef
     <*> pure mempty -- deferredDisposables
     <*> (R.mkRenderer rnd) -- onRender
     <*> R.mkHandler (atomically . withTMVar v . doOnComponentRef) -- onComponentRef

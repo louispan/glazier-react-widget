@@ -18,34 +18,25 @@ import qualified Data.JSString as J
 import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
-import qualified Glazier.React.Commands as C
-import qualified Glazier.React.Triggers as T
+-- import qualified Glazier.React.Commands as C
+-- import qualified Glazier.React.Triggers as T
 import qualified JavaScript.Extras as JE
 
-data InputAction
-    = SubmitAction R.EventTarget J.JSString
-    | CancelAction R.EventTarget
+-- data InputAction
+--     = SubmitAction R.EventTarget J.JSString
+--     | CancelAction R.EventTarget
 
 inputPrototype
     :: ( UniqueMember T.KeyDownKeyTrigger trigs
        , UniqueMember InputAction acts
        , UniqueMember C.SetPropertyCommand cmds)
-    => F.Prototype IO
-                  '[] ols
-                  '[] dtls
-                  '[] plns
-                  '[T.KeyDownKeyTrigger] trigs
-                  '[InputAction] '[InputAction] acts
-                  '[C.SetPropertyCommand] '[C.SetPropertyCommand] cmds
-                  '[] envs
+    => F.Prototype '[] reqs '[] specs
 inputPrototype = F.Prototype ( F.idle
                              , F.display d
                              , F.trigger "onKeyDown" T.keyDownKeyTrigger go
-                             , F.gadgetry (const gadget)
-                             , C.execProperty
                              )
   where
-    d ls ps = lift $ R.lf "input" ls ps
+    d ls ps dsn = R.lf "input" (ls dsn) (ps dsn)
     go (T.KeyDownKeyTrigger target k) = case k of
         "Escape" -> pure $ CancelAction target
         "Enter" -> do
@@ -53,7 +44,7 @@ inputPrototype = F.Prototype ( F.idle
             pure $ SubmitAction target v
         _ -> empty
 
-gadget :: G.GadgetT InputAction (F.Design dtls plns) STM (D.DList C.SetPropertyCommand)
+gadget :: PCG.GadgetT InputAction (F.Design dtls plns) STM (D.DList C.SetPropertyCommand)
 gadget = do
     a <- ask
     case a of

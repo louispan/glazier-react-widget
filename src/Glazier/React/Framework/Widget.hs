@@ -40,6 +40,7 @@ import Data.Kind
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
+import qualified GHCJS.Marshal.Pure as J
 import qualified Glazier.React as R
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
@@ -56,7 +57,10 @@ instance HasProperties [JE.Property] where
 
 -- | Plan has to be stored differently to other plans because mkPlan needs
 -- additional parameters
-newtype ComponentRef = ComponentRef J.JSVal deriving R.Dispose
+newtype ComponentRef = ComponentRef J.JSVal
+    deriving (R.Dispose, J.PToJSVal, JE.ToJS)
+instance J.IsJSVal ComponentRef
+
 newtype FrameNum = FrameNum Int deriving R.Dispose
 
 data Plan = Plan

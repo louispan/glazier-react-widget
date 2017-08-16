@@ -150,6 +150,8 @@ doOnComponentDidUpdate = do
 
 type Trigger specs  = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
 
+-- mkTrigger :: 
+
 mkPlan
     :: PC.Output (R.Disposable ())
     -> (Design specs -> R.ReactMlT STM ())

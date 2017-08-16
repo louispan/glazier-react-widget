@@ -16,6 +16,8 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:
+                       Glazier.React.Actions
+                       Glazier.React.Actions.KeyDownKey
                        Glazier.React.Commands
                        Glazier.React.Commands.FocusElement
                        Glazier.React.Commands.FocusElement.Exec
@@ -36,9 +38,8 @@ library
                        -- Glazier.React.Framework.TypeLevel.Internal
                        Glazier.React.Framework.Widget
                        -- Glazier.React.Framework.Widget.Exec
-                       -- Glazier.React.Triggers
-                       -- Glazier.React.Triggers.KeyDownKey
-                       -- Glazier.React.Widgets.Input                       -- Glazier.React.Widgets.Input.TextInput
+                       Glazier.React.Widgets.Input
+                       -- Glazier.React.Widgets.Input.TextInput
                        -- Glazier.React.Widgets.List
                        -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5

@@ -16,33 +16,32 @@ import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Widget as F
 
-newtype Prototype (a :: [Type]) atrs (d :: [Type]) dtls =
-    Prototype (F.Builder a atrs d dtls, F.Display dtls, D.DList (F.Trigger dtls))
+newtype Prototype (r :: [Type]) reqs (s :: [Type]) specs =
+    Prototype (F.Builder r reqs s specs, F.Display specs, D.DList (F.Trigger specs))
 
 -- | The action and command types are merged, not appended
 andPrototype
-    :: Prototype a1 atrs d1 dtls
-    -> Prototype a2 atrs d2 dtls
-    -> Prototype (Append a1 a2) atrs
-                 (Append d1 d2) dtls
+    :: Prototype r1 reqs s1 specs
+    -> Prototype r2 reqs s2 specs
+    -> Prototype (Append r1 r2) reqs
+                 (Append s1 s2) specs
 andPrototype (Prototype (b, d, t)) (Prototype (b', d', t')) =
     Prototype ( b `F.andBuilder` b'
               , d <> d'
               , t <> t')
 
 -- | identity for 'andPrototype'
-dummy :: Prototype '[] atrs '[] dtls
+dummy :: Prototype '[] reqs '[] specs
 dummy = Prototype (F.idle, mempty, mempty)
 
-displaying :: F.Display dtls -> Prototype '[] atrs '[] dtls
+displaying :: F.Display specs -> Prototype '[] reqs '[] specs
 displaying d = Prototype (F.idle, d, mempty)
 
-triggering :: D.DList (F.Trigger dtls)
-           -> Prototype '[] atrs '[] dtls
+triggering :: D.DList (F.Trigger specs)
+           -> Prototype '[] reqs '[] specs
 triggering t = Prototype (F.idle, mempty, t)
 
 building
-    :: F.Builder a atrs d dtls
-    -> Prototype a atrs
-                 d dtls
+    :: F.Builder r reqs s specs
+    -> Prototype r reqs s specs
 building b = Prototype (b, mempty, mempty)

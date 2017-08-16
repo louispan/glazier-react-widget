@@ -16,7 +16,7 @@ module Glazier.React.Framework.Widget where
 --   , WidgetAction(..)
 --   , HasProperties(..)
 --   , HasPlan(..)
---   , HasDetails(..)
+--   , HasSpecifications(..)
 --   , HasPlans(..)
 --   , Design(..)
 --   , _Design
@@ -77,41 +77,41 @@ instance R.Dispose Plan
 
 ----------------------------------------------------------
 
-class HasDetails c dtls | c -> dtls where
-    details :: Lens' c (Many dtls)
+class HasSpecifications c specs | c -> specs where
+    specifications :: Lens' c (Many specs)
 
 ----------------------------------------------------------
 
-newtype Design (dtls :: [Type]) = Design
+newtype Design (specs :: [Type]) = Design
     { unDesign ::
         ( Plan
         , [JE.Property]
-        , Many dtls)
+        , Many specs)
     }
     deriving G.Generic
 
--- | UndecidableInstances, but safe because @Many dtls@ is smaller than @Design dtls@
-instance (R.Dispose (Many dtls)) => R.Dispose (Design dtls)
+-- | UndecidableInstances, but safe because @Many specs@ is smaller than @Design specs@
+instance (R.Dispose (Many specs)) => R.Dispose (Design specs)
 
-instance HasPlan (Design dtls) where
+instance HasPlan (Design specs) where
     plan = _Design . _1
 
-instance HasProperties (Design dtls) where
+instance HasProperties (Design specs) where
     properties = _Design . _2
 
-instance HasDetails (Design dtls) dtls where
-    details = _Design . _3
+instance HasSpecifications (Design specs) specs where
+    specifications = _Design . _3
 
 _Design :: Iso
-    (Design dtls)
-    (Design dtls')
-    (Plan, [JE.Property], Many dtls)
-    (Plan, [JE.Property], Many dtls')
+    (Design specs)
+    (Design specs')
+    (Plan, [JE.Property], Many specs)
+    (Plan, [JE.Property], Many specs')
 _Design = iso unDesign Design
 
 ----------------------------------------------------------
 
--- type Entity dtls = TMVar (Design dtls)
+-- type Entity specs = TMVar (Design specs)
 
 withTMVar :: TMVar s -> StateT s STM a -> STM a
 withTMVar v m = do
@@ -128,7 +128,7 @@ post o = void . PC.send o
 
 data Rerender = Rerender ComponentRef [JE.Property]
 
-rerender :: StateT (Design dtls) STM Rerender
+rerender :: StateT (Design specs) STM Rerender
 rerender = do
     -- Just change the state to a different number so the React PureComponent will call render()
     (plan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
@@ -138,10 +138,10 @@ rerender = do
 
 ----------------------------------------------------------
 
-doOnComponentRef :: J.JSVal -> StateT (Design dtls) STM ()
+doOnComponentRef :: J.JSVal -> StateT (Design specs) STM ()
 doOnComponentRef j = (plan . componentRef) .= ComponentRef j
 
-doOnComponentDidUpdate :: StateT (Design dtls) STM (R.Disposable ())
+doOnComponentDidUpdate :: StateT (Design specs) STM (R.Disposable ())
 doOnComponentDidUpdate = do
     -- Run delayed commands that need to wait until frame is re-rendered
     -- Eg focusing after other rendering changes
@@ -149,15 +149,15 @@ doOnComponentDidUpdate = do
     (plan . deferredDisposables) .= mempty
     pure ds
 
-type Trigger dtls  = (J.JSString, TMVar (Design dtls) -> J.JSVal -> IO ())
+type Trigger specs  = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
 
 mkPlan
     :: PC.Output (R.Disposable ())
-    -> (Design dtls -> R.ReactMlT STM ())
-    -> [Trigger dtls]
-    -> TMVar (Design dtls)
+    -> (Design specs -> R.ReactMlT STM ())
+    -> [Trigger specs]
+    -> TMVar (Design specs)
     -> F R.Reactor Plan
-mkPlan disp w ts v = Plan
+mkPlan dc w ts v = Plan
     <$> R.mkKey' -- key
     <*> pure (FrameNum 0) -- frameNum
     <*> R.getComponent -- component
@@ -165,24 +165,24 @@ mkPlan disp w ts v = Plan
     <*> pure mempty -- deferredDisposables
     <*> (R.mkRenderer rnd) -- onRender
     <*> R.mkHandler (atomically . withTMVar v . doOnComponentRef) -- onComponentRef
-    <*> R.mkHandler (atomically . (>>= post disp) . withTMVar v . const doOnComponentDidUpdate) --onComopnentDidUpdate
+    <*> R.mkHandler (atomically . (>>= post dc) . withTMVar v . const doOnComponentDidUpdate) --onComopnentDidUpdate
     <*> (traverse go ts) -- triggers
   where
     rnd = lift (takeTMVar v) >>= w
     go (n, f) = (\a -> (n, a)) <$> R.mkHandler (f v)
 
 mkDesign
-    :: TMVar (Design dtls) -- This must be empty!
-    -> PC.Output (R.Disposable ())
-    -> (Design dtls -> R.ReactMlT STM ())
-    -> [Trigger dtls]
+    :: PC.Output (R.Disposable ())
+    -> (Design specs -> R.ReactMlT STM ())
+    -> [Trigger specs]
     -> [JE.Property]
-    -> Many dtls
-    -> F R.Reactor (Design dtls)
-mkDesign v disp w hdls ps dtls = (\pln -> Design (pln, ps, dtls)) <$> mkPlan disp w hdls v
+    -> Many specs
+    -> TMVar (Design specs) -- This must be empty!
+    -> F R.Reactor (Design specs)
+mkDesign dc w ts ps specs v = (\pln -> Design (pln, ps, specs)) <$> mkPlan dc w ts v
 
-componentWindow :: Design dtls -> R.ReactMlT STM ()
-componentWindow s = do
+componentWindow :: Design specs -> R.ReactMlT STM ()
+componentWindow s =
     R.lf
         (s ^. plan  . component . to JE.toJS')
         [ ("ref", s ^. plan . onComponentRef)

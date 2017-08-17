@@ -22,15 +22,15 @@ data SubmitInput = SubmitInput R.EventTarget J.JSString
 data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
-    :: (TMVar (F.Design specs) -> Which '[SubmitInput, CancelInput] -> STM ())
+    :: (Which '[SubmitInput, CancelInput] -> F.Delegate specs)
     -> F.Prototype '[] reqs '[] specs
 inputPrototype hdl = F.Prototype ( F.idle
                              , F.display disp
-                             , D.singleton ("onKeyDown", go . hdl)
+                             , D.singleton ("onKeyDown", \j e -> go j (`hdl` e))
                              )
   where
     disp ls ps dsn = R.lf "input" (ls dsn) (ps dsn)
-    go onAction j = fmap (fromMaybe ()) . runMaybeT $ do
+    go j onAction = fmap (fromMaybe ()) . runMaybeT $ do
         A.KeyDownKey target k <- A.fireKeyDownKey j
         case k of
             "Escape" -> lift . atomically . onAction . pick $ CancelInput target

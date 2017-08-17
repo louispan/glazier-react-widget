@@ -37,40 +37,20 @@ import qualified Glazier.React.Framework as F
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 
--- newtype ListCommand c = ListCommand c
-
-
 -- | List specific actions
 data DestroyListItem s = DestroyListItem s
 data MakeListItem r = MakeListItem r
 
 -- data ListItemAction s a = ListItemAction s a
 
-
     -- | MakeItemAction (F (R.Reactor a) o)
     -- | SetFilterAction (R.OutlineOf w -> Bool)
     -- | SetSortAction (R.OutlineOf w -> Bool)
 
--- type ListItems s = S.Seq s
-
--- listPrototype
---     :: Monad m
---     => F.Archetype m o s a c e
---     -> F.Prototype m '[S.Seq s] ols
---                      '[S.Seq s] dtls
---                      '[] plns
---                      '[] trigs
---                      '[] '[ListAction] acts
---                      '[C.ReactorCommand] '[] cmds
---                      '[] envs
--- listPrototype e = undefined
-
 listBuilder
-    :: ( UniqueMember (S.Seq r) reqs
-       , UniqueMember (S.Seq s) dtls
-       )
-    => ((TMVar (F.Design specs) -> Which '[MakeListItem r, DestroyListItem s] -> STM ()) -> F.Archetype r s)
-    -> F.Builder '[S.Seq r] reqs '[S.Seq s] dtls
+    :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq s) dtls)
+    => ((Which '[MakeListItem r, DestroyListItem s] -> F.Delegate specs) -> F.Archetype r s)
+    -> ((Which '[MakeListItem r, DestroyListItem s] -> F.Delegate specs) -> F.Builder '[S.Seq r] reqs '[S.Seq s] dtls)
 listBuilder = undefined
 -- listBuilder (F.Archetype (mkObject, frmObject, _, _, _)) = F.Builder (mkDtls, frmDtls, mkPlns)
 --   where

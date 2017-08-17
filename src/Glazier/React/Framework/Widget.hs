@@ -146,7 +146,8 @@ doOnComponentDidUpdate = do
     (plan . deferredDisposables) .= mempty
     pure ds
 
-type Trigger specs = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
+type Trigger specs = (J.JSString, J.JSVal -> TMVar (Design specs) -> IO ())
+type Delegate specs = TMVar (Design specs) -> STM ()
 
 mkPlan
     :: PC.Output (R.Disposable ())
@@ -166,7 +167,7 @@ mkPlan dc w ts v = Plan
     <*> (traverse go ts) -- triggers
   where
     rnd = lift (takeTMVar v) >>= w
-    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (f v)
+    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (`f` v)
 
 mkDesign
     :: PC.Output (R.Disposable ())

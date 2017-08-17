@@ -47,18 +47,18 @@ commission
 commission dc (F.Prototype (F.Builder (mkSpec, fromSpec), disp, ts)) = Archetype (mkEntity, frmEntity, rnd)
   where
     ts' = M.toList (M.fromListWith combineTrigs (D.toList ts))
-    combineTrigs f g d j = f d j >> g d j
+    combineTrigs f g j e = f j e >> g j e
     mkEntity rs = let (ps, xs) = viewf rs in do
         ss <- mkSpec xs
-        d <- R.doSTM newEmptyTMVar
-        d' <- F.mkDesign dc w ts' ps ss d
-        R.doSTM (putTMVar d d')
-        pure d
+        e <- R.doSTM newEmptyTMVar
+        d <- F.mkDesign dc w ts' ps ss e
+        R.doSTM (putTMVar e d)
+        pure e
     w = F.renderDisplay (F.widgetDisplay <> disp)
-    frmEntity d = do
-        d' <- takeTMVar d
-        let ps = d' ^. F.properties
-            ss = d' ^. F.specifications
+    frmEntity e = do
+        d <- takeTMVar e
+        let ps = d ^. F.properties
+            ss = d ^. F.specifications
         rs <- fromSpec ss
         pure (ps ./ rs)
     rnd d = lift (takeTMVar d) >>= F.componentWindow

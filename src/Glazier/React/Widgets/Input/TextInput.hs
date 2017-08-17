@@ -7,24 +7,13 @@ module Glazier.React.Widgets.Input.TextInput
     ( textInputPrototype
     ) where
 
+import Control.Concurrent.STM
 import Data.Diverse.Lens
 import qualified Glazier.React.Framework as F
-import qualified Glazier.React.Commands as C
-import qualified Glazier.React.Triggers as T
 import qualified Glazier.React.Widgets.Input as W
 
 textInputPrototype
-    :: ( UniqueMember T.KeyDownKeyTrigger trigs
-       , UniqueMember W.InputAction acts
-       , UniqueMember C.SetPropertyCommand cmds
-       )
-    => F.Prototype IO
-                   '[] ols
-                   '[] dtls
-                   '[] plns
-                   '[T.KeyDownKeyTrigger] trigs
-                   '[W.InputAction] '[W.InputAction] acts
-                   '[C.SetPropertyCommand] '[C.SetPropertyCommand] cmds
-                   '[] envs
-textInputPrototype =
-    W.inputPrototype `F.andPrototype` (F.statically $ F.hardcode [("type", "text")])
+    :: (TMVar (F.Design specs) -> Which '[W.SubmitInput, W.CancelInput] -> STM ())
+    -> F.Prototype '[] reqs '[] specs
+textInputPrototype hdl =
+    W.inputPrototype hdl `F.andPrototype` F.displaying (F.decorate [("type", "text")])

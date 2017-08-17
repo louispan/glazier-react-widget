@@ -44,7 +44,7 @@ newtype Archetype r s = Archetype ( r -> F R.Reactor s
 commission
     :: (UniqueMember [JE.Property] r', r' ~ ([JE.Property] ': r))
     => PC.Output (R.Disposable ()) -> F.Prototype r r s s -> Archetype (Many r') (TMVar (F.Design s))
-commission dc (F.Prototype (F.Builder (mkSpec, fromSpec), disp, ts)) = Archetype (mkEntity, fromEntity, rnd)
+commission dc (F.Prototype (F.Builder (mkSpec, fromSpec), disp, ts)) = Archetype (mkEntity, frmEntity, rnd)
   where
     ts' = M.toList (M.fromListWith combineTrigs (D.toList ts))
     combineTrigs f g d j = f d j >> g d j
@@ -55,7 +55,7 @@ commission dc (F.Prototype (F.Builder (mkSpec, fromSpec), disp, ts)) = Archetype
         R.doSTM (putTMVar d d')
         pure d
     w = F.renderDisplay (F.widgetDisplay <> disp)
-    fromEntity d = do
+    frmEntity d = do
         d' <- takeTMVar d
         let ps = d' ^. F.properties
             ss = d' ^. F.specifications
@@ -75,23 +75,23 @@ redraft
        )
     => Archetype r s
     -> F.Prototype '[r] reqs '[s] specs
-redraft (Archetype (mkEntity, fromEntity, rnd)) = F.Prototype
+redraft (Archetype (mkEntity, frmEntity, rnd)) = F.Prototype
     ( F.Builder (mkSpec, fromSpec)
     , F.divIfNeeded disp
     , mempty)
   where
     mkSpec rs = let r = fetch rs in single <$> mkEntity r
-    fromSpec ss = let s = fetch ss in single <$> fromEntity s
+    fromSpec ss = let s = fetch ss in single <$> frmEntity s
     disp d = let s = d ^. (F.specifications . item) in rnd s
 
 linkSpecification :: Iso' s' s -> Archetype r s -> Archetype r s'
-linkSpecification l (Archetype (mkEntity, fromEntity, disp)) =
+linkSpecification l (Archetype (mkEntity, frmEntity, disp)) =
         Archetype ( fmap (review l) . mkEntity
-                  , fromEntity . view l
+                  , frmEntity . view l
                   , magnify l disp)
 
 linkRequirement :: Iso' r' r -> Archetype r s -> Archetype r' s
-linkRequirement l (Archetype (mkEntity, fromEntity, disp)) =
+linkRequirement l (Archetype (mkEntity, frmEntity, disp)) =
         Archetype ( mkEntity . view l
-                  , fmap (review l) . fromEntity
+                  , fmap (review l) . frmEntity
                   , disp)

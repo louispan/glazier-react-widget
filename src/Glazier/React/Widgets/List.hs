@@ -32,10 +32,8 @@ import qualified Data.JSString as J
 import Data.Maybe
 import Data.Proxy
 import qualified Data.Sequence as S
-import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
-import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 
@@ -43,11 +41,10 @@ import qualified Pipes.Concurrent as PC
 
 
 -- | List specific actions
-data ListAction o s
-    = DestroyItemListAction s
-    | MakeItemListAction o
+data DestroyListItem s = DestroyListItem s
+data MakeListItem r = MakeListItem r
 
-data ListItemAction s a = ListItemAction s a
+-- data ListItemAction s a = ListItemAction s a
 
 
     -- | MakeItemAction (F (R.Reactor a) o)
@@ -69,72 +66,72 @@ data ListItemAction s a = ListItemAction s a
 -- listPrototype e = undefined
 
 listBuilder
-    :: ( UniqueMember a acts
-       , UniqueMember (S.Seq o) ols
+    :: ( UniqueMember (S.Seq r) reqs
        , UniqueMember (S.Seq s) dtls
        )
-    => F.Archetype m o s a c e
-    -> F.Builder '[S.Seq o] ols '[S.Seq s] dtls '[] plns acts
-listBuilder (F.Archetype (mkEnt, frmEnt, _, _, _)) = F.Builder (mkDtls, frmDtls, mkPlns)
-  where
-    mkDtls o = single <$> traverse (R.hoistWithAction pick . mkEnt) (fetch o)
-    frmDtls d = single <$> traverse frmEnt (fetch d)
-    mkPlns = pure nil
+    => ((TMVar (F.Design specs) -> Which '[MakeListItem r, DestroyListItem s] -> STM ()) -> F.Archetype r s)
+    -> F.Builder '[S.Seq r] reqs '[S.Seq s] dtls
+listBuilder = undefined
+-- listBuilder (F.Archetype (mkObject, frmObject, _, _, _)) = F.Builder (mkDtls, frmDtls, mkPlns)
+--   where
+--     mkDtls o = single <$> traverse (R.hoistWithAction pick . mkEnt) (fetch o)
+--     frmDtls d = single <$> traverse frmEnt (fetch d)
+--     mkPlns = pure nil
 
-listDisplay
-    :: forall m o s a c e dtls plns. UniqueMember (S.Seq s) dtls
-    => R.ReactMlT STM ()
-    -> F.Archetype m o s a c e
-    -> F.Display dtls plns
-listDisplay separator (F.Archetype (_, _, disp, _, _)) = F.display disp'
-  where
-    disp' ls ps = do
-        xs <- view (F.details . item @(S.Seq s))
-        let xs' = (toLi . view G._WRT' disp) <$> xs
-            toLi a = MaybeT $ R.bh "li" [] [] (runMaybeT a)
-            xs'' = foldl' (\x y -> (x >> lift separator >> y) <|> x <|> y) empty xs'
-            xs''' = void $ runMaybeT xs''
-        lift $ R.bh "ul" ls ps xs'''
+-- listDisplay
+--     :: forall m o s a c e dtls plns. UniqueMember (S.Seq s) dtls
+--     => R.ReactMlT STM ()
+--     -> F.Archetype m o s a c e
+--     -> F.Display dtls plns
+-- listDisplay separator (F.Archetype (_, _, disp, _, _)) = F.display disp'
+--   where
+--     disp' ls ps = do
+--         xs <- view (F.details . item @(S.Seq s))
+--         let xs' = (toLi . view G._WRT' disp) <$> xs
+--             toLi a = MaybeT $ R.bh "li" [] [] (runMaybeT a)
+--             xs'' = foldl' (\x y -> (x >> lift separator >> y) <|> x <|> y) empty xs'
+--             xs''' = void $ runMaybeT xs''
+--         lift $ R.bh "ul" ls ps xs'''
 
--- TODO: use a Prism' a (ListAction o s) to get list actions from items to be wrapped in lists
-listItemGadget'
-    :: forall m o s a c e dtls plns.
-       F.Archetype m o s a c e
-    -> PC.Output (ListItemAction s a)
-    -> G.GadgetT (ListItemAction s a) (F.Design dtls plns) STM (D.DList c)
-listItemGadget' (F.Archetype (_, _, _, g, _)) out = do
-    (ListItemAction s a) <- ask
-    let go = view G._WRMT' (g out' s) a
-        out' = contramap (ListItemAction s) out
-    D.singleton <$> MP.mcatMaybes (lift go)
+-- -- TODO: use a Prism' a (ListAction o s) to get list actions from items to be wrapped in lists
+-- listItemGadget'
+--     :: forall m o s a c e dtls plns.
+--        F.Archetype m o s a c e
+--     -> PC.Output (ListItemAction s a)
+--     -> G.GadgetT (ListItemAction s a) (F.Design dtls plns) STM (D.DList c)
+-- listItemGadget' (F.Archetype (_, _, _, g, _)) out = do
+--     (ListItemAction s a) <- ask
+--     let go = view G._WRMT' (g out' s) a
+--         out' = contramap (ListItemAction s) out
+--     D.singleton <$> MP.mcatMaybes (lift go)
 
-listGadget'
-    :: forall m o s a c e dtls plns cmds.
-       ( Eq s
-       , UniqueMember (S.Seq s) dtls
-       , UniqueMember F.WidgetCommand cmds
-       , UniqueMember (C.ReactorCommand (ListAction o s)) cmds
-       , R.Dispose s
-       )
-    => F.Archetype m o s a c e
-    -> PC.Output (ListAction o s)
-    -> G.GadgetT (ListAction o s) (F.Design dtls plns) STM (D.DList (Which cmds))
-listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
-    a <- ask
-    case a of
-        DestroyItemListAction s -> do
-            xs <- use (F.details . item)
-            let i = S.findIndexL (s ==) xs
-            i' <- A.afromMaybe i
-            let deleteAt j ys = let (x, y) = S.splitAt j ys
-                                in case S.viewl y of
-                                   S.EmptyL -> x
-                                   _ S.:< y' -> x S.>< y'
-            (F.details . item @(S.Seq s)) %= deleteAt i'
-            (F.widgetPlan . F.deferredDisposables) %= (>> R.dispose s)
-            fmap pick <$> G.gadgetWith F.RenderAction F.widgetGadget
-        MakeItemListAction o -> do
-            pure $ D.singleton $ C.ReactorCommand out mkEnt
+-- listGadget'
+--     :: forall m o s a c e dtls plns cmds.
+--        ( Eq s
+--        , UniqueMember (S.Seq s) dtls
+--        , UniqueMember F.WidgetCommand cmds
+--        , UniqueMember (C.ReactorCommand (ListAction o s)) cmds
+--        , R.Dispose s
+--        )
+--     => F.Archetype m o s a c e
+--     -> PC.Output (ListAction o s)
+--     -> G.GadgetT (ListAction o s) (F.Design dtls plns) STM (D.DList (Which cmds))
+-- listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
+--     a <- ask
+--     case a of
+--         DestroyItemListAction s -> do
+--             xs <- use (F.details . item)
+--             let i = S.findIndexL (s ==) xs
+--             i' <- A.afromMaybe i
+--             let deleteAt j ys = let (x, y) = S.splitAt j ys
+--                                 in case S.viewl y of
+--                                    S.EmptyL -> x
+--                                    _ S.:< y' -> x S.>< y'
+--             (F.details . item @(S.Seq s)) %= deleteAt i'
+--             (F.widgetPlan . F.deferredDisposables) %= (>> R.dispose s)
+--             fmap pick <$> G.gadgetWith F.RenderAction F.widgetGadget
+--         MakeItemListAction o -> do
+--             pure $ D.singleton $ C.ReactorCommand out mkEnt
 
 
 -- listGadgetry
@@ -171,7 +168,7 @@ listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
 --     , _itemsFilter :: R.OutlineOf w -> Bool
 --     }
 
--- type Detail k w = Schema k w 'R.BaseEntity'
+-- type Detail k w = Schema k w 'R.BaseObject'
 -- type Outline k w = Schema k w 'R.Outline'
 
 -- outline
@@ -191,7 +188,7 @@ listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
 -- mkDetail w (Schema a b c d) = Schema
 --     <$> pure a
 --     <*> pure b
---     <*> M.traverseWithKey (\k i -> R.hoistWithAction (ListAction . ItemAction k) (R.mkBaseEntity' w i)) c
+--     <*> M.traverseWithKey (\k i -> R.hoistWithAction (ListAction . ItemAction k) (R.mkBaseObject' w i)) c
 --     <*> pure d
 
 -- data Plan = Plan
@@ -218,7 +215,7 @@ listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
 
 -- instance CD.Disposing Plan
 
--- instance (R.ModelOf w ~ R.BaseModelOf w, CD.Disposing (R.EntityOf w)) =>
+-- instance (R.ModelOf w ~ R.BaseModelOf w, CD.Disposing (R.ObjectOf w)) =>
 --          CD.Disposing (Detail k w) where
 --     disposing s = CD.DisposeList $ foldr ((:) . CD.disposing) [] (s ^. items)
 
@@ -287,8 +284,8 @@ listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
 --         DestroyItemAction k -> do
 --             -- queue up callbacks to be released after rerendering
 --             ret <- runMaybeT $ do
---                 itemEntity <- MaybeT $ use (R.ival . dtl . items . at k)
---                 (R.ival . pln . D.Dispose.deferredDisposables) %= (`D.snoc` CD.disposing itemEntity)
+--                 itemObject <- MaybeT $ use (R.ival . dtl . items . at k)
+--                 (R.ival . pln . D.Dispose.deferredDisposables) %= (`D.snoc` CD.disposing itemObject)
 --                 -- Remove the todo from the model
 --                 (R.ival . dtl . items) %= M.delete k
 --                 -- on re-render the todo Shim will not get rendered and will be removed by react
@@ -300,7 +297,7 @@ listGadget' (F.Archetype (mkEnt, _, _, g, _)) out = do
 --             (R.ival . dtl . idx) .= n
 --             pure $ D.singleton $ ReactorCommand $ C.Reactor.Reactor Command $ do
 --                 sm <- R.hoistWithAction (ListAction . ItemAction n) (
---                     mkItemOutline n >>= R.mkBaseEntity' w)
+--                     mkItemOutline n >>= R.mkBaseObject' w)
 --                 pure . ListAction $ AddItemAction n sm
 
 --         AddItemAction n v -> do

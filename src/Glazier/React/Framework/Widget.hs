@@ -112,8 +112,6 @@ _Design = iso unDesign Design
 
 ----------------------------------------------------------
 
--- type Entity specs = TMVar (Design specs)
-
 withTMVar :: TMVar s -> StateT s STM a -> STM a
 withTMVar v m = do
     s <- takeTMVar v

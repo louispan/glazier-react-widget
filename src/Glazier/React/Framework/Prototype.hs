@@ -14,11 +14,12 @@ import Data.Semigroup
 import qualified Data.DList as D
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Display as F
--- import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.Widget as F
 
 newtype Prototype (r :: [Type]) reqs (s :: [Type]) specs =
-    Prototype (F.Builder r reqs s specs, F.Display specs, D.DList (F.Trigger specs))
+    Prototype ( F.Builder r reqs s specs
+              , F.Display specs
+              , D.DList (F.Trigger specs))
 
 -- | The action and command types are merged, not appended
 andPrototype

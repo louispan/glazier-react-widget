@@ -20,7 +20,7 @@ import qualified Data.DList as D
 import Data.Semigroup
 -- import Data.Foldable
 -- import Data.Proxy
--- import qualified Data.Map.Strict as M
+import qualified Data.Map.Strict as M
 -- import qualified Glazier as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Builder as F
@@ -46,10 +46,12 @@ commission
     => PC.Output (R.Disposable ()) -> F.Prototype r r s s -> Archetype (Many r') (TMVar (F.Design s))
 commission dc (F.Prototype (F.Builder (mkSpec, fromSpec), disp, ts)) = Archetype (mkEntity, fromEntity, rnd)
   where
+    ts' = M.toList (M.fromListWith combineTrigs (D.toList ts))
+    combineTrigs f g d j = f d j >> g d j
     mkEntity rs = let (ps, xs) = viewf rs in do
         ss <- mkSpec xs
         d <- R.doSTM newEmptyTMVar
-        d' <- F.mkDesign dc w (D.toList ts) ps ss d
+        d' <- F.mkDesign dc w ts' ps ss d
         R.doSTM (putTMVar d d')
         pure d
     w = F.renderDisplay (F.widgetDisplay <> disp)

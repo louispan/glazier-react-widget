@@ -148,9 +148,7 @@ doOnComponentDidUpdate = do
     (plan . deferredDisposables) .= mempty
     pure ds
 
-type Trigger specs  = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
-
--- mkTrigger :: 
+type Trigger specs = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
 
 mkPlan
     :: PC.Output (R.Disposable ())
@@ -193,13 +191,3 @@ componentWindow s =
         -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
         , ("render", s ^. plan . onRender . to JE.toJS')
         ]
-
--- data Widget s i o = Widget
---     { input :: TVar (G.GizmoT i STM ())
---     , output :: TVar (MaybeT STM o)
---     , model :: TVar s
---     , gadget :: G.GizmoT i (StateT s STM) o
---     , window :: G.GizmoT s (R.ReactMlT STM) ()
---     -- , builder ::
---     -- Executors
---     }

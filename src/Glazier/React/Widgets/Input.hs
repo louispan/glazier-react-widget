@@ -22,17 +22,17 @@ data SubmitInput = SubmitInput R.EventTarget J.JSString
 data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
-    :: (Which '[SubmitInput, CancelInput] -> F.Delegate specs)
+    :: (TMVar (F.Design specs) -> Which '[SubmitInput, CancelInput] -> STM ())
     -> F.Prototype '[] reqs '[] specs
 inputPrototype hdl = F.Prototype ( F.idle
                              , F.display disp
-                             , D.singleton ("onKeyDown", \j e -> go j (`hdl` e))
+                             , D.singleton ("onKeyDown", go . hdl)
                              )
   where
     disp ls ps dsn = R.lf "input" (ls dsn) (ps dsn)
-    go j onAction = fmap (fromMaybe ()) . runMaybeT $ do
-        A.KeyDownKey target k <- A.fireKeyDownKey j
-        case k of
+    go onAction = fmap (fromMaybe ()) . runMaybeT $ R.handleEventM A.fireKeyDownKey goLazy
+      where
+        goLazy k = case k of
             "Escape" -> lift . atomically . onAction . pick $ CancelInput target
             "Enter" -> do
                 v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" (JE.toJS target)

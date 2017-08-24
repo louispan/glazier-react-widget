@@ -8,6 +8,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -112,16 +113,17 @@ _Design = iso unDesign Design
 
 ----------------------------------------------------------
 
-withTMVar :: TMVar s -> StateT s STM a -> STM a
-withTMVar v m = do
+withinTMVar :: TMVar s -> Lens' s p -> StateT p STM a -> STM a
+withinTMVar v l m = do
     s <- takeTMVar v
-    (a, s') <- runStateT m s
-    putTMVar v s'
+    let t = s ^. l
+    (a, t') <- runStateT m t
+    putTMVar v (s & l .~ t')
     pure a
 
 -- | Send widget output into a queue to be process by a separate worker.
-post :: PC.Output o -> o -> STM ()
-post o = void . PC.send o
+-- post :: PC.Output o -> o -> STM ()
+-- post o = void . PC.send o
 
 ----------------------------------------------------------
 
@@ -135,49 +137,62 @@ rerender = do
 
 ----------------------------------------------------------
 
-doOnComponentRef :: J.JSVal -> StateT (Design specs) STM ()
-doOnComponentRef j = (plan . componentRef) .= C.ComponentRef j
+doOnComponentRef :: J.JSVal -> StateT Plan STM ()
+doOnComponentRef j = componentRef .= C.ComponentRef j
 
-doOnComponentDidUpdate :: StateT (Design specs) STM (R.Disposable ())
+-- doOnComponentRef' :: TMVar s -> Lens' s Plan -> J.JSVal -> IO ()
+-- doOnComponentRef' v l = atomically . withinTMVar v l . doOnComponentRef
+
+doOnComponentDidUpdate :: StateT Plan STM (R.Disposable ())
 doOnComponentDidUpdate = do
     -- Run delayed commands that need to wait until frame is re-rendered
     -- Eg focusing after other rendering changes
-    ds <- use (plan . deferredDisposables)
-    (plan . deferredDisposables) .= mempty
+    ds <- use deferredDisposables
+    deferredDisposables .= mempty
     pure ds
 
-type Trigger specs = (J.JSString, J.JSVal -> TMVar (Design specs) -> IO ())
-type Delegate specs = TMVar (Design specs) -> STM ()
+-- doOnComponentDidUpdate' :: PC.Output (R.Disposable ()) -> TMVar s -> Lens' s Plan -> J.JSVal -> IO ()
+-- doOnComponentDidUpdate' dc v l = atomically . (>>= void . PC.send dc) . withinTMVar v l . const doOnComponentDidUpdate
+
+-- type Trigger specs = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
+
+-- type Delegate a specs = (TMVar (Design specs) -> Which a -> STM ()) -> (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
 
 mkPlan
-    :: PC.Output (R.Disposable ())
-    -> (Design specs -> R.ReactMlT STM ())
-    -> [Trigger specs]
-    -> TMVar (Design specs)
+    :: (Design specs -> R.ReactMlT STM ())
+    -> (TMVar s -> Lens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+    -> TMVar s
+    -> Lens' s (Design specs)
     -> F R.Reactor Plan
-mkPlan dc w ts v = Plan
+mkPlan w ts v l = Plan
     <$> R.mkKey' -- key
     <*> pure (FrameNum 0) -- frameNum
     <*> R.getComponent -- component
     <*> pure (C.ComponentRef J.nullRef) -- componentRef
     <*> pure mempty -- deferredDisposables
-    <*> (R.mkRenderer rnd) -- onRender
-    <*> R.mkHandler (atomically . withTMVar v . doOnComponentRef) -- onComponentRef
-    <*> R.mkHandler (atomically . (>>= post dc) . withTMVar v . const doOnComponentDidUpdate) --onComopnentDidUpdate
-    <*> (traverse go ts) -- triggers
+    <*> R.mkRenderer rnd -- onRender
+    <*> R.mkCallback (atomically . withinTMVar v (l . plan) . doOnComponentRef) -- onComponentRef
+    <*> (do
+            dsp <- R.getDisposer
+            R.mkCallback $ atomically
+                . (>>= void . PC.send dsp)
+                . withinTMVar v (l . plan)
+                . const doOnComponentDidUpdate) --onComopnentDidUpdate
+    <*> traverse go ts' -- triggers
   where
-    rnd = lift (takeTMVar v) >>= w
-    go (n, f) = (\a -> (n, a)) <$> R.mkHandler (`f` v)
+    ts' = ts v l
+    rnd = lift (view l <$> takeTMVar v) >>= w
+    go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
 
 mkDesign
-    :: PC.Output (R.Disposable ())
-    -> (Design specs -> R.ReactMlT STM ())
-    -> [Trigger specs]
-    -> [JE.Property]
+    :: [JE.Property]
     -> Many specs
-    -> TMVar (Design specs) -- This must be empty!
+    -> (Design specs -> R.ReactMlT STM ())
+    -> (TMVar s -> Lens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+    -> TMVar s -- (Design specs) -- This must be empty!
+    -> Lens' s (Design specs)
     -> F R.Reactor (Design specs)
-mkDesign dc w ts ps specs v = (\pln -> Design (pln, ps, specs)) <$> mkPlan dc w ts v
+mkDesign ps specs w ts v l = (\pln -> Design (pln, ps, specs)) <$> mkPlan w ts v l
 
 componentWindow :: Design specs -> R.ReactMlT STM ()
 componentWindow s =

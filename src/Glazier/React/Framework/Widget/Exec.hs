@@ -17,7 +17,7 @@ widgetSetState props = js_widgetSetState (JE.fromProperties props) -- trigger a 
 
 execWidget :: WidgetCommand -> IO ()
 execWidget (RenderCommand props j) = widgetSetState props j
-execWidget (DisposeCommand x) = R.getDisposable x
+execWidget (DisposeCommand x) = R.runDisposable x
 
 #ifdef __GHCJS__
 

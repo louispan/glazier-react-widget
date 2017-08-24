@@ -49,8 +49,8 @@ data MakeListItem r = MakeListItem r
 
 listBuilder
     :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq s) dtls)
-    => ((Which '[MakeListItem r, DestroyListItem s] -> F.Delegate specs) -> F.Archetype r s)
-    -> ((Which '[MakeListItem r, DestroyListItem s] -> F.Delegate specs) -> F.Builder '[S.Seq r] reqs '[S.Seq s] dtls)
+    => (TMVar (F.Design ?) -> (Which '[MakeListItem r, DestroyListItem s] -> STM ()) -> F.Archetype r s)
+    -> F.Builder '[S.Seq r] reqs '[S.Seq s] dtls
 listBuilder = undefined
 -- listBuilder (F.Archetype (mkObject, frmObject, _, _, _)) = F.Builder (mkDtls, frmDtls, mkPlns)
 --   where

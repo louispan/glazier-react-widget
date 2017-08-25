@@ -36,6 +36,7 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
+import qualified Data.List as DL
 
 -- | List specific actions
 data DestroyListItem s = DestroyListItem s
@@ -48,30 +49,27 @@ data MakeListItem r = MakeListItem r
     -- | SetSortAction (R.OutlineOf w -> Bool)
 
 listBuilder
-    :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq s) dtls)
-    => (TMVar (F.Design ?) -> (Which '[MakeListItem r, DestroyListItem s] -> STM ()) -> F.Archetype r s)
-    -> F.Builder '[S.Seq r] reqs '[S.Seq s] dtls
-listBuilder = undefined
--- listBuilder (F.Archetype (mkObject, frmObject, _, _, _)) = F.Builder (mkDtls, frmDtls, mkPlns)
---   where
---     mkDtls o = single <$> traverse (R.hoistWithAction pick . mkEnt) (fetch o)
---     frmDtls d = single <$> traverse frmEnt (fetch d)
---     mkPlns = pure nil
+    :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TMVar s)) specs)
+    => F.Archetype s r s -> F.Builder '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
+listBuilder (F.Archetype (mkEnt, frmEnt, _)) = F.Builder (mkSpecs, frmSpecs)
+  where
+    mkSpecs rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
+    frmSpecs ss = single <$> traverse frmEnt' (fetch ss)
+    frmEnt' v = readTMVar v >>= frmEnt
 
--- listDisplay
---     :: forall m o s a c e dtls plns. UniqueMember (S.Seq s) dtls
---     => R.ReactMlT STM ()
---     -> F.Archetype m o s a c e
---     -> F.Display dtls plns
--- listDisplay separator (F.Archetype (_, _, disp, _, _)) = F.display disp'
---   where
---     disp' ls ps = do
---         xs <- view (F.details . item @(S.Seq s))
---         let xs' = (toLi . view G._WRT' disp) <$> xs
---             toLi a = MaybeT $ R.bh "li" [] [] (runMaybeT a)
---             xs'' = foldl' (\x y -> (x >> lift separator >> y) <|> x <|> y) empty xs'
---             xs''' = void $ runMaybeT xs''
---         lift $ R.bh "ul" ls ps xs'''
+listDisplay
+    :: forall v r s specs. UniqueMember (S.Seq (TMVar s)) specs
+    => R.ReactMlT STM ()
+    -> F.Archetype v r s
+    -> F.Display specs
+listDisplay separator (F.Archetype (_, _, disp)) = F.display disp'
+  where
+    disp' ls ps s = do
+        let xs = s ^. (F.specifications . item) :: S.Seq (TMVar s)
+            xs' = toLi <$> xs
+            toLi v = R.bh "li" [] [] (F.viewingTMVar' v disp)
+            xs'' = DL.intersperse separator (toList xs')
+        R.bh "ul" (ls s) (ps s) (mconcat xs'')
 
 -- -- TODO: use a Prism' a (ListAction o s) to get list actions from items to be wrapped in lists
 -- listItemGadget'

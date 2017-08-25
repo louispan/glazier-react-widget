@@ -6,13 +6,11 @@
 module Glazier.React.Widgets.Input where
 
 import Control.Applicative
-import Control.Concurrent.STM
 import Control.Monad.Trans.Maybe
-import Control.Monad.Reader
-import Data.Diverse.Lens
+import Data.Diverse
 import qualified Data.DList as D
 import qualified Data.JSString as J
-import Data.Maybe
+import Data.Proxy
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Actions as A
@@ -22,19 +20,19 @@ data SubmitInput = SubmitInput R.EventTarget J.JSString
 data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
-    :: (TMVar (F.Design specs) -> Which '[SubmitInput, CancelInput] -> STM ())
-    -> F.Prototype '[] reqs '[] specs
-inputPrototype hdl = F.Prototype ( F.idle
+    :: (UniqueMember SubmitInput acts, UniqueMember CancelInput acts)
+    => F.Prototype '[] reqs '[] specs '[SubmitInput, CancelInput] acts
+inputPrototype = F.Prototype ( F.idle
                              , F.display disp
-                             , D.singleton ("onKeyDown", go . hdl)
+                             , F.Trigger (Proxy, D.singleton ("onKeyDown", go))
                              )
   where
     disp ls ps dsn = R.lf "input" (ls dsn) (ps dsn)
-    go onAction = fmap (fromMaybe ()) . runMaybeT $ R.handleEventM A.fireKeyDownKey goLazy
+    go = R.handleEventM A.fireKeyDownKey goLazy
       where
-        goLazy k = case k of
-            "Escape" -> lift . atomically . onAction . pick $ CancelInput target
+        goLazy (A.KeyDownKey target k) = case k of
+            "Escape" -> pure . pick $ CancelInput target
             "Enter" -> do
                 v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" (JE.toJS target)
-                lift . atomically . onAction . pick $ SubmitInput target v
+                pure . pick $ SubmitInput target v
             _ -> empty

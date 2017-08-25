@@ -113,13 +113,19 @@ _Design = iso unDesign Design
 
 ----------------------------------------------------------
 
-withinTMVar :: TMVar s -> Lens' s p -> StateT p STM a -> STM a
-withinTMVar v l m = do
+usingTMVar :: TMVar s -> Lens' s p -> StateT p STM a -> STM a
+usingTMVar v l m = do
     s <- takeTMVar v
     let t = s ^. l
     (a, t') <- runStateT m t
     putTMVar v (s & l .~ t')
     pure a
+
+viewingTMVar :: TMVar s -> (s -> STM r) -> STM r
+viewingTMVar v frmEnt = readTMVar v >>= frmEnt
+
+viewingTMVar' :: (MonadTrans t, Monad (t STM)) =>TMVar s -> (s -> (t STM) r) -> (t STM) r
+viewingTMVar' v frmEnt = lift (readTMVar v) >>= frmEnt
 
 -- | Send widget output into a queue to be process by a separate worker.
 -- post :: PC.Output o -> o -> STM ()
@@ -141,7 +147,7 @@ doOnComponentRef :: J.JSVal -> StateT Plan STM ()
 doOnComponentRef j = componentRef .= C.ComponentRef j
 
 -- doOnComponentRef' :: TMVar s -> Lens' s Plan -> J.JSVal -> IO ()
--- doOnComponentRef' v l = atomically . withinTMVar v l . doOnComponentRef
+-- doOnComponentRef' v l = atomically . usingTMVar v l . doOnComponentRef
 
 doOnComponentDidUpdate :: StateT Plan STM (R.Disposable ())
 doOnComponentDidUpdate = do
@@ -152,7 +158,7 @@ doOnComponentDidUpdate = do
     pure ds
 
 -- doOnComponentDidUpdate' :: PC.Output (R.Disposable ()) -> TMVar s -> Lens' s Plan -> J.JSVal -> IO ()
--- doOnComponentDidUpdate' dc v l = atomically . (>>= void . PC.send dc) . withinTMVar v l . const doOnComponentDidUpdate
+-- doOnComponentDidUpdate' dc v l = atomically . (>>= void . PC.send dc) . usingTMVar v l . const doOnComponentDidUpdate
 
 -- type Trigger specs = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
 
@@ -171,12 +177,12 @@ mkPlan w ts v l = Plan
     <*> pure (C.ComponentRef J.nullRef) -- componentRef
     <*> pure mempty -- deferredDisposables
     <*> R.mkRenderer rnd -- onRender
-    <*> R.mkCallback (atomically . withinTMVar v (l . plan) . doOnComponentRef) -- onComponentRef
+    <*> R.mkCallback (atomically . usingTMVar v (l . plan) . doOnComponentRef) -- onComponentRef
     <*> (do
             dsp <- R.getDisposer
             R.mkCallback $ atomically
                 . (>>= void . PC.send dsp)
-                . withinTMVar v (l . plan)
+                . usingTMVar v (l . plan)
                 . const doOnComponentDidUpdate) --onComopnentDidUpdate
     <*> traverse go ts' -- triggers
   where

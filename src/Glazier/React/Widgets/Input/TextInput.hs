@@ -7,13 +7,12 @@ module Glazier.React.Widgets.Input.TextInput
     ( textInputPrototype
     ) where
 
-import Control.Concurrent.STM
-import Data.Diverse.Lens
+import Data.Diverse
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Widgets.Input as W
 
 textInputPrototype
-    :: (TMVar (F.Design specs) -> Which '[W.SubmitInput, W.CancelInput] -> STM ())
-    -> F.Prototype '[] reqs '[] specs
-textInputPrototype hdl =
-    W.inputPrototype hdl `F.andPrototype` F.displaying (F.decorate [("type", "text")])
+    :: (UniqueMember W.SubmitInput acts, UniqueMember W.CancelInput acts)
+    => F.Prototype '[] reqs '[] specs '[W.SubmitInput, W.CancelInput] acts
+textInputPrototype =
+    W.inputPrototype `F.andPrototype` F.displaying (F.decorate [("type", "text")])

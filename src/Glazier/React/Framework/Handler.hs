@@ -36,7 +36,15 @@ andHandler (Handler (Proxy, f)) (Handler (Proxy, g)) =
 --
 -- @
 -- handleSpecifications :: Handler v (Many specs) h acts -> Handler v (F.Design specs) h acts
--- handleSpecifications = magnifyHandler F.specifications
+-- handleSpecifications = handleWith F.specifications
 -- @
-magnifyHandler :: Lens' t s -> Handler v s h acts -> Handler v t h acts
-magnifyHandler l (Handler (p, f)) = Handler (p, \v (Lens l') -> f v (Lens (l' . l)))
+handleUnder :: Lens' t s -> Handler v s h acts -> Handler v t h acts
+handleUnder l (Handler (p, f)) = Handler (p, \v (Lens l') -> f v (Lens (l' . l)))
+
+-- dispatch :: Proxy h' -> Prism' (Which acts') (Which acts) -> Handler v s h acts' -> Handler v s h' acts
+-- dispatch p l (Handler (_, f)) = Handler (p, \v l' a -> f v l' (review l a))
+
+-- dispatch :: Prism' (Which acts') (Which acts) -> Handler v s h acts -> Handler v s h acts'
+-- dispatch l (Handler (p, f)) = Handler (p, \v l' a -> case preview l a of
+--                                                          Nothing -> empty
+--                                                          Just a' -> f v l' a')

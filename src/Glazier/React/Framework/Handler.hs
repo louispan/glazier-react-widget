@@ -14,23 +14,51 @@ import Data.Diverse
 import Data.Kind
 import Data.Proxy
 
-newtype Handler v s (h :: [Type]) acts = Handler
-    ( Proxy h
-    , TMVar v -> ReifiedLens' v s -> Which acts -> MaybeT STM ()
+newtype Handler' v s a c = Handler' (TMVar v -> ReifiedLens' v s -> a -> MaybeT STM c)
+
+instance Functor (Handler' v s a) where
+    fmap f (Handler' hdl) = Handler' (\v l -> fmap f . hdl v l)
+
+-- instance Applicative (Handler' v s a) where
+--     pure a = Handler' (\_ _ _ -> pure a)
+--     (Handler' hdl1) <*> (Handler' hdl2) = Handler' (\v l a -> hdl1 v l a <*> hdl2 v l a)
+
+-- instance Alternative (Handler' v s a) where
+--     empty = Handler' (\_ _ _ -> empty)
+--     (Handler' hdl1) <|> (Handler' hdl2) = Handler' (\v l a -> hdl1 v l a <|> hdl2 v l a)
+
+instance Profunctor (Handler' v s) where
+    dimap f g (Handler' hdl) = Handler' (\v l -> fmap g . hdl v l . f)
+
+newtype Handler v s (a :: [Type]) acts (c :: [Type]) cmds = Handler
+    ( Proxy a
+    , Proxy c
+    , Handler' v s (Which acts) (Which cmds)
     )
 
-noop :: Handler v s '[] acts
-noop = Handler (Proxy, \_ _ _ -> pure ())
+getHandler :: Handler v s a a c c -> Handler' v s (Which a) (Which c)
+getHandler (Handler (_, _, hdl)) = hdl
 
-handler :: UniqueMember h acts => (TMVar v -> Lens' v s -> h -> MaybeT STM ()) -> Handler v s '[h] acts
-handler f = Handler (Proxy, \v (Lens l) -> (f v l =<<) . MaybeT . pure . trial')
+-- | Identity for 'orHandler'
+unhandled :: Handler v s '[] acts '[()] cmds
+unhandled = Handler (Proxy, Proxy,  Handler' $ \_ _ _ -> empty)
 
--- | NB. it is expected that there is only oever one handler for each action.
+handler
+    :: (UniqueMember a acts, UniqueMember c cmds)
+    => (TMVar v -> Lens' v s -> a -> MaybeT STM c) -> Handler v s '[a] acts '[c] cmds
+handler f = Handler (Proxy, Proxy, Handler' $ \v (Lens l) a -> do
+                            a' <- MaybeT . pure $ trial' a
+                            pick <$> f v l a')
+
+-- | NB. Due to the use of <|> only the first handler for a particular action will be used.
 -- This is to prevent running handlers twice for the one action.
--- This will be checked by the compiler with @Append a1 a2@ and @UniqueMember@ constraints.
-andHandler :: Handler v s h1 acts -> Handler v s h2 acts -> Handler v s (Append h1 h2) acts
-andHandler (Handler (Proxy, f)) (Handler (Proxy, g)) =
-    Handler (Proxy, \v l -> liftA2 (<|>) (f v l) (g v l))
+-- This will be compile time check with @Append a1 a2@ and @UniqueMember@ constraints.
+orHandler
+    :: Handler v s a1 acts c1 cmds
+    -> Handler v s a2 acts c2 cmds
+    -> Handler v s (Append a1 a2) acts (AppendUnique c1 c2) cmds
+orHandler (Handler (_, _, Handler' f)) (Handler (_, _, Handler' g)) =
+    Handler (Proxy, Proxy, Handler' $ \v l -> liftA2 (<|>) (f v l) (g v l))
 
 -- | For example
 --
@@ -38,10 +66,10 @@ andHandler (Handler (Proxy, f)) (Handler (Proxy, g)) =
 -- handleSpecifications :: Handler v (Many specs) h acts -> Handler v (F.Design specs) h acts
 -- handleSpecifications = handleWith F.specifications
 -- @
-handleUnder :: Lens' t s -> Handler v s h acts -> Handler v t h acts
-handleUnder l (Handler (p, f)) = Handler (p, \v (Lens l') -> f v (Lens (l' . l)))
+handleUnder :: Lens' t s -> Handler v s a acts c cmds -> Handler v t a acts c cmds
+handleUnder l (Handler (pa, pc, Handler' f)) = Handler (pa, pc, Handler' $ \v (Lens l') -> f v (Lens (l' . l)))
 
--- dispatch :: Proxy h' -> Prism' (Which acts') (Which acts) -> Handler v s h acts' -> Handler v s h' acts
+-- dispatch :: Prism' (Which a') (Which a) -> Handler v s a a -> Handler v s a' a'
 -- dispatch p l (Handler (_, f)) = Handler (p, \v l' a -> f v l' (review l a))
 
 -- dispatch :: Prism' (Which acts') (Which acts) -> Handler v s h acts -> Handler v s h acts'

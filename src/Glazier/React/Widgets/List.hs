@@ -54,7 +54,7 @@ listBuilder
     => F.Archetype s r s -> F.Builder v '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
 listBuilder (F.Archetype (mkEnt, frmEnt, _)) = F.Builder (mkSpecs, frmSpecs)
   where
-    mkSpecs _ _ rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
+    mkSpecs v l rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
     frmSpecs ss = single <$> traverse frmEnt' (fetch ss)
     frmEnt' v = readTMVar v >>= frmEnt
 

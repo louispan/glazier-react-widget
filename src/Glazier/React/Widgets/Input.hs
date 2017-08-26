@@ -24,7 +24,7 @@ inputPrototype
     => F.Prototype v '[] reqs '[] specs '[SubmitInput, CancelInput] acts
 inputPrototype = F.Prototype ( F.idle
                              , F.display disp
-                             , F.Trigger (Proxy, D.singleton ("onKeyDown", go))
+                             , F.Triggers (Proxy, D.singleton $ F.Trigger' ("onKeyDown", go))
                              )
   where
     disp ls ps dsn = R.lf "input" (ls dsn) (ps dsn)

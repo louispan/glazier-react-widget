@@ -6,49 +6,44 @@ module Glazier.React.Framework.Executor where
 
 import Control.Applicative
 import Control.Monad.Trans.Maybe
+import Data.Coerce
+import Data.Diverse
+import Data.Functor.Contravariant
 import Data.Kind
 import Data.Proxy
-import Data.Diverse
-import Data.Semigroup
 
-newtype Executor m (c :: [Type]) cmds (e :: [Type]) envs =
+newtype Executor' c = Executor' (c -> MaybeT IO ())
+
+instance Contravariant Executor' where
+    contramap f (Executor' exec) = Executor' (exec . f)
+
+newtype Executor (c :: [Type]) cmds =
     Executor ( Proxy c
-            , Proxy e
-            , Many envs -> Which cmds -> MaybeT m ())
+            , Executor' (Which cmds))
 
-andExecutor
-    :: Monad m
-    => Executor m c1 cmds e1 envs
-    -> Executor m c2 cmds e2 envs
-    -> Executor m (Append c1 c2) cmds (AppendUnique e1 e2) envs
-andExecutor (Executor (_, _, r)) (Executor (_, _, r')) =
-    Executor (Proxy, Proxy, \e c -> MaybeT $ do
-                    x <- runMaybeT $ r e c
-                    y <- runMaybeT $ r' e c
-                    pure (x <> y))
+getExecutor :: Executor c c -> Executor' (Which c)
+getExecutor (Executor (_, exec)) = exec
 
+-- | NB. Due to the use of <|> only the first handler for a particular command will be used.
+-- This is to prevent running executors twice for the one command.
+-- This will be compile time check with @Append c1 c2@ and @UniqueMember@ constraints.
 orExecutor
-    :: Monad m
-    => Executor m c1 cmds e1 envs
-    -> Executor m c2 cmds e2 envs
-    -> Executor m (AppendUnique c1 c2) cmds (AppendUnique e1 e2) envs
-orExecutor (Executor (_, _, r)) (Executor (_, _, r')) =
-    Executor (Proxy, Proxy, \e c -> r e c <|> r' e c)
+    :: Executor c1 cmds
+    -> Executor c2 cmds
+    -> Executor (Append c1 c2) cmds
+orExecutor (Executor (_, r)) (Executor (_, r')) =
+    Executor (Proxy, Executor' $ \c -> coerce r c <|> coerce r' c)
 
--- | Identity for 'andExecutor'
-ignore :: Monad m => Executor m '[] cmds '[] envs
-ignore = Executor (Proxy, Proxy, \_ _ -> empty)
-
+-- | Identity for 'orExecutor'
+ignore :: Executor '[] cmds
+ignore = Executor (Proxy, Executor' $ const empty)
 
 executor
-    :: (Monad m, UniqueMember c cmds)
-    => Proxy e -> (Many envs -> c -> MaybeT m ()) -> Executor m '[c] cmds e envs
-executor pe f = Executor (Proxy, pe, \env cmd -> case trial cmd of
-                      Left _ -> empty
-                      Right cmd' -> f env cmd')
-executor'
-    :: (Monad m, UniqueMember c cmds)
-    => (c -> MaybeT m ()) -> Executor m '[c] cmds e envs
-executor' f = Executor (Proxy, Proxy, \_ cmd -> case trial cmd of
-                      Left _ -> empty
-                      Right cmd' -> f cmd')
+    :: (UniqueMember c cmds)
+    => (c -> MaybeT IO ()) -> Executor '[c] cmds
+executor f = Executor (Proxy, Executor' $ \cmd -> case trial' cmd of
+                      Nothing -> empty
+                      Just cmd' -> f cmd')
+
+-- trivial :: UniqueMember () cmds => Executor '[()] cmds
+-- trivial = executor (const $ pure ())

@@ -13,23 +13,30 @@ import Data.Proxy
 import Data.Semigroup (Semigroup(..))
 import qualified GHCJS.Types as J
 
-newtype Trigger (t :: [Type]) acts = Trigger
-    ( Proxy t
-    , D.DList (J.JSString, J.JSVal -> MaybeT IO (Which acts))
+newtype Trigger' a = Trigger' (J.JSString, J.JSVal -> MaybeT IO a)
+
+instance Functor Trigger' where
+    fmap f (Trigger' (evt, t)) = Trigger' (evt, fmap f <$> t)
+
+newtype Triggers (a :: [Type]) acts = Triggers
+    ( Proxy a
+    , D.DList (Trigger' (Which acts))
     )
 
-boring :: Trigger '[] acts
-boring = Trigger (Proxy, mempty)
+getTriggers :: Triggers a a -> [Trigger' (Which a)]
+getTriggers (Triggers (_, ts)) = D.toList ts
 
-expect :: Proxy t -> Trigger '[t] acts
-expect _ = Trigger (Proxy, mempty)
+boring :: Triggers '[] acts
+boring = Triggers (Proxy, mempty)
+
+expect :: Proxy a -> Triggers '[a] acts
+expect _ = Triggers (Proxy, mempty)
 
 trigger
-    :: UniqueMember t acts
-    => (J.JSString, J.JSVal -> MaybeT IO t) -> Trigger '[t] acts
-trigger (evt, f) = Trigger (Proxy, D.singleton (evt, fmap pick . f))
+    :: UniqueMember a acts
+    => (J.JSString, J.JSVal -> MaybeT IO a) -> Triggers '[a] acts
+trigger (evt, f) = Triggers (Proxy, D.singleton $ Trigger' (evt, fmap pick . f))
 
--- | NB. Unlike @Handler@, it is okay for more than one trigger to results in the same action,
--- hence the use of @AppendUnique@
-andTrigger :: Trigger t1 acts -> Trigger t2 acts -> Trigger (AppendUnique t1 t2) acts
-andTrigger (Trigger (Proxy, f)) (Trigger (Proxy, g)) = Trigger (Proxy, f <> g)
+-- | NB. It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
+andTriggers :: Triggers a1 acts -> Triggers a2 acts -> Triggers (AppendUnique a1 a2) acts
+andTriggers (Triggers (Proxy, f)) (Triggers (Proxy, g)) = Triggers (Proxy, f <> g)

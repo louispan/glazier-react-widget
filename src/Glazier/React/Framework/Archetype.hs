@@ -33,13 +33,11 @@ import qualified JavaScript.Extras as JE
 import Control.DeepSeq
 import qualified GHCJS.Types as J
 
--- | NB. a must contain [JE.Property]
 newtype Archetype v r s = Archetype ( TMVar v -> ReifiedLens' v s -> r -> F R.Reactor s
                                   , s -> STM r
                                   , s -> R.ReactMlT STM ())
 
 type Archetyper v r s a = F.Handler v s a a -> Archetype v r s
-
 
 mkBasicEntity :: (TMVar s -> ReifiedLens' s s -> r -> F R.Reactor s) -> r -> F R.Reactor (TMVar s)
 mkBasicEntity mkEnt r = do
@@ -48,35 +46,21 @@ mkBasicEntity mkEnt r = do
     R.doSTM $ putTMVar v s
     pure v
 
--- fromBasicEntity :: (s -> STM r) -> TMVar s -> STM r
--- fromBasicEntity frmEnt = do
---     v' <- readTMVar v
---     frmEnt v'
-
--- displayBasicEntity :: (s -> R.ReactMlT STM ()) -> TMVar s -> R.ReactMlT STM ()
--- displayBasicEntity disp v = do
---     v' <- lift $ readTMVar v
---     disp v'
-
-
-fromBasicEntity' :: TMVar s -> (s -> STM r) -> STM r
-fromBasicEntity' v frmEnt = readTMVar v >>= frmEnt
-
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to @s@
 commission
     :: (NFData (Which a), UniqueMember [JE.Property] r', r' ~ ([JE.Property] ': r))
-    => F.Prototype r r s s a a
+    => F.Prototype v r r s s a a
     -> F.Handler v (F.Design s) a a
     -> Archetype v (Many r') (F.Design s)
 commission (F.Prototype (F.Builder (mkSpec, fromSpec), disp, ts)) hdl =
     Archetype (mkEnt, frmEnt, F.componentWindow)
   where
     cbs = toCallbacks ts hdl
-    mkEnt v (Lens l) rs = do
+    mkEnt v l@(Lens l') rs = do
         let (ps, xs) = viewf rs
-        ss <- mkSpec xs
-        d <- F.mkDesign ps ss w cbs v l
+        ss <- mkSpec v l xs
+        d <- F.mkDesign ps ss w cbs v l'
         pure d
     w = F.renderDisplay (F.widgetDisplay <> disp)
     frmEnt d = do
@@ -102,26 +86,24 @@ toCallbacks (F.Trigger (_, ts)) (F.Handler (_, hdl)) v l = cbs'
     combineCbs = liftA2 (>>)
 
 -- | Create a Prototype from an Archetype.
--- NB. This is NOT the opposite of 'comission', that is:
+-- This wraps the specifications and requirements in an additional layer of 'Many'.
+-- Therefore, this is NOT the opposite of 'comission', that is:
 --
 -- @
--- redraft . complete /= id
+-- redraft . commission /= id
 -- @
 redraft
-    :: ( UniqueMember r reqs
-       , UniqueMember s specs
-       )
-    => Archetype s r s
-    -> F.Prototype '[r] reqs '[s] specs '[] acts
+    :: ( UniqueMember r reqs, UniqueMember s specs)
+    => Archetype v r s
+    -> F.Prototype v '[r] reqs '[s] specs '[] acts
 redraft (Archetype (mkEnt, frmEnt, rnd)) = F.Prototype
     ( F.Builder (mkSpec, fromSpec)
     , F.divIfNeeded disp
     , F.boring)
   where
-    mkSpec rs = do
+    mkSpec v (Lens l) rs = do
         let r = fetch rs
-        v <- R.doSTM newEmptyTMVar
-        single <$> mkEnt v (Lens id) r
+        single <$> mkEnt v (Lens (l . F.specifications . item)) r
     fromSpec ss = let s = fetch ss in single <$> frmEnt s
     disp d = let s = d ^. (F.specifications . item) in rnd s
 

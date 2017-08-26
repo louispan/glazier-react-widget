@@ -21,6 +21,9 @@ newtype Trigger (t :: [Type]) acts = Trigger
 boring :: Trigger '[] acts
 boring = Trigger (Proxy, mempty)
 
+expect :: Proxy t -> Trigger '[t] acts
+expect _ = Trigger (Proxy, mempty)
+
 trigger
     :: UniqueMember t acts
     => (J.JSString, J.JSVal -> MaybeT IO t) -> Trigger '[t] acts

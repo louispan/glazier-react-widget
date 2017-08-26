@@ -34,12 +34,13 @@ import Data.Proxy
 import qualified Data.Sequence as S
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
+import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 import qualified Data.List as DL
 
 -- | List specific actions
-data DestroyListItem s = DestroyListItem s
+data DestroyListItem = DestroyListItem
 data MakeListItem r = MakeListItem r
 
 -- data ListItemAction s a = ListItemAction s a
@@ -50,10 +51,10 @@ data MakeListItem r = MakeListItem r
 
 listBuilder
     :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TMVar s)) specs)
-    => F.Archetype s r s -> F.Builder '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
+    => F.Archetype s r s -> F.Builder v '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
 listBuilder (F.Archetype (mkEnt, frmEnt, _)) = F.Builder (mkSpecs, frmSpecs)
   where
-    mkSpecs rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
+    mkSpecs _ _ rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
     frmSpecs ss = single <$> traverse frmEnt' (fetch ss)
     frmEnt' v = readTMVar v >>= frmEnt
 
@@ -70,6 +71,39 @@ listDisplay separator (F.Archetype (_, _, disp)) = F.display disp'
             toLi v = R.bh "li" [] [] (F.viewingTMVar' v disp)
             xs'' = DL.intersperse separator (toList xs')
         R.bh "ul" (ls s) (ps s) (mconcat xs'')
+
+
+wack :: (TMVar s -> STM ()) -> F.Archetype s r s
+wack = undefined
+
+removeListItem'
+    :: (R.Dispose s, UniqueMember (S.Seq (TMVar s)) specs)
+    => PC.Output C.Rerender -> TMVar t -> Lens' t (F.Design specs) -> TMVar s -> STM ()
+removeListItem' o v l s = void $ F.usingTMVar v l (removeListItem s) >>= PC.send o
+
+removeListItem
+    :: (R.Dispose s, UniqueMember (S.Seq (TMVar s)) specs)
+    => TMVar s -> StateT (F.Design specs) STM C.Rerender
+removeListItem s = do
+    ls <- use (F.specifications . item)
+    let (as, bs) = S.breakl (/= s) ls
+        (x, cs) = case S.viewl bs of
+            S.EmptyL -> (Nothing, as)
+            s' S.:< bs' -> (Just s', as S.>< bs')
+    maybe (pure ()) F.queueDisposable x
+    (F.specifications . item) .= cs
+    F.rerender
+
+-- wack
+--     :: UniqueMember (S.Seq (TMVar s)) specs
+--     => TMVar v' -> Lens' v' (F.Design specs) -> F.Handler v s '[DestroyListItem] a
+-- wack v' l' = F.Handler (Proxy, go)
+--   where
+--     go = undefined
+
+
+-- wock :: (
+
 
 -- -- TODO: use a Prism' a (ListAction o s) to get list actions from items to be wrapped in lists
 -- listItemGadget'

@@ -157,6 +157,9 @@ doOnComponentDidUpdate = do
     deferredDisposables .= mempty
     pure ds
 
+queueDisposable :: R.Dispose a => a -> StateT (Design specs) STM ()
+queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
+
 -- doOnComponentDidUpdate' :: PC.Output (R.Disposable ()) -> TMVar s -> Lens' s Plan -> J.JSVal -> IO ()
 -- doOnComponentDidUpdate' dc v l = atomically . (>>= void . PC.send dc) . usingTMVar v l . const doOnComponentDidUpdate
 

@@ -52,14 +52,17 @@ andPrototype (Prototype (b, d, t, h, e)) (Prototype (b', d', t', h', e')) =
               , e `F.orExecutor` e')
 
 
--- building :: F.Builder v r reqs s specs -> Prototype v r reqs s specs '[] '[] acts '[] '[] cmds
--- building b = Prototype (b, mempty, mempty, mempty, mempty)
+building :: F.Builder v r reqs s specs -> Prototype v r reqs s specs '[] '[] acts '[] '[] cmds
+building b = Prototype (b, mempty, mempty, mempty, mempty)
 
--- displaying :: F.Display specs -> Prototype v '[] reqs '[] specs '[] '[] acts '[] '[] cmds
--- displaying d = Prototype (mempty, d, mempty, mempty, mempty)
+displaying :: F.Display specs -> Prototype v '[] reqs '[] specs '[] '[] acts '[] '[] cmds
+displaying d = Prototype (mempty, d, mempty, mempty, mempty)
 
--- triggering :: F.Triggers t acts -> Prototype v '[] reqs '[] specs t '[] acts '[] '[] cmds
--- triggering t = Prototype (mempty, mempty, t, mempty, mempty)
+triggering :: F.Triggers t acts -> Prototype v '[] reqs '[] specs t '[] acts '[] '[] cmds
+triggering t = Prototype (mempty, mempty, t, mempty, mempty)
 
--- handling :: F.Handler v (F.Design specs) h acts c cmds -> Prototype v '[] reqs '[] specs '[] h acts c '[] cmds
--- handling h = Prototype (mempty, mempty, mempty, h, mempty)
+handling :: F.Handler v (F.Design specs) h acts c cmds -> Prototype v '[] reqs '[] specs '[] h acts c '[] cmds
+handling h = Prototype (mempty, mempty, mempty, h, mempty)
+
+executing :: F.Executor c cmds -> Prototype v '[] reqs '[] specs '[] '[] acts '[] c cmds
+executing e = Prototype (mempty, mempty, mempty, mempty, e)

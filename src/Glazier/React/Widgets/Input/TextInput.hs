@@ -13,6 +13,6 @@ import qualified Glazier.React.Widgets.Input as W
 
 textInputPrototype
     :: (UniqueMember W.SubmitInput acts, UniqueMember W.CancelInput acts)
-    => F.Prototype v '[] reqs '[] specs '[W.SubmitInput, W.CancelInput] acts
+    => F.Prototype v '[] reqs '[] specs '[W.SubmitInput, W.CancelInput] '[] acts '[] '[] cmds
 textInputPrototype =
     W.inputPrototype `F.andPrototype` F.displaying (F.decorate [("type", "text")])

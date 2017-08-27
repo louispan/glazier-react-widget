@@ -21,10 +21,12 @@ data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
     :: (UniqueMember SubmitInput acts, UniqueMember CancelInput acts)
-    => F.Prototype v '[] reqs '[] specs '[SubmitInput, CancelInput] acts
-inputPrototype = F.Prototype ( F.idle
+    => F.Prototype v '[] reqs '[] specs '[SubmitInput, CancelInput] '[] acts '[] '[] cmds
+inputPrototype = F.Prototype ( mempty
                              , F.display disp
                              , F.Triggers (Proxy, D.singleton $ F.Trigger' ("onKeyDown", go))
+                             , mempty
+                             , mempty
                              )
   where
     disp ls ps dsn = R.lf "input" (ls dsn) (ps dsn)

@@ -15,6 +15,7 @@ import Control.Monad.Free.Church
 import Data.Diverse.Lens
 import Data.Kind
 import Data.Proxy
+import Data.Semigroup (Semigroup(..))
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
 
@@ -23,6 +24,14 @@ newtype Builder v (r :: [Type]) reqs (s :: [Type]) specs =
             , Many specs -> STM (Many r) -- from details
             )
 
+instance Semigroup (Builder v '[] acts '[] specs) where
+    _ <> _ = Builder (\_ _ -> const $ pure nil, const $ pure nil)
+
+instance Monoid (Builder v '[] acts '[] specs) where
+    mempty = Builder (\_ _ -> const $ pure nil, const $ pure nil)
+    mappend = (<>)
+
+-- | mempty is also identity for 'andBuild'
 andBuilder
     :: Builder v r1 reqs s1 specs
     -> Builder v r2 reqs s2 specs
@@ -31,12 +40,6 @@ andBuilder (Builder (mkSpec, fromSpec)) (Builder (mkSpec', fromSpec')) =
     Builder ( \v l rs -> (/./) <$> mkSpec v l rs <*> mkSpec' v l rs
             , \d -> (/./) <$> fromSpec d <*> fromSpec' d
             )
-
--- | Identity for 'andBuild'
-idle :: Builder v '[] reqs '[] specs
-idle = Builder ( \_ _ -> const $ pure nil
-               , const $ pure nil
-               )
 
 -- | Add a type @x@ into the factory
 build :: (UniqueMember x reqs, UniqueMember x specs) => Proxy x -> Builder v '[x] reqs '[x] specs

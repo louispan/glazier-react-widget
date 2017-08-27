@@ -169,39 +169,42 @@ queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
 
 mkPlan
     :: (Design specs -> R.ReactMlT STM ())
-    -> (TMVar s -> Lens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+    -- reified because output doesn't have lens type variables
+    -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
     -> TMVar s
-    -> Lens' s (Design specs)
+    -- reified because output doesn't have lens type variables
+    -> ReifiedLens' s (Design specs)
     -> F R.Reactor Plan
-mkPlan w ts v l = Plan
+mkPlan w ts v l@(Lens l') = Plan
     <$> R.mkKey' -- key
     <*> pure (FrameNum 0) -- frameNum
     <*> R.getComponent -- component
     <*> pure (C.ComponentRef J.nullRef) -- componentRef
     <*> pure mempty -- deferredDisposables
     <*> R.mkRenderer rnd -- onRender
-    <*> R.mkCallback (atomically . usingTMVar v (l . plan) . doOnComponentRef) -- onComponentRef
+    <*> R.mkCallback (atomically . usingTMVar v (l' . plan) . doOnComponentRef) -- onComponentRef
     <*> (do
             dsp <- R.getDisposer
             R.mkCallback $ atomically
                 . (>>= void . PC.send dsp)
-                . usingTMVar v (l . plan)
+                . usingTMVar v (l' . plan)
                 . const doOnComponentDidUpdate) --onComopnentDidUpdate
     <*> traverse go ts' -- triggers
   where
     ts' = ts v l
-    rnd = lift (view l <$> takeTMVar v) >>= w
+    rnd = lift (view l' <$> takeTMVar v) >>= w
     go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
 
 mkDesign
     :: [JE.Property]
     -> Many specs
     -> (Design specs -> R.ReactMlT STM ())
-    -> (TMVar s -> Lens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
-    -> TMVar s -- (Design specs) -- This must be empty!
+    -- reified because output doesn't have lens type variables
+    -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+    -> TMVar s -- This must be empty!
     -> Lens' s (Design specs)
     -> F R.Reactor (Design specs)
-mkDesign ps specs w ts v l = (\pln -> Design (pln, ps, specs)) <$> mkPlan w ts v l
+mkDesign ps specs w ts v l = (\pln -> Design (pln, ps, specs)) <$> mkPlan w ts v (Lens l)
 
 componentWindow :: Design specs -> R.ReactMlT STM ()
 componentWindow s =

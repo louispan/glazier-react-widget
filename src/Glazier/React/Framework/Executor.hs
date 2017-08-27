@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 
 module Glazier.React.Framework.Executor where
@@ -11,6 +12,7 @@ import Data.Diverse
 import Data.Functor.Contravariant
 import Data.Kind
 import Data.Proxy
+import Data.Semigroup (Semigroup(..))
 
 newtype Executor' c = Executor' (c -> MaybeT IO ())
 
@@ -21,10 +23,18 @@ newtype Executor (c :: [Type]) cmds =
     Executor ( Proxy c
             , Executor' (Which cmds))
 
-getExecutor :: Executor c c -> Executor' (Which c)
+instance Semigroup (Executor '[] cmds) where
+    _ <> _ = Executor (Proxy, Executor' $ const empty)
+
+instance Monoid (Executor '[] cmds) where
+    mempty = Executor (Proxy, Executor' $ const empty)
+    mappend = (<>)
+
+getExecutor :: Executor c cmds -> Executor' (Which cmds)
 getExecutor (Executor (_, exec)) = exec
 
--- | NB. Due to the use of <|> only the first handler for a particular command will be used.
+-- | mempty is also identity for 'orExecutor'
+-- NB. Due to the use of <|> only the first handler for a particular command will be used.
 -- This is to prevent running executors twice for the one command.
 -- This will be compile time check with @Append c1 c2@ and @UniqueMember@ constraints.
 orExecutor
@@ -33,10 +43,6 @@ orExecutor
     -> Executor (Append c1 c2) cmds
 orExecutor (Executor (_, r)) (Executor (_, r')) =
     Executor (Proxy, Executor' $ \c -> coerce r c <|> coerce r' c)
-
--- | Identity for 'orExecutor'
-ignore :: Executor '[] cmds
-ignore = Executor (Proxy, Executor' $ const empty)
 
 executor
     :: (UniqueMember c cmds)

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -13,6 +14,7 @@ import Control.Lens
 import Data.Diverse
 import Data.Kind
 import Data.Proxy
+import Data.Semigroup (Semigroup(..))
 
 newtype Handler' v s a c = Handler' (TMVar v -> ReifiedLens' v s -> a -> MaybeT STM c)
 
@@ -36,12 +38,15 @@ newtype Handler v s (a :: [Type]) acts (c :: [Type]) cmds = Handler
     , Handler' v s (Which acts) (Which cmds)
     )
 
-getHandler :: Handler v s a a c c -> Handler' v s (Which a) (Which c)
-getHandler (Handler (_, _, hdl)) = hdl
+instance Semigroup (Handler v s '[] acts '[] cmds) where
+    _ <> _ = Handler (Proxy, Proxy,  Handler' $ \_ _ _ -> empty)
 
--- | Identity for 'orHandler'
-unhandled :: Handler v s '[] acts '[()] cmds
-unhandled = Handler (Proxy, Proxy,  Handler' $ \_ _ _ -> empty)
+instance Monoid (Handler v s '[] acts '[] cmds) where
+    mempty = Handler (Proxy, Proxy,  Handler' $ \_ _ _ -> empty)
+    mappend = (<>)
+
+getHandler :: Handler v s a acts c cmds -> Handler' v s (Which acts) (Which cmds)
+getHandler (Handler (_, _, hdl)) = hdl
 
 handler
     :: (UniqueMember a acts, UniqueMember c cmds)
@@ -50,7 +55,8 @@ handler f = Handler (Proxy, Proxy, Handler' $ \v (Lens l) a -> do
                             a' <- MaybeT . pure $ trial' a
                             pick <$> f v l a')
 
--- | NB. Due to the use of <|> only the first handler for a particular action will be used.
+-- | mempty is also Identity for 'orHandler'
+-- NB. Due to the use of <|> only the first handler for a particular action will be used.
 -- This is to prevent running handlers twice for the one action.
 -- This will be compile time check with @Append a1 a2@ and @UniqueMember@ constraints.
 orHandler
@@ -67,7 +73,10 @@ orHandler (Handler (_, _, Handler' f)) (Handler (_, _, Handler' g)) =
 -- handleSpecifications = handleWith F.specifications
 -- @
 handleUnder :: Lens' t s -> Handler v s a acts c cmds -> Handler v t a acts c cmds
-handleUnder l (Handler (pa, pc, Handler' f)) = Handler (pa, pc, Handler' $ \v (Lens l') -> f v (Lens (l' . l)))
+handleUnder l (Handler (pa, pc, hdl)) = Handler (pa, pc, handleUnder' l hdl)
+
+handleUnder' :: Lens' t s -> Handler' v s a c -> Handler' v t a c
+handleUnder' l (Handler' f) = Handler' $ \v (Lens l') -> f v (Lens (l' . l))
 
 -- dispatch :: Prism' (Which a') (Which a) -> Handler v s a a -> Handler v s a' a'
 -- dispatch p l (Handler (_, f)) = Handler (p, \v l' a -> f v l' (review l a))

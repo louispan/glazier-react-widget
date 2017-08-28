@@ -1,43 +1,42 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
+-- {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
+-- {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
+-- {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
+-- {-# LANGUAGE TypeFamilies #-}
+-- {-# LANGUAGE TypeOperators #-}
 
 module Glazier.React.Widgets.List where
 
-import Control.Monad.Plus as MP
-import Control.Applicative.Alternative as A
-import Control.Applicative
+import Control.Monad.Plus as MPx
+-- import Control.Applicative.Alternative as A?
+-- import Control.Applicative
 import Control.Concurrent.STM
 import Control.Lens
-import Control.Monad.Free.Church
-import Control.Monad.Morph
-import Control.Monad.Reader
+-- import Control.Monad.Free.Church
+-- import Control.Monad.Morph
+-- import Control.Monad.Reader
 import Control.Monad.State.Strict
-import Control.Monad.Trans.Maybe
+-- import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
-import qualified Data.DList as D
 import Data.Foldable
 import qualified Data.List as DL
-import qualified Data.JSString as J
-import Data.Maybe
-import Data.Proxy
+-- import qualified Data.JSString as J
+-- import Data.Maybe
+-- import Data.Proxy
 import qualified Data.Sequence as S
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Commands as C
-import qualified JavaScript.Extras as JE
+-- import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
-import qualified Data.List as DL
+-- import qualified Data.List as DL
 
 -- | List specific actions
 data DestroyListItem = DestroyListItem
@@ -51,9 +50,10 @@ data MakeListItem r = MakeListItem r
 
 listBuilder
     :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TMVar s)) specs)
-    => F.Archetype s r s -> F.Builder v '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
-listBuilder (F.Archetype (mkEnt, frmEnt, _)) = F.Builder (mkSpecs, frmSpecs)
+    => F.Archetyper s r s (Which '[DestroyListItem]) () -> F.Builder v '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
+listBuilder arch hdl exec = F.Builder (mkSpecs, frmSpecs)
   where
+    (F.Archetype (mkEnt, frmEnt, _)) = arch hdl exec
     mkSpecs v l rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
     frmSpecs ss = single <$> traverse frmEnt' (fetch ss)
     frmEnt' v = readTMVar v >>= frmEnt

@@ -9,28 +9,28 @@ import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Data.Coerce
 import Data.Diverse
-import Data.Functor.Contravariant
+-- import Data.Functor.Contravariant
 import Data.Kind
 import Data.Proxy
 import Data.Semigroup (Semigroup(..))
 
-newtype Executor' c = Executor' (c -> MaybeT IO ())
+type Executor' c = (Which c -> MaybeT IO ())
 
-instance Contravariant Executor' where
-    contramap f (Executor' exec) = Executor' (exec . f)
+-- instance Contravariant Executor' where
+--     contramap f (Executor' exec) = Executor' (exec . f)
 
 newtype Executor (c :: [Type]) cmds =
     Executor ( Proxy c
-            , Executor' (Which cmds))
+            , Executor' cmds)
 
 instance Semigroup (Executor '[] cmds) where
-    _ <> _ = Executor (Proxy, Executor' $ const empty)
+    _ <> _ = Executor (Proxy, const empty)
 
 instance Monoid (Executor '[] cmds) where
-    mempty = Executor (Proxy, Executor' $ const empty)
+    mempty = Executor (Proxy, const empty)
     mappend = (<>)
 
-getExecutor :: Executor c cmds -> Executor' (Which cmds)
+getExecutor :: Executor c cmds -> Executor' cmds
 getExecutor (Executor (_, exec)) = exec
 
 -- | mempty is also identity for 'orExecutor'
@@ -42,12 +42,12 @@ orExecutor
     -> Executor c2 cmds
     -> Executor (Append c1 c2) cmds
 orExecutor (Executor (_, r)) (Executor (_, r')) =
-    Executor (Proxy, Executor' $ \c -> coerce r c <|> coerce r' c)
+    Executor (Proxy, \c -> coerce r c <|> coerce r' c)
 
 executor
     :: (UniqueMember c cmds)
     => (c -> MaybeT IO ()) -> Executor '[c] cmds
-executor f = Executor (Proxy, Executor' $ \cmd -> case trial' cmd of
+executor f = Executor (Proxy, \cmd -> case trial' cmd of
                       Nothing -> empty
                       Just cmd' -> f cmd')
 

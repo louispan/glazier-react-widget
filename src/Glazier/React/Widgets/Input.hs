@@ -8,7 +8,7 @@ module Glazier.React.Widgets.Input where
 import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Data.Diverse
-import qualified Data.DList as D
+import qualified Data.DList as DL
 import qualified Data.JSString as J
 import Data.Proxy
 import qualified Glazier.React as R
@@ -24,7 +24,7 @@ inputPrototype
     => F.Prototype v '[] reqs '[] specs '[SubmitInput, CancelInput] '[] acts '[] '[] cmds
 inputPrototype = F.Prototype ( mempty
                              , F.display disp
-                             , F.Triggers (Proxy, D.singleton $ F.Trigger' ("onKeyDown", go))
+                             , F.Triggers (Proxy, DL.singleton $ F.Trigger' ("onKeyDown", go))
                              , mempty
                              , mempty
                              )

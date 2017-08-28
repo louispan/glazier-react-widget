@@ -8,20 +8,20 @@ module Glazier.React.Framework.Trigger where
 
 import Control.Monad.Trans.Maybe
 import Data.Diverse
-import qualified Data.DList as D
+import qualified Data.DList as DL
 import Data.Kind
 import Data.Proxy
 import Data.Semigroup (Semigroup(..))
 import qualified GHCJS.Types as J
 
-newtype Trigger' a = Trigger' (J.JSString, J.JSVal -> MaybeT IO a)
+type Trigger' a = (J.JSString, J.JSVal -> MaybeT IO a)
 
-instance Functor Trigger' where
-    fmap f (Trigger' (evt, t)) = Trigger' (evt, fmap f <$> t)
+-- instance Functor Trigger' where
+--     fmap f (Trigger' (evt, t)) = Trigger' (evt, fmap f <$> t)
 
 newtype Triggers (a :: [Type]) acts = Triggers
     ( Proxy a
-    , D.DList (Trigger' (Which acts))
+    , DL.DList (Trigger' (Which acts))
     )
 
 instance Semigroup (Triggers '[] acts) where
@@ -36,7 +36,7 @@ instance Monoid (Triggers '[] acts) where
 andTriggers :: Triggers a1 acts -> Triggers a2 acts -> Triggers (AppendUnique a1 a2) acts
 andTriggers (Triggers (Proxy, f)) (Triggers (Proxy, g)) = Triggers (Proxy, f <> g)
 
-getTriggers :: Triggers a acts -> D.DList (Trigger' (Which acts))
+getTriggers :: Triggers a acts -> DL.DList (Trigger' (Which acts))
 getTriggers (Triggers (_, ts)) = ts
 
 -- expect :: Proxy a -> Triggers '[a] acts
@@ -45,4 +45,4 @@ getTriggers (Triggers (_, ts)) = ts
 trigger
     :: UniqueMember a acts
     => (J.JSString, J.JSVal -> MaybeT IO a) -> Triggers '[a] acts
-trigger (evt, f) = Triggers (Proxy, D.singleton $ Trigger' (evt, fmap pick . f))
+trigger (evt, f) = Triggers (Proxy, DL.singleton (evt, fmap pick . f))

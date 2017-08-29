@@ -50,9 +50,11 @@ data MakeListItem r = MakeListItem r
 
 listBuilder
     :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TMVar s)) specs)
-    => F.Archetyper s r s (Which '[DestroyListItem]) () -> F.Builder v '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
-listBuilder arch hdl exec = F.Builder (mkSpecs, frmSpecs)
+    => F.Archetyper s r s '[DestroyListItem] '[()] -> F.Builder v '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
+listBuilder arch = F.Builder (mkSpecs, frmSpecs)
   where
+    hdl = undefined
+    exec = undefined
     (F.Archetype (mkEnt, frmEnt, _)) = arch hdl exec
     mkSpecs v l rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
     frmSpecs ss = single <$> traverse frmEnt' (fetch ss)

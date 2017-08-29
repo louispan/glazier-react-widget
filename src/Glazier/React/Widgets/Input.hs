@@ -24,7 +24,7 @@ inputPrototype
     => F.Prototype v '[] reqs '[] specs '[SubmitInput, CancelInput] '[] acts '[] '[] cmds
 inputPrototype = F.Prototype ( mempty
                              , F.display disp
-                             , F.Triggers (Proxy, DL.singleton $ F.Trigger' ("onKeyDown", go))
+                             , F.Triggers (Proxy, DL.singleton ("onKeyDown", go))
                              , mempty
                              , mempty
                              )

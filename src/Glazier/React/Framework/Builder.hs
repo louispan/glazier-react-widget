@@ -21,34 +21,42 @@ import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Widget as F
 
-newtype Builder v (r :: [Type]) reqs (s :: [Type]) specs (t :: [Type]) acts cmds =
-    Builder ( Proxy t -- triggers
-            , Many specs -> STM (Many r) -- from details
-            , F.Handler' v (F.Design specs) acts cmds
-            -> F.Executor' cmds
-            -> TMVar v -> ReifiedLens' v (F.Design specs)
-            -> Many reqs -> F R.Reactor (Many s) -- make specifications
+newtype Builder v (r :: [Type]) reqs (s :: [Type]) specs (ba :: [Type]) acts (bc :: [Type]) cmds =
+    Builder ( Proxy ba
+            , Proxy bc
+            , Many specs -> STM (Many r) -- from specifications
+            , F.Handler' v (F.Design specs) acts cmds -- externally provided handlers
+              -> F.Executor' cmds
+              -> TMVar v
+              -> ReifiedLens' v (F.Design specs)
+              -> Many reqs
+              -> F R.Reactor (Many s) -- make specifications
             )
 
-instance Semigroup (Builder v '[] reqs '[] specs '[] acts cmds) where
-    _ <> _ = Builder (const $ pure nil, \_ _ -> const $ pure nil)
+instance Semigroup (Builder v '[] reqs '[] specs '[] acts '[] cmds) where
+    _ <> _ = Builder (Proxy, Proxy, const $ pure nil, \_ _ _ _ -> const $ pure nil)
 
-instance Monoid (Builder v '[] reqs '[] specs '[] acts cmds) where
-    mempty = Builder (const $ pure nil, \_ _ -> const $ pure nil)
+instance Monoid (Builder v '[] reqs '[] specs '[] acts '[] cmds) where
+    mempty = Builder (Proxy, Proxy, const $ pure nil, \_ _ _ _ -> const $ pure nil)
     mappend = (<>)
 
 -- | mempty is also identity for 'andBuild'
+-- It is okay to combine builders the expect the same @ba@ action, hence the use of 'AppendUnique'
 andBuilder
-    :: Builder v r1 reqs s1 specs
-    -> Builder v r2 reqs s2 specs
-    -> Builder v (Append r1 r2) reqs (Append s1 s2) specs
-andBuilder (Builder (fromSpec, mkSpec)) (Builder (fromSpec', mkSpec')) =
-    Builder ( \d -> (/./) <$> fromSpec d <*> fromSpec' d
-            , \v l rs -> (/./) <$> mkSpec v l rs <*> mkSpec' v l rs
+    :: Builder v r1 reqs s1 specs ba1 acts bc1 cmds
+    -> Builder v r2 reqs s2 specs ba2 acts bc2 cmds
+    -> Builder v (Append r1 r2) reqs (Append s1 s2) specs (AppendUnique ba1 ba2) acts (AppendUnique bc1 bc2) cmds
+andBuilder (Builder (_, _, fromSpec, mkSpec)) (Builder (_, _, fromSpec', mkSpec')) =
+    Builder ( Proxy
+            , Proxy
+            , \d -> (/./) <$> fromSpec d <*> fromSpec' d
+            , \hdl exec v l rs -> (/./) <$> mkSpec hdl exec v l rs <*> mkSpec' hdl exec v l rs
             )
 
 -- | Add a type @x@ into the factory
-build :: (UniqueMember x reqs, UniqueMember x specs) => Proxy x -> Builder v '[x] reqs '[x] specs
-build _ = Builder ( pure . single . fetch
-                  , \_ _ -> pure . single . fetch
+build :: (UniqueMember x reqs, UniqueMember x specs) => Proxy x -> Builder v '[x] reqs '[x] specs '[] acts '[] cmds
+build _ = Builder ( Proxy
+                  , Proxy
+                  , pure . single . fetch
+                  , \_ _ _ _ -> pure . single . fetch
                   )

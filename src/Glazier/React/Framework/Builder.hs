@@ -26,11 +26,11 @@ newtype Builder v (r :: [Type]) reqs (s :: [Type]) specs (ba :: [Type]) acts (bc
             , Proxy bc
             , Many specs -> STM (Many r) -- from specifications
             , F.Handler' v (F.Design specs) acts cmds -- externally provided handlers
-              -> F.Executor' cmds
-              -> TMVar v
-              -> ReifiedLens' v (F.Design specs)
-              -> Many reqs
-              -> F R.Reactor (Many s) -- make specifications
+            -> F.Executor' cmds
+            -> TMVar v
+            -> ReifiedLens' v (F.Design specs)
+            -> Many reqs
+            -> F R.Reactor (Many s) -- make specifications
             )
 
 instance Semigroup (Builder v '[] reqs '[] specs '[] acts '[] cmds) where

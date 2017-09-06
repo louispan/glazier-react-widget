@@ -40,11 +40,15 @@ import Data.Diverse.Lens
 import Data.Kind
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
+import qualified GHCJS.Foreign.Callback.Internal as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Commands.Rerender as C
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
+
+-- FIXME: hide constructor
+newtype Inactive a = Inactive a
 
 ----------------------------------------------------------
 
@@ -146,9 +150,6 @@ rerender = do
 doOnComponentRef :: J.JSVal -> StateT Plan STM ()
 doOnComponentRef j = componentRef .= C.ComponentRef j
 
--- doOnComponentRef' :: TMVar s -> Lens' s Plan -> J.JSVal -> IO ()
--- doOnComponentRef' v l = atomically . usingTMVar v l . doOnComponentRef
-
 doOnComponentDidUpdate :: StateT Plan STM (R.Disposable ())
 doOnComponentDidUpdate = do
     -- Run delayed commands that need to wait until frame is re-rendered
@@ -160,51 +161,75 @@ doOnComponentDidUpdate = do
 queueDisposable :: R.Dispose a => a -> StateT (Design specs) STM ()
 queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
 
--- doOnComponentDidUpdate' :: PC.Output (R.Disposable ()) -> TMVar s -> Lens' s Plan -> J.JSVal -> IO ()
--- doOnComponentDidUpdate' dc v l = atomically . (>>= void . PC.send dc) . usingTMVar v l . const doOnComponentDidUpdate
-
--- type Trigger specs = (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
-
--- type Delegate a specs = (TMVar (Design specs) -> Which a -> STM ()) -> (J.JSString, TMVar (Design specs) -> J.JSVal -> IO ())
-
-mkPlan
-    :: (Design specs -> R.ReactMlT STM ())
-    -- reified because output doesn't have lens type variables
-    -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
-    -> TMVar s
-    -- reified because output doesn't have lens type variables
-    -> ReifiedLens' s (Design specs)
-    -> F R.Reactor Plan
-mkPlan w ts v l@(Lens l') = Plan
-    <$> R.mkKey' -- key
-    <*> pure (FrameNum 0) -- frameNum
-    <*> R.getComponent -- component
-    <*> pure (C.ComponentRef J.nullRef) -- componentRef
-    <*> pure mempty -- deferredDisposables
-    <*> R.mkRenderer rnd -- onRender
-    <*> R.mkCallback (atomically . usingTMVar v (l' . plan) . doOnComponentRef) -- onComponentRef
-    <*> (do
-            dsp <- R.getDisposer
-            R.mkCallback $ atomically
-                . (>>= void . PC.send dsp)
-                . usingTMVar v (l' . plan)
-                . const doOnComponentDidUpdate) --onComopnentDidUpdate
-    <*> traverse go ts' -- triggers
+-- | Note: listeners with the same name will silently overwrite previous settings.
+mkInactivePlan :: F R.Reactor (Inactive Plan)
+mkInactivePlan = Inactive <$> mkInactivePlan'
   where
-    ts' = ts v l
-    rnd = lift (view l' <$> takeTMVar v) >>= w
-    go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
+    mkInactivePlan' = Plan
+      <$> R.mkKey' -- key
+      <*> pure (FrameNum 0) -- frameNum
+      <*> R.getComponent -- component
+      <*> pure (C.ComponentRef J.nullRef) -- componentRef
+      <*> pure mempty -- deferredDisposables
+      <*> pure (J.Callback $ J.nullRef) -- R.mkRenderer rnd -- onRender
+      <*> pure (J.Callback $ J.nullRef) -- R.mkCallback (atomically . usingTMVar v (l' . plan) . doOnComponentRef) -- onComponentRef
+      <*> pure (J.Callback $ J.nullRef)
+      -- <*> (do
+      --         dsp <- R.getDisposer
+      --         R.mkCallback $ atomically
+      --             . (>>= void . PC.send dsp)
+      --             . usingTMVar v (l' . plan)
+      --             . const doOnComponentDidUpdate) --onComopnentDidUpdate
+      <*> mempty -- traverse go ts -- triggers
+      -- ts' = ts v l
+      -- rnd = lift (view l' <$> takeTMVar v) >>= w
+    -- go (n, f) = (\cb -> (n, cb)) <$> R.mkCallback f
 
-mkDesign
+-- activatePlan ::
+--     -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+--     -> TMVar s
+--     -- reified because output doesn't have lens type variables
+--     -> ReifiedLens' s (Design specs)
+
+
+-- mkPlan
+--     :: (Design specs -> R.ReactMlT STM ())
+--     -- reified because output doesn't have lens type variables
+--     -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+--     -> TMVar s
+--     -- reified because output doesn't have lens type variables
+--     -> ReifiedLens' s (Design specs)
+--     -> F R.Reactor Plan
+-- mkPlan w ts v l@(Lens l') = Plan
+--     <$> R.mkKey' -- key
+--     <*> pure (FrameNum 0) -- frameNum
+--     <*> R.getComponent -- component
+--     <*> pure (C.ComponentRef J.nullRef) -- componentRef
+--     <*> pure mempty -- deferredDisposables
+--     <*> R.mkRenderer rnd -- onRender
+--     <*> R.mkCallback (atomically . usingTMVar v (l' . plan) . doOnComponentRef) -- onComponentRef
+--     <*> (do
+--             dsp <- R.getDisposer
+--             R.mkCallback $ atomically
+--                 . (>>= void . PC.send dsp)
+--                 . usingTMVar v (l' . plan)
+--                 . const doOnComponentDidUpdate) --onComopnentDidUpdate
+--     <*> traverse go ts' -- triggers
+--   where
+--     ts' = ts v l
+--     rnd = lift (view l' <$> takeTMVar v) >>= w
+--     go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
+
+mkInactiveDesign
     :: [JE.Property]
     -> Many specs
-    -> (Design specs -> R.ReactMlT STM ())
+    -- -> (Design specs -> R.ReactMlT STM ())
     -- reified because output doesn't have lens type variables
-    -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
-    -> TMVar s -- This must be empty!
-    -> Lens' s (Design specs)
-    -> F R.Reactor (Design specs)
-mkDesign ps specs w ts v l = (\pln -> Design (pln, ps, specs)) <$> mkPlan w ts v (Lens l)
+    -- -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+    -- -> TMVar s -- This must be empty!
+    -- -> Lens' s (Design specs)
+    -> F R.Reactor (Inactive (Design specs))
+mkDesign ps specs = (\pln -> Design (pln, ps, specs)) <$> mkInactivePlan w ts v (Lens l)
 
 componentWindow :: Design specs -> R.ReactMlT STM ()
 componentWindow s =

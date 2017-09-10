@@ -13,16 +13,16 @@ import Data.Kind
 import Data.Semigroup (Semigroup(..))
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.Widget as F
 
-newtype Prototype v (r :: [Type]) reqs
-                    (s :: [Type]) specs
-                    (ba :: [Type]) acts
-                    (t :: [Type]) (h :: [Type]) acts'
-                    (bc :: [Type]) (tc :: [Type]) cmds =
+newtype Prototype v
+                  (r :: [Type]) reqs
+                  (s :: [Type]) specs
+                  (ba :: [Type]) acts
+                  (t :: [Type]) (h :: [Type]) acts'
+                  (bc :: [Type]) (tc :: [Type]) cmds =
     Prototype ( F.Builder v r reqs s specs ba acts bc cmds
               , F.Display specs
               , F.Triggers t acts'
@@ -40,11 +40,12 @@ instance Monoid (Prototype v '[] reqs '[] specs '[] acts '[] '[] acts' '[] '[] c
 andPrototype
     :: Prototype v r1 reqs s1 specs ba1 acts t1 h1 acts' bc1 tc1 cmds
     -> Prototype v r2 reqs s2 specs ba2 acts t2 h2 acts' bc2 tc2 cmds
-    -> Prototype v (Append r1 r2) reqs
-                   (Append s1 s2) specs
-                   (AppendUnique ba1 ba2) acts
-                   (AppendUnique t1 t2) (Append h1 h2) acts'
-                   (AppendUnique bc1 bc2) (AppendUnique tc1 tc2) cmds
+    -> Prototype v
+                 (Append r1 r2) reqs
+                 (Append s1 s2) specs
+                 (AppendUnique ba1 ba2) acts
+                 (AppendUnique t1 t2) (Append h1 h2) acts'
+                 (AppendUnique bc1 bc2) (AppendUnique tc1 tc2) cmds
 andPrototype (Prototype (b, d, t, h)) (Prototype (b', d', t', h')) =
     Prototype ( b `F.andBuilder` b'
               , d <> d'

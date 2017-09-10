@@ -48,53 +48,54 @@ data MakeListItem r = MakeListItem r
     -- | SetFilterAction (R.OutlineOf w -> Bool)
     -- | SetSortAction (R.OutlineOf w -> Bool)
 
-listBuilder
-    :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TMVar s)) specs)
-    => F.Archetyper s r s '[DestroyListItem] '[()] -> F.Builder v '[S.Seq r] reqs '[S.Seq (TMVar s)] specs
-listBuilder arch = F.Builder (mkSpecs, frmSpecs)
-  where
-    hdl = undefined
-    exec = undefined
-    (F.Archetype (mkEnt, frmEnt, _)) = arch hdl exec
-    mkSpecs v l rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
-    frmSpecs ss = single <$> traverse frmEnt' (fetch ss)
-    frmEnt' v = readTMVar v >>= frmEnt
+-- listBuilder
+--     :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TVar s)) specs)
+--     => F.Archetype r s '[DestroyListItem] acts '[()] cmds
+--     -> F.Builder v '[S.Seq r] reqs '[S.Seq (TVar s)] specs ? ba '[()] cmds
+-- listBuilder arch = F.Builder (mkSpecs, frmSpecs)
+--   where
+--     hdl = undefined
+--     exec = undefined
+--     (F.Archetype (mkEnt, frmEnt, _)) = arch hdl exec
+--     mkSpecs v l rs = single <$> traverse (F.mkBasicEntity mkEnt) (fetch rs)
+--     frmSpecs ss = single <$> traverse frmEnt' (fetch ss)
+--     frmEnt' v = readTMVar v >>= frmEnt
 
-listDisplay
-    :: forall v r s specs. UniqueMember (S.Seq (TMVar s)) specs
-    => R.ReactMlT STM ()
-    -> F.Archetype v r s
-    -> F.Display specs
-listDisplay separator (F.Archetype (_, _, disp)) = F.display disp'
-  where
-    disp' ls ps s = do
-        let xs = s ^. (F.specifications . item) :: S.Seq (TMVar s)
-            xs' = toLi <$> xs
-            toLi v = R.bh "li" [] [] (F.viewingTMVar' v disp)
-            xs'' = DL.intersperse separator (toList xs')
-        R.bh "ul" (ls s) (ps s) (mconcat xs'')
+-- listDisplay
+--     :: forall v r s specs. UniqueMember (S.Seq (TMVar s)) specs
+--     => R.ReactMlT STM ()
+--     -> F.Archetype v r s
+--     -> F.Display specs
+-- listDisplay separator (F.Archetype (_, _, disp)) = F.display disp'
+--   where
+--     disp' ls ps s = do
+--         let xs = s ^. (F.specifications . item) :: S.Seq (TMVar s)
+--             xs' = toLi <$> xs
+--             toLi v = R.bh "li" [] [] (F.viewingTMVar' v disp)
+--             xs'' = DL.intersperse separator (toList xs')
+--         R.bh "ul" (ls s) (ps s) (mconcat xs'')
 
 
-wack :: (TMVar s -> STM ()) -> F.Archetype s r s
-wack = undefined
+-- wack :: (TMVar s -> STM ()) -> F.Archetype s r s
+-- wack = undefined
 
-removeListItem'
-    :: (R.Dispose s, UniqueMember (S.Seq (TMVar s)) specs)
-    => PC.Output C.Rerender -> TMVar t -> Lens' t (F.Design specs) -> TMVar s -> STM ()
-removeListItem' o v l s = void $ F.usingTMVar v l (removeListItem s) >>= PC.send o
+-- removeListItem'
+--     :: (R.Dispose s, UniqueMember (S.Seq (TMVar s)) specs)
+--     => PC.Output C.Rerender -> TMVar t -> Lens' t (F.Design specs) -> TMVar s -> STM ()
+-- removeListItem' o v l s = void $ F.usingTMVar v l (removeListItem s) >>= PC.send o
 
-removeListItem
-    :: (R.Dispose s, UniqueMember (S.Seq (TMVar s)) specs)
-    => TMVar s -> StateT (F.Design specs) STM C.Rerender
-removeListItem s = do
-    ls <- use (F.specifications . item)
-    let (as, bs) = S.breakl (/= s) ls
-        (x, cs) = case S.viewl bs of
-            S.EmptyL -> (Nothing, as)
-            s' S.:< bs' -> (Just s', as S.>< bs')
-    maybe (pure ()) F.queueDisposable x
-    (F.specifications . item) .= cs
-    F.rerender
+-- removeListItem
+--     :: (R.Dispose s, UniqueMember (S.Seq (TMVar s)) specs)
+--     => TMVar s -> StateT (F.Design specs) STM C.Rerender
+-- removeListItem s = do
+--     ls <- use (F.specifications . item)
+--     let (as, bs) = S.breakl (/= s) ls
+--         (x, cs) = case S.viewl bs of
+--             S.EmptyL -> (Nothing, as)
+--             s' S.:< bs' -> (Just s', as S.>< bs')
+--     maybe (pure ()) F.queueDisposable x
+--     (F.specifications . item) .= cs
+--     F.rerender
 
 -- wack
 --     :: UniqueMember (S.Seq (TMVar s)) specs

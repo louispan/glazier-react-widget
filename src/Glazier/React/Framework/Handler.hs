@@ -12,25 +12,14 @@ import Control.Monad.Trans.Maybe
 import Control.Concurrent.STM
 import Control.Lens
 import Data.Diverse
+import qualified Data.DList as DL
 import Data.Kind
 import Data.Proxy
 import Data.Semigroup (Semigroup(..))
 
-type Handler' v s a c = (TMVar v -> ReifiedLens' v s -> Which a -> MaybeT STM (Which c))
-
--- instance Functor (Handler' v s a) where
---     fmap f (Handler' hdl) = Handler' (\v l -> fmap f . hdl v l)
-
--- instance Applicative (Handler' v s a) where
---     pure a = Handler' (\_ _ _ -> pure a)
---     (Handler' hdl1) <*> (Handler' hdl2) = Handler' (\v l a -> hdl1 v l a <*> hdl2 v l a)
-
--- instance Alternative (Handler' v s a) where
---     empty = Handler' (\_ _ _ -> empty)
---     (Handler' hdl1) <|> (Handler' hdl2) = Handler' (\v l a -> hdl1 v l a <|> hdl2 v l a)
-
--- instance Profunctor (Handler' v s) where
---     dimap f g (Handler' hdl) = Handler' (\v l -> fmap g . hdl v l . f)
+-- NB. Reififed helps type inference because
+-- the output doesn't depends on v or s
+type Handler' v s a c = TVar v -> ReifiedLens' v s -> Which a -> MaybeT STM (DL.DList (Which c))
 
 newtype Handler v s (a :: [Type]) acts (c :: [Type]) cmds = Handler
     ( Proxy a
@@ -39,10 +28,10 @@ newtype Handler v s (a :: [Type]) acts (c :: [Type]) cmds = Handler
     )
 
 instance Semigroup (Handler v s '[] acts '[] cmds) where
-    _ <> _ = Handler (Proxy, Proxy,  \_ _ _ -> empty)
+    _ <> _ = Handler (Proxy, Proxy, \_ _ _ -> empty)
 
 instance Monoid (Handler v s '[] acts '[] cmds) where
-    mempty = Handler (Proxy, Proxy,  \_ _ _ -> empty)
+    mempty = Handler (Proxy, Proxy, \_ _ _ -> empty)
     mappend = (<>)
 
 getHandler :: Handler v s a acts c cmds -> Handler' v s acts cmds
@@ -50,10 +39,10 @@ getHandler (Handler (_, _, hdl)) = hdl
 
 handler
     :: (UniqueMember a acts, UniqueMember c cmds)
-    => (TMVar v -> Lens' v s -> a -> MaybeT STM c) -> Handler v s '[a] acts '[c] cmds
-handler f = Handler (Proxy, Proxy, \v (Lens l) a -> do
+    => (TVar v -> ReifiedLens' v s -> a -> MaybeT STM c) -> Handler v s '[a] acts '[c] cmds
+handler f = Handler (Proxy, Proxy, \v l a -> do
                             a' <- MaybeT . pure $ trial' a
-                            pick <$> f v l a')
+                            (DL.singleton . pick) <$> f v l a')
 
 -- | mempty is also Identity for 'orHandler'
 -- NB. Due to the use of <|> only the first handler for a particular action will be used.
@@ -70,8 +59,9 @@ orHandler (Handler (_, _, f)) (Handler (_, _, g)) =
 --
 -- @
 -- handleSpecifications :: Handler v (Many specs) h acts -> Handler v (F.Design specs) h acts
--- handleSpecifications = handleWith F.specifications
+-- handleSpecifications = magnifyHandler F.specifications
 -- @
+-- magnifyHandler :: Lens' t s -> Handler s a acts c cmds -> Handler t a acts c cmds
 magnifyHandler :: Lens' t s -> Handler v s a acts c cmds -> Handler v t a acts c cmds
 magnifyHandler l (Handler (pa, pc, hdl)) = Handler (pa, pc, magnifyHandler' l hdl)
 

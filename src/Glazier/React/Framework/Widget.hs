@@ -34,10 +34,14 @@ import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad
 import Control.Monad.Free.Church
-import Control.Monad.Trans.Class
+import Control.Monad.Morph
+import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
+import qualified Data.DList as DL
+import Data.Foldable
 import Data.Kind
+import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Foreign.Callback.Internal as J
@@ -47,8 +51,8 @@ import qualified Glazier.React.Commands.Rerender as C
 import qualified JavaScript.Extras as JE
 import qualified Pipes.Concurrent as PC
 
--- FIXME: hide constructor
-newtype Inactive a = Inactive a
+-- -- FIXME: hide constructor
+-- newtype Inactive a = Inactive a
 
 ----------------------------------------------------------
 
@@ -71,10 +75,10 @@ data Plan = Plan
     , _component :: R.ReactComponent
     , _componentRef :: C.ComponentRef
     , _deferredDisposables :: R.Disposable ()
+    , _listeners :: [R.Listener]
     , _onRender ::  J.Callback (IO J.JSVal)
     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
     , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
-    , _listeners :: [R.Listener]
     } deriving (G.Generic)
 
 makeClassy ''Plan
@@ -86,13 +90,17 @@ instance R.Dispose Plan
 class HasSpecifications c specs | c -> specs where
     specifications :: Lens' c (Many specs)
 
+class HasMaybePlan c  where
+    maybePlan :: Lens' c (Maybe Plan)
+
 ----------------------------------------------------------
 
 newtype Design (specs :: [Type]) = Design
-    { unDesign ::
-        ( Plan
-        , [JE.Property]
-        , Many specs)
+    { runDesign ::
+        ( [JE.Property]
+        , Many specs
+        , Plan
+        )
     }
     deriving G.Generic
 
@@ -100,40 +108,40 @@ newtype Design (specs :: [Type]) = Design
 instance (R.Dispose (Many specs)) => R.Dispose (Design specs)
 
 instance HasPlan (Design specs) where
-    plan = _Design . _1
+    plan = _Design . _3
 
 instance HasProperties (Design specs) where
-    properties = _Design . _2
+    properties = _Design . _1
 
 instance HasSpecifications (Design specs) specs where
-    specifications = _Design . _3
+    specifications = _Design . _2
 
 _Design :: Iso
     (Design specs)
     (Design specs')
-    (Plan, [JE.Property], Many specs)
-    (Plan, [JE.Property], Many specs')
-_Design = iso unDesign Design
+    ([JE.Property], Many specs, Plan)
+    ([JE.Property], Many specs', Plan)
+_Design = iso runDesign Design
 
 ----------------------------------------------------------
 
-usingTMVar :: TMVar s -> Lens' s p -> StateT p STM a -> STM a
-usingTMVar v l m = do
-    s <- takeTMVar v
-    let t = s ^. l
-    (a, t') <- runStateT m t
-    putTMVar v (s & l .~ t')
+-- FIXME: Move to STM extras
+usingTVar :: TVar v -> Lens' v s -> StateT s STM a -> STM a
+usingTVar v here m = do
+    this <- readTVar v
+    let s = this ^. here
+    (a, s') <- runStateT m s
+    writeTVar v (this & here .~ s')
     pure a
 
-viewingTMVar :: TMVar s -> (s -> STM r) -> STM r
-viewingTMVar v frmEnt = readTMVar v >>= frmEnt
+usingTVar' :: MFunctor t => TVar v -> Lens' v s -> t (StateT s STM) a -> (t STM) a
+usingTVar' v here = hoist (usingTVar v here)
 
-viewingTMVar' :: (MonadTrans t, Monad (t STM)) =>TMVar s -> (s -> (t STM) r) -> (t STM) r
-viewingTMVar' v frmEnt = lift (readTMVar v) >>= frmEnt
+viewingTVar :: TVar v -> Lens' v s -> (s -> STM r) -> STM r
+viewingTVar v here m = (view here <$> readTVar v) >>= m
 
--- | Send widget output into a queue to be process by a separate worker.
--- post :: PC.Output o -> o -> STM ()
--- post o = void . PC.send o
+viewingTVar' :: (MonadTrans t, Monad (t STM)) => TVar v -> Lens' v s -> (s -> (t STM) r) -> (t STM) r
+viewingTVar' v here m = lift (view here <$> readTVar v) >>= m
 
 ----------------------------------------------------------
 
@@ -161,75 +169,110 @@ doOnComponentDidUpdate = do
 queueDisposable :: R.Dispose a => a -> StateT (Design specs) STM ()
 queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
 
--- | Note: listeners with the same name will silently overwrite previous settings.
-mkInactivePlan :: F R.Reactor (Inactive Plan)
-mkInactivePlan = Inactive <$> mkInactivePlan'
+-- | HACK! Callbacks are initialized with J.nullRef
+mkInactivePlan
+    :: F R.Reactor Plan
+mkInactivePlan = Plan
+    <$> R.mkKey' -- key
+    <*> pure (FrameNum 0) -- frameNum
+    <*> R.getComponent -- component
+    <*> pure (C.ComponentRef J.nullRef) -- componentRef
+    <*> pure mempty -- deferredDisposables
+    <*> pure mempty -- traverse go ts -- triggers
+    <*> pure (J.Callback J.nullRef) -- R.mkRenderer rnd -- onRender
+    <*> pure (J.Callback J.nullRef) -- R.mkCallback (atomically . usingTMVar v (l . plan) . doOnComponentRef) -- onComponentRef
+    <*> pure (J.Callback J.nullRef) -- (do
+            -- dsp <- R.getDisposer
+            -- R.mkCallback $ atomically
+            --     . (>>= void . PC.send dsp)
+            --     . usingTMVar v (l . plan)
+            --     . const doOnComponentDidUpdate) --onComopnentDidUpdate
+  -- where
+  --   rnd = lift (view l <$> takeTMVar v) >>= w
+  --   go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
+
+-- | HACK! We are assuming that Plan was not previously activated
+-- So we don't need to dispose the previous Callbacks
+activatePlan
+    :: (Which cmds -> MaybeT IO ())
+    -> [(J.JSString, TVar (Design specs) -> J.JSVal -> MaybeT IO (DL.DList (Which cmds)))]
+    -> (Design specs -> R.ReactMlT STM ())
+    -> TVar (Design specs)
+    -> Plan
+    -> F R.Reactor Plan
+activatePlan exec ts w v (Plan k frm cpnt cpntRef defDisp ls _ _ _) =
+    Plan k frm cpnt cpntRef defDisp
+    <$> ((ls <>) <$> traverse toListener ts) -- triggers
+    <*> R.mkRenderer rnd -- onRender
+    <*> R.mkCallback (atomically . usingTVar v id . zoom plan . doOnComponentRef) -- onComponentRef
+    <*> (do
+            dsp <- R.getDisposer
+            R.mkCallback $ atomically
+                . (>>= void . PC.send dsp)
+                . usingTVar v id
+                . zoom plan
+                . const doOnComponentDidUpdate) --onComopnentDidUpdate
   where
-    mkInactivePlan' = Plan
-      <$> R.mkKey' -- key
-      <*> pure (FrameNum 0) -- frameNum
-      <*> R.getComponent -- component
-      <*> pure (C.ComponentRef J.nullRef) -- componentRef
-      <*> pure mempty -- deferredDisposables
-      <*> pure (J.Callback $ J.nullRef) -- R.mkRenderer rnd -- onRender
-      <*> pure (J.Callback $ J.nullRef) -- R.mkCallback (atomically . usingTMVar v (l' . plan) . doOnComponentRef) -- onComponentRef
-      <*> pure (J.Callback $ J.nullRef)
-      -- <*> (do
-      --         dsp <- R.getDisposer
-      --         R.mkCallback $ atomically
-      --             . (>>= void . PC.send dsp)
-      --             . usingTMVar v (l' . plan)
-      --             . const doOnComponentDidUpdate) --onComopnentDidUpdate
-      <*> mempty -- traverse go ts -- triggers
-      -- ts' = ts v l
-      -- rnd = lift (view l' <$> takeTMVar v) >>= w
-    -- go (n, f) = (\cb -> (n, cb)) <$> R.mkCallback f
-
--- activatePlan ::
---     -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
---     -> TMVar s
---     -- reified because output doesn't have lens type variables
---     -> ReifiedLens' s (Design specs)
-
+    toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback (toCallback f)
+    toCallback f a = void . runMaybeT $ f v a >>= traverse_ exec
+    rnd = viewingTVar' v id w
 
 -- mkPlan
 --     :: (Design specs -> R.ReactMlT STM ())
---     -- reified because output doesn't have lens type variables
---     -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
+--     -> [(J.JSString, J.JSVal -> IO ())]
 --     -> TMVar s
---     -- reified because output doesn't have lens type variables
---     -> ReifiedLens' s (Design specs)
+--     -> Lens' s (Design specs)
 --     -> F R.Reactor Plan
--- mkPlan w ts v l@(Lens l') = Plan
+-- mkPlan w ts v l = Plan
 --     <$> R.mkKey' -- key
 --     <*> pure (FrameNum 0) -- frameNum
 --     <*> R.getComponent -- component
 --     <*> pure (C.ComponentRef J.nullRef) -- componentRef
 --     <*> pure mempty -- deferredDisposables
 --     <*> R.mkRenderer rnd -- onRender
---     <*> R.mkCallback (atomically . usingTMVar v (l' . plan) . doOnComponentRef) -- onComponentRef
+--     <*> R.mkCallback (atomically . usingTMVar v (l . plan) . doOnComponentRef) -- onComponentRef
 --     <*> (do
 --             dsp <- R.getDisposer
 --             R.mkCallback $ atomically
 --                 . (>>= void . PC.send dsp)
---                 . usingTMVar v (l' . plan)
+--                 . usingTMVar v (l . plan)
 --                 . const doOnComponentDidUpdate) --onComopnentDidUpdate
---     <*> traverse go ts' -- triggers
+--     <*> traverse go ts -- triggers
 --   where
---     ts' = ts v l
---     rnd = lift (view l' <$> takeTMVar v) >>= w
+--     rnd = lift (view l <$> takeTMVar v) >>= w
 --     go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
 
 mkInactiveDesign
     :: [JE.Property]
     -> Many specs
-    -- -> (Design specs -> R.ReactMlT STM ())
-    -- reified because output doesn't have lens type variables
-    -- -> (TMVar s -> ReifiedLens' s (Design specs) -> [(J.JSString, J.JSVal -> IO ())])
-    -- -> TMVar s -- This must be empty!
-    -- -> Lens' s (Design specs)
-    -> F R.Reactor (Inactive (Design specs))
-mkDesign ps specs = (\pln -> Design (pln, ps, specs)) <$> mkInactivePlan w ts v (Lens l)
+    -> F R.Reactor (Design specs)
+mkInactiveDesign ps specs = (\pln -> Design (ps, specs, pln)) <$> mkInactivePlan
+
+activateDesign
+    :: (Which cmds -> MaybeT IO ())
+    -> [(J.JSString, TVar (Design specs) -> J.JSVal -> MaybeT IO (DL.DList (Which cmds)))]
+    -> (Design specs -> R.ReactMlT STM ())
+    -> TVar (Design specs)
+    -> F R.Reactor (Design specs)
+activateDesign exec ts w v = do
+    dsgn <- R.doSTM (readTVar v)
+    pln <- activatePlan exec ts w v (dsgn ^. plan)
+    pure (dsgn & plan .~ pln)
+
+mkDesign
+    :: [JE.Property]
+    -> Many specs
+    -> (Which cmds -> MaybeT IO ())
+    -> [(J.JSString, TVar (Design specs) -> J.JSVal -> MaybeT IO (DL.DList (Which cmds)))]
+    -> (Design specs -> R.ReactMlT STM ())
+    -> F R.Reactor (TVar (Design specs))
+mkDesign ps ss exec cbs w = do
+    d <- mkInactiveDesign ps ss
+    v <- R.doSTM $ newTVar d
+    d' <- activateDesign exec cbs w v
+    R.doSTM $ writeTVar v d'
+    pure v
+
 
 componentWindow :: Design specs -> R.ReactMlT STM ()
 componentWindow s =

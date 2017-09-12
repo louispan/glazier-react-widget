@@ -54,21 +54,22 @@ newtype Archetype r s (a :: [Type]) acts (c :: [Type]) cmds =
     , s -> R.ReactMlT STM ()
     , s -> STM r
     , F.Executor' cmds
-    -> F.Handler' s s acts cmds
+    -> F.Handler' s acts cmds
     -> r
     -> F R.Reactor (TVar s))
 
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to @s@
 implement
-    :: ( NFData (Which ta)
-       , Reinterpret' (Complement ta h) ta
-       , Diversify acts (Complement ta h)
-       , Diversify acts ba
+    :: ( NFData (Which acts')
+       , Reinterpret' (Complement ta ha) acts'
+       , Reinterpret' (Complement ba ha) acts'
+       , Diversify acts (Complement ta ha)
+       , Diversify acts (Complement ba ha)
        , UniqueMember [JE.Property] r'
        , r' ~ ([JE.Property] ': r))
-    => F.Prototype (F.Design s) r r s s ba ba ta h ta bc tc cmds
-    -> Archetype (Many r') (F.Design s) (AppendUnique ba (Complement ta h)) acts (AppendUnique bc tc) cmds
+    => F.Prototype r r s s ba ta ha acts' bc hc cmds
+    -> Archetype (Many r') (F.Design s) (Complement (AppendUnique ba ta) ha) acts (AppendUnique bc hc) cmds
 implement (F.Prototype (bldr, disp, ts, hdl)) = Archetype
   ( Proxy
   , Proxy
@@ -87,7 +88,7 @@ implement (F.Prototype (bldr, disp, ts, hdl)) = Archetype
 implant
     :: ( UniqueMember r reqs, UniqueMember (TVar s) specs)
     => Archetype r s a acts c cmds
-    -> F.Prototype v '[r] reqs '[TVar s] specs a acts '[] '[] acts' c '[] cmds
+    -> F.Prototype '[r] reqs '[TVar s] specs a '[] '[] acts c '[] cmds
 implant (Archetype (_, _, rnd, frmEnt, mkEnt)) = F.Prototype
     ( F.Builder (Proxy, Proxy, fromSpec, mkSpec)
     , F.divIfNeeded disp
@@ -95,13 +96,12 @@ implant (Archetype (_, _, rnd, frmEnt, mkEnt)) = F.Prototype
     , mempty)
   where
     -- toBuilderHdl
-      -- :: F.Handler' v (F.Design specs) acts cmds
-      --    -> TMVar s
-      --    -> ReifiedLens' s s
-      --    -> Which acts
-      --    -> MaybeT STM (Which cmds)
-    toBuilderHdl hdl v l a = undefined -- NOT possible!
-    -- mkSpec = undefined
+    --   :: F.Handler' (F.Design specs) acts cmds
+    --      -> TVar s
+    --      -> Which acts
+    --      -> MaybeT STM (DL.DList (Which cmds))
+    -- toBuilderHdl hdl v l a = undefined -- FIXME: NOT possible!
+    toBuilderHdl hdl v a = undefined -- FIXME: NOT possible!
     mkSpec exec hdl rs = do
         let r = fetch rs
         single <$> mkEnt exec (toBuilderHdl hdl) r
@@ -115,31 +115,40 @@ implant (Archetype (_, _, rnd, frmEnt, mkEnt)) = F.Prototype
         -- rnd s'
 
 mkEntity
-    :: forall r r' s ba ta h acts bc tc cmds.
-       ( NFData (Which ta)
-       , Reinterpret' (Complement ta h) ta
-       , Diversify acts (Complement ta h)
-       , Diversify acts ba
+    :: forall r r' s ba ta ha acts' acts bc hc cmds.
+       ( NFData (Which acts')
+       , Reinterpret' (Complement ta ha) acts'
+       , Reinterpret' (Complement ba ha) acts'
+       , Diversify acts (Complement ta ha)
+       , Diversify acts (Complement ba ha)
        , UniqueMember [JE.Property] r'
        , r' ~ ([JE.Property] ': r))
-    => F.Builder (F.Design s) r r s s ba ba bc cmds
+    => F.Builder r r s s ba acts' bc cmds
     -> F.Display s
-    -> F.Triggers ta ta
-    -> F.Handler (F.Design s) (F.Design s) h ta tc cmds -- handler for some of the triggers
+    -> F.Triggers ta acts'
+    -> F.Handler (F.Design s) ha acts' hc cmds -- handler for some of the triggers or builder
     -> F.Executor' cmds
-    -> F.Handler' (F.Design s) (F.Design s) acts cmds -- handler for builder and remaining triggers
+    -> F.Handler' (F.Design s) acts cmds -- handler for builder and remaining triggers
     -> Many r'
     -> F R.Reactor (TVar (F.Design s))
 mkEntity (F.Builder (_, _, _, mkSpec)) disp ts (F.Handler (_, _, internalHdl)) exec externalHdl rs = do
         let (ps, xs) = viewf rs
-        ss <- mkSpec exec externalToBuilderHdl xs
+        ss <- mkSpec exec builderHdls xs -- externalToBuilderHdl xs
         F.mkDesign ps ss exec dgs' w
   where
-    externalToInternalHdl v l a = case reinterpret' @(Complement ta h) @ta a of
+    -- any actions required by ta, but not handled by ha, must be handled by externally provided handler
+    -- given acts', use externalHdl which uses acts
+    externalToInternalHdl v a = case reinterpret' @(Complement ta ha) @acts' a of
         Nothing -> empty
-        Just a' -> externalHdl v l (diversify @acts a')
-    externalToBuilderHdl v l a = externalHdl v l (diversify @acts a)
-    internalHdls v l a = internalHdl v l a <|> externalToInternalHdl v l a
+        Just a' -> externalHdl v (diversify @acts a')
+    -- any actions required by ba, but not handled by ha, must be handled by externally provided handler
+    -- given acts', use externalHdl which uses acts
+    -- externalToBuilderHdl v l a = externalHdl v l (diversify @acts a)
+    externalToBuilderHdl v a = case reinterpret' @(Complement ba ha) @acts' a of
+        Nothing -> empty
+        Just a' -> externalHdl v (diversify @acts a')
+    builderHdls v a = internalHdl v a <|> externalToBuilderHdl v a
+    internalHdls v a = internalHdl v a <|> externalToInternalHdl v a
     -- internalDelegate = toDelegate internalHdls exec
     dgs = toDelegates (F.getTriggers ts) internalHdls
     -- combine the callbacks with the same trigger key
@@ -149,15 +158,15 @@ mkEntity (F.Builder (_, _, _, mkSpec)) disp ts (F.Handler (_, _, internalHdl)) e
 toDelegates
     :: NFData (Which a)
     => DL.DList (F.Trigger' (Which a))
-    -> F.Handler' s s a c
+    -> F.Handler' s a c
     -> [(J.JSString, TVar s -> J.JSVal -> MaybeT IO (DL.DList (Which c)))]
 toDelegates ts hdl = go <$> DL.toList ts
   where
     go (evt, t) = (evt, R.handleEventM t . hdl')
-    hdl' v a = hoist atomically (hdl v (Lens id) a)
+    hdl' v a = hoist atomically (hdl v a)
 
 fromEntity :: (UniqueMember [JE.Property] r', r' ~ ([JE.Property] ': r))
-    => F.Builder v r r s s ba acts bc cmds -> F.Design s -> STM (Many r')
+    => F.Builder r r s s ba acts bc cmds -> F.Design s -> STM (Many r')
 fromEntity (F.Builder (_, _, fromSpec, _)) d = do
     let ps = d ^. F.properties
         ss = d ^. F.specifications

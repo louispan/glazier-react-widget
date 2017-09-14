@@ -24,18 +24,18 @@ newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (ba :: [Type]) acts (bc :
     Builder ( Proxy ba -- required actions from externally provided handlers
             , Proxy bc -- required commands from wrapped handlers
             , Many specs -> STM (Many r) -- from specifications
-            , Many reqs -> F R.Reactor (F.Inactive (Many s)) -- make specifications
+            , Many reqs -> F R.Reactor (Many s) -- make specifications
             , F.Executor' cmds -- effectful interpreters
             -> F.Handler' (F.Design specs) acts cmds -- externally provided handlers
-            -> TVar (F.Inactive (F.Design specs))
-            -> TVar (F.Design specs) -- activate design
+            -> TVar (F.Design specs) -- TVar that contains the specs
+            -> F R.Reactor ()
             )
 
 instance Semigroup (Builder '[] reqs '[] specs '[] acts '[] cmds) where
-    _ <> _ = Builder (Proxy, Proxy, const $ pure nil, \_ _ -> const $ pure nil)
+    _ <> _ = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure ())
 
 instance Monoid (Builder '[] reqs '[] specs '[] acts '[] cmds) where
-    mempty = Builder (Proxy, Proxy, const $ pure nil, \_ _  -> const $ pure nil)
+    mempty = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure ())
     mappend = (<>)
 
 -- | mempty is also identity for 'andBuild'
@@ -45,11 +45,12 @@ andBuilder
     -> Builder r2 reqs s2 specs ba2 acts bc2 cmds
     -> Builder (Append r1 r2) reqs (Append s1 s2) specs
                  (AppendUnique ba1 ba2) acts (AppendUnique bc1 bc2) cmds
-andBuilder (Builder (_, _, fromSpec, mkSpec)) (Builder (_, _, fromSpec', mkSpec')) =
+andBuilder (Builder (_, _, fromSpec, mkSpec, activateDesign)) (Builder (_, _, fromSpec', mkSpec', activateDesign')) =
     Builder ( Proxy
             , Proxy
-            , \d -> (/./) <$> fromSpec d <*> fromSpec' d
-            , \hdl exec rs -> (/./) <$> mkSpec hdl exec rs <*> mkSpec' hdl exec rs
+            , \s -> (/./) <$> fromSpec s <*> fromSpec' s
+            , \r -> (/./) <$> mkSpec r <*> mkSpec' r
+            , \exec hdl v -> activateDesign exec hdl v >> activateDesign' exec hdl v
             )
 
 -- | Add a type @x@ into the factory
@@ -59,5 +60,6 @@ build
 build _ = Builder ( Proxy
                   , Proxy
                   , pure . single . fetch
-                  , \_ _ -> pure . single . fetch
+                  , pure . single . fetch
+                  , \_ _ _ -> pure ()
                   )

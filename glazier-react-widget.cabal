@@ -41,9 +41,9 @@ library
                        -- Glazier.React.Framework.TypeLevel.Internal
                        Glazier.React.Framework.Widget
                        -- Glazier.React.Framework.Widget.Exec
-                       -- Glazier.React.Widgets.Input
-                       -- Glazier.React.Widgets.Input.TextInput
-                       -- Glazier.React.Widgets.List
+                       Glazier.React.Widgets.Input
+                       Glazier.React.Widgets.Input.TextInput
+                       Glazier.React.Widgets.List
                        -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5 && < 0.6

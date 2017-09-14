@@ -20,8 +20,8 @@ data SubmitInput = SubmitInput R.EventTarget J.JSString
 data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
-    :: (UniqueMember SubmitInput acts', UniqueMember CancelInput acts')
-    => F.Prototype v '[] reqs '[] specs '[] acts '[SubmitInput, CancelInput] '[] acts' '[] '[] cmds
+    :: (UniqueMember SubmitInput acts, UniqueMember CancelInput acts)
+    => F.Prototype '[] reqs '[] specs '[] '[SubmitInput, CancelInput] '[] acts '[] '[] cmds
 inputPrototype = F.Prototype ( mempty
                              , F.display disp
                              , F.Triggers (Proxy, DL.singleton ("onKeyDown", go))

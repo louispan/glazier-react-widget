@@ -15,15 +15,15 @@ import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import Data.Kind
 import Data.Proxy
-import Data.Semigroup (Semigroup(..))
+-- import Data.Semigroup (Semigroup(..))
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Widget as F
 
-newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (ba :: [Type]) acts (bc :: [Type]) cmds =
-    Builder ( Proxy ba -- required actions from externally provided handlers
-            , Proxy bc -- required commands from wrapped handlers
+newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (a :: [Type]) acts (c :: [Type]) cmds =
+    Builder ( Proxy a -- required actions from externally provided handlers
+            , Proxy c -- required commands from wrapped handlers
             , Many specs -> STM (Many r) -- from specifications
             , Many reqs -> F R.Reactor (Many s) -- make specifications
             , F.Executor' cmds -- effectful interpreters
@@ -32,20 +32,23 @@ newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (ba :: [Type]) acts (bc :
             -> MaybeT (F R.Reactor) ()
             )
 
-instance Semigroup (Builder '[] reqs '[] specs '[] acts '[] cmds) where
-    _ <> _ = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure ())
+-- instance Semigroup (Builder '[] reqs '[] specs '[] acts '[] cmds) where
+--     _ <> _ = idle
 
-instance Monoid (Builder '[] reqs '[] specs '[] acts '[] cmds) where
-    mempty = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure ())
-    mappend = (<>)
+-- instance Monoid (Builder '[] reqs '[] specs '[] acts '[] cmds) where
+--     mempty = idle
+--     mappend = (<>)
 
--- | mempty is also identity for 'andBuild'
--- It is okay to combine builders the expect the same @ba@ action, hence the use of 'AppendUnique'
+-- | identity for 'andBuild'
+idle :: Builder '[] reqs '[] specs '[] acts '[] cmds
+idle = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure ())
+
+-- | It is okay to combine builders the expect the same @ba@ action, hence the use of 'AppendUnique'
 andBuilder
-    :: Builder r1 reqs s1 specs ba1 acts bc1 cmds
-    -> Builder r2 reqs s2 specs ba2 acts bc2 cmds
+    :: Builder r1 reqs s1 specs a1 acts c1 cmds
+    -> Builder r2 reqs s2 specs a2 acts c2 cmds
     -> Builder (Append r1 r2) reqs (Append s1 s2) specs
-                 (AppendUnique ba1 ba2) acts (AppendUnique bc1 bc2) cmds
+                 (AppendUnique a1 a2) acts (AppendUnique c1 c2) cmds
 andBuilder (Builder (_, _, fromSpec, mkSpec, activateDesign)) (Builder (_, _, fromSpec', mkSpec', activateDesign')) =
     Builder ( Proxy
             , Proxy

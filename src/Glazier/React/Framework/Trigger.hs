@@ -19,30 +19,33 @@ type Trigger' a = (J.JSString, J.JSVal -> MaybeT IO a)
 -- instance Functor Trigger' where
 --     fmap f (Trigger' (evt, t)) = Trigger' (evt, fmap f <$> t)
 
-newtype Triggers (t :: [Type]) acts = Triggers
-    ( Proxy t
+newtype Triggers (a :: [Type]) acts = Triggers
+    ( Proxy a
     , DL.DList (Trigger' (Which acts))
     )
 
-instance Semigroup (Triggers '[] acts) where
-    _ <> _ = Triggers (Proxy, mempty)
+-- instance Semigroup (Triggers '[] acts) where
+--     _ <> _ = Triggers (Proxy, mempty)
 
-instance Monoid (Triggers '[] acts) where
-    mempty = Triggers (Proxy, mempty)
-    mappend = (<>)
+-- instance Monoid (Triggers '[] acts) where
+--     mempty = Triggers (Proxy, mempty)
+--     mappend = (<>)
 
--- | mempty is also identity for 'andBuild'
--- NB. It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
-andTriggers :: Triggers t1 acts -> Triggers t2 acts -> Triggers (AppendUnique t1 t2) acts
+-- | identity for 'andBuild'
+boring :: Triggers '[] acts
+boring = Triggers (Proxy, mempty)
+
+-- | It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
+andTriggers :: Triggers a1 acts -> Triggers a2 acts -> Triggers (AppendUnique a1 a2) acts
 andTriggers (Triggers (Proxy, f)) (Triggers (Proxy, g)) = Triggers (Proxy, f <> g)
 
-getTriggers :: Triggers t acts -> DL.DList (Trigger' (Which acts))
+getTriggers :: Triggers a acts -> DL.DList (Trigger' (Which acts))
 getTriggers (Triggers (_, ts)) = ts
 
 -- expect :: Proxy a -> Triggers '[a] acts
 -- expect _ = Triggers (Proxy, mempty)
 
 trigger
-    :: UniqueMember t acts
-    => (J.JSString, J.JSVal -> MaybeT IO t) -> Triggers '[t] acts
+    :: UniqueMember a acts
+    => (J.JSString, J.JSVal -> MaybeT IO a) -> Triggers '[a] acts
 trigger (evt, f) = Triggers (Proxy, DL.singleton (evt, fmap pick . f))

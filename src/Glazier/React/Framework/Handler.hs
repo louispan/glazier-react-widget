@@ -14,7 +14,7 @@ import Data.Diverse
 import qualified Data.DList as DL
 import Data.Kind
 import Data.Proxy
-import Data.Semigroup (Semigroup(..))
+-- import Data.Semigroup (Semigroup(..))
 
 -- NB. Reififed helps type inference because
 -- the output doesn't depends on v or s
@@ -26,12 +26,16 @@ newtype Handler s (a :: [Type]) acts (c :: [Type]) cmds = Handler
     , Handler' s acts cmds
     )
 
-instance Semigroup (Handler s '[] acts '[] cmds) where
-    _ <> _ = Handler (Proxy, Proxy, \_ _ -> empty)
+-- instance Semigroup (Handler s '[] acts '[] cmds) where
+--     _ <> _ = Handler (Proxy, Proxy, \_ _ -> empty)
 
-instance Monoid (Handler s '[] acts '[] cmds) where
-    mempty = Handler (Proxy, Proxy, \_ _ -> empty)
-    mappend = (<>)
+-- instance Monoid (Handler s '[] acts '[] cmds) where
+--     mempty = Handler (Proxy, Proxy, \_ _ -> empty)
+--     mappend = (<>)
+
+-- | identity for 'orHandler'
+ignore :: Handler s '[] acts '[] cmds
+ignore = Handler (Proxy, Proxy, \_ _ -> empty)
 
 getHandler :: Handler s a acts c cmds -> Handler' s acts cmds
 getHandler (Handler (_, _, hdl)) = hdl
@@ -43,10 +47,9 @@ handler f = Handler (Proxy, Proxy, \v a -> do
                             a' <- MaybeT . pure $ trial' a
                             (DL.singleton . pick) <$> f v a')
 
--- | mempty is also Identity for 'orHandler'
--- NB. Due to the use of <|> only the first handler for a particular action will be used.
--- This is to prevent running handlers twice for the one action.
--- This will be compile time check with @Append a1 a2@ and @UniqueMember@ constraints.
+-- | Due to @Append a1 a2@ and @UniqueMember@ constraints, it is a compile time
+-- error to `orHandlers` of the same type.
+-- NB. The use of <|> only the first handler for a particular action will be used.
 orHandler
     :: Handler s a1 acts c1 cmds
     -> Handler s a2 acts c2 cmds

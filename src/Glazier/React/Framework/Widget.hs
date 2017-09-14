@@ -124,22 +124,21 @@ _Design = iso runDesign Design
 ----------------------------------------------------------
 
 -- FIXME: Move to STM extras
-usingTVar :: TVar v -> Lens' v s -> StateT s STM a -> STM a
-usingTVar v here m = do
-    this <- readTVar v
-    let s = this ^. here
+usingTVar :: TVar s -> StateT s STM a -> STM a
+usingTVar v m = do
+    s <- readTVar v
     (a, s') <- runStateT m s
-    writeTVar v (this & here .~ s')
+    writeTVar v s'
     pure a
 
-usingTVar' :: MFunctor t => TVar v -> Lens' v s -> t (StateT s STM) a -> (t STM) a
-usingTVar' v here = hoist (usingTVar v here)
+usingTVar' :: MFunctor t => TVar s -> t (StateT s STM) a -> (t STM) a
+usingTVar' v = hoist (usingTVar v)
 
-viewingTVar :: TVar v -> Lens' v s -> (s -> STM r) -> STM r
-viewingTVar v here m = (view here <$> readTVar v) >>= m
+viewingTVar :: TVar s -> (s -> STM r) -> STM r
+viewingTVar v m = readTVar v >>= m
 
-viewingTVar' :: (MonadTrans t, Monad (t STM)) => TVar v -> Lens' v s -> (s -> (t STM) r) -> (t STM) r
-viewingTVar' v here m = lift (view here <$> readTVar v) >>= m
+viewingTVar' :: (MonadTrans t, Monad (t STM)) => TVar s -> (s -> (t STM) r) -> (t STM) r
+viewingTVar' v m = lift (readTVar v) >>= m
 
 ----------------------------------------------------------
 
@@ -197,15 +196,15 @@ initPlan w v (Plan k frm cpnt cpntRef defDisp (J.Callback onRnd) (J.Callback onR
     | J.isNull onRnd || J.isNull onRef || J.isNull onUp = pure Nothing
     | otherwise = fmap Just $ Plan k frm cpnt cpntRef defDisp
         <$> R.mkRenderer rnd -- onRender
-        <*> R.mkCallback (atomically . usingTVar v id . zoom plan . doOnComponentRef) -- onComponentRef
+        <*> R.mkCallback (atomically . usingTVar v . zoom plan . doOnComponentRef) -- onComponentRef
         <*> (R.mkCallback $ (>>= R.runDisposable)
                     . atomically
-                    . usingTVar v id
+                    . usingTVar v
                     . zoom plan
                     . const doOnComponentDidUpdate) --onComopnentDidUpdate
         <*> pure ls -- triggers
   where
-    rnd = viewingTVar' v id w
+    rnd = viewingTVar' v w
 
 mkListeners
     :: (Which cmds -> MaybeT IO ())

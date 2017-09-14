@@ -29,7 +29,7 @@ import Data.Foldable
 import qualified Data.List as DL
 -- import qualified Data.JSString as J
 -- import Data.Maybe
--- import Data.Proxy
+import Data.Proxy
 import qualified Data.Sequence as S
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
@@ -47,6 +47,19 @@ data MakeListItem r = MakeListItem r
     -- | MakeItemAction (F (R.Reactor a) o)
     -- | SetFilterAction (R.OutlineOf w -> Bool)
     -- | SetSortAction (R.OutlineOf w -> Bool)
+
+listBuilder
+    :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TVar s)) specs)
+    => F.Archetype r s '[DestroyListItem] acts '[] cmds
+    -> F.Builder '[S.Seq r] reqs '[S.Seq (TVar s)] specs '[] acts '[] cmds
+listBuilder (F.Archetype (_ , _, disp, frmEnt, mkEnt, activateEnt)) =
+    F.Builder (Proxy, Proxy, frmSpecs, mkSpecs, activateDesign)
+  where
+    frmSpecs ss = undefined -- single <$> traverse frmEnt' (fetch ss)
+    frmEnt' = undefined -- readTMVar v >>= frmEnt
+    mkSpecs rs = undefined -- single <$> traverse mkEnt' (fetch rs)
+    mkEnt' v = undefined -- readTMVar v >>= frmEnt
+    activateDesign = undefined
 
 -- listBuilder
 --     :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TVar s)) specs)

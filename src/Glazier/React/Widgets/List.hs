@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- {-# LANGUAGE TypeFamilies #-}
 -- {-# LANGUAGE TypeOperators #-}
 
@@ -19,11 +20,11 @@ import Control.Monad.Plus as MPx
 -- import Control.Applicative
 import Control.Concurrent.STM
 import Control.Lens
--- import Control.Monad.Free.Church
+import Control.Monad.Free.Church
 -- import Control.Monad.Morph
 -- import Control.Monad.Reader
 import Control.Monad.State.Strict
--- import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import Data.Foldable
 import qualified Data.List as DL
@@ -49,17 +50,33 @@ data MakeListItem r = MakeListItem r
     -- | SetSortAction (R.OutlineOf w -> Bool)
 
 listBuilder
-    :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TVar s)) specs)
+    :: forall r reqs s specs acts cmds.
+    (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TVar s)) specs)
     => F.Archetype r s '[DestroyListItem] acts '[] cmds
     -> F.Builder '[S.Seq r] reqs '[S.Seq (TVar s)] specs '[] acts '[] cmds
 listBuilder (F.Archetype (_ , _, disp, frmEnt, mkEnt, activateEnt)) =
     F.Builder (Proxy, Proxy, frmSpecs, mkSpecs, activateDesign)
   where
-    frmSpecs ss = undefined -- single <$> traverse frmEnt' (fetch ss)
-    frmEnt' = undefined -- readTMVar v >>= frmEnt
-    mkSpecs rs = undefined -- single <$> traverse mkEnt' (fetch rs)
-    mkEnt' v = undefined -- readTMVar v >>= frmEnt
-    activateDesign = undefined
+    frmSpecs :: Many specs -> STM (Many '[S.Seq r])
+    frmSpecs ss = single <$> traverse frmEnt' (fetch @(S.Seq (TVar s)) ss)
+    frmEnt' v = readTVar v >>= frmEnt
+
+    mkSpecs :: Many reqs -> F R.Reactor (Many '[S.Seq (TVar s)])
+    mkSpecs rs = single <$> traverse mkEnt' (fetch @(S.Seq r) rs)
+    mkEnt' r = mkEnt r >>= (R.doSTM . newTVar)
+
+    activateDesign
+        :: F.Executor' cmds
+         -> F.Handler' (F.Design specs) acts cmds
+         -> TVar (F.Design specs)
+         -> MaybeT (F R.Reactor) ()
+    activateDesign exec hdl this = do
+        this' <- lift . R.doSTM $ readTVar this
+        let vs = this' ^. (specs . item @(S.Seq (TVar s)))
+
+-- activateEnt
+--   :: F.Executor' cmds
+--      -> F.Handler' s acts cmds -> TVar s -> MaybeT (F R.Reactor) ()
 
 -- listBuilder
 --     :: (UniqueMember (S.Seq r) reqs, UniqueMember (S.Seq (TVar s)) specs)

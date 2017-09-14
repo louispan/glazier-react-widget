@@ -25,7 +25,7 @@ newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (a :: [Type]) acts (c :: 
     Builder ( Proxy a -- required actions from externally provided handlers
             , Proxy c -- required commands from wrapped handlers
             , Many specs -> STM (Many r) -- from specifications
-            , Many reqs -> F R.Reactor (Many s) -- make specifications
+            , Many reqs -> STM (Many s) -- make specifications
             , F.Executor' cmds -- effectful interpreters
             -> F.Handler' (F.Design specs) acts cmds -- externally provided handlers
             -> TVar (F.Design specs) -- TVar that contains the specs

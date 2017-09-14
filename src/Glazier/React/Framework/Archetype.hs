@@ -40,7 +40,7 @@ newtype Archetype r s (a :: [Type]) acts (c :: [Type]) cmds =
     , Proxy c
     , s -> R.ReactMlT STM ()
     , s -> STM r
-    , r -> F R.Reactor s -- mkInactiveEntity
+    , r -> STM s -- mkInactiveEntity
     , F.Executor' cmds -> F.Handler' s acts cmds -> TVar s -> MaybeT (F R.Reactor) ()) -- activator
 
 -- | Create a Prototype from an Archetype.
@@ -72,7 +72,7 @@ implant (Archetype (_, _, rnd, frmEnt, mkEnt, activateEnt)) = F.prototyping
     mkSpec rs = do
         let r = fetch rs
         e <- mkEnt r
-        single <$> R.doSTM (newTVar e)
+        single <$> newTVar e
     fromSpec ss = do
         let s = fetch ss
         single <$> F.viewingTVar s frmEnt
@@ -103,11 +103,11 @@ mkInactiveEntity
        ( r' ~ ([JE.Property] ': r))
     => F.Builder r r s s a acts c cmds
     -> Many r'
-    -> F R.Reactor (F.Design s)
+    -> STM (F.Design s)
 mkInactiveEntity (F.Builder (_, _, _, mkSpec, _)) rs = do
     let (ps, xs) = viewf rs
     ss <- mkSpec xs -- externalToBuilderHdl xs
-    F.mkInactiveDesign ps ss
+    pure $ F.inactiveDesign ps ss
 
 activateEntity
     :: forall r s a h acts' acts c cmds.
@@ -128,10 +128,12 @@ activateEntity (F.Builder (_, _, _, _, activateDesign)) disp ts (F.Handler (_, _
         ls <- lift $ F.mkListeners exec delegates'
         let d' = d & F.plan . F.listeners %~ (<> ls)
         activateDesign exec internalHdls v
+        -- only write if activation succeeds
         lift $ R.doSTM (writeTVar v d')
   where
     -- any actions required by @a@, but not handled by h, must be handled by externally provided handler
     -- NB. The type of Which is changed: given acts', use externalHdl which uses acts
+    externalToInternalHdl :: TVar (F.Design s) -> Which acts' -> MaybeT STM (DL.DList (Which cmds))
     externalToInternalHdl v' a = case reinterpret' @(Complement a h) @acts' a of
         Nothing -> empty
         Just a' -> externalHdl v' (diversify @acts a')

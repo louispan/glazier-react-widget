@@ -41,9 +41,9 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
 import Data.Kind
+import Data.JSString as JS
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
-import qualified GHCJS.Foreign.Callback.Internal as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Commands.Rerender as C
@@ -67,16 +67,24 @@ instance HasProperties [JE.Property] where
 
 newtype FrameNum = FrameNum Int deriving R.Dispose
 
-data Plan = Plan
-    { _key :: J.JSString
-    , _frameNum :: FrameNum
-    , _component :: R.ReactComponent
-    , _componentRef :: C.ComponentRef
-    , _deferredDisposables :: R.Disposable ()
+data ComponentPlan = ComponentPlan
+    { _component :: R.ReactComponent
     , _onRender ::  J.Callback (IO J.JSVal)
     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
     , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
+    } deriving (G.Generic)
+
+makeClassy ''ComponentPlan
+
+instance R.Dispose ComponentPlan
+
+data Plan = Plan
+    { _frameNum :: FrameNum
+    , _componentRef :: C.ComponentRef
+    , _deferredDisposables :: R.Disposable ()
     , _listeners :: [R.Listener]
+    , _key :: J.JSString
+    , _componentPlan' :: Maybe ComponentPlan
     } deriving (G.Generic)
 
 makeClassy ''Plan
@@ -87,9 +95,6 @@ instance R.Dispose Plan
 
 class HasSpecifications c specs | c -> specs where
     specifications :: Lens' c (Many specs)
-
-class HasMaybePlan c  where
-    maybePlan :: Lens' c (Maybe Plan)
 
 ----------------------------------------------------------
 
@@ -166,45 +171,41 @@ doOnComponentDidUpdate = do
 queueDisposable :: R.Dispose a => a -> StateT (Design specs) STM ()
 queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
 
-mkInactivePlan
-    :: F R.Reactor Plan
-mkInactivePlan = Plan
-    <$> R.mkKey' -- key
-    <*> pure (FrameNum 0) -- frameNum
-    <*> R.getComponent -- component
-    <*> pure (C.ComponentRef J.nullRef) -- componentRef
-    <*> pure mempty -- deferredDisposables
-    <*> pure (J.Callback J.nullRef) -- R.mkRenderer rnd -- onRender
-    <*> pure (J.Callback J.nullRef) -- R.mkCallback (atomically . usingTMVar v (l . plan) . doOnComponentRef) -- onComponentRef
-    <*> pure (J.Callback J.nullRef) -- (do
-            -- dsp <- R.getDisposer
-            -- R.mkCallback $ atomically
-            --     . (>>= void . PC.send dsp)
-            --     . usingTMVar v (l . plan)
-            --     . const doOnComponentDidUpdate) --onComopnentDidUpdate
-    <*> pure mempty -- traverse go ts -- triggers
-  -- where
-  --   rnd = lift (view l <$> takeTMVar v) >>= w
-  --   go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
+inactivePlan
+    :: Plan
+inactivePlan = Plan
+    (FrameNum 0) -- frameNum
+    (C.ComponentRef J.nullRef) -- componentRef
+    mempty -- deferredDisposables
+    mempty -- traverse go ts -- triggers
+    mempty -- R.mkKey' -- key
+    Nothing -- componentPlan
+
+mkComponentPlan
+    :: (Design specs -> R.ReactMlT STM ())
+    -> TVar (Design specs)
+    -> F R.Reactor (ComponentPlan)
+mkComponentPlan w v = ComponentPlan
+    <$> R.getComponent -- component
+    <*> R.mkRenderer rnd -- onRender
+    <*> R.mkCallback (atomically . usingTVar v . zoom plan . doOnComponentRef) -- onComponentRef
+    <*> (R.mkCallback $ (>>= R.runDisposable)
+            . atomically
+            . usingTVar v
+            . zoom plan
+            . const doOnComponentDidUpdate) --onComopnentDidUpdate
+  where
+    rnd = viewingTVar' v w
 
 initPlan
     :: (Design specs -> R.ReactMlT STM ())
     -> TVar (Design specs)
     -> Plan
     -> F R.Reactor (Maybe Plan)
-initPlan w v (Plan k frm cpnt cpntRef defDisp (J.Callback onRnd) (J.Callback onRef) (J.Callback onUp) ls)
-    | J.isNull onRnd || J.isNull onRef || J.isNull onUp = pure Nothing
-    | otherwise = fmap Just $ Plan k frm cpnt cpntRef defDisp
-        <$> R.mkRenderer rnd -- onRender
-        <*> R.mkCallback (atomically . usingTVar v . zoom plan . doOnComponentRef) -- onComponentRef
-        <*> (R.mkCallback $ (>>= R.runDisposable)
-                    . atomically
-                    . usingTVar v
-                    . zoom plan
-                    . const doOnComponentDidUpdate) --onComopnentDidUpdate
-        <*> pure ls -- triggers
-  where
-    rnd = viewingTVar' v w
+initPlan _ _ (Plan _ _ _ _ _ (Just _)) = pure Nothing
+initPlan w v (Plan frm cRef defDisp ls k Nothing) = fmap Just $ Plan frm cRef defDisp ls
+    <$> ((k `JS.append`) <$> R.mkKey') -- key
+    <*> (Just <$> mkComponentPlan w v)
 
 mkListeners
     :: (Which cmds -> MaybeT IO ())
@@ -242,11 +243,11 @@ mkListeners exec = traverse toListener -- triggers
 --     rnd = lift (view l <$> takeTMVar v) >>= w
 --     go (n, f) = (\a -> (n, a)) <$> R.mkCallback f
 
-mkInactiveDesign
+inactiveDesign
     :: [JE.Property]
     -> Many specs
-    -> F R.Reactor (Design specs)
-mkInactiveDesign ps specs = (\pln -> Design (ps, specs, pln)) <$> mkInactivePlan
+    -> Design specs
+inactiveDesign ps specs = Design (ps, specs, inactivePlan)
 
 initDesign
     :: (Design specs -> R.ReactMlT STM ())
@@ -288,17 +289,15 @@ initDesign w v = do
 
 componentWindow :: Design specs -> R.ReactMlT STM ()
 componentWindow s =
-    let J.Callback onRnd = s ^. plan . onRender
-        J.Callback onRef = s ^. plan . onComponentRef
-        J.Callback onUp = s ^. plan . onComponentDidUpdate
-    in if J.isNull onRnd || J.isNull onRef || J.isNull onUp
-      then pure ()
-      else R.lf
-           (s ^. plan  . component . to JE.toJS')
-            [ ("ref", s ^. plan . onComponentRef)
-            , ("componentDidUpdate", s ^. plan . onComponentDidUpdate)
+    let cPlan = s ^. plan . componentPlan'
+    in case cPlan of
+        Nothing -> pure ()
+        Just cPlan' -> R.lf
+           (cPlan' ^. component . to JE.toJS')
+            [ ("ref", cPlan' ^. onComponentRef)
+            , ("componentDidUpdate", cPlan' ^. onComponentDidUpdate)
             ]
             [ ("key", s ^. plan . key . to JE.toJS')
             -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
-            , ("render", s ^. plan . onRender . to JE.toJS')
+            , ("render", cPlan' ^. onRender . to JE.toJS')
             ]

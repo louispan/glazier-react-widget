@@ -16,20 +16,10 @@ import qualified GHCJS.Types as J
 
 type Trigger' a = (J.JSString, J.JSVal -> MaybeT IO a)
 
--- instance Functor Trigger' where
---     fmap f (Trigger' (evt, t)) = Trigger' (evt, fmap f <$> t)
-
 newtype Triggers (a :: [Type]) acts = Triggers
     ( Proxy a
     , DL.DList (Trigger' (Which acts))
     )
-
--- instance Semigroup (Triggers '[] acts) where
---     _ <> _ = Triggers (Proxy, mempty)
-
--- instance Monoid (Triggers '[] acts) where
---     mempty = Triggers (Proxy, mempty)
---     mappend = (<>)
 
 -- | identity for 'andBuild'
 boring :: Triggers '[] acts
@@ -41,9 +31,6 @@ andTriggers (Triggers (Proxy, f)) (Triggers (Proxy, g)) = Triggers (Proxy, f <> 
 
 getTriggers :: Triggers a acts -> DL.DList (Trigger' (Which acts))
 getTriggers (Triggers (_, ts)) = ts
-
--- expect :: Proxy a -> Triggers '[a] acts
--- expect _ = Triggers (Proxy, mempty)
 
 trigger
     :: UniqueMember a acts

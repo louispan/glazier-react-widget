@@ -14,7 +14,6 @@ import Data.Diverse
 import qualified Data.DList as DL
 import Data.Kind
 import Data.Proxy
--- import Data.Semigroup (Semigroup(..))
 
 -- NB. Reififed helps type inference because
 -- the output doesn't depends on v or s
@@ -25,13 +24,6 @@ newtype Handler s (a :: [Type]) acts (c :: [Type]) cmds = Handler
     , Proxy c
     , Handler' s acts cmds
     )
-
--- instance Semigroup (Handler s '[] acts '[] cmds) where
---     _ <> _ = Handler (Proxy, Proxy, \_ _ -> empty)
-
--- instance Monoid (Handler s '[] acts '[] cmds) where
---     mempty = Handler (Proxy, Proxy, \_ _ -> empty)
---     mappend = (<>)
 
 -- | identity for 'orHandler'
 ignore :: Handler s '[] acts '[] cmds

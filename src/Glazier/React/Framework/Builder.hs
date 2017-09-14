@@ -32,13 +32,6 @@ newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (a :: [Type]) acts (c :: 
             -> MaybeT (F R.Reactor) ()
             )
 
--- instance Semigroup (Builder '[] reqs '[] specs '[] acts '[] cmds) where
---     _ <> _ = idle
-
--- instance Monoid (Builder '[] reqs '[] specs '[] acts '[] cmds) where
---     mempty = idle
---     mappend = (<>)
-
 -- | identity for 'andBuild'
 idle :: Builder '[] reqs '[] specs '[] acts '[] cmds
 idle = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure ())

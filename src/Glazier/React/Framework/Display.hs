@@ -22,7 +22,7 @@ newtype Display specs =
             )
 
 instance Monoid (Display specs) where
-    mempty = blank
+    mempty = Display (mempty, mempty, mempty)
     mappend = (<>)
 
 -- | If properties and listeners are combined if either or both windows are Nothing.
@@ -36,10 +36,6 @@ instance Semigroup (Display specs) where
     Display (ls, ps, w) <> Display (ls', ps', Nothing) =
         Display (ls <> ls', ps <> ps', w)
     Display (ls, ps, Just w) <> Display (ls', ps', Just w') = divIfNeeded (w ls ps <> w' ls' ps')
-
--- | identity for 'Monoid'
-blank :: Display specs
-blank = Display (mempty, mempty, Nothing)
 
 -- | Add a list of static properties to the rendered element.
 decorate :: [JE.Property] -> Display specs

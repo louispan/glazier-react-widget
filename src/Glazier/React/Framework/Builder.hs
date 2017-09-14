@@ -11,6 +11,7 @@ module Glazier.React.Framework.Builder where
 
 import Control.Concurrent.STM
 import Control.Monad.Free.Church
+import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import Data.Kind
 import Data.Proxy
@@ -28,7 +29,7 @@ newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (ba :: [Type]) acts (bc :
             , F.Executor' cmds -- effectful interpreters
             -> F.Handler' (F.Design specs) acts cmds -- externally provided handlers
             -> TVar (F.Design specs) -- TVar that contains the specs
-            -> F R.Reactor ()
+            -> MaybeT (F R.Reactor) ()
             )
 
 instance Semigroup (Builder '[] reqs '[] specs '[] acts '[] cmds) where

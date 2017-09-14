@@ -14,7 +14,6 @@ import Control.Applicative
 import Control.Concurrent.STM
 import Control.DeepSeq
 import Control.Lens
-import Control.Monad
 import Control.Monad.Free.Church
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
@@ -42,7 +41,7 @@ newtype Archetype r s (a :: [Type]) acts (c :: [Type]) cmds =
     , s -> R.ReactMlT STM ()
     , s -> STM r
     , r -> F R.Reactor s -- mkInactiveEntity
-    , F.Executor' cmds -> F.Handler' s acts cmds -> TVar s -> F R.Reactor ()) --activator
+    , F.Executor' cmds -> F.Handler' s acts cmds -> TVar s -> MaybeT (F R.Reactor) ()) -- activator
 
 -- | Create a Prototype from an Archetype.
 -- This wraps the specifications and requirements in an additional layer of 'Many'.
@@ -56,7 +55,7 @@ implant
     => Archetype r s a acts c cmds
     -> F.Prototype '[r] reqs '[TVar s] specs a '[] '[] acts c '[] cmds
 implant (Archetype (_, _, rnd, frmEnt, mkEnt, activateEnt)) = F.Prototype
-    ( F.Builder (Proxy, Proxy, fromSpec, mkSpec, activateSpec)
+    ( F.Builder (Proxy, Proxy, fromSpec, mkSpec, activateDesign)
     , F.divIfNeeded disp
     , mempty
     , mempty)
@@ -66,7 +65,7 @@ implant (Archetype (_, _, rnd, frmEnt, mkEnt, activateEnt)) = F.Prototype
          -> TVar (F.Design specs)
          -> F.Handler' s acts cmds
     toBuilderHdl hdl v _ = hdl v
-    activateSpec exec hdl v = do
+    activateDesign exec hdl v = do
         d <- R.doSTM $ readTVar v
         let s = d ^.  (F.specifications . item)
         activateEnt exec (toBuilderHdl hdl v) s
@@ -80,8 +79,6 @@ implant (Archetype (_, _, rnd, frmEnt, mkEnt, activateEnt)) = F.Prototype
     disp d = do
         let s = d ^. (F.specifications . item)
         F.viewingTVar' s id rnd
-        -- s' <- lift $ readTVar s
-        -- rnd s'
 
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to @s@
@@ -128,13 +125,13 @@ activateEntity
     -> F.Executor' cmds
     -> F.Handler' (F.Design s) acts cmds -- externally provided handler for builder and remaining triggers
     -> TVar (F.Design s)
-    -> F R.Reactor ()
-activateEntity (F.Builder (_, _, _, _, activate)) disp ts (F.Handler (_, _, internalHdl)) exec externalHdl v =
-    void $ runMaybeT $ do
-        d <- MaybeT $ F.initDesign w v
+    -> MaybeT (F R.Reactor) ()
+activateEntity (F.Builder (_, _, _, _, activateDesign)) disp ts (F.Handler (_, _, internalHdl)) exec externalHdl v
+    = do
+        d <- F.initDesign w v
         ls <- lift $ F.mkListeners exec delegates'
         let d' = d & F.plan . F.listeners %~ (<> ls)
-        lift $ activate exec builderHdls v
+        activateDesign exec builderHdls v
         lift $ R.doSTM (writeTVar v d')
   where
     -- any actions required by ta, but not handled by ha, must be handled by externally provided handler

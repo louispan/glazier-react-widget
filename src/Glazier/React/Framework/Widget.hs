@@ -252,12 +252,11 @@ mkInactiveDesign ps specs = (\pln -> Design (ps, specs, pln)) <$> mkInactivePlan
 initDesign
     :: (Design specs -> R.ReactMlT STM ())
     -> TVar (Design specs)
-    -> F R.Reactor (Maybe (Design specs))
+    -> MaybeT (F R.Reactor) (Design specs)
 initDesign w v = do
-    dsgn <- R.doSTM (readTVar v)
-    runMaybeT $ do
-        pln <- MaybeT $ initPlan w v (dsgn ^. plan)
-        pure (dsgn & plan .~ pln)
+    dsgn <- lift . R.doSTM $ readTVar v
+    pln <- MaybeT $ initPlan w v (dsgn ^. plan)
+    pure (dsgn & plan .~ pln)
     -- R.doSTM $ writeTVar v' (dsgn & plan .~ pln)
     -- pure v'
 

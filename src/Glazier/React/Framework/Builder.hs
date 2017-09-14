@@ -9,32 +9,34 @@
 
 module Glazier.React.Framework.Builder where
 
+import Control.Applicative
 import Control.Concurrent.STM
 import Control.Monad.Free.Church
 import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import Data.Kind
 import Data.Proxy
--- import Data.Semigroup (Semigroup(..))
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Widget as F
+
+type Activator' s acts cmds = F.Executor' cmds -- effectful interpreters
+            -> F.Handler' s acts cmds -- externally provided handlers
+            -> TVar s -- TVar that contains the specs
+            -> MaybeT (F R.Reactor) (STM ())
 
 newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (a :: [Type]) acts (c :: [Type]) cmds =
     Builder ( Proxy a -- required actions from externally provided handlers
             , Proxy c -- required commands from wrapped handlers
             , Many specs -> STM (Many r) -- from specifications
             , Many reqs -> STM (Many s) -- make specifications
-            , F.Executor' cmds -- effectful interpreters
-            -> F.Handler' (F.Design specs) acts cmds -- externally provided handlers
-            -> TVar (F.Design specs) -- TVar that contains the specs
-            -> MaybeT (F R.Reactor) ()
+            , Activator' (F.Design specs) acts cmds
             )
 
 -- | identity for 'andBuild'
 idle :: Builder '[] reqs '[] specs '[] acts '[] cmds
-idle = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure ())
+idle = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure (pure ()))
 
 -- | It is okay to combine builders the expect the same @ba@ action, hence the use of 'AppendUnique'
 andBuilder
@@ -47,7 +49,7 @@ andBuilder (Builder (_, _, fromSpec, mkSpec, activateDesign)) (Builder (_, _, fr
             , Proxy
             , \s -> (/./) <$> fromSpec s <*> fromSpec' s
             , \r -> (/./) <$> mkSpec r <*> mkSpec' r
-            , \exec hdl v -> activateDesign exec hdl v >> activateDesign' exec hdl v
+            , \exec hdl v -> liftA2 (>>) (activateDesign exec hdl v) (activateDesign' exec hdl v)
             )
 
 -- | Add a type @x@ into the factory
@@ -58,5 +60,5 @@ build _ = Builder ( Proxy
                   , Proxy
                   , pure . single . fetch
                   , pure . single . fetch
-                  , \_ _ _ -> pure ()
+                  , \_ _ _ -> pure (pure ())
                   )

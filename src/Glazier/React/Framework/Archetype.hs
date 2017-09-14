@@ -41,7 +41,7 @@ newtype Archetype r s (a :: [Type]) acts (c :: [Type]) cmds =
     , s -> R.ReactMlT STM ()
     , s -> STM r
     , r -> STM s -- mkInactiveEntity
-    , F.Executor' cmds -> F.Handler' s acts cmds -> TVar s -> MaybeT (F R.Reactor) ()) -- activator
+    , F.Activator' s acts cmds) -- activator
 
 -- | Create a Prototype from an Archetype.
 -- This wraps the specifications and requirements in an additional layer of 'Many'.
@@ -121,15 +121,15 @@ activateEntity
     -> F.Executor' cmds
     -> F.Handler' (F.Design s) acts cmds -- externally provided handler for builder and remaining triggers
     -> TVar (F.Design s)
-    -> MaybeT (F R.Reactor) ()
+    -> MaybeT (F R.Reactor) (STM ())
 activateEntity (F.Builder (_, _, _, _, activateDesign)) disp ts (F.Handler (_, _, internalHdl)) exec externalHdl v
     = do
         d <- F.initDesign w v
         ls <- lift $ F.mkListeners exec delegates'
         let d' = d & F.plan . F.listeners %~ (<> ls)
-        activateDesign exec internalHdls v
+        x <- activateDesign exec internalHdls v
         -- only write if activation succeeds
-        lift $ R.doSTM (writeTVar v d')
+        pure (x >> writeTVar v d')
   where
     -- any actions required by @a@, but not handled by h, must be handled by externally provided handler
     -- NB. The type of Which is changed: given acts', use externalHdl which uses acts

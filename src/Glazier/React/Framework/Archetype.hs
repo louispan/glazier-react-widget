@@ -24,6 +24,7 @@ import qualified Data.Map.Strict as M
 import Data.Proxy
 import Data.Semigroup
 import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
@@ -56,7 +57,8 @@ implant
     -> F.Prototype '[r] reqs '[TVar s] specs a '[] acts c cmds
 implant (Archetype (_, _, rnd, frmEnt, mkEnt, activateEnt)) = F.prototyping
     (F.divIfNeeded disp)
-    (F.Builder (Proxy, Proxy, fromSpec, mkSpec, activateDesign))
+    (F.Builder (fromSpec, mkSpec))
+    (F.Activator (Proxy, Proxy, activateDesign))
     F.boring
     F.ignore
   where
@@ -88,32 +90,32 @@ implement
        , r' ~ ([JE.Property] ': r))
     => F.Prototype r r s s a h acts' c cmds
     -> Archetype (Many r') (F.Design s) (Complement a h) acts c cmds
-implement (F.Prototype (disp, bldr, ts, hdl)) = Archetype
+implement (F.Prototype (disp, bldr, activtr, ts, hdl)) = Archetype
   ( Proxy
   , Proxy
   , F.componentWindow
   , fromEntity bldr
   , mkInactiveEntity bldr
-  , activateEntity bldr disp ts hdl
+  , activateEntity activtr disp ts hdl
   )
 
 mkInactiveEntity
-    :: forall r r' s a acts c cmds.
+    :: forall r r' s.
        ( r' ~ ([JE.Property] ': r))
-    => F.Builder r r s s a acts c cmds
+    => F.Builder r r s s
     -> Many r'
     -> STM (F.Design s)
-mkInactiveEntity (F.Builder (_, _, _, mkSpec, _)) rs = do
+mkInactiveEntity (F.Builder (_, mkSpec)) rs = do
     let (ps, xs) = viewf rs
     ss <- mkSpec xs -- externalToBuilderHdl xs
     pure $ F.inactiveDesign ps ss
 
 activateEntity
-    :: forall r s a h acts' acts c cmds.
+    :: forall s a h acts' acts c cmds.
        ( NFData (Which acts')
        , Reinterpret' (Complement a h) acts'
        , Diversify acts (Complement a h))
-    => F.Builder r r s s a acts' c cmds
+    => F.Activator (F.Design s) a acts' c cmds
     -> F.Display s
     -> F.Triggers a acts'
     -> F.Handler (F.Design s) h acts' c cmds -- handler for some of the triggers or builder
@@ -121,7 +123,7 @@ activateEntity
     -> F.Handler' (F.Design s) acts cmds -- externally provided handler for builder and remaining triggers
     -> TVar (F.Design s)
     -> MaybeT (F R.Reactor) (STM ())
-activateEntity (F.Builder (_, _, _, _, activateDesign)) disp ts (F.Handler (_, _, internalHdl)) exec externalHdl v
+activateEntity (F.Activator (_, _, activateDesign)) disp ts (F.Handler (_, _, internalHdl)) exec externalHdl v
     = do
         d <- F.initDesign w v
         ls <- lift $ F.mkListeners exec delegates'
@@ -154,8 +156,8 @@ toDelegates ts hdl v = go <$> DL.toList ts
     hdl' a = hoist atomically (hdl v a)
 
 fromEntity :: (r' ~ ([JE.Property] ': r))
-    => F.Builder r r s s a acts c cmds -> F.Design s -> STM (Many r')
-fromEntity (F.Builder (_, _, fromSpec, _, _)) d = do
+    => F.Builder r r s s -> F.Design s -> STM (Many r')
+fromEntity (F.Builder (fromSpec, _)) d = do
     let ps = d ^. F.properties
         ss = d ^. F.specifications
     rs <- fromSpec ss

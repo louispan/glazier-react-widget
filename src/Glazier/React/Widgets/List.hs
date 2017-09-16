@@ -52,19 +52,13 @@ data MakeListItem r = MakeListItem r
     -- | SetSortAction (R.OutlineOf w -> Bool)
 
 listBuilder
-    :: forall deleteListItem r reqs s specs a acts' acts c cmds.
+    :: forall deleteListItem r reqs s specs a acts' c cmds.
     ( UniqueMember (S.Seq r) reqs
-    , UniqueMember (S.Seq (TVar s)) specs
-    , R.Dispose s
-    , UniqueMember deleteListItem acts'
-    , UniqueMember C.Rerender cmds
-    , UniqueMembers '[deleteListItem] a -- not redundant, used to make sure the Archetype triggers this action
-    , Reinterpret' (Complement a '[deleteListItem]) acts'
-    , Diversify acts (Complement a '[deleteListItem]))
+    , UniqueMember (S.Seq (TVar s)) specs)
     => Proxy deleteListItem -> F.Archetype r s a acts' c cmds
-    -> F.Builder '[S.Seq r] reqs '[S.Seq (TVar s)] specs (Complement a '[deleteListItem]) acts (SnocUnique c C.Rerender) cmds
-listBuilder _ (F.Archetype (_ , _, _, frmEnt, mkEnt, activateEnt)) =
-    F.Builder (Proxy, Proxy, frmSpecs, mkSpecs, activateDesign)
+    -> F.Builder '[S.Seq r] reqs '[S.Seq (TVar s)] specs
+listBuilder _ (F.Archetype (_ , _, _, frmEnt, mkEnt, _)) =
+    F.Builder (frmSpecs, mkSpecs)
   where
     frmSpecs :: Many specs -> STM (Many '[S.Seq r])
     frmSpecs ss = single <$> traverse frmEnt' (fetch @(S.Seq (TVar s)) ss)
@@ -74,6 +68,20 @@ listBuilder _ (F.Archetype (_ , _, _, frmEnt, mkEnt, activateEnt)) =
     mkSpecs rs = single <$> traverse mkEnt' (fetch @(S.Seq r) rs)
     mkEnt' r = mkEnt r >>= newTVar
 
+listActivator
+    :: forall deleteListItem r s specs a acts' acts c cmds.
+    ( UniqueMember (S.Seq (TVar s)) specs
+    , R.Dispose s
+    , UniqueMember deleteListItem acts'
+    , UniqueMember C.Rerender cmds
+    , UniqueMembers '[deleteListItem] a -- not redundant, used to make sure the Archetype triggers this action
+    , Reinterpret' (Complement a '[deleteListItem]) acts'
+    , Diversify acts (Complement a '[deleteListItem]))
+    => Proxy deleteListItem -> F.Archetype r s a acts' c cmds
+    -> F.Activator (F.Design specs) (Complement a '[deleteListItem]) acts (SnocUnique c C.Rerender) cmds
+listActivator _ (F.Archetype (_ , _, _, _, _, activateEnt)) =
+    F.Activator (Proxy, Proxy, activateDesign)
+  where
     activateDesign
         :: F.Executor' cmds
          -> F.Handler' (F.Design specs) acts cmds
@@ -85,7 +93,7 @@ listBuilder _ (F.Archetype (_ , _, _, frmEnt, mkEnt, activateEnt)) =
             -- internalHdl :: TVar s -> Which acts -> MaybeT STM (DL.DList (Which cmds))
             -- internalHdl _ = hdl this
             internalHdl :: TVar s -> Which acts' -> MaybeT STM (DL.DList (Which cmds))
-            internalHdl v a = (F.getHandler (deleteListItemHandler (Proxy @deleteListItem) v)) this a
+            internalHdl v a = F.getHandler (deleteListItemHandler (Proxy @deleteListItem) v) this a
             -- any actions required by @a@, but not handled by h, must be handled by externally provided handler
             -- NB. The type of Which is changed: given acts', use externalHdl which uses acts
             externalToInternalHdl :: TVar s -> Which acts' -> MaybeT STM (DL.DList (Which cmds))

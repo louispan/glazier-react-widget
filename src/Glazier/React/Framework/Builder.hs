@@ -9,56 +9,33 @@
 
 module Glazier.React.Framework.Builder where
 
-import Control.Applicative
 import Control.Concurrent.STM
-import Control.Monad.Free.Church
-import Control.Monad.Trans.Maybe
-import Data.Diverse.Lens
+import Data.Diverse
 import Data.Kind
 import Data.Proxy
-import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Executor as F
-import qualified Glazier.React.Framework.Handler as F
-import qualified Glazier.React.Framework.Widget as F
 
-type Activator' s acts cmds = F.Executor' cmds -- effectful interpreters
-            -> F.Handler' s acts cmds -- externally provided handlers
-            -> TVar s -- TVar that contains the specs
-            -> MaybeT (F R.Reactor) (STM ())
-
-newtype Builder (r :: [Type]) reqs (s :: [Type]) specs (a :: [Type]) acts (c :: [Type]) cmds =
-    Builder ( Proxy a -- required actions from externally provided handlers
-            , Proxy c -- required commands from wrapped handlers
-            , Many specs -> STM (Many r) -- from specifications
+newtype Builder (r :: [Type]) reqs (s :: [Type]) specs =
+    Builder ( Many specs -> STM (Many r) -- from specifications
             , Many reqs -> STM (Many s) -- make specifications
-            , Activator' (F.Design specs) acts cmds
             )
 
 -- | identity for 'andBuild'
-idle :: Builder '[] reqs '[] specs '[] acts '[] cmds
-idle = Builder (Proxy, Proxy, const $ pure nil, const $ pure nil, \_ _ _ -> pure (pure ()))
+idle :: Builder '[] reqs '[] specs
+idle = Builder (const $ pure nil, const $ pure nil)
 
--- | It is okay to combine builders the expect the same @ba@ action, hence the use of 'AppendUnique'
 andBuilder
-    :: Builder r1 reqs s1 specs a1 acts c1 cmds
-    -> Builder r2 reqs s2 specs a2 acts c2 cmds
+    :: Builder r1 reqs s1 specs
+    -> Builder r2 reqs s2 specs
     -> Builder (Append r1 r2) reqs (Append s1 s2) specs
-                 (AppendUnique a1 a2) acts (AppendUnique c1 c2) cmds
-andBuilder (Builder (_, _, fromSpec, mkSpec, activateDesign)) (Builder (_, _, fromSpec', mkSpec', activateDesign')) =
-    Builder ( Proxy
-            , Proxy
-            , \s -> (/./) <$> fromSpec s <*> fromSpec' s
+andBuilder (Builder (fromSpec, mkSpec)) (Builder (fromSpec', mkSpec')) =
+    Builder ( \s -> (/./) <$> fromSpec s <*> fromSpec' s
             , \r -> (/./) <$> mkSpec r <*> mkSpec' r
-            , \exec hdl v -> liftA2 (>>) (activateDesign exec hdl v) (activateDesign' exec hdl v)
             )
 
 -- | Add a type @x@ into the factory
 build
     :: (UniqueMember x reqs, UniqueMember x specs)
-    => Proxy x -> Builder '[x] reqs '[x] specs '[] acts '[] cmds
-build _ = Builder ( Proxy
-                  , Proxy
+    => Proxy x -> Builder '[x] reqs '[x] specs
+build _ = Builder ( pure . single . fetch
                   , pure . single . fetch
-                  , pure . single . fetch
-                  , \_ _ _ -> pure (pure ())
                   )

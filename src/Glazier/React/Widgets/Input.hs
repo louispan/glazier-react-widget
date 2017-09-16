@@ -24,6 +24,7 @@ inputPrototype
     => F.Prototype '[] reqs '[] specs '[SubmitInput, CancelInput] '[] acts '[] cmds
 inputPrototype = F.prototyping (F.display disp)
                                F.idle
+                               F.inert
                                (F.Triggers (Proxy, DL.singleton ("onKeyDown", go)))
                                F.ignore
   where

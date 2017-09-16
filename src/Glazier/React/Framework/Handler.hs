@@ -9,11 +9,13 @@ module Glazier.React.Framework.Handler where
 
 import Control.Applicative
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.State.Strict
 import Control.Concurrent.STM
 import Data.Diverse
 import qualified Data.DList as DL
 import Data.Kind
 import Data.Proxy
+import qualified Glazier.React.Framework.Widget as F
 
 -- NB. Reififed helps type inference because
 -- the output doesn't depends on v or s
@@ -31,6 +33,13 @@ ignore = Handler (Proxy, Proxy, \_ _ -> empty)
 
 getHandler :: Handler s a acts c cmds -> Handler' s acts cmds
 getHandler (Handler (_, _, hdl)) = hdl
+
+stateHandler
+    :: (UniqueMember a acts, UniqueMember c cmds)
+    => (TVar s -> a -> MaybeT (StateT s STM) c) -> Handler s '[a] acts '[c] cmds
+stateHandler f = handler f'
+    where
+      f' v' a = F.usingTVar v' (f v' a)
 
 handler
     :: (UniqueMember a acts, UniqueMember c cmds)

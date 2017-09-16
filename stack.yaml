@@ -47,6 +47,8 @@ packages:
   extra-dep: true
 - location: '/Users/louis/repo/hs/data-diverse-lens'
   extra-dep: true
+# - location: '/Users/louis/repo/hs/stm-extras'
+#   extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
@@ -57,6 +59,7 @@ extra-deps:
 - data-diverse-lens-0.1.0.0
 - javascript-extras-0.3.2.0
 - ghcjs-base-stub-0.1.0.2
+# - stm-extras-0.1.0.3
 
 # Override default flag values for local packages and extra-deps
 flags: {}

@@ -75,10 +75,9 @@ implant (Archetype (_, _, rnd, frmEnt, mkEnt, activateEnt)) = F.prototyping
         single <$> newTVar e
     fromSpec ss = do
         let s = fetch ss
-        single <$> F.viewingTVar s frmEnt
-    disp d = do
-        let s = d ^. (F.specifications . item)
-        F.viewingTVar' s rnd
+        single <$> (readTVar s >>= frmEnt)
+    disp d = let s = d ^. (F.specifications . item)
+             in lift (readTVar s) >>= rnd
 
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to @s@

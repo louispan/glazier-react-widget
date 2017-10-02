@@ -42,7 +42,9 @@ newtype Archetype r s (a :: [Type]) acts (c :: [Type]) cmds =
     , s -> R.ReactMlT STM ()
     , s -> STM r
     , r -> STM s -- mkInactiveEntity
-    , F.Activator' s acts cmds) -- activator
+    , F.Activator' s acts cmds -- activator
+    -- FIXME: Need expose handler? How?
+    )
 
 -- | Create a Prototype from an Archetype.
 -- This wraps the specifications and requirements in an additional layer of 'Many'.

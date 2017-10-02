@@ -74,7 +74,7 @@ listActivator
     , R.Dispose s
     , UniqueMember deleteListItem acts'
     , UniqueMember C.Rerender cmds
-    , UniqueMembers '[deleteListItem] a -- not redundant, used to make sure the Archetype triggers this action
+    , UniqueMembers '[deleteListItem] a -- Redundant constraint: but used to make sure the Archetype triggers this action
     , Reinterpret' (Complement a '[deleteListItem]) acts'
     , Diversify acts (Complement a '[deleteListItem]))
     => Proxy deleteListItem -> F.Archetype r s a acts' c cmds

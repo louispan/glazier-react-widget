@@ -7,6 +7,7 @@ module Glazier.React.Framework
     , module Glazier.React.Framework.Handler
     , module Glazier.React.Framework.Object
     , module Glazier.React.Framework.Prototype
+    -- , module Glazier.React.Framework.Public
     , module Glazier.React.Framework.Trigger
     , module Glazier.React.Framework.Widget
     ) where
@@ -19,5 +20,6 @@ import Glazier.React.Framework.Executor
 import Glazier.React.Framework.Handler
 import Glazier.React.Framework.Object
 import Glazier.React.Framework.Prototype
+-- import Glazier.React.Framework.Public
 import Glazier.React.Framework.Trigger
 import Glazier.React.Framework.Widget

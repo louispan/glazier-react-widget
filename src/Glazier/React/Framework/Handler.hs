@@ -19,7 +19,7 @@ import qualified Glazier.React.Framework.Widget as F
 
 -- NB. Reififed helps type inference because
 -- the output doesn't depends on v or s
-type Handler' s a c = TVar s -> Which a -> MaybeT STM (DL.DList (Which c))
+type Handler' m s a c = IORef s -> Which a -> MaybeT m (DL.DList (Which c))
 
 newtype Handler s (a :: [Type]) acts (c :: [Type]) cmds = Handler
     ( Proxy a
@@ -31,13 +31,13 @@ newtype Handler s (a :: [Type]) acts (c :: [Type]) cmds = Handler
 ignore :: Handler s '[] acts '[] cmds
 ignore = Handler (Proxy, Proxy, \_ _ -> empty)
 
-getHandler :: Handler s a acts c cmds -> Handler' s acts cmds
-getHandler (Handler (_, _, hdl)) = hdl
+runHandler :: Handler s a acts c cmds -> Handler' s acts cmds
+runHandler (Handler (_, _, hdl)) = hdl
 
-stateHandler
+tvarHandler
     :: (UniqueMember a acts, UniqueMember c cmds)
     => (TVar s -> a -> MaybeT (StateT s STM) c) -> Handler s '[a] acts '[c] cmds
-stateHandler f = handler f'
+tvarHandler f = handler f'
     where
       f' v' a = F.usingTVar v' (f v' a)
 

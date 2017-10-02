@@ -31,19 +31,18 @@ module Glazier.React.Framework.Widget where
 -- -- We want to hide mkPlan
 
 import Control.Applicative
-import Control.Concurrent.STM
+import Data.IORef
 -- import qualified Control.Concurrent.STM.Extras as SE
 import Control.Lens
 import Control.Monad
-import Control.Monad.Free.Church
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
-import Data.Foldable
 import Data.Kind
 import qualified Data.JSString as JS
+import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -53,15 +52,28 @@ import qualified JavaScript.Extras as JE
 
 ----------------------------------------------------------
 
-usingTVar :: TVar s -> MaybeT (StateT s STM) a -> MaybeT STM a
-usingTVar v m = do
-    s <- lift $ readTVar v
+-- usingTVar :: TVar s -> MaybeT (StateT s STM) a -> MaybeT STM a
+-- usingTVar v m = do
+--     s <- lift $ readTVar v
+--     (a, s') <- lift $ runStateT (runMaybeT m) s
+--     case a of
+--         Nothing -> empty
+--         Just a' -> do
+--             lift $ writeTVar v s'
+--             pure a'
+
+usingIORef :: R.MonadReactor m => IORef s -> MaybeT (StateT s m) a -> MaybeT m a
+usingIORef v m = do
+    s <- lift $ R.doReadIORef v
     (a, s') <- lift $ runStateT (runMaybeT m) s
     case a of
         Nothing -> empty
         Just a' -> do
-            lift $ writeTVar v s'
+            lift $ R.doWriteIORef v s'
             pure a'
+
+catMaybeT :: (Applicative m, Semigroup a) => MaybeT m a -> MaybeT m a -> MaybeT m a
+catMaybeT (MaybeT m) (MaybeT m') = MaybeT (liftA2 (<>) m m')
 
 ----------------------------------------------------------
 
@@ -139,7 +151,7 @@ _Design = iso runDesign Design
 
 ----------------------------------------------------------
 
-rerender :: MaybeT (StateT (Design specs) STM) C.Rerender
+rerender :: Monad m => MaybeT (StateT (Design specs) m) C.Rerender
 rerender = do
     -- Just change the state to a different number so the React PureComponent will call render()
     (plan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
@@ -149,7 +161,7 @@ rerender = do
 
 ----------------------------------------------------------
 
-queueDisposable :: R.Dispose a => a -> MaybeT (StateT (Design specs) STM) ()
+queueDisposable :: (Monad m, R.Dispose a) => a -> MaybeT (StateT (Design specs) m) ()
 queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
 
 inactivePlan
@@ -163,25 +175,25 @@ inactivePlan = Plan
     Nothing -- componentPlan
 
 mkComponentPlan
-    :: (Design specs -> R.ReactMlT STM ())
-    -> TVar (Design specs)
-    -> F R.Reactor (ComponentPlan)
+    :: R.MonadReactor m
+    => (Design specs -> R.ReactMlT m ())
+    -> IORef (Design specs)
+    -> m (ComponentPlan)
 mkComponentPlan w v = ComponentPlan
     <$> R.getComponent -- component
     <*> R.mkRenderer rnd -- onRender
-    <*> R.mkCallback (atomically . usingTVar' v . zoom plan . doOnComponentRef) -- onComponentRef
-    <*> (R.mkCallback $ (>>= R.runDisposable)
-            . atomically
-            . usingTVar' v
+    <*> R.mkCallback (usingIORef' v . zoom plan . doOnComponentRef) -- onComponentRef
+    <*> (R.mkCallback $ (>>= R.doDispose)
+            . usingIORef' v
             . zoom plan
             . const doOnComponentDidUpdate) --onComopnentDidUpdate
   where
-    rnd = lift (readTVar v) >>= w
+    rnd = lift (R.doReadIORef v) >>= w
 
-    doOnComponentRef :: J.JSVal -> StateT Plan STM ()
+    doOnComponentRef :: Monad m => J.JSVal -> StateT Plan m ()
     doOnComponentRef j = componentRef .= C.ComponentRef j
 
-    doOnComponentDidUpdate :: StateT Plan STM (R.Disposable ())
+    doOnComponentDidUpdate :: Monad m => StateT Plan m (R.Disposable ())
     doOnComponentDidUpdate = do
         -- Run delayed commands that need to wait until frame is re-rendered
         -- Eg focusing after other rendering changes
@@ -189,31 +201,32 @@ mkComponentPlan w v = ComponentPlan
         deferredDisposables .= mempty
         pure ds
 
-    -- usingTVar' :: TVar s -> StateT s STM a -> STM a
-    usingTVar' v' m = do
-        s <- readTVar v
+    usingIORef' v' m = do
+        s <- R.doReadIORef v
         (a, s') <- runStateT m s
-        writeTVar v' s'
+        R.doWriteIORef v' s'
         pure a
 
 initPlan
-    :: (Design specs -> R.ReactMlT STM ())
-    -> TVar (Design specs)
+    :: R.MonadReactor m
+    => (Design specs -> R.ReactMlT m ())
+    -> IORef (Design specs)
     -> Plan
-    -> F R.Reactor (Maybe Plan)
+    -> m (Maybe Plan)
 initPlan _ _ (Plan _ _ _ _ _ (Just _)) = pure Nothing
 initPlan w v (Plan frm cRef defDisp ls k Nothing) = fmap Just $ Plan frm cRef defDisp ls
     <$> ((k `JS.append`) <$> R.mkKey') -- key
     <*> (Just <$> mkComponentPlan w v)
 
 mkListeners
-    :: (Which cmds -> MaybeT IO ())
-    -> [(J.JSString, J.JSVal -> MaybeT IO (DL.DList (Which cmds)))]
-    -> F R.Reactor [R.Listener]
+    :: R.MonadReactor m
+    => ([Which cmds] -> MaybeT m ())
+    -> [(J.JSString, J.JSVal -> MaybeT m (DL.DList (Which cmds)))]
+    -> m [R.Listener]
 mkListeners exec = traverse toListener -- triggers
   where
     toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback (toCallback f)
-    toCallback f a = void . runMaybeT $ f a >>= traverse_ exec
+    toCallback f a = void . runMaybeT $ f a >>= (exec . DL.toList)
 
 inactiveDesign
     :: [JE.Property]
@@ -222,15 +235,15 @@ inactiveDesign
 inactiveDesign ps specs = Design (ps, specs, inactivePlan)
 
 initDesign
-    :: (Design specs -> R.ReactMlT STM ())
-    -> TVar (Design specs)
-    -> MaybeT (F R.Reactor) (Design specs)
+    :: R.MonadReactor m => (Design specs -> R.ReactMlT m ())
+    -> IORef (Design specs)
+    -> MaybeT m (Design specs)
 initDesign w v = do
-    dsgn <- lift . R.doSTM $ readTVar v
+    dsgn <- lift $ R.doReadIORef v
     pln <- MaybeT $ initPlan w v (dsgn ^. plan)
     pure (dsgn & plan .~ pln)
 
-componentWindow :: Design specs -> R.ReactMlT STM ()
+componentWindow :: Monad m => Design specs -> R.ReactMlT m ()
 componentWindow s =
     let cPlan = s ^. plan . componentPlan'
     in case cPlan of

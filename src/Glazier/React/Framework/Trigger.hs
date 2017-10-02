@@ -29,8 +29,8 @@ boring = Triggers (Proxy, mempty)
 andTriggers :: Triggers a1 acts -> Triggers a2 acts -> Triggers (AppendUnique a1 a2) acts
 andTriggers (Triggers (Proxy, f)) (Triggers (Proxy, g)) = Triggers (Proxy, f <> g)
 
-getTriggers :: Triggers a acts -> DL.DList (Trigger' (Which acts))
-getTriggers (Triggers (_, ts)) = ts
+runTriggers :: Triggers a acts -> DL.DList (Trigger' (Which acts))
+runTriggers (Triggers (_, ts)) = ts
 
 trigger
     :: UniqueMember a acts

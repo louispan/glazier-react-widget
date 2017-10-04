@@ -9,28 +9,28 @@ import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Data.Coerce
 import Data.Diverse
--- import Data.Functor.Contravariant
+import Data.Foldable
 import Data.Kind
 import Data.Proxy
 import Data.Semigroup (Semigroup(..))
 
-type Executor' c = (Which c -> MaybeT IO ())
+type Executor' m c = ([Which c] -> MaybeT m ())
 
 -- instance Contravariant Executor' where
 --     contramap f (Executor' exec) = Executor' (exec . f)
 
-newtype Executor (c :: [Type]) cmds =
+newtype Executor m (c :: [Type]) cmds =
     Executor ( Proxy c
-            , Executor' cmds)
+            , Executor' m cmds)
 
-instance Semigroup (Executor '[] cmds) where
+instance Monad m => Semigroup (Executor m '[] cmds) where
     _ <> _ = Executor (Proxy, const empty)
 
-instance Monoid (Executor '[] cmds) where
+instance Monad m => Monoid (Executor m '[] cmds) where
     mempty = Executor (Proxy, const empty)
     mappend = (<>)
 
-getExecutor :: Executor c cmds -> Executor' cmds
+getExecutor :: Executor m c cmds -> Executor' m cmds
 getExecutor (Executor (_, exec)) = exec
 
 -- | mempty is also identity for 'orExecutor'
@@ -38,18 +38,21 @@ getExecutor (Executor (_, exec)) = exec
 -- This is to prevent running executors twice for the one command.
 -- This will be compile time check with @Append c1 c2@ and @UniqueMember@ constraints.
 orExecutor
-    :: Executor c1 cmds
-    -> Executor c2 cmds
-    -> Executor (Append c1 c2) cmds
+    :: Monad m => Executor m c1 cmds
+    -> Executor m c2 cmds
+    -> Executor m (Append c1 c2) cmds
 orExecutor (Executor (_, r)) (Executor (_, r')) =
-    Executor (Proxy, \c -> coerce r c <|> coerce r' c)
+    Executor (Proxy, \cs -> coerce r cs <|> coerce r' cs)
 
 executor
-    :: (UniqueMember c cmds)
-    => (c -> MaybeT IO ()) -> Executor '[c] cmds
-executor f = Executor (Proxy, \cmd -> case trial' cmd of
-                      Nothing -> empty
-                      Just cmd' -> f cmd')
+    :: (Monad m, UniqueMember c cmds)
+    => (c -> MaybeT m ()) -> Executor m '[c] cmds
+executor f = Executor (Proxy, traverse_ go)
+  where
+    go cmd =
+        case trial' cmd of
+            Nothing -> empty
+            Just cmd' -> f cmd'
 
 -- trivial :: UniqueMember () cmds => Executor '[()] cmds
 -- trivial = executor (const $ pure ())

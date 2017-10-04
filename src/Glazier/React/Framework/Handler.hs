@@ -10,9 +10,9 @@ module Glazier.React.Framework.Handler where
 import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
-import Control.Concurrent.STM
 import Data.Diverse
 import qualified Data.DList as DL
+import Data.IORef
 import Data.Kind
 import Data.Proxy
 import qualified Glazier.React.Framework.Widget as F
@@ -21,29 +21,29 @@ import qualified Glazier.React.Framework.Widget as F
 -- the output doesn't depends on v or s
 type Handler' m s a c = IORef s -> Which a -> MaybeT m (DL.DList (Which c))
 
-newtype Handler s (a :: [Type]) acts (c :: [Type]) cmds = Handler
+newtype Handler m s (a :: [Type]) acts (c :: [Type]) cmds = Handler
     ( Proxy a
     , Proxy c
-    , Handler' s acts cmds
+    , Handler' m s acts cmds
     )
 
 -- | identity for 'orHandler'
-ignore :: Handler s '[] acts '[] cmds
+ignore :: Monad m => Handler m s '[] acts '[] cmds
 ignore = Handler (Proxy, Proxy, \_ _ -> empty)
 
-runHandler :: Handler s a acts c cmds -> Handler' s acts cmds
+runHandler :: Handler m s a acts c cmds -> Handler' m s acts cmds
 runHandler (Handler (_, _, hdl)) = hdl
 
-tvarHandler
-    :: (UniqueMember a acts, UniqueMember c cmds)
-    => (TVar s -> a -> MaybeT (StateT s STM) c) -> Handler s '[a] acts '[c] cmds
-tvarHandler f = handler f'
-    where
-      f' v' a = F.usingTVar v' (f v' a)
+-- ioRefHandler
+--     :: (MonadReactor m => UniqueMember a acts, UniqueMember c cmds)
+--     => (IORef s -> a -> MaybeT (StateT s m) c) -> Handler m s '[a] acts '[c] cmds
+-- ioRefHandler f = handler f'
+--     where
+--       f' v' a = F.usingIORef v' (f v' a)
 
 handler
-    :: (UniqueMember a acts, UniqueMember c cmds)
-    => (TVar s -> a -> MaybeT STM c) -> Handler s '[a] acts '[c] cmds
+    :: (Monad m, UniqueMember a acts, UniqueMember c cmds)
+    => (IORef s -> a -> MaybeT m c) -> Handler m s '[a] acts '[c] cmds
 handler f = Handler (Proxy, Proxy, \v a -> do
                             a' <- MaybeT . pure $ trial' a
                             (DL.singleton . pick) <$> f v a')
@@ -52,9 +52,10 @@ handler f = Handler (Proxy, Proxy, \v a -> do
 -- error to `orHandlers` of the same type.
 -- NB. The use of <|> only the first handler for a particular action will be used.
 orHandler
-    :: Handler s a1 acts c1 cmds
-    -> Handler s a2 acts c2 cmds
-    -> Handler s (Append a1 a2) acts (AppendUnique c1 c2) cmds
+    :: Monad m
+    => Handler m s a1 acts c1 cmds
+    -> Handler m s a2 acts c2 cmds
+    -> Handler m s (Append a1 a2) acts (AppendUnique c1 c2) cmds
 orHandler (Handler (_, _, f)) (Handler (_, _, g)) =
     Handler (Proxy, Proxy, \v -> liftA2 (<|>) (f v) (g v))
 

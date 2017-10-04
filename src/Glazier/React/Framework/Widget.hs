@@ -52,16 +52,6 @@ import qualified JavaScript.Extras as JE
 
 ----------------------------------------------------------
 
--- usingTVar :: TVar s -> MaybeT (StateT s STM) a -> MaybeT STM a
--- usingTVar v m = do
---     s <- lift $ readTVar v
---     (a, s') <- lift $ runStateT (runMaybeT m) s
---     case a of
---         Nothing -> empty
---         Just a' -> do
---             lift $ writeTVar v s'
---             pure a'
-
 usingIORef :: R.MonadReactor m => IORef s -> MaybeT (StateT s m) a -> MaybeT m a
 usingIORef v m = do
     s <- lift $ R.doReadIORef v

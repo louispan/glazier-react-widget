@@ -2,7 +2,6 @@
 
 module Glazier.React.Framework.Display where
 
-import Control.Concurrent.STM
 import Control.Lens
 import Data.Maybe
 import Data.Semigroup
@@ -12,16 +11,16 @@ import qualified JavaScript.Extras as JE
 
 type ToListeners specs = F.Design specs -> [R.Listener]
 type ToProperties specs = F.Design specs -> [JE.Property]
-type Window specs = ToListeners specs -> ToProperties specs
-                      -> F.Design specs -> R.ReactMlT STM ()
+type Window m specs = ToListeners specs -> ToProperties specs
+                      -> F.Design specs -> R.ReactMlT m ()
 
-newtype Display specs =
+newtype Display m specs =
     Display ( ToListeners specs
             , ToProperties specs
-            , Maybe (Window specs)
+            , Maybe (Window m specs)
             )
 
-instance Monoid (Display specs) where
+instance Monad m => Monoid (Display m specs) where
     mempty = Display (mempty, mempty, mempty)
     mappend = (<>)
 
@@ -30,7 +29,7 @@ instance Monoid (Display specs) where
 -- with their respective set of properties/listeners, and the properties of this
 -- new Display is set to mempty.
 -- The new window uses a div if new properties are added to this Display.
-instance Semigroup (Display specs) where
+instance Monad m => Semigroup (Display m specs) where
     Display (ls, ps, Nothing) <> Display (ls', ps', w') =
         Display (ls <> ls', ps <> ps', w')
     Display (ls, ps, w) <> Display (ls', ps', Nothing) =
@@ -38,15 +37,15 @@ instance Semigroup (Display specs) where
     Display (ls, ps, Just w) <> Display (ls', ps', Just w') = divIfNeeded (w ls ps <> w' ls' ps')
 
 -- | Add a list of static properties to the rendered element.
-decorate :: [JE.Property] -> Display specs
+decorate :: [JE.Property] -> Display m specs
 decorate ps = Display (mempty, const ps, Nothing)
 
-display :: Window specs -> Display specs
+display :: Window m specs -> Display m specs
 display w = Display (mempty, mempty, Just w)
 
 -- | Given a initial set of listeners and properties, create a display
 -- that also includes the key and properties from the WidgetPlan
-widgetDisplay :: Display specs
+widgetDisplay :: Display m specs
 widgetDisplay = Display (ls, ps, Nothing)
   where
     ls s = s ^. F.plan . F.listeners
@@ -55,7 +54,7 @@ widgetDisplay = Display (ls, ps, Nothing)
     k s = s ^. F.plan . F.key
 
 -- | wrap with a div iff there are properties and listeners
-divIfNeeded :: (F.Design specs -> R.ReactMlT STM ()) -> Display specs
+divIfNeeded :: Monad m => (F.Design specs -> R.ReactMlT m ()) -> Display m specs
 divIfNeeded w = Display (mempty, mempty, Just go)
   where
     go l p s = do
@@ -65,6 +64,6 @@ divIfNeeded w = Display (mempty, mempty, Just go)
             ([], []) -> w s
             _ -> R.bh "div" l' p' (w s)
 
--- | Convert a 'Display' into a @F.Design specs -> R.ReactMlT STM ()@
-renderDisplay :: Display specs -> F.Design specs -> R.ReactMlT STM ()
+-- | Convert a 'Display' into a @F.Design specs -> R.ReactMlT m ()@
+renderDisplay :: Monad m => Display m specs -> F.Design specs -> R.ReactMlT m ()
 renderDisplay (Display (l, p, w)) = fromMaybe mempty $ (\w' -> w' l p) <$> w

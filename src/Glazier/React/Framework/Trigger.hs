@@ -14,25 +14,25 @@ import Data.Proxy
 import Data.Semigroup (Semigroup(..))
 import qualified GHCJS.Types as J
 
-type Trigger' a = (J.JSString, J.JSVal -> MaybeT IO a)
+type Trigger' m a = (J.JSString, J.JSVal -> MaybeT m a)
 
-newtype Triggers (a :: [Type]) acts = Triggers
+newtype Triggers m (a :: [Type]) acts = Triggers
     ( Proxy a
-    , DL.DList (Trigger' (Which acts))
+    , DL.DList (Trigger' m (Which acts))
     )
 
 -- | identity for 'andBuild'
-boring :: Triggers '[] acts
+boring :: Triggers m '[] acts
 boring = Triggers (Proxy, mempty)
 
 -- | It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
-andTriggers :: Triggers a1 acts -> Triggers a2 acts -> Triggers (AppendUnique a1 a2) acts
+andTriggers :: Triggers m a1 acts -> Triggers m a2 acts -> Triggers m (AppendUnique a1 a2) acts
 andTriggers (Triggers (Proxy, f)) (Triggers (Proxy, g)) = Triggers (Proxy, f <> g)
 
-runTriggers :: Triggers a acts -> DL.DList (Trigger' (Which acts))
+runTriggers :: Triggers m a acts -> DL.DList (Trigger' m (Which acts))
 runTriggers (Triggers (_, ts)) = ts
 
 trigger
-    :: UniqueMember a acts
-    => (J.JSString, J.JSVal -> MaybeT IO a) -> Triggers '[a] acts
+    :: (Monad m, UniqueMember a acts)
+    => (J.JSString, J.JSVal -> MaybeT m a) -> Triggers m '[a] acts
 trigger (evt, f) = Triggers (Proxy, DL.singleton (evt, fmap pick . f))

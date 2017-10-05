@@ -6,7 +6,6 @@
 
 module Glazier.React.Framework.Activator where
 
-import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
 import Data.Diverse

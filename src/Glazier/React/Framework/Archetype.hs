@@ -93,20 +93,26 @@ implement
        -- , NFData (Which acts')
        -- , Reinterpret' (Complement a h) acts'
        -- , Diversify acts (Complement a h)
-       , cmds ~ AppendUnique ac hc
-       , acts ~ (AppendUnique (AppendUnique a t) h)
        , Diversify p h -- publically exposed must be a subset of h
-       , Complement (AppendUnique a t) (AppendUnique h p) ~ '[] -- any (t + a) not in h, must be in p
+       , cmds ~ AppendUnique ac hc
+       , acts ~ Complement (AppendUnique a t) h
+       -- acts the set of (a + t) not handled by h
        , r' ~ ([JE.Property] ': r))
-    => F.Prototype m r r s s a t h p acts ac hc cmds
+    => F.Prototype m r r s s a a t t p h h ac hc cmds
     -> Archetype m (Many r') (F.Design s) acts p cmds
 implement (F.Prototype (disp, bldr, activtr, ts, hdl, p)) = Archetype
   ( F.componentWindow
   , fromEntity bldr
   , mkInactiveEntity bldr
   , undefined -- activateEntity activtr disp ts hdl
-  , undefined
+  , exposeHandler hdl p
   )
+
+exposeHandler
+    :: forall m s h hc cmds p.
+       (Monad m, Diversify p h)
+    => F.Handler m s h h hc cmds -> F.Public p -> F.Handler' m s p cmds
+exposeHandler (F.Handler hdl) _ v a = hdl v (diversify @_ @h a)
 
 mkInactiveEntity
     :: forall m r r' s.

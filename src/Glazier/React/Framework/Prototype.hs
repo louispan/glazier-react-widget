@@ -29,31 +29,35 @@ import qualified Glazier.React.Framework.Widget as F
 -- p must contain only things inside h. It cannot contain things that are handled by external handlers.
 
 newtype Prototype m (r :: [Type]) reqs
-                  (s :: [Type]) specs
-                  (a :: [Type]) (t :: [Type]) (h :: [Type]) (p :: [Type]) acts
-                  (ac :: [Type]) (hc :: [Type]) cmds =
+                    (s :: [Type]) specs
+                    (a :: [Type]) as
+                    (t :: [Type]) ts
+                    (p :: [Type]) (h :: [Type]) hs
+                    (ac :: [Type]) (hc :: [Type]) cmds =
     Prototype ( F.Display m specs
               , F.Builder m r reqs s specs
               -- activator contains other prerequisites
               -- of executor, and actions that need to be handled
-              , F.Activator m (F.Design specs) a acts ac cmds
-              , F.Triggers m t acts
-              , F.Handler m (F.Design specs) h acts hc cmds
+              , F.Activator m (F.Design specs) a as ac cmds
+              , F.Triggers m t ts
+              , F.Handler m (F.Design specs) h hs hc cmds
               , F.Public p
               )
 
 -- | identity for 'andPrototype'
-dummy :: Monad m => Prototype m '[] reqs '[] specs '[] '[] '[] '[] acts '[] '[] cmds
+dummy :: Monad m => Prototype m '[] reqs '[] specs '[] as '[] ts '[] '[] hs '[] '[] cmds
 dummy = Prototype (mempty, F.idle, F.inert, F.boring, F.ignore, F.private)
 
 -- | The action and command types are merged, not appended
 andPrototype
     :: Monad m
-    => Prototype m r1 reqs s1 specs a1 t1 h1 p1 acts ac1 hc1 cmds
-    -> Prototype m r2 reqs s2 specs a2 t2 h2 p2 acts ac2 hc2 cmds
+    => Prototype m r1 reqs s1 specs a1 as t1 ts p1 h1 hs ac1 hc1 cmds
+    -> Prototype m r2 reqs s2 specs a2 as t2 ts p2 h2 hs ac2 hc2 cmds
     -> Prototype m (Append r1 r2) reqs
                    (Append s1 s2) specs
-                   (AppendUnique a1 a2) (AppendUnique t1 t2) (Append h1 h2) (AppendUnique p1 p2) acts
+                   (AppendUnique a1 a2) as
+                   (AppendUnique t1 t2) ts
+                   (AppendUnique p1 p2) (Append h1 h2) hs
                    (AppendUnique ac1 ac2) (AppendUnique hc1 hc2) cmds
 andPrototype (Prototype (d, b, a, t, h, p)) (Prototype (d', b', a', t', h', p')) =
     Prototype
@@ -65,20 +69,35 @@ andPrototype (Prototype (d, b, a, t, h, p)) (Prototype (d', b', a', t', h', p'))
         , p `F.andPublic` p'
         )
 
-displaying :: Monad m => F.Display m specs -> Prototype m '[] reqs '[] specs '[] '[] '[] '[] acts '[] '[] cmds
+displaying
+    :: Monad m
+    => F.Display m specs
+    -> Prototype m '[] reqs '[] specs '[] as '[] ts '[] '[] hs '[] '[] cmds
 displaying d = Prototype (d, F.idle, F.inert, F.boring, F.ignore, F.private)
 
-building :: Monad m => F.Builder m r reqs s specs -> Prototype m r reqs s specs '[] '[] '[] '[] acts '[] '[] cmds
+building
+    :: Monad m
+    => F.Builder m r reqs s specs
+    -> Prototype m r reqs s specs '[] as '[] ts '[] '[] hs '[] '[] cmds
 building b = Prototype (mempty, b, F.inert, F.boring, F.ignore, F.private)
 
-activating :: Monad m => F.Activator m (F.Design specs) a acts c cmds -> Prototype m '[] reqs '[] specs a '[] '[] '[] acts c '[] cmds
+activating
+    :: Monad m
+    => F.Activator m (F.Design specs) a as ac cmds
+    -> Prototype m '[] reqs '[] specs a as '[] ts '[] '[] hs ac '[] cmds
 activating a = Prototype (mempty, F.idle, a, F.boring, F.ignore, F.private)
 
-triggering :: Monad m => F.Triggers m a acts -> Prototype m '[] reqs '[] specs '[] a '[] '[] acts '[] '[] cmds
+triggering
+    :: Monad m
+    => F.Triggers m t ts
+    -> Prototype m '[] reqs '[] specs '[] as t ts '[] '[] hs '[] '[] cmds
 triggering t = Prototype (mempty, F.idle, F.inert, t, F.ignore, F.private)
 
-handling :: Monad m => F.Handler m (F.Design specs) h acts c cmds -> Prototype m '[] reqs '[] specs '[] '[] h '[] acts '[] c cmds
+handling
+    :: Monad m
+    => F.Handler m (F.Design specs) h hs hc cmds
+    -> Prototype m '[] reqs '[] specs '[] as '[] ts '[] h hs '[] hc cmds
 handling h = Prototype (mempty, F.idle, F.inert, F.boring, h, F.private)
 
-publically :: Monad m => F.Public p -> Prototype m '[] reqs '[] specs '[] '[] '[] p acts '[] '[] cmds
+publically :: Monad m => F.Public p -> Prototype m '[] reqs '[] specs '[] as '[] ts p '[] hs '[] '[] cmds
 publically p = Prototype (mempty, F.idle, F.inert, F.boring, F.ignore, p)

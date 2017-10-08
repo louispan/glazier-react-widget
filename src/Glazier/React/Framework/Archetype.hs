@@ -37,65 +37,63 @@ import qualified JavaScript.Extras as JE
 -- It contains almost all the information of a 'Prototype', without the 'Trigger's, nor the ability to compose
 -- multiple archetypes together.
 -- 'Archetype' can be converted into a 'Prototype' to be composed with other 'Prototypes'.
-newtype Archetype m r s h a hcs acs =
+newtype Archetype m r s h a hc acs =
     Archetype
     ( s -> R.ReactMlT m () -- display
     , s -> m r -- builder frmSpec
     , r -> m s -- builder mkInactiveEntity
-    , F.Handler' m s h hcs -- event handlers
+    , F.Handler' m s h hc -- event handlers
     -- activator needs externally provided handlers
     , F.Activator' m s a acs
     )
 
--- -- | Create a Prototype from an Archetype.
--- -- This wraps the specifications and requirements in an additional layer of 'Many'.
--- -- This is NOT the opposite of 'implement', that is:
--- --
--- -- @
--- -- implant . implement /= id
--- -- @
--- implant
---     :: forall m r reqs s specs a as ts h hs acs c cmds.
---        ( R.MonadReactor m
---        , UniqueMember r reqs
---        , UniqueMember (IORef s) specs
---        , Diversify a as
---        , Diversify c cmds
---        , Reinterpret' h hs
---        )
---     => Archetype m r s a h c
---     -> F.Prototype m '[r] reqs '[IORef s] specs a as '[] ts h hs acs c cmds
--- implant (Archetype (rnd, frmEnt, mkEnt, activateEnt, hdlEnt)) = F.Prototype
---     ( F.divIfNeeded disp
---     , F.Builder (fromSpec, mkSpec)
---     , undefined -- F.Activator activateDesign
---     , F.boring
---     , F.handler (F.implantHandler' fromThis hdlEnt)
---     )
---   where
---     toActivatorHdl
---       :: F.Handler' m (F.Design specs) as cmds
---          -> IORef (F.Design specs)
---          -> F.Handler' m s a c
---     toActivatorHdl hdl' v _ a = (fmap (diversify @c @cmds)) <$> hdl' v (diversify @a @as a)
---     -- toActivatorExec :: F.Executor' m cmds -> F.Executor' m c
---     -- toActivatorExec = undefined -- (reinterpret' @cmds @c) <$> cmds
---     fromThis :: R.MonadReactor m => (IORef (F.Design specs) -> m (IORef s))
---     fromThis v = do
---         d <- R.doReadIORef v
---         pure (d ^. (F.specifications . item))
---     -- activateDesign exec hdl' v = do
---     --     s <- fromThis v
---     --     activateEnt undefined (toActivatorHdl hdl' v) s
---     mkSpec rs = do
---         let r = fetch rs
---         e <- mkEnt r
---         single <$> R.doNewIORef e
---     fromSpec ss = do
---         let s = fetch ss
---         single <$> (R.doReadIORef s >>= frmEnt)
---     disp d = let s = d ^. (F.specifications . item)
---              in lift (R.doReadIORef s) >>= rnd
+-- | Create a Prototype from an Archetype.
+-- This wraps the specifications and requirements in an additional layer of 'Many'.
+-- This is NOT the opposite of 'implement', that is:
+--
+-- @
+-- implant . implement /= id
+-- @
+implant
+    :: forall m r reqs s specs h hs ts a as hc hcs acs.
+       ( R.MonadReactor m
+       , UniqueMember r reqs
+       , UniqueMember (IORef s) specs
+       , Diversify a as
+       , Diversify hc hcs
+       , Reinterpret' h hs
+       )
+    => Archetype m r s h a hc acs
+    -> F.Prototype m '[r] reqs '[IORef s] specs h hs '[] ts a as hc hcs acs
+implant (Archetype (rnd, frmEnt, mkEnt, hdlEnt, activateEnt)) = F.Prototype
+    ( F.divIfNeeded disp
+    , F.Builder (fromSpec, mkSpec)
+    , F.handler (F.implantHandler' fromThis hdlEnt)
+    , F.boring
+    , F.Activator activateDesign
+    )
+  where
+    toActivatorHdl
+      :: F.Handler' m (F.Design specs) as acs
+         -> IORef (F.Design specs)
+         -> F.Handler' m s a acs
+    toActivatorHdl hdl' v _ a = hdl' v (diversify @a @as a)
+    fromThis :: R.MonadReactor m => (IORef (F.Design specs) -> m (IORef s))
+    fromThis v = do
+        d <- R.doReadIORef v
+        pure (d ^. (F.specifications . item))
+    activateDesign exec hdl' v = do
+        s <- lift . lift $ fromThis v
+        activateEnt exec (toActivatorHdl hdl' v) s
+    mkSpec rs = do
+        let r = fetch rs
+        e <- mkEnt r
+        single <$> R.doNewIORef e
+    fromSpec ss = do
+        let s = fetch ss
+        single <$> (R.doReadIORef s >>= frmEnt)
+    disp d = let s = d ^. (F.specifications . item)
+             in lift (R.doReadIORef s) >>= rnd
 
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to @s@
@@ -103,12 +101,11 @@ implement
     :: ( R.MonadReactor m
        , NFData (Which t)
        , Reinterpret' acts a
-       , Reinterpret' h a
        , Reinterpret' acts t
+       , Reinterpret' h a
        , Reinterpret' h t
        , Diversify hc acs
        , acts ~ Complement (AppendUnique a t) h
-       , cmds ~ AppendUnique ac hc
        , r' ~ ([JE.Property] ': r)
        )
     => F.Prototype m r r s s h h t t a a hc hc acs
@@ -122,13 +119,13 @@ implement (F.Prototype (disp, bldr, hdl, ts, activtr)) = Archetype
   )
 
 activateEntity
-    :: forall m s a t h acts acs hc.
+    :: forall m s h t a acts hc acs.
        ( R.MonadReactor m
        , acts ~ Complement (AppendUnique a t) h
        , NFData (Which t)
        , Reinterpret' acts a
-       , Reinterpret' h a
        , Reinterpret' acts t
+       , Reinterpret' h a
        , Reinterpret' h t
        , Diversify hc acs
        )

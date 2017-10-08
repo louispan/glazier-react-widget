@@ -40,6 +40,7 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
+import Data.Foldable
 import Data.Kind
 import qualified Data.JSString as JS
 import Data.Semigroup
@@ -210,13 +211,13 @@ initPlan w v (Plan frm cRef defDisp ls k Nothing) = fmap Just $ Plan frm cRef de
 
 mkListeners
     :: R.MonadReactor m
-    => ([Which cmds] -> MaybeT m ())
+    => (Which cmds -> MaybeT m ())
     -> [(J.JSString, J.JSVal -> MaybeT m (DL.DList (Which cmds)))]
     -> m [R.Listener]
 mkListeners exec = traverse toListener -- triggers
   where
     toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback (toCallback f)
-    toCallback f a = void . runMaybeT $ f a >>= (exec . DL.toList)
+    toCallback f a = void . runMaybeT $ f a >>= traverse_ exec
 
 inactiveDesign
     :: [JE.Property]

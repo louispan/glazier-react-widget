@@ -1,4 +1,4 @@
--- {-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -11,16 +11,15 @@
 module Glazier.React.Framework.Archetype where
 
 import Control.Applicative
-import Control.Concurrent.STM
 import Control.DeepSeq
 import Control.Lens
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
-import Data.Kind
 import qualified Data.Map.Strict as M
-import Data.Proxy
+import Data.IORef
 import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
@@ -29,7 +28,6 @@ import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Prototype as F
-import qualified Glazier.React.Framework.Public as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.Widget as F
 import qualified GHCJS.Types as J
@@ -39,14 +37,14 @@ import qualified JavaScript.Extras as JE
 -- It contains almost all the information of a 'Prototype', without the 'Trigger's, nor the ability to compose
 -- multiple archetypes together.
 -- 'Archetype' can be converted into a 'Prototype' to be composed with other 'Prototypes'.
-newtype Archetype m r s a p c =
+newtype Archetype m r s h a hcs acs =
     Archetype
     ( s -> R.ReactMlT m () -- display
     , s -> m r -- builder frmSpec
     , r -> m s -- builder mkInactiveEntity
+    , F.Handler' m s h hcs -- event handlers
     -- activator needs externally provided handlers
-    , F.Activator' m s a c
-    , F.Handler' m s p c -- publically exposed event handlers
+    , F.Activator' m s a acs
     )
 
 -- -- | Create a Prototype from an Archetype.
@@ -57,62 +55,130 @@ newtype Archetype m r s a p c =
 -- -- implant . implement /= id
 -- -- @
 -- implant
---     :: ( UniqueMember r reqs, UniqueMember (TVar s) specs)
---     => Archetype r s a acts c cmds
---     -> F.Prototype '[r] reqs '[TVar s] specs a '[] acts c cmds
--- implant (Archetype (_, _, rnd, frmEnt, mkEnt, activateEnt)) = F.prototyping
---     (F.divIfNeeded disp)
---     (F.Builder (fromSpec, mkSpec))
---     (F.Activator (Proxy, Proxy, activateDesign))
---     F.boring
---     F.ignore
+--     :: forall m r reqs s specs a as ts h hs acs c cmds.
+--        ( R.MonadReactor m
+--        , UniqueMember r reqs
+--        , UniqueMember (IORef s) specs
+--        , Diversify a as
+--        , Diversify c cmds
+--        , Reinterpret' h hs
+--        )
+--     => Archetype m r s a h c
+--     -> F.Prototype m '[r] reqs '[IORef s] specs a as '[] ts h hs acs c cmds
+-- implant (Archetype (rnd, frmEnt, mkEnt, activateEnt, hdlEnt)) = F.Prototype
+--     ( F.divIfNeeded disp
+--     , F.Builder (fromSpec, mkSpec)
+--     , undefined -- F.Activator activateDesign
+--     , F.boring
+--     , F.handler (F.implantHandler' fromThis hdlEnt)
+--     )
 --   where
---     toBuilderHdl
---       :: F.Handler' (F.Design specs) acts cmds
---          -> TVar (F.Design specs)
---          -> F.Handler' s acts cmds
---     toBuilderHdl hdl' v _ = hdl' v
---     activateDesign exec hdl' v = do
---         d <- R.doSTM $ readTVar v
---         let s = d ^.  (F.specifications . item)
---         activateEnt exec (toBuilderHdl hdl' v) s
+--     toActivatorHdl
+--       :: F.Handler' m (F.Design specs) as cmds
+--          -> IORef (F.Design specs)
+--          -> F.Handler' m s a c
+--     toActivatorHdl hdl' v _ a = (fmap (diversify @c @cmds)) <$> hdl' v (diversify @a @as a)
+--     -- toActivatorExec :: F.Executor' m cmds -> F.Executor' m c
+--     -- toActivatorExec = undefined -- (reinterpret' @cmds @c) <$> cmds
+--     fromThis :: R.MonadReactor m => (IORef (F.Design specs) -> m (IORef s))
+--     fromThis v = do
+--         d <- R.doReadIORef v
+--         pure (d ^. (F.specifications . item))
+--     -- activateDesign exec hdl' v = do
+--     --     s <- fromThis v
+--     --     activateEnt undefined (toActivatorHdl hdl' v) s
 --     mkSpec rs = do
 --         let r = fetch rs
 --         e <- mkEnt r
---         single <$> newTVar e
+--         single <$> R.doNewIORef e
 --     fromSpec ss = do
 --         let s = fetch ss
---         single <$> (readTVar s >>= frmEnt)
+--         single <$> (R.doReadIORef s >>= frmEnt)
 --     disp d = let s = d ^. (F.specifications . item)
---              in lift (readTVar s) >>= rnd
+--              in lift (R.doReadIORef s) >>= rnd
 
 -- | Finalize the design of a 'Prototype' and convert the make functions into making an Entity.
 -- This also adds [JE.Property] to @s@
 implement
-    :: ( Monad m
-       -- , NFData (Which acts')
-       -- , Reinterpret' (Complement a h) acts'
-       -- , Diversify acts (Complement a h)
-       , Diversify p h -- publically exposed must be a subset of h
-       , cmds ~ AppendUnique ac hc
+    :: ( R.MonadReactor m
+       , NFData (Which t)
+       , Reinterpret' acts a
+       , Reinterpret' h a
+       , Reinterpret' acts t
+       , Reinterpret' h t
+       , Diversify hc acs
        , acts ~ Complement (AppendUnique a t) h
-       -- acts the set of (a + t) not handled by h
-       , r' ~ ([JE.Property] ': r))
-    => F.Prototype m r r s s a a t t p h h ac hc cmds
-    -> Archetype m (Many r') (F.Design s) acts p cmds
-implement (F.Prototype (disp, bldr, activtr, ts, hdl, p)) = Archetype
+       , cmds ~ AppendUnique ac hc
+       , r' ~ ([JE.Property] ': r)
+       )
+    => F.Prototype m r r s s h h t t a a hc hc acs
+    -> Archetype m (Many r') (F.Design s) h acts hc acs
+implement (F.Prototype (disp, bldr, hdl, ts, activtr)) = Archetype
   ( F.componentWindow
   , fromEntity bldr
   , mkInactiveEntity bldr
-  , undefined -- activateEntity activtr disp ts hdl
-  , exposeHandler hdl p
+  , F.runHandler hdl
+  , activateEntity activtr disp ts hdl
   )
 
-exposeHandler
-    :: forall m s h hc cmds p.
-       (Monad m, Diversify p h)
-    => F.Handler m s h h hc cmds -> F.Public p -> F.Handler' m s p cmds
-exposeHandler (F.Handler hdl) _ v a = hdl v (diversify @_ @h a)
+activateEntity
+    :: forall m s a t h acts acs hc.
+       ( R.MonadReactor m
+       , acts ~ Complement (AppendUnique a t) h
+       , NFData (Which t)
+       , Reinterpret' acts a
+       , Reinterpret' h a
+       , Reinterpret' acts t
+       , Reinterpret' h t
+       , Diversify hc acs
+       )
+    => F.Activator m (F.Design s) a a acs
+    -> F.Display m s
+    -> F.Triggers m t t
+    -> F.Handler m (F.Design s) h h hc hc -- handler for some of the triggers or builder
+    -> F.Executor' m acs
+    -> F.Handler' m (F.Design s) acts acs -- externally provided handler for builder and remaining triggers
+    -> IORef (F.Design s)
+    -> MaybeT (StateT (R.Disposable ()) m) (m ())
+activateEntity (F.Activator activateDesign) disp ts (F.Handler internalHdl) exec externalHdl v = do
+    d <- hoist lift $ F.initDesign w v
+    ls <- lift . lift $ F.mkListeners exec delegates'
+    let d' = d & F.plan . F.listeners %~ (<> ls)
+    x <- activateDesign exec activatorHdls v
+        -- only write if activation succeeds
+    pure (x >> R.doWriteIORef v d')
+    -- any actions required by @a@, but not handled by @h@, must be handled by externally provided handler
+    -- any actions required by @a@ and handled by @h@
+  where
+    activatorHdls v' a =
+        (fmap diversify <$> F.reinterpretHandler' @h internalHdl v' a) <|>
+        F.reinterpretHandler' @acts externalHdl v' a
+    -- any actions required by @t@, but not handled by @h@, must be handled by externally provided handler
+    -- any actions required by @t@ and handled by @h@
+    internalHdls v' a =
+        (fmap diversify <$> F.reinterpretHandler' @h internalHdl v' a) <|>
+        F.reinterpretHandler' @acts externalHdl v' a
+    delegates = toDelegates (F.runTriggers ts) internalHdls v
+    -- combine the callbacks with the same trigger key
+    delegates' = M.toList . M.fromListWith (liftA2 (>>)) $ delegates
+    w = F.renderDisplay (F.widgetDisplay <> disp)
+
+toDelegates
+    :: (Monad m, NFData (Which a))
+    => DL.DList (F.Trigger' m (Which a))
+    -> F.Handler' m s a c
+    -> IORef s
+    -> [(J.JSString, J.JSVal -> MaybeT m (DL.DList (Which c)))]
+toDelegates ts hdl v = go <$> DL.toList ts
+  where
+    go (evt, t) = (evt, R.handleEventM t hdl')
+    hdl' = hdl v
+
+-- exposeHandler
+--     :: forall m s h hc cmds p.
+--        Diversify p h
+--     => F.Handler m s h h hc cmds -> F.Public p -> F.Handler' m s p cmds
+-- exposeHandler (F.Handler hdl) _ v a = hdl v (diversify @_ @h a)
 
 mkInactiveEntity
     :: forall m r r' s.
@@ -125,51 +191,6 @@ mkInactiveEntity (F.Builder (_, mkSpec)) rs = do
     let (ps, xs) = viewf rs
     ss <- mkSpec xs -- externalToBuilderHdl xs
     pure $ F.inactiveDesign ps ss
-
--- activateEntity
---     :: forall s a h acts' acts c cmds.
---        ( NFData (Which acts')
---        , Reinterpret' (Complement a h) acts'
---        , Diversify acts (Complement a h))
---     => F.Activator (F.Design s) a acts' c cmds
---     -> F.Display s
---     -> F.Triggers a acts'
---     -> F.Handler (F.Design s) h acts' c cmds -- handler for some of the triggers or builder
---     -> F.Executor' cmds
---     -> F.Handler' (F.Design s) acts cmds -- externally provided handler for builder and remaining triggers
---     -> TVar (F.Design s)
---     -> MaybeT (F R.Reactor) (STM ())
--- activateEntity (F.Activator (_, _, activateDesign)) disp ts (F.Handler (_, _, internalHdl)) exec externalHdl v
---     = do
---         d <- F.initDesign w v
---         ls <- lift $ F.mkListeners exec delegates'
---         let d' = d & F.plan . F.listeners %~ (<> ls)
---         x <- activateDesign exec internalHdls v
---         -- only write if activation succeeds
---         pure (x >> writeTVar v d')
---   where
---     -- any actions required by @a@, but not handled by h, must be handled by externally provided handler
---     -- NB. The type of Which is changed: given acts', use externalHdl which uses acts
---     externalToInternalHdl :: TVar (F.Design s) -> Which acts' -> MaybeT STM (DL.DList (Which cmds))
---     externalToInternalHdl v' a = case reinterpret' @(Complement a h) @acts' a of
---         Nothing -> empty
---         Just a' -> externalHdl v' (diversify @acts a')
---     internalHdls v' a = internalHdl v' a <|> externalToInternalHdl v' a
---     delegates = toDelegates (F.getTriggers ts) internalHdls v
---     -- combine the callbacks with the same trigger key
---     delegates' = M.toList . M.fromListWith (liftA2 (>>)) $ delegates
---     w = F.renderDisplay (F.widgetDisplay <> disp)
-
--- toDelegates
---     :: NFData (Which a)
---     => DL.DList (F.Trigger' (Which a))
---     -> F.Handler' s a c
---     -> TVar s
---     -> [(J.JSString, J.JSVal -> MaybeT IO (DL.DList (Which c)))]
--- toDelegates ts hdl v = go <$> DL.toList ts
---   where
---     go (evt, t) = (evt, R.handleEventM t hdl')
---     hdl' a = hoist atomically (hdl v a)
 
 fromEntity :: (Monad m, r' ~ ([JE.Property] ': r))
     => F.Builder m r r s s -> F.Design s -> m (Many r')

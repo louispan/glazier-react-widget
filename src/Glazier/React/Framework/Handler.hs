@@ -3,11 +3,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Framework.Handler where
 
 import Control.Applicative
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Data.Diverse
 import qualified Data.DList as DL
@@ -18,14 +21,13 @@ import Data.Kind
 -- the output doesn't depends on v or s
 type Handler' m s a c = IORef s -> Which a -> MaybeT m (DL.DList (Which c))
 
-newtype Handler m s (a :: [Type]) acts (c :: [Type]) cmds = Handler (Handler' m s acts cmds)
+newtype Handler m s (a :: [Type]) acts (c :: [Type]) cmds = Handler
+    { runHandler :: Handler' m s acts cmds
+    }
 
 -- | identity for 'orHandler'
 ignore :: Monad m => Handler m s '[] acts '[] cmds
 ignore = Handler (\_ _ -> empty)
-
-runHandler :: Handler m s a acts c cmds -> Handler' m s acts cmds
-runHandler (Handler hdl) = hdl
 
 -- ioRefHandler
 --     :: (MonadReactor m => UniqueMember a acts, UniqueMember c cmds)
@@ -34,12 +36,19 @@ runHandler (Handler hdl) = hdl
 --     where
 --       f' v' a = F.usingIORef v' (f v' a)
 
-handler
+handler'
     :: (Monad m, UniqueMember a acts, UniqueMember c cmds)
     => (IORef s -> a -> MaybeT m c) -> Handler m s '[a] acts '[c] cmds
-handler f = Handler (\v a -> do
+handler' f = Handler (\v a -> do
     a' <- MaybeT . pure $ trial' a
     (DL.singleton . pick) <$> f v a')
+
+handler
+    :: (Monad m, Reinterpret' a as, Diversify c cs)
+    => (IORef s -> Which a -> MaybeT m (DL.DList (Which c))) -> Handler m s a as c cs
+handler f = Handler $ \v a -> do
+    a' <- MaybeT . pure $ reinterpret' a
+    fmap diversify <$> f v a'
 
 -- | Due to @Append a1 a2@ and @UniqueMember@ constraints, it is a compile time
 -- error to `orHandlers` of the same type.
@@ -50,7 +59,18 @@ orHandler
     -> Handler m s a2 acts c2 cmds
     -> Handler m s (Append a1 a2) acts (AppendUnique c1 c2) cmds
 orHandler (Handler f) (Handler g) =
-    Handler (\v -> liftA2 (<|>) (f v) (g v))
+    Handler (\v a -> liftA2 (<|>) (f v a) (g v a))
+
+reinterpretHandler' :: forall a a' m s c. (Monad m, Reinterpret' a a') => Handler' m s a c -> Handler' m s a' c
+reinterpretHandler' hdl v a = case reinterpret' @a a of
+    Nothing -> empty
+    Just a' -> hdl v a'
+
+implantHandler' :: Monad m => (IORef s -> m (IORef s')) -> Handler' m s' a c -> Handler' m s a c
+implantHandler' f hdl v' a = do
+    v <- lift $ f v'
+    hdl v a
+
 
 -- -- | For example
 -- --

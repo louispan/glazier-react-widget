@@ -15,7 +15,9 @@ import qualified GHCJS.Types as J
 
 type Trigger' m a = (J.JSString, J.JSVal -> MaybeT m a)
 
-newtype Triggers m (a :: [Type]) acts = Triggers (DL.DList (Trigger' m (Which acts)))
+newtype Triggers m (a :: [Type]) acts = Triggers
+    { runTriggers :: DL.DList (Trigger' m (Which acts))
+    }
 
 -- | identity for 'andBuild'
 boring :: Triggers m '[] acts
@@ -25,10 +27,12 @@ boring = Triggers mempty
 andTriggers :: Triggers m a1 acts -> Triggers m a2 acts -> Triggers m (AppendUnique a1 a2) acts
 andTriggers (Triggers f) (Triggers g) = Triggers (f <> g)
 
-runTriggers :: Triggers m a acts -> DL.DList (Trigger' m (Which acts))
-runTriggers (Triggers ts) = ts
-
-trigger
+trigger'
     :: (Monad m, UniqueMember a acts)
     => (J.JSString, J.JSVal -> MaybeT m a) -> Triggers m '[a] acts
-trigger (evt, f) = Triggers (DL.singleton (evt, fmap pick . f))
+trigger' (evt, f) = Triggers (DL.singleton (evt, fmap pick . f))
+
+trigger
+    :: (Monad m, Diversify a acts)
+    => (J.JSString, J.JSVal -> MaybeT m (Which a)) -> Triggers m a acts
+trigger (evt, f) = Triggers (DL.singleton (evt, fmap diversify . f))

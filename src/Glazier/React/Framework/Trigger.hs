@@ -6,33 +6,35 @@
 
 module Glazier.React.Framework.Trigger where
 
+import Control.Applicative
 import Control.Monad.Trans.Maybe
 import Data.Diverse
 import qualified Data.DList as DL
 import Data.Kind
-import Data.Semigroup (Semigroup(..))
+import qualified Data.Map.Strict as M
 import qualified GHCJS.Types as J
+import qualified Glazier.React.Framework.Widget as F
 
-type Trigger' m a = (J.JSString, J.JSVal -> MaybeT m a)
+-- type Trigger' a = (J.JSString, J.JSVal -> MaybeT IO (DL.DList (Which a)))
 
-newtype Triggers m (a :: [Type]) acts = Triggers
-    { runTriggers :: DL.DList (Trigger' m (Which acts))
+newtype Triggers (a :: [Type]) acts = Triggers
+    { runTriggers :: M.Map J.JSString (J.JSVal -> MaybeT IO (DL.DList (Which acts)))
     }
 
 -- | identity for 'andBuild'
-boring :: Triggers m '[] acts
+boring :: Triggers '[] acts
 boring = Triggers mempty
 
 -- | It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
-andTriggers :: Triggers m a1 acts -> Triggers m a2 acts -> Triggers m (AppendUnique a1 a2) acts
-andTriggers (Triggers f) (Triggers g) = Triggers (f <> g)
+andTriggers :: Triggers a1 acts -> Triggers a2 acts -> Triggers (AppendUnique a1 a2) acts
+andTriggers (Triggers f) (Triggers g) = Triggers (M.unionWith (liftA2 (F.catMaybeT)) f g)
 
 trigger'
-    :: (Monad m, UniqueMember a acts)
-    => (J.JSString, J.JSVal -> MaybeT m a) -> Triggers m '[a] acts
-trigger' (evt, f) = Triggers (DL.singleton (evt, fmap pick . f))
+    :: (UniqueMember a acts)
+    => J.JSString -> (J.JSVal -> MaybeT IO a) -> Triggers '[a] acts
+trigger' evt f = Triggers (M.singleton evt (fmap (DL.singleton . pick) . f))
 
 trigger
-    :: (Monad m, Diversify a acts)
-    => (J.JSString, J.JSVal -> MaybeT m (Which a)) -> Triggers m a acts
-trigger (evt, f) = Triggers (DL.singleton (evt, fmap diversify . f))
+    :: (Diversify a acts)
+    => J.JSString -> (J.JSVal -> MaybeT IO (Which a)) -> Triggers a acts
+trigger evt f = Triggers (M.singleton evt (fmap (DL.singleton . diversify) . f))

@@ -20,20 +20,25 @@ data SubmitInput = SubmitInput R.EventTarget J.JSString
 data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
-    :: (UniqueMember SubmitInput acts, UniqueMember CancelInput acts)
-    => F.Prototype '[] reqs '[] specs '[SubmitInput, CancelInput] '[] acts '[] cmds
-inputPrototype = F.prototyping (F.display disp)
-                               F.idle
-                               F.inert
-                               (F.Triggers (Proxy, DL.singleton ("onKeyDown", go)))
-                               F.ignore
+    :: (R.MonadReactor m, UniqueMember SubmitInput ts, UniqueMember CancelInput ts)
+    => F.Prototype m '[] reqs '[] specs '[] hs '[SubmitInput, CancelInput] ts '[] as '[] hcs acs
+inputPrototype =
+    F.Prototype
+        ( F.display disp
+        , F.idle
+        , F.ignore
+        , F.trigger "onKeyDown" go
+        , F.inert)
   where
     disp ls ps dsn = R.lf "input" (ls dsn) (ps dsn)
     go = R.handleEventM A.fireKeyDownKey goLazy
       where
-        goLazy (A.KeyDownKey target k) = case k of
-            "Escape" -> pure . pick $ CancelInput target
-            "Enter" -> do
-                v <- MaybeT $ JE.fromJS' <$> JE.getProperty "value" (JE.toJS target)
-                pure . pick $ SubmitInput target v
-            _ -> empty
+        goLazy (A.KeyDownKey target k) =
+            case k of
+                "Escape" -> pure . pick $ CancelInput target
+                "Enter" -> do
+                    v <-
+                        MaybeT $
+                        JE.fromJS' <$> JE.getProperty "value" (JE.toJS target)
+                    pure . pick $ SubmitInput target v
+                _ -> empty

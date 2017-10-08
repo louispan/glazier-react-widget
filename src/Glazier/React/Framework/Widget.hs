@@ -31,18 +31,16 @@ module Glazier.React.Framework.Widget where
 -- -- We want to hide mkPlan
 
 import Control.Applicative
-import Data.IORef
--- import qualified Control.Concurrent.STM.Extras as SE
+import Control.DeepSeq
 import Control.Lens
-import Control.Monad
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
-import Data.Foldable
-import Data.Kind
+import Data.IORef
 import qualified Data.JSString as JS
+import Data.Kind
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
@@ -54,13 +52,13 @@ import qualified JavaScript.Extras as JE
 ----------------------------------------------------------
 
 usingIORef :: R.MonadReactor m => IORef s -> MaybeT (StateT s m) a -> MaybeT m a
-usingIORef v m = do
-    s <- lift $ R.doReadIORef v
+usingIORef this m = do
+    s <- lift $ R.doReadIORef this
     (a, s') <- lift $ runStateT (runMaybeT m) s
     case a of
         Nothing -> empty
         Just a' -> do
-            lift $ R.doWriteIORef v s'
+            lift $ R.doWriteIORef this s'
             pure a'
 
 catMaybeT :: (Applicative m, Semigroup a) => MaybeT m a -> MaybeT m a -> MaybeT m a
@@ -170,33 +168,29 @@ mkComponentPlan
     => (Design specs -> R.ReactMlT m ())
     -> IORef (Design specs)
     -> m (ComponentPlan)
-mkComponentPlan w v = ComponentPlan
+mkComponentPlan w this = ComponentPlan
     <$> R.getComponent -- component
     <*> R.mkRenderer rnd -- onRender
-    <*> R.mkCallback (usingIORef' v . zoom plan . doOnComponentRef) -- onComponentRef
-    <*> (R.mkCallback $ (>>= R.doDispose)
-            . usingIORef' v
+    <*> (R.mkCallback (pure . \j -> [j]) (usingIORef this . zoom plan . doOnComponentRef) pure) -- onComponentRef
+    <*> (R.mkCallback (pure . const [()]) (
+            usingIORef this
             . zoom plan
-            . const doOnComponentDidUpdate) --onComopnentDidUpdate
+            . const doOnComponentDidUpdate) (lift . R.runDisposable)) --onComopnentDidUpdate
   where
-    rnd = lift (R.doReadIORef v) >>= w
+    rnd = lift (R.doReadIORef this) >>= w
 
-    doOnComponentRef :: Monad m => J.JSVal -> StateT Plan m ()
-    doOnComponentRef j = componentRef .= C.ComponentRef j
+    doOnComponentRef :: Monad m => J.JSVal -> MaybeT (StateT Plan m) [()]
+    doOnComponentRef j = do
+        componentRef .= C.ComponentRef j
+        pure []
 
-    doOnComponentDidUpdate :: Monad m => StateT Plan m (R.Disposable ())
+    doOnComponentDidUpdate :: Monad m => MaybeT (StateT Plan m) [R.Disposable ()]
     doOnComponentDidUpdate = do
         -- Run delayed commands that need to wait until frame is re-rendered
         -- Eg focusing after other rendering changes
         ds <- use deferredDisposables
         deferredDisposables .= mempty
-        pure ds
-
-    usingIORef' v' m = do
-        s <- R.doReadIORef v
-        (a, s') <- runStateT m s
-        R.doWriteIORef v' s'
-        pure a
+        pure [ds]
 
 initPlan
     :: R.MonadReactor m
@@ -205,19 +199,19 @@ initPlan
     -> Plan
     -> m (Maybe Plan)
 initPlan _ _ (Plan _ _ _ _ _ (Just _)) = pure Nothing
-initPlan w v (Plan frm cRef defDisp ls k Nothing) = fmap Just $ Plan frm cRef defDisp ls
+initPlan w this (Plan frm cRef defDisp ls k Nothing) = fmap Just $ Plan frm cRef defDisp ls
     <$> ((k `JS.append`) <$> R.mkKey') -- key
-    <*> (Just <$> mkComponentPlan w v)
+    <*> (Just <$> mkComponentPlan w this)
 
 mkListeners
-    :: R.MonadReactor m
-    => (Which cmds -> MaybeT m ())
-    -> [(J.JSString, J.JSVal -> MaybeT m (DL.DList (Which cmds)))]
+    :: (R.MonadReactor m, NFData (Which a))
+    => (Which cmds -> MaybeT IO ())
+    -> (Which a -> MaybeT m (DL.DList (Which cmds)))
+    -> [(J.JSString, J.JSVal -> MaybeT IO (DL.DList (Which a)))]
     -> m [R.Listener]
-mkListeners exec = traverse toListener -- triggers
+mkListeners exec hdl = traverse toListener -- triggers
   where
-    toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback (toCallback f)
-    toCallback f a = void . runMaybeT $ f a >>= traverse_ exec
+    toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback f hdl exec
 
 inactiveDesign
     :: [JE.Property]
@@ -229,10 +223,10 @@ initDesign
     :: R.MonadReactor m => (Design specs -> R.ReactMlT m ())
     -> IORef (Design specs)
     -> MaybeT m (Design specs)
-initDesign w v = do
-    dsgn <- lift $ R.doReadIORef v
-    pln <- MaybeT $ initPlan w v (dsgn ^. plan)
-    pure (dsgn & plan .~ pln)
+initDesign w this = do
+    obj <- lift $ R.doReadIORef this
+    pln <- MaybeT $ initPlan w this (obj ^. plan)
+    pure (obj & plan .~ pln)
 
 componentWindow :: Monad m => Design specs -> R.ReactMlT m ()
 componentWindow s =

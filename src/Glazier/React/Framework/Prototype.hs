@@ -37,7 +37,7 @@ newtype Prototype m (r :: [Type]) (reqs :: [Type])
               , F.Handler m (F.Design specs) h hs hc hcs
               -- activator contains other prerequisites
               -- of executor, and actions that need to be handled
-              , F.Triggers m t ts
+              , F.Triggers t ts
               , F.Activator m (F.Design specs) a as acs
               )
 
@@ -85,7 +85,7 @@ activating a = Prototype (mempty, F.idle, F.ignore, F.boring, a)
 
 triggering
     :: Monad m
-    => F.Triggers m t ts
+    => F.Triggers t ts
     -> Prototype m '[] reqs '[] specs '[] hs t ts '[] as '[] hcs '[]
 triggering t = Prototype (mempty, F.idle, F.ignore, t, F.inert)
 

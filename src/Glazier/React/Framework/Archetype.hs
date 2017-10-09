@@ -35,14 +35,14 @@ import qualified JavaScript.Extras as JE
 -- It contains almost all the information of a 'Prototype', without the 'Trigger's, nor the ability to compose
 -- multiple archetypes together.
 -- 'Archetype' can be converted into a 'Prototype' to be composed with other 'Prototypes'.
-newtype Archetype m r s h a hc acs =
+newtype Archetype m r s h a c cmds =
     Archetype
     ( s -> R.ReactMlT m () -- display
     , s -> m r -- builder frmSpec
     , r -> m s -- builder mkInactiveEntity
-    , F.Handler' m s h hc -- event handlers
+    , F.Handler' m s h c -- event handlers
     -- activator needs externally provided handlers
-    , F.Activator' m s a acs
+    , F.Activator' m s a cmds
     )
 
 -- | Create a Prototype from an Archetype.
@@ -53,16 +53,16 @@ newtype Archetype m r s h a hc acs =
 -- implant . implement /= id
 -- @
 implant
-    :: forall m r reqs s specs h hs ts a as hc hcs acs.
+    :: forall m r reqs s specs h hs ts a as c cs cmds.
        ( R.MonadReactor m
        , UniqueMember r reqs
        , UniqueMember (IORef s) specs
        , Diversify a as
-       , Diversify hc hcs
+       , Diversify c cs
        , Reinterpret' h hs
        )
-    => Archetype m r s h a hc acs
-    -> F.Prototype m '[r] reqs '[IORef s] specs h hs '[] ts a as hc hcs acs
+    => Archetype m r s h a c cmds
+    -> F.Prototype m '[r] reqs '[IORef s] specs h hs '[] ts a as c cs cmds
 implant (Archetype (rnd, frmEnt, mkEnt, hdlEnt, activateEnt)) = F.Prototype
     ( F.divIfNeeded disp
     , F.Builder (fromSpec, mkSpec)
@@ -72,17 +72,17 @@ implant (Archetype (rnd, frmEnt, mkEnt, hdlEnt, activateEnt)) = F.Prototype
     )
   where
     toActivatorHdl
-      :: F.Handler' m (F.Design specs) as acs
+      :: F.Handler' m (F.Design specs) as cmds
          -> IORef (F.Design specs)
-         -> F.Handler' m s a acs
-    toActivatorHdl hdl' v _ a = hdl' v (diversify @a @as a)
+         -> F.Handler' m s a cmds
+    toActivatorHdl hdl' this _ a = hdl' this (diversify @a @as a)
     fromThis :: R.MonadReactor m => IORef (F.Design specs) -> m (IORef s)
-    fromThis v = do
-        d <- R.doReadIORef v
-        pure (d ^. (F.specifications . item))
-    activateDesign exec hdl' v = do
-        s <- lift . lift $ fromThis v
-        activateEnt exec (toActivatorHdl hdl' v) s
+    fromThis this = do
+        obj <- R.doReadIORef this
+        pure (obj ^. (F.specifications . item))
+    activateDesign exec hdl' this = do
+        s <- lift . lift $ fromThis this
+        activateEnt exec (toActivatorHdl hdl' this) s
     mkSpec rs = do
         let r = fetch rs
         e <- mkEnt r
@@ -102,12 +102,12 @@ implement
        , Reinterpret' acts t
        , Reinterpret' h a
        , Reinterpret' h t
-       , Diversify hc acs
+       , Diversify c cmds
        , acts ~ Complement (AppendUnique a t) h
        , r' ~ ([JE.Property] ': r)
        )
-    => F.Prototype m r r s s h h t t a a hc hc acs
-    -> Archetype m (Many r') (F.Design s) h acts hc acs
+    => F.Prototype m r r s s h h t t a a c c cmds
+    -> Archetype m (Many r') (F.Design s) h acts c cmds
 implement (F.Prototype (disp, bldr, hdl, ts, activtr)) = Archetype
   ( F.componentWindow
   , fromEntity bldr
@@ -117,7 +117,7 @@ implement (F.Prototype (disp, bldr, hdl, ts, activtr)) = Archetype
   )
 
 activateEntity
-    :: forall m s h t a acts hc acs.
+    :: forall m s h t a acts c cmds.
        ( R.MonadReactor m
        , acts ~ Complement (AppendUnique a t) h
        , NFData (Which t)
@@ -125,34 +125,34 @@ activateEntity
        , Reinterpret' acts t
        , Reinterpret' h a
        , Reinterpret' h t
-       , Diversify hc acs
+       , Diversify c cmds
        )
-    => F.Activator m (F.Design s) a a acs
+    => F.Activator m (F.Design s) a a cmds
     -> F.Display m s
     -> F.Triggers t t
-    -> F.Handler m (F.Design s) h h hc hc -- handler for some of the triggers or builder
-    -> F.Executor' acs
-    -> F.Handler' m (F.Design s) acts acs -- externally provided handler for builder and remaining triggers
+    -> F.Handler m (F.Design s) h h c c -- handler for some of the triggers or builder
+    -> F.Executor' cmds
+    -> F.Handler' m (F.Design s) acts cmds -- externally provided handler for builder and remaining triggers
     -> IORef (F.Design s)
     -> MaybeT (StateT (R.Disposable ()) m) (m ())
-activateEntity (F.Activator activateDesign) disp ts (F.Handler internalHdl) exec externalHdl v = do
-    d <- hoist lift $ F.initDesign w v
-    ls <- lift . lift $ F.mkListeners exec (internalHdls v) (M.toList $ F.runTriggers ts)
-    let d' = d & F.plan . F.listeners %~ (<> ls)
-    x <- activateDesign exec activatorHdls v
+activateEntity (F.Activator activateDesign) disp ts (F.Handler internalHdl) exec externalHdl this = do
+    obj <- hoist lift $ F.initDesign w this
+    ls <- lift . lift $ F.mkListeners exec (internalHdls this) (M.toList $ F.runTriggers ts)
+    let obj' = obj & F.plan . F.listeners %~ (<> ls)
+    x <- activateDesign exec activatorHdls this
         -- only write if activation succeeds
-    pure (x >> R.doWriteIORef v d')
+    pure (x >> R.doWriteIORef this obj')
   where
     -- any actions required by @a@, but not handled by @h@, must be handled by externally provided handler
     -- any actions required by @a@ and handled by @h@
-    activatorHdls v' a =
-        (fmap diversify <$> F.reinterpretHandler' @h internalHdl v' a) <|>
-        F.reinterpretHandler' @acts externalHdl v' a
+    activatorHdls this' a =
+        (fmap diversify <$> F.reinterpretHandler' @h internalHdl this' a) <|>
+        F.reinterpretHandler' @acts externalHdl this' a
     -- any actions required by @t@, but not handled by @h@, must be handled by externally provided handler
     -- any actions required by @t@ and handled by @h@
-    internalHdls v' a =
-        (fmap diversify <$> F.reinterpretHandler' @h internalHdl v' a) <|>
-        F.reinterpretHandler' @acts externalHdl v' a
+    internalHdls this' a =
+        (fmap diversify <$> F.reinterpretHandler' @h internalHdl this' a) <|>
+        F.reinterpretHandler' @acts externalHdl this' a
     w = F.renderDisplay (F.widgetDisplay <> disp)
 
 mkInactiveEntity
@@ -169,50 +169,8 @@ mkInactiveEntity (F.Builder (_, mkSpec)) rs = do
 
 fromEntity :: (Monad m, r' ~ ([JE.Property] ': r))
     => F.Builder m r r s s -> F.Design s -> m (Many r')
-fromEntity (F.Builder (fromSpec, _)) d = do
-    let ps = d ^. F.properties
-        ss = d ^. F.specifications
+fromEntity (F.Builder (fromSpec, _)) obj = do
+    let ps = obj ^. F.properties
+        ss = obj ^. F.specifications
     rs <- fromSpec ss
     pure (ps ./ rs)
-
--- mkBasicEntity :: (r -> F R.Reactor s) -> r -> F R.Reactor (TMVar s)
--- mkBasicEntity mkEnt r = do
---     v <- R.doSTM newEmptyTMVar
---     s <- mkEnt v (Lens id) r
---     R.doSTM $ putTMVar v s
---     pure v
-
--- toDelegate
---     :: F.Handler' s a c
---     -> F.Executor' c
---     -> TMVar v
---     -> ReifiedLens' v s -- reified because output doesn't have lens type variables
---     -> Which a
---     -> MaybeT IO ()
--- toDelegate hdl exec v l a = hoist atomically (hdl v l a) >>= exec
-
--- tweakAction :: Prism' (Which a') (Which a) -> Archetyper v r s a c -> Archetyper v r s a' c
--- tweakAction l (Archetyper (mkEnt, frmEnt, dszpEnt)) =
---     Archetyper (\hdl -> mkEnt (\v l' -> hdl v l' . review l), frmEnt, dspEnt)
-
--- tweakCommand :: Iso' (Which c') (Which c) -> Archetyper v r s a c -> Archetyper v r s a c'
--- tweakCommand l (Archetyper (mkEnt, frmEnt, dspEnt)) =
---     Archetyper (\hdl exec -> mkEnt (\v l' -> fmap (view l) . hdl v l') (exec . review l), frmEnt, dspEnt)
-
--- tweakSpecification :: Iso' s' s -> Archetype v r s -> Archetype v r s'
--- tweakSpecification l (Archetype (mkEnt, frmEnt, disp)) =
---     Archetype ( \v (Lens l') r -> review l <$> mkEnt v (Lens (l' . l)) r
---               , frmEnt . view l
---               , magnify l disp)
-
--- tweakSpecification' :: Iso' s' s -> Archetyper v r s a c -> Archetyper v r s' a c
--- tweakSpecification' l f hdl exec = tweakSpecification l (f (F.magnifyHandler' (from l) hdl) exec)
-
--- tweakRequirement :: Iso' r' r -> Archetype v r s -> Archetype v r' s
--- tweakRequirement l (Archetype (mkEnt, frmEnt, disp)) =
---     Archetype ( \v l' r -> mkEnt v l' (view l r)
---               , fmap (review l) . frmEnt
---               , disp)
-
--- tweakRequirement' :: Iso' r' r -> Archetyper v r s a c -> Archetyper v r' s a c
--- tweakRequirement' l f hdl exec = tweakRequirement l (f hdl exec)

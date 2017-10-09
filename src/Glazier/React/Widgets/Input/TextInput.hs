@@ -8,11 +8,12 @@ module Glazier.React.Widgets.Input.TextInput
     ) where
 
 import Data.Diverse
+import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Widgets.Input as W
 
 textInputPrototype
-    :: (UniqueMember W.SubmitInput acts, UniqueMember W.CancelInput acts)
-    => F.Prototype '[] reqs '[] specs '[W.SubmitInput, W.CancelInput] '[] acts '[] cmds
+    :: (R.MonadReactor m, UniqueMember W.SubmitInput ts, UniqueMember W.CancelInput ts)
+    => F.Prototype m '[] reqs '[] specs '[] hs '[W.SubmitInput, W.CancelInput] ts '[] as '[] hcs acs
 textInputPrototype =
     W.inputPrototype `F.andPrototype` F.displaying (F.decorate [("type", "text")])

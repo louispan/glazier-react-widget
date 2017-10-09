@@ -31,31 +31,31 @@ newtype Prototype m (r :: [Type]) (reqs :: [Type])
                     (h :: [Type]) (hs :: [Type])
                     (t :: [Type]) (ts :: [Type])
                     (a :: [Type]) (as :: [Type])
-                    (hc :: [Type]) (hcs :: [Type]) (acs :: [Type]) =
+                    (c :: [Type]) (cs :: [Type]) (cmds :: [Type]) =
     Prototype ( F.Display m specs
               , F.Builder m r reqs s specs
-              , F.Handler m (F.Design specs) h hs hc hcs
+              , F.Handler m (F.Design specs) h hs c cs
               -- activator contains other prerequisites
               -- of executor, and actions that need to be handled
               , F.Triggers t ts
-              , F.Activator m (F.Design specs) a as acs
+              , F.Activator m (F.Design specs) a as cmds
               )
 
 -- | identity for 'andPrototype'
-dummy :: Monad m => Prototype m '[] reqs '[] specs '[] hs '[] ts '[] as '[] hcs '[]
+dummy :: Monad m => Prototype m '[] reqs '[] specs '[] hs '[] ts '[] as '[] cs '[]
 dummy = Prototype (mempty, F.idle, F.ignore, F.boring, F.inert)
 
 -- | The action and command types are merged, not appended
 andPrototype
     :: Monad m
-    => Prototype m r1 reqs s1 specs h1 hs t1 ts a1 as hc1 hcs acs
-    -> Prototype m r2 reqs s2 specs h2 hs t2 ts a2 as hc2 hcs acs
+    => Prototype m r1 reqs s1 specs h1 hs t1 ts a1 as c1 cs cmds
+    -> Prototype m r2 reqs s2 specs h2 hs t2 ts a2 as c2 cs cmds
     -> Prototype m (Append r1 r2) reqs
                    (Append s1 s2) specs
                    (Append h1 h2) hs
                    (AppendUnique t1 t2) ts
                    (AppendUnique a1 a2) as
-                   (AppendUnique hc1 hc2) hcs acs
+                   (AppendUnique c1 c2) cs cmds
 andPrototype (Prototype (d, b, h, t, a)) (Prototype (d', b', h', t', a')) =
     Prototype
         ( d <> d'
@@ -68,29 +68,29 @@ andPrototype (Prototype (d, b, h, t, a)) (Prototype (d', b', h', t', a')) =
 displaying
     :: Monad m
     => F.Display m specs
-    -> Prototype m '[] reqs '[] specs '[] hs '[] ts '[] as '[] hcs '[]
+    -> Prototype m '[] reqs '[] specs '[] hs '[] ts '[] as '[] cs cmds
 displaying d = Prototype (d, F.idle, F.ignore, F.boring, F.inert)
 
 building
     :: Monad m
     => F.Builder m r reqs s specs
-    -> Prototype m r reqs s specs '[] hs '[] ts '[] as '[] hcs '[]
+    -> Prototype m r reqs s specs '[] hs '[] ts '[] as '[] cs cmds
 building b = Prototype (mempty, b, F.ignore, F.boring, F.inert)
 
 activating
     :: Monad m
-    => F.Activator m (F.Design specs) a as acs
-    -> Prototype m '[] reqs '[] specs '[] hs '[] ts a as '[] hcs acs
+    => F.Activator m (F.Design specs) a as cmds
+    -> Prototype m '[] reqs '[] specs '[] hs '[] ts a as '[] cs cmds
 activating a = Prototype (mempty, F.idle, F.ignore, F.boring, a)
 
 triggering
     :: Monad m
     => F.Triggers t ts
-    -> Prototype m '[] reqs '[] specs '[] hs t ts '[] as '[] hcs '[]
+    -> Prototype m '[] reqs '[] specs '[] hs t ts '[] as '[] cs cmds
 triggering t = Prototype (mempty, F.idle, F.ignore, t, F.inert)
 
 handling
     :: Monad m
-    => F.Handler m (F.Design specs) h hs hc hcs
-    -> Prototype m '[] reqs '[] specs h hs '[] ts '[] as hc hcs '[]
+    => F.Handler m (F.Design specs) h hs c cs
+    -> Prototype m '[] reqs '[] specs h hs '[] ts '[] as c cs cmds
 handling h = Prototype (mempty, F.idle, h, F.boring, F.inert)

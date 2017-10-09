@@ -20,7 +20,6 @@ module Glazier.React.Widgets.List where
 -- import Control.Monad.Plus as MP
 -- import Control.Applicative.Alternative as A?
 import Control.Applicative
-import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Free.Church
 -- import Control.Monad.Morph
@@ -33,6 +32,7 @@ import Data.Diverse.Lens
 import Data.Foldable
 -- import qualified Data.JSString as J
 -- import Data.Maybe
+import Data.IORef
 import Data.Proxy
 import qualified Data.Sequence as S
 import qualified Glazier.React as R
@@ -54,92 +54,92 @@ data MakeListItem r = MakeListItem r
 listBuilder
     :: forall deleteListItem r reqs s specs a acts' c cmds.
     ( UniqueMember (S.Seq r) reqs
-    , UniqueMember (S.Seq (TVar s)) specs)
+    , UniqueMember (S.Seq (IORef s)) specs)
     => Proxy deleteListItem -> F.Archetype r s a acts' c cmds
-    -> F.Builder '[S.Seq r] reqs '[S.Seq (TVar s)] specs
+    -> F.Builder '[S.Seq r] reqs '[S.Seq (IORef s)] specs
 listBuilder _ (F.Archetype (_ , _, _, frmEnt, mkEnt, _)) =
     F.Builder (frmSpecs, mkSpecs)
   where
-    frmSpecs :: Many specs -> STM (Many '[S.Seq r])
-    frmSpecs ss = single <$> traverse frmEnt' (fetch @(S.Seq (TVar s)) ss)
-    frmEnt' v = readTVar v >>= frmEnt
+    frmSpecs :: Many specs -> m (Many '[S.Seq r])
+    frmSpecs ss = single <$> traverse frmEnt' (fetch @(S.Seq (IORef s)) ss)
+    frmEnt' v = readIORef v >>= frmEnt
 
-    mkSpecs :: Many reqs -> STM (Many '[S.Seq (TVar s)])
+    mkSpecs :: Many reqs -> m (Many '[S.Seq (IORef s)])
     mkSpecs rs = single <$> traverse mkEnt' (fetch @(S.Seq r) rs)
-    mkEnt' r = mkEnt r >>= newTVar
+    mkEnt' r = mkEnt r >>= newIORef
 
-listActivator
-    :: forall deleteListItem r s specs a acts' acts c cmds.
-    ( UniqueMember (S.Seq (TVar s)) specs
-    , R.Dispose s
-    , UniqueMember deleteListItem acts'
-    , UniqueMember C.Rerender cmds
-    , UniqueMembers '[deleteListItem] a -- Redundant constraint: but used to make sure the Archetype triggers this action
-    , Reinterpret' (Complement a '[deleteListItem]) acts'
-    , Diversify acts (Complement a '[deleteListItem]))
-    => Proxy deleteListItem -> F.Archetype r s a acts' c cmds
-    -> F.Activator (F.Design specs) (Complement a '[deleteListItem]) acts (SnocUnique c C.Rerender) cmds
-listActivator _ (F.Archetype (_ , _, _, _, _, activateEnt)) =
-    F.Activator (Proxy, Proxy, activateDesign)
-  where
-    activateDesign
-        :: F.Executor' cmds
-         -> F.Handler' (F.Design specs) acts cmds
-         -> TVar (F.Design specs)
-         -> MaybeT (F R.Reactor) (STM ())
-    activateDesign exec externalHdl this = do
-        this' <- lift . R.doSTM $ readTVar this
-        let vs = this' ^. (F.specifications . item @(S.Seq (TVar s)))
-            -- internalHdl :: TVar s -> Which acts -> MaybeT STM (DL.DList (Which cmds))
-            -- internalHdl _ = hdl this
-            internalHdl :: TVar s -> Which acts' -> MaybeT STM (DL.DList (Which cmds))
-            internalHdl v a = F.getHandler (deleteListItemHandler (Proxy @deleteListItem) v) this a
-            -- any actions required by @a@, but not handled by h, must be handled by externally provided handler
-            -- NB. The type of Which is changed: given acts', use externalHdl which uses acts
-            externalToInternalHdl :: TVar s -> Which acts' -> MaybeT STM (DL.DList (Which cmds))
-            externalToInternalHdl _ a =  case reinterpret' @(Complement a '[deleteListItem]) @acts' a of
-                Nothing -> empty
-                Just a' -> externalHdl this (diversify @acts a')
-            internalHdls v' a = internalHdl v' a <|> externalToInternalHdl v' a
-        foldl' (>>) (pure ()) <$> traverse (activateEnt exec internalHdls) vs
+-- listActivator
+--     :: forall deleteListItem r s specs a acts' acts c cmds.
+--     ( UniqueMember (S.Seq (IORef s)) specs
+--     , R.Dispose s
+--     , UniqueMember deleteListItem acts'
+--     , UniqueMember C.Rerender cmds
+--     , UniqueMembers '[deleteListItem] a -- Redundant constraint: but used to make sure the Archetype triggers this action
+--     , Reinterpret' (Complement a '[deleteListItem]) acts'
+--     , Diversify acts (Complement a '[deleteListItem]))
+--     => Proxy deleteListItem -> F.Archetype r s a acts' c cmds
+--     -> F.Activator (F.Design specs) (Complement a '[deleteListItem]) acts (SnocUnique c C.Rerender) cmds
+-- listActivator _ (F.Archetype (_ , _, _, _, _, activateEnt)) =
+--     F.Activator (Proxy, Proxy, activateDesign)
+--   where
+--     activateDesign
+--         :: F.Executor' cmds
+--          -> F.Handler' (F.Design specs) acts cmds
+--          -> IORef (F.Design specs)
+--          -> MaybeT (F R.Reactor) (STM ())
+--     activateDesign exec externalHdl this = do
+--         this' <- lift . R.doSTM $ readIORef this
+--         let vs = this' ^. (F.specifications . item @(S.Seq (IORef s)))
+--             -- internalHdl :: IORef s -> Which acts -> MaybeT STM (DL.DList (Which cmds))
+--             -- internalHdl _ = hdl this
+--             internalHdl :: IORef s -> Which acts' -> MaybeT STM (DL.DList (Which cmds))
+--             internalHdl v a = F.getHandler (deleteListItemHandler (Proxy @deleteListItem) v) this a
+--             -- any actions required by @a@, but not handled by h, must be handled by externally provided handler
+--             -- NB. The type of Which is changed: given acts', use externalHdl which uses acts
+--             externalToInternalHdl :: IORef s -> Which acts' -> MaybeT STM (DL.DList (Which cmds))
+--             externalToInternalHdl _ a =  case reinterpret' @(Complement a '[deleteListItem]) @acts' a of
+--                 Nothing -> empty
+--                 Just a' -> externalHdl this (diversify @acts a')
+--             internalHdls v' a = internalHdl v' a <|> externalToInternalHdl v' a
+--         foldl' (>>) (pure ()) <$> traverse (activateEnt exec internalHdls) vs
 
-deleteListItem'
-    :: (R.Dispose s, UniqueMember (S.Seq (TVar s)) specs)
-    => TVar s -> MaybeT (StateT (F.Design specs) STM) C.Rerender
-deleteListItem' s = do
-    ls <- use (F.specifications . item)
-    let (as, bs) = S.breakl (/= s) ls
-        (x, cs) = case S.viewl bs of
-            S.EmptyL -> (Nothing, as)
-            s' S.:< bs' -> (Just s', as S.>< bs')
-    case x of
-        Nothing -> empty
-        Just x' -> F.queueDisposable x'
-    (F.specifications . item) .= cs
-    F.rerender
+-- deleteListItem'
+--     :: (R.Dispose s, UniqueMember (S.Seq (IORef s)) specs)
+--     => IORef s -> MaybeT (StateT (F.Design specs) STM) C.Rerender
+-- deleteListItem' s = do
+--     ls <- use (F.specifications . item)
+--     let (as, bs) = S.breakl (/= s) ls
+--         (x, cs) = case S.viewl bs of
+--             S.EmptyL -> (Nothing, as)
+--             s' S.:< bs' -> (Just s', as S.>< bs')
+--     case x of
+--         Nothing -> empty
+--         Just x' -> F.queueDisposable x'
+--     (F.specifications . item) .= cs
+--     F.rerender
 
-deleteListItemHandler
-    :: ( R.Dispose s
-       , UniqueMember (S.Seq (TVar s)) specs
-       , UniqueMember deleteListItem acts
-       , UniqueMember C.Rerender cmds
-       )
-    => Proxy deleteListItem -> TVar s
-    -> F.Handler (F.Design specs) '[deleteListItem] acts '[C.Rerender] cmds
-deleteListItemHandler _ s = F.stateHandler (\_ _ -> deleteListItem' s)
+-- deleteListItemHandler
+--     :: ( R.Dispose s
+--        , UniqueMember (S.Seq (IORef s)) specs
+--        , UniqueMember deleteListItem acts
+--        , UniqueMember C.Rerender cmds
+--        )
+--     => Proxy deleteListItem -> IORef s
+--     -> F.Handler (F.Design specs) '[deleteListItem] acts '[C.Rerender] cmds
+-- deleteListItemHandler _ s = F.stateHandler (\_ _ -> deleteListItem' s)
 
 listDisplay
-    :: forall r s specs a acts c cmds.
-    (UniqueMember (S.Seq (TVar s)) specs)
-    => R.ReactMlT STM ()
-    -> F.Archetype r s a acts c cmds
-    -> F.Display specs
+    :: forall m r s specs h a hc acs.
+    (R.MonadReactor m, UniqueMember (S.Seq (IORef s)) specs)
+    => R.ReactMlT m ()
+    -> F.Archetype m r s h a hc acs
+    -> F.Display m specs
 listDisplay separator (F.Archetype (_, _, disp, _, _, _)) = F.display disp'
   where
     disp' ls ps s = do
-        let xs = s ^. (F.specifications . item @(S.Seq (TVar s)))
+        let xs = s ^. (F.specifications . item @(S.Seq (IORef s)))
             xs' = toLi <$> xs
-            toLi v = R.bh "li" [] [] (lift (readTVar v) >>= disp)
+            toLi v = R.bh "li" [] [] (lift (readIORef v) >>= disp)
             xs'' = L.intersperse separator (toList xs')
         R.bh "ul" (ls s) (ps s) (mconcat xs'')
 

@@ -1,16 +1,17 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
+-- {-# LANGUAGE DeriveGeneric #-}
 -- {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
+-- {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+-- {-# LANGUAGE TemplateHaskell #-}
+-- {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Widget where
 --   ( WidgetCommand(..)
@@ -32,22 +33,22 @@ module Glazier.React.Framework.Widget where
 
 import Control.Applicative
 import Control.DeepSeq
-import Control.Lens
+-- import Control.Lens
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.IORef
-import qualified Data.JSString as JS
+-- import qualified Data.JSString as JS
 import Data.Kind
 import Data.Semigroup
-import qualified GHC.Generics as G
-import qualified GHCJS.Foreign.Callback as J
+-- import qualified GHC.Generics as G
+-- import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Commands.Rerender as C
-import qualified JavaScript.Extras as JE
+-- import qualified Glazier.React.Commands.Rerender as C
+-- import qualified JavaScript.Extras as JE
 
 ----------------------------------------------------------
 
@@ -66,142 +67,186 @@ catMaybeT (MaybeT m) (MaybeT m') = MaybeT (liftA2 (<>) m m')
 
 ----------------------------------------------------------
 
-class HasProperties c where
-    properties :: Lens' c [JE.Property]
+-- class HasProperties c where
+--     properties :: Lens' c [JE.Property]
 
-instance HasProperties [JE.Property] where
-    properties = id
+-- instance HasProperties [JE.Property] where
+--     properties = id
+
+-- type Properties = [JE.Property]
 
 ----------------------------------------------------------
 
 -- | Plan has to be stored differently to other plans because mkPlan needs
 -- additional parameters
 
-newtype FrameNum = FrameNum Int deriving R.Dispose
+newtype Key = Key { runKey :: J.JSString } deriving R.Dispose
+newtype FrameNum = FrameNum { runFrameNum :: Int } deriving R.Dispose
 
-data ComponentPlan = ComponentPlan
-    { _component :: R.ReactComponent
-    , _onRender ::  J.Callback (IO J.JSVal)
-    , _onComponentRef :: J.Callback (J.JSVal -> IO ())
-    , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
-    } deriving (G.Generic)
+class ModelWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
+    wrapModel :: (s -> t) -> (t -> s) -> w m s -> w m t
+    wrapMModel :: (s -> m t) -> (t -> m s) -> w m s -> w m t
 
-makeClassy ''ComponentPlan
+class AModelWrapper a (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) s | a -> w m s where
+    toModelWrapper :: a -> w m s
+    fromModelWrapper :: w m s -> a
 
-instance R.Dispose ComponentPlan
+wrapModel'
+    :: (AModelWrapper a w m s, AModelWrapper b w m t, ModelWrapper w m)
+    => (s -> t) -> (t -> s) -> a -> b
+wrapModel' f g = fromModelWrapper . wrapModel f g . toModelWrapper
 
-data Plan = Plan
-    { _frameNum :: FrameNum
-    , _componentRef :: C.ComponentRef
-    , _deferredDisposables :: R.Disposable ()
-    , _listeners :: [R.Listener]
-    , _key :: J.JSString
-    , _componentPlan' :: Maybe ComponentPlan
-    } deriving (G.Generic)
+wrapMModel'
+    :: (AModelWrapper a w m s, AModelWrapper b w m t, ModelWrapper w m)
+    => (s -> m t) -> (t -> m s) -> a -> b
+wrapMModel' f g = fromModelWrapper . wrapMModel f g . toModelWrapper
 
-makeClassy ''Plan
+class PlanWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
+    wrapPlan :: (p -> q) -> (q -> p) -> w m p -> w m q
+    wrapMPlan :: (p -> m q) -> (q -> m p) -> w m p -> w m q
 
-instance R.Dispose Plan
+class APlanWrapper a (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) p | a -> w m p where
+    toPlanWrapper :: a -> w m p
+    fromPlanWrapper :: w m p -> a
 
-----------------------------------------------------------
+wrapPlan'
+    :: (APlanWrapper a w m p, APlanWrapper b w m q, PlanWrapper w m)
+    => (p -> q) -> (q -> p) -> a -> b
+wrapPlan' f g = fromPlanWrapper . wrapPlan f g . toPlanWrapper
 
-class HasSpecifications c specs | c -> specs where
-    specifications :: Lens' c (Many specs)
+wrapMPlan'
+    :: (APlanWrapper a w m p, APlanWrapper b w m q, PlanWrapper w m)
+    => (p -> m q) -> (q -> m p) -> a -> b
+wrapMPlan' f g = fromPlanWrapper . wrapMPlan f g . toPlanWrapper
 
-----------------------------------------------------------
+-- class WrapRequirements x r' where
+--     type WrappedRequirements x s'
+--     wrapRequirements :: (Many r -> r') -> (r' -> Many r) -> x -> WrappedRequirements x r'
+--     wrapRequirementsM :: (Many r -> m r') -> (r' -> m (Many r)) -> x -> WrappedRequirements x r'
 
-newtype Design (specs :: [Type]) = Design
-    { runDesign ::
-        ( [JE.Property]
-        , Many specs
-        , Plan
-        )
-    }
-    deriving G.Generic
+-- data ComponentPlan = ComponentPlan
+--     { _component :: R.ReactComponent
+--     , _onRender ::  J.Callback (IO J.JSVal)
+--     , _onComponentRef :: J.Callback (J.JSVal -> IO ())
+--     , _onComponentDidUpdate :: J.Callback (J.JSVal -> IO ())
+--     } deriving (G.Generic)
 
--- | UndecidableInstances, but safe because @Many specs@ is smaller than @Design specs@
-instance (R.Dispose (Many specs)) => R.Dispose (Design specs)
+-- makeClassy ''ComponentPlan
 
-instance HasPlan (Design specs) where
-    plan = _Design . _3
+-- instance R.Dispose ComponentPlan
 
-instance HasProperties (Design specs) where
-    properties = _Design . _1
+-- data Plan = Plan
+--     { _frameNum :: FrameNum
+--     , _componentRef :: C.ComponentRef
+--     , _deferredDisposables :: R.Disposable ()
+--     , _listeners :: [R.Listener]
+--     , _key :: J.JSString
+--     , _componentPlan' :: Maybe ComponentPlan
+--     } deriving (G.Generic)
 
-instance HasSpecifications (Design specs) specs where
-    specifications = _Design . _2
+-- makeClassy ''Plan
 
-_Design :: Iso
-    (Design specs)
-    (Design specs')
-    ([JE.Property], Many specs, Plan)
-    ([JE.Property], Many specs', Plan)
-_Design = iso runDesign Design
-
-----------------------------------------------------------
-
-rerender :: Monad m => MaybeT (StateT (Design specs) m) C.Rerender
-rerender = do
-    -- Just change the state to a different number so the React PureComponent will call render()
-    (plan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
-    FrameNum i <- use (plan . frameNum)
-    r <- use (plan . componentRef)
-    pure $ C.Rerender r [("frameNum", JE.JSVar $ JE.toJS i)]
+-- instance R.Dispose Plan
 
 ----------------------------------------------------------
 
-queueDisposable :: (Monad m, R.Dispose a) => a -> MaybeT (StateT (Design specs) m) ()
-queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
+-- class HasSpecifications c specs | c -> specs where
+--     specifications :: Lens' c (Many specs)
 
-inactivePlan
-    :: Plan
-inactivePlan = Plan
-    (FrameNum 0) -- frameNum
-    (C.ComponentRef J.nullRef) -- componentRef
-    mempty -- deferredDisposables
-    mempty -- traverse go ts -- triggers
-    mempty -- R.mkKey' -- key
-    Nothing -- componentPlan
+----------------------------------------------------------
 
-mkComponentPlan
-    :: R.MonadReactor m
-    => (Design specs -> R.ReactMlT m ())
-    -> IORef (Design specs)
-    -> m (ComponentPlan)
-mkComponentPlan w this = ComponentPlan
-    <$> R.getComponent -- component
-    <*> R.mkRenderer rnd -- onRender
-    <*> (R.mkCallback (pure . \j -> [j]) (usingIORef this . zoom plan . doOnComponentRef) pure) -- onComponentRef
-    <*> (R.mkCallback (pure . const [()]) (
-            usingIORef this
-            . zoom plan
-            . const doOnComponentDidUpdate) (lift . R.runDisposable)) --onComopnentDidUpdate
-  where
-    rnd = lift (R.doReadIORef this) >>= w
+-- newtype Design (specs :: [Type]) = Design
+--     { runDesign ::
+--         ( [JE.Property]
+--         , Many specs
+--         -- , Plan
+--         )
+--     }
+--     deriving G.Generic
 
-    doOnComponentRef :: Monad m => J.JSVal -> MaybeT (StateT Plan m) [()]
-    doOnComponentRef j = do
-        componentRef .= C.ComponentRef j
-        pure []
+-- -- | UndecidableInstances, but safe because @Many specs@ is smaller than @Design specs@
+-- instance (R.Dispose (Many specs)) => R.Dispose (Design specs)
 
-    doOnComponentDidUpdate :: Monad m => MaybeT (StateT Plan m) [R.Disposable ()]
-    doOnComponentDidUpdate = do
-        -- Run delayed commands that need to wait until frame is re-rendered
-        -- Eg focusing after other rendering changes
-        ds <- use deferredDisposables
-        deferredDisposables .= mempty
-        pure [ds]
+-- instance HasPlan (Design specs) where
+--     plan = _Design . _3
 
-initPlan
-    :: R.MonadReactor m
-    => (Design specs -> R.ReactMlT m ())
-    -> IORef (Design specs)
-    -> Plan
-    -> m (Maybe Plan)
-initPlan _ _ (Plan _ _ _ _ _ (Just _)) = pure Nothing
-initPlan w this (Plan frm cRef defDisp ls k Nothing) = fmap Just $ Plan frm cRef defDisp ls
-    <$> ((k `JS.append`) <$> R.mkKey') -- key
-    <*> (Just <$> mkComponentPlan w this)
+-- instance HasProperties (Design specs) where
+--     properties = _Design . _1
+
+-- instance HasSpecifications (Design specs) specs where
+--     specifications = _Design . _2
+
+-- _Design :: Iso
+--     (Design specs)
+--     (Design specs')
+--     ([JE.Property], Many specs, Plan)
+--     ([JE.Property], Many specs', Plan)
+-- _Design = iso runDesign Design
+
+----------------------------------------------------------
+
+-- rerender :: Monad m => MaybeT (StateT (Design specs) m) C.Rerender
+-- rerender = do
+--     -- Just change the state to a different number so the React PureComponent will call render()
+--     (plan . frameNum) %= (\(FrameNum i) -> FrameNum $ (i `mod` JE.maxSafeInteger) + 1)
+--     FrameNum i <- use (plan . frameNum)
+--     r <- use (plan . componentRef)
+--     pure $ C.Rerender r [("frameNum", JE.JSVar $ JE.toJS i)]
+
+----------------------------------------------------------
+
+-- queueDisposable :: (Monad m, R.Dispose a) => a -> MaybeT (StateT (Design specs) m) ()
+-- queueDisposable a = (plan . deferredDisposables) %= (>> R.dispose a)
+
+-- inactivePlan
+--     :: Plan
+-- inactivePlan = Plan
+--     (FrameNum 0) -- frameNum
+--     (C.ComponentRef J.nullRef) -- componentRef
+--     mempty -- deferredDisposables
+--     mempty -- traverse go ts -- triggers
+--     mempty -- R.mkKey' -- key
+--     Nothing -- componentPlan
+
+-- mkComponentPlan
+--     :: R.MonadReactor m
+--     => (Design specs -> R.ReactMlT m ())
+--     -> IORef (Design specs)
+--     -> m (ComponentPlan)
+-- mkComponentPlan w this = ComponentPlan
+--     <$> R.getComponent -- component
+--     <*> R.mkRenderer rnd -- onRender
+--     <*> (R.mkCallback (pure . \j -> [j]) (usingIORef this . zoom plan . doOnComponentRef) pure) -- onComponentRef
+--     <*> (R.mkCallback (pure . const [()]) (
+--             usingIORef this
+--             . zoom plan
+--             . const doOnComponentDidUpdate) (lift . R.runDisposable)) --onComopnentDidUpdate
+--   where
+--     rnd = lift (R.doReadIORef this) >>= w
+
+--     doOnComponentRef :: Monad m => J.JSVal -> MaybeT (StateT Plan m) [()]
+--     doOnComponentRef j = do
+--         componentRef .= C.ComponentRef j
+--         pure []
+
+--     doOnComponentDidUpdate :: Monad m => MaybeT (StateT Plan m) [R.Disposable ()]
+--     doOnComponentDidUpdate = do
+--         -- Run delayed commands that need to wait until frame is re-rendered
+--         -- Eg focusing after other rendering changes
+--         ds <- use deferredDisposables
+--         deferredDisposables .= mempty
+--         pure [ds]
+
+-- initPlan
+--     :: R.MonadReactor m
+--     => (Design specs -> R.ReactMlT m ())
+--     -> IORef (Design specs)
+--     -> Plan
+--     -> m (Maybe Plan)
+-- initPlan _ _ (Plan _ _ _ _ _ (Just _)) = pure Nothing
+-- initPlan w this (Plan frm cRef defDisp ls k Nothing) = fmap Just $ Plan frm cRef defDisp ls
+--     <$> ((k `JS.append`) <$> R.mkKey') -- key
+--     <*> (Just <$> mkComponentPlan w this)
 
 mkListeners
     :: (R.MonadReactor m, NFData (Which a))
@@ -213,32 +258,32 @@ mkListeners exec hdl = traverse toListener -- triggers
   where
     toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback f hdl exec
 
-inactiveDesign
-    :: [JE.Property]
-    -> Many specs
-    -> Design specs
-inactiveDesign ps specs = Design (ps, specs, inactivePlan)
+-- inactiveDesign
+--     :: [JE.Property]
+--     -> Many specs
+--     -> Design specs
+-- inactiveDesign ps specs = Design (ps, specs, inactivePlan)
 
-initDesign
-    :: R.MonadReactor m => (Design specs -> R.ReactMlT m ())
-    -> IORef (Design specs)
-    -> MaybeT m (Design specs)
-initDesign w this = do
-    obj <- lift $ R.doReadIORef this
-    pln <- MaybeT $ initPlan w this (obj ^. plan)
-    pure (obj & plan .~ pln)
+-- initDesign
+--     :: R.MonadReactor m => (Design specs -> R.ReactMlT m ())
+--     -> IORef (Design specs)
+--     -> MaybeT m (Design specs)
+-- initDesign w this = do
+--     obj <- lift $ R.doReadIORef this
+--     pln <- MaybeT $ initPlan w this (obj ^. plan)
+--     pure (obj & plan .~ pln)
 
-componentWindow :: Monad m => Design specs -> R.ReactMlT m ()
-componentWindow s =
-    let cPlan = s ^. plan . componentPlan'
-    in case cPlan of
-        Nothing -> pure ()
-        Just cPlan' -> R.lf
-           (cPlan' ^. component . to JE.toJS')
-            [ ("ref", cPlan' ^. onComponentRef)
-            , ("componentDidUpdate", cPlan' ^. onComponentDidUpdate)
-            ]
-            [ ("key", s ^. plan . key . to JE.toJS')
-            -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
-            , ("render", cPlan' ^. onRender . to JE.toJS')
-            ]
+-- componentWindow :: Monad m => Design specs -> R.ReactMlT m ()
+-- componentWindow s =
+--     let cPlan = s ^. plan . componentPlan'
+--     in case cPlan of
+--         Nothing -> pure ()
+--         Just cPlan' -> R.lf
+--            (cPlan' ^. component . to JE.toJS')
+--             [ ("ref", cPlan' ^. onComponentRef)
+--             , ("componentDidUpdate", cPlan' ^. onComponentDidUpdate)
+--             ]
+--             [ ("key", s ^. plan . key . to JE.toJS')
+--             -- NB. render is a JE.Property, not a 'R.Listener' as it returns an 'IO JSVal'
+--             , ("render", cPlan' ^. onRender . to JE.toJS')
+--             ]

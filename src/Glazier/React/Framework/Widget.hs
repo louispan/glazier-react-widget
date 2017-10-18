@@ -43,6 +43,7 @@ import Data.IORef
 -- import qualified Data.JSString as JS
 import Data.Kind
 import Data.Semigroup
+import Data.Tagged
 -- import qualified GHC.Generics as G
 -- import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -67,13 +68,14 @@ catMaybeT (MaybeT m) (MaybeT m') = MaybeT (liftA2 (<>) m m')
 
 ----------------------------------------------------------
 
--- class HasProperties c where
---     properties :: Lens' c [JE.Property]
+-- | This helps prevernt nested levels of 'diversify'.
+-- Known types are tracked in @a'@ while the @a@ type is left polymorphic.
+-- 'runWhichever' should be used to extract the final Which type, which ensures
+-- @a'@ fulfills all the constraints of @a@.
+type Whichever (a' :: [Type]) (a :: [Type]) = Tagged a' (Which a)
 
--- instance HasProperties [JE.Property] where
---     properties = id
-
--- type Properties = [JE.Property]
+runWhichever :: Whichever a a -> Which a
+runWhichever = unTagged
 
 ----------------------------------------------------------
 
@@ -87,9 +89,9 @@ class ModelWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) whe
     wrapModel :: (s -> t) -> (t -> s) -> w m s -> w m t
     wrapMModel :: (s -> m t) -> (t -> m s) -> w m s -> w m t
 
-class AModelWrapper a (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) s | a -> w m s where
-    toModelWrapper :: a -> w m s
-    fromModelWrapper :: w m s -> a
+class AModelWrapper x (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) s | x -> w m s where
+    toModelWrapper :: x -> w m s
+    fromModelWrapper :: w m s -> x
 
 wrapModel'
     :: (AModelWrapper a w m s, AModelWrapper b w m t, ModelWrapper w m)
@@ -105,24 +107,38 @@ class PlanWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) wher
     wrapPlan :: (p -> q) -> (q -> p) -> w m p -> w m q
     wrapMPlan :: (p -> m q) -> (q -> m p) -> w m p -> w m q
 
-class APlanWrapper a (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) p | a -> w m p where
-    toPlanWrapper :: a -> w m p
-    fromPlanWrapper :: w m p -> a
+class APlanWrapper x (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) p | x -> w m p where
+    toPlanWrapper :: x -> w m p
+    fromPlanWrapper :: w m p -> x
 
 wrapPlan'
-    :: (APlanWrapper a w m p, APlanWrapper b w m q, PlanWrapper w m)
-    => (p -> q) -> (q -> p) -> a -> b
+    :: (APlanWrapper x w m p, APlanWrapper y w m q, PlanWrapper w m)
+    => (p -> q) -> (q -> p) -> x -> y
 wrapPlan' f g = fromPlanWrapper . wrapPlan f g . toPlanWrapper
 
 wrapMPlan'
-    :: (APlanWrapper a w m p, APlanWrapper b w m q, PlanWrapper w m)
-    => (p -> m q) -> (q -> m p) -> a -> b
+    :: (APlanWrapper x w m p, APlanWrapper y w m q, PlanWrapper w m)
+    => (p -> m q) -> (q -> m p) -> x -> y
 wrapMPlan' f g = fromPlanWrapper . wrapMPlan f g . toPlanWrapper
 
--- class WrapRequirements x r' where
---     type WrappedRequirements x s'
---     wrapRequirements :: (Many r -> r') -> (r' -> Many r) -> x -> WrappedRequirements x r'
---     wrapRequirementsM :: (Many r -> m r') -> (r' -> m (Many r)) -> x -> WrappedRequirements x r'
+class EventWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
+    wrapEvent :: (a -> b) -> (b -> a) -> w m a -> w m b
+    wrapMEvent :: (a -> m b) -> (b -> m a) -> w m a -> w m b
+
+class AnEventWrapper x (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) a | x -> w m a where
+    toEventWrapper :: x -> w m p
+    fromEventWrapper :: w m p -> x
+
+wrapEvent'
+    :: (AnEventWrapper x w m a, AnEventWrapper y w m b, EventWrapper w m)
+    => (a -> b) -> (b -> a) -> x -> y
+wrapEvent' f g = fromEventWrapper . wrapEvent f g . toEventWrapper
+
+wrapMEvent'
+    :: (AnEventWrapper x w m a, AnEventWrapper y w m b, EventWrapper w m)
+    => (a -> m b) -> (b -> m a) -> x -> y
+wrapMEvent' f g = fromEventWrapper . wrapMEvent f g . toEventWrapper
+
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

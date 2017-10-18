@@ -2,8 +2,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
+-- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
@@ -13,14 +13,17 @@
 
 module Glazier.React.Framework.Builder where
 
-import Control.Lens
+-- import Control.Lens
 import Control.Monad
-import Control.Monad.Reader
+-- import Control.Monad.Reader
+import Data.Functor.Contravariant
 import Data.Diverse.Lens
-import Data.Kind
+-- import Data.Kind
 import Data.Proxy
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
+
+------------------------------------------------
 
 newtype MkModel p m s = MkModel {
             runMkModel :: p -> m s -- make inactive model
@@ -36,18 +39,22 @@ instance R.MonadReactor m => F.ModelWrapper (MkModel p) m where
 
 newtype MkModel_PlanWrapper s m p = MkModel_PlanWrapper { runMkModel_PlanWrapper :: MkModel p m s }
 
+instance Contravariant (MkModel_PlanWrapper s m) where
+    contramap f (MkModel_PlanWrapper (MkModel mkMdl)) = MkModel_PlanWrapper . MkModel $ mkMdl . f
+
 instance F.APlanWrapper (MkModel p m s) (MkModel_PlanWrapper s) m p where
     toPlanWrapper = MkModel_PlanWrapper
-    fromPlanWrapper (MkModel_PlanWrapper a) = a
+    fromPlanWrapper = runMkModel_PlanWrapper
 
 instance R.MonadReactor m => F.PlanWrapper (MkModel_PlanWrapper s) m where
-    wrapPlan _ g (MkModel_PlanWrapper (MkModel mkMdl)) =
-        MkModel_PlanWrapper . MkModel $ mkMdl . g
+    wrapPlan _ = contramap
     wrapMPlan _ g (MkModel_PlanWrapper (MkModel mkMdl)) =
         MkModel_PlanWrapper . MkModel $ g >=> mkMdl
 
+------------------------------------------------
+
 newtype MkPlan s m p = MkPlan {
-            runMkPlan :: s -> m p -- make inactive model
+            runMkPlan :: s -> m p
             } deriving Functor
 
 instance F.APlanWrapper (MkPlan s m p) (MkPlan s) m p where
@@ -60,15 +67,19 @@ instance R.MonadReactor m => F.PlanWrapper (MkPlan s) m where
 
 newtype MkPlan_ModelWrapper p m s = MkPlan_ModelWrapper { runMkPlan_ModelWrapper :: MkPlan s m p }
 
+instance Contravariant (MkPlan_ModelWrapper s m) where
+    contramap f (MkPlan_ModelWrapper (MkPlan mkPln)) = MkPlan_ModelWrapper . MkPlan $ mkPln . f
+
 instance F.AModelWrapper (MkPlan s m p) (MkPlan_ModelWrapper p) m s where
     toModelWrapper = MkPlan_ModelWrapper
-    fromModelWrapper (MkPlan_ModelWrapper a) = a
+    fromModelWrapper = runMkPlan_ModelWrapper
 
 instance R.MonadReactor m => F.ModelWrapper (MkPlan_ModelWrapper p) m where
-    wrapModel _ g (MkPlan_ModelWrapper (MkPlan mkMdl)) =
-        MkPlan_ModelWrapper . MkPlan $ mkMdl . g
+    wrapModel _ = contramap
     wrapMModel _ g (MkPlan_ModelWrapper (MkPlan mkMdl)) =
         MkPlan_ModelWrapper . MkPlan $ g >=> mkMdl
+
+------------------------------------------------
 
 newtype Builder m p' p s' s =
     Builder ( MkPlan s m p' -- from specifications
@@ -79,7 +90,7 @@ newtype Builder_PlanWrapper s' s m p = Builder_PlanWrapper { runBuilder_PlanWrap
 
 instance F.APlanWrapper (Builder m p p s' s) (Builder_PlanWrapper s' s) m p where
     toPlanWrapper = Builder_PlanWrapper
-    fromPlanWrapper (Builder_PlanWrapper a) = a
+    fromPlanWrapper = runBuilder_PlanWrapper
 
 instance R.MonadReactor m => F.PlanWrapper (Builder_PlanWrapper s' s) m where
     wrapPlan f g (Builder_PlanWrapper (Builder (mkPln, mkMdl))) =
@@ -87,20 +98,17 @@ instance R.MonadReactor m => F.PlanWrapper (Builder_PlanWrapper s' s) m where
     wrapMPlan f g (Builder_PlanWrapper (Builder (mkPln, mkMdl))) =
         Builder_PlanWrapper $ Builder (F.wrapMPlan' f g mkPln, F.wrapMPlan' f g mkMdl)
 
-
 newtype Builder_ModelWrapper p' p m s = Builder_ModelWrapper { runBuilder_ModelWrapper :: Builder m p' p s s }
 
 instance F.AModelWrapper (Builder m p' p s s) (Builder_ModelWrapper p' p) m s where
     toModelWrapper = Builder_ModelWrapper
-    fromModelWrapper (Builder_ModelWrapper a) = a
+    fromModelWrapper = runBuilder_ModelWrapper
 
 instance R.MonadReactor m => F.ModelWrapper (Builder_ModelWrapper p' p) m where
     wrapModel f g (Builder_ModelWrapper (Builder (mkPln, mkMdl))) =
         Builder_ModelWrapper $ Builder (F.wrapModel' f g mkPln, F.wrapModel' f g mkMdl)
     wrapMModel f g (Builder_ModelWrapper (Builder (mkPln, mkMdl))) =
         Builder_ModelWrapper $ Builder (F.wrapMModel' f g mkPln, F.wrapMModel' f g mkMdl)
-
-
 
 -- | identity for 'andBuild'
 idle :: Applicative m => Builder m (Many '[]) p (Many '[]) s

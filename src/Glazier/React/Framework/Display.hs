@@ -1,22 +1,39 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Glazier.React.Framework.Display where
 
-import Data.Diverse.Lens
+-- import Data.Diverse.Lens
+import Control.Monad
+import Control.Monad.Trans.Class
+import Data.Functor.Contravariant
 import Data.Semigroup
 import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Widget as F
 
-type Display' m specs = Many specs -> R.ReactMlT m ()
+newtype Display m s = Display
+    { runDisplay :: s -> R.ReactMlT m ()
+    } deriving (Semigroup)
 
-newtype Display m specs = Display
-    { runDisplay :: Display' m specs
-    } deriving Semigroup
+instance Contravariant (Display m) where
+    contramap f (Display disp) = Display $ disp . f
 
-instance Monad m => Monoid (Display m specs) where
+instance Monad m => Monoid (Display m s) where
     mempty = Display mempty
     mappend = (<>)
+
+instance F.AModelWrapper (Display m s) Display m s where
+    toModelWrapper = id
+    fromModelWrapper = id
+
+instance R.MonadReactor m => F.ModelWrapper Display m where
+    wrapModel _ = contramap
+    wrapMModel _ g (Display disp) = Display $ (lift . g) >=> disp
+
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE KindSignatures #-}
+-- {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -9,78 +10,104 @@
 
 module Glazier.React.Framework.Handler where
 
+import qualified Control.Category as C
 import Control.Applicative
+import Control.Arrow
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
+import Data.Foldable
+import Data.Profunctor
 import Data.Diverse
 import qualified Data.DList as DL
-import Data.IORef
-import Data.Kind
+import Data.Tagged
+import Glazier.React.Framework.Widget as F
+import Data.Coerce
 
--- NB. Reififed helps type inference because
--- the output doesn't depends on v or s
-type Handler' m s a c = IORef s -> Which a -> MaybeT m (DL.DList (Which c))
-
-newtype Handler m s (a :: [Type]) acts (c :: [Type]) cmds = Handler
-    { runHandler :: Handler' m s acts cmds
+newtype Handler m s a b = Handler
+    { runHandler :: s -> a -> MaybeT m (DL.DList b)
     }
 
+instance Functor m => Functor (Handler m s a) where
+    fmap f (Handler hdl) = Handler $ \s a -> fmap f <$> hdl s a
+
+instance Functor m => Profunctor (Handler m s) where
+    dimap f g (Handler hdl) = Handler $ \s a -> fmap g <$> hdl s (f a)
+
+instance Functor m => Strong (Handler m s) where
+    first' (Handler hdl) = Handler $ \s (a, c) -> fmap (\b -> (b, c)) <$> hdl s a
+    second' (Handler hdl) = Handler $ \s (c, a) -> fmap (\b -> (c, b)) <$> hdl s a
+
+instance Monad m => Choice (Handler m s) where
+    left' (Handler hdl) = Handler $ \s e -> case e of
+        Right c -> pure $ DL.singleton $ Right c
+        Left a -> fmap Left <$> hdl s a
+    right' (Handler hdl) = Handler $ \s e -> case e of
+        Left c -> pure $ DL.singleton $ Left c
+        Right a -> fmap Right <$> hdl s a
+
+instance Monad m => C.Category (Handler m s) where
+    id = Handler $ \_ a -> pure $ DL.singleton a
+    (Handler hdl) . (Handler hdl') = Handler $ \s a -> do
+        bs <- hdl' s a
+        fold <$> traverse (hdl s) (DL.toList bs)
+
+instance Monad m => Arrow (Handler m s) where
+    arr f = Handler $ \_ a -> pure $ DL.singleton (f a)
+    first = first'
+    second = second'
+
+instance Monad m => ArrowChoice (Handler m s) where
+    left = left'
+    right = right'
+
 -- | identity for 'orHandler'
-ignore :: Monad m => Handler m s '[] acts '[] cmds
+ignore :: Monad m => Handler m s a b
 ignore = Handler (\_ _ -> empty)
 
--- ioRefHandler
---     :: (MonadReactor m => UniqueMember a acts, UniqueMember c cmds)
---     => (IORef s -> a -> MaybeT (StateT s m) c) -> Handler m s '[a] acts '[c] cmds
--- ioRefHandler f = handler f'
---     where
---       f' v' a = F.usingIORef v' (f v' a)
-
 handler'
-    :: (Monad m, UniqueMember a acts, UniqueMember c cmds)
-    => (IORef s -> a -> MaybeT m c) -> Handler m s '[a] acts '[c] cmds
-handler' f = Handler (\v a -> do
+    :: (Monad m, UniqueMember a' a, UniqueMember b' b)
+    => (s -> a' -> MaybeT m b') -> Handler m s (F.Whichever '[a'] a) (Whichever '[b'] b)
+handler' f = Handler (\s (Tagged a) -> do
     a' <- MaybeT . pure $ trial' a
-    (DL.singleton . pick) <$> f v a')
+    (DL.singleton . Tagged . pick) <$> f s a')
 
 handler
-    :: (Monad m, Reinterpret' a as, Diversify c cs)
-    => (IORef s -> Which a -> MaybeT m (DL.DList (Which c))) -> Handler m s a as c cs
-handler f = Handler $ \v a -> do
+    :: (Monad m, Reinterpret' a' a, Diversify b' b)
+    => (s -> Which a' -> MaybeT m (DL.DList (Which b')))
+    -> Handler m s (F.Whichever a' a) (Whichever b' b)
+handler f = Handler $ \s (Tagged a) -> do
     a' <- MaybeT . pure $ reinterpret' a
-    fmap diversify <$> f v a'
+    fmap (Tagged . diversify) <$> f s a'
 
--- | Due to @Append a1 a2@ and @UniqueMember@ constraints, it is a compile time
--- error to `orHandlers` of the same type.
+-- | The intention of this combinator is to allow combining handler for different
+-- input actions together.
+-- Therefore, it is will be compile error to `orHandlers` of the same input types.
+-- This is to prevent accidently processing an action twice.
+-- The compile error only appears at the point when 'F.runWhichever'
+-- is used to extract the Which type.
+-- The compile error will be due to @(Append a1 a2)@ which will not satisfy
+-- @UniqueMember@ constraints in handlers.
 -- NB. The use of <|> only the first handler for a particular action will be used.
 orHandler
     :: Monad m
-    => Handler m s a1 acts c1 cmds
-    -> Handler m s a2 acts c2 cmds
-    -> Handler m s (Append a1 a2) acts (AppendUnique c1 c2) cmds
+    => Handler m s (F.Whichever a1 a) (F.Whichever b1 b)
+    -> Handler m s (F.Whichever a2 a) (F.Whichever b2 b)
+    -> Handler m s (F.Whichever (Append a1 a2) a) (F.Whichever (AppendUnique b1 b2) b)
 orHandler (Handler f) (Handler g) =
-    Handler (\v a -> liftA2 (<|>) (f v a) (g v a))
+    Handler (\s (Tagged a) -> liftA2 (<|>)
+                (coerce <$> f s (coerce a))
+                (coerce <$> g s (coerce a)))
 
-reinterpretHandler' :: forall a a' m s c. (Monad m, Reinterpret' a a') => Handler' m s a c -> Handler' m s a' c
-reinterpretHandler' hdl v a = case reinterpret' @a a of
-    Nothing -> empty
-    Just a' -> hdl v a'
+newtype Handler_ModelWrapper a b m s = Handler_ModelWrapper { runHandler_ModelWrapper :: Handler m s a b }
 
-implantHandler' :: Monad m => (IORef s -> m (IORef s')) -> Handler' m s' a c -> Handler' m s a c
-implantHandler' f hdl v' a = do
-    v <- lift $ f v'
-    hdl v a
+instance F.AModelWrapper (Handler m s a b) (Handler_ModelWrapper a b) m s where
+    toModelWrapper = Handler_ModelWrapper
+    fromModelWrapper = runHandler_ModelWrapper
 
-
--- -- | For example
--- --
--- -- @
--- -- handleSpecifications :: Handler v (Many specs) h acts -> Handler v (F.Design specs) h acts
--- -- handleSpecifications = magnifyHandler F.specifications
--- -- @
--- -- magnifyHandler :: Lens' t s -> Handler s a acts c cmds -> Handler t a acts c cmds
--- magnifyHandler :: Lens' t s -> Handler v s a acts c cmds -> Handler v t a acts c cmds
--- magnifyHandler l (Handler (pa, pc, hdl)) = Handler (pa, pc, magnifyHandler' l hdl)
-
--- magnifyHandler' :: Lens' t s -> Handler' v s a c -> Handler' v t a c
--- magnifyHandler' l f v (Lens l') = f v (Lens (l' . l))
+instance Monad m => F.ModelWrapper (Handler_ModelWrapper p' p) m where
+    wrapModel _ g (Handler_ModelWrapper (Handler hdl)) =
+        Handler_ModelWrapper . Handler $ \s a -> hdl (g s) a
+    wrapMModel _ g (Handler_ModelWrapper (Handler hdl)) =
+        Handler_ModelWrapper . Handler $ \s a -> do
+        s' <- lift (g s)
+        hdl s' a

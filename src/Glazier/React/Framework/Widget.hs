@@ -68,14 +68,14 @@ catMaybeT (MaybeT m) (MaybeT m') = MaybeT (liftA2 (<>) m m')
 
 ----------------------------------------------------------
 
--- | This helps prevernt nested levels of 'diversify'.
--- Known types are tracked in @a'@ while the @a@ type is left polymorphic.
--- 'runWhichever' should be used to extract the final Which type, which ensures
--- @a'@ fulfills all the constraints of @a@.
-type Whichever (a' :: [Type]) (a :: [Type]) = Tagged a' (Which a)
+-- -- | This helps prevernt nested levels of 'diversify'.
+-- -- Known types are tracked in @a'@ while the @a@ type is left polymorphic.
+-- -- 'runWhichever' should be used to extract the final Which type, which ensures
+-- -- @a'@ fulfills all the constraints of @a@.
+-- type Whichever (a' :: [Type]) (a :: [Type]) = Tagged a' (Which a)
 
-runWhichever :: Whichever a a -> Which a
-runWhichever = unTagged
+-- runWhichever :: Whichever a a -> Which a
+-- runWhichever = unTagged
 
 ----------------------------------------------------------
 

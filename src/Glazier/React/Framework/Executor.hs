@@ -1,62 +1,54 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE KindSignatures #-}
+-- {-# LANGUAGE DataKinds #-}
+-- {-# LANGUAGE FlexibleContexts #-}
+-- {-# LANGUAGE FlexibleInstances #-}
+-- {-# LANGUAGE KindSignatures #-}
 
 module Glazier.React.Framework.Executor where
 
-import Control.Applicative
-import Control.Monad.Trans.Maybe
-import Data.Coerce
-import Data.Diverse
-import Data.Kind
-import Data.Semigroup (Semigroup(..))
+-- import Control.Applicative
+-- import Control.Monad.Trans.Maybe
+-- import Data.Functor.Contravariant
+-- import Data.Diverse
+-- import Data.Tagged
+-- import Glazier.React.Framework.Widget as F
 
-type Executor' c = (Which c -> MaybeT IO ())
+-- newtype Executor c = Executor
+--     { runExecutor :: c -> MaybeT IO ()
+--     }
 
--- instance Contravariant Executor' where
---     contramap f (Executor' exec) = Executor' (exec . f)
+-- instance Contravariant Executor where
+--     contramap f (Executor exec) = Executor $ exec . f
 
-newtype Executor (c :: [Type]) cmds = Executor
-    { runExecutor :: Executor' cmds
-    }
+-- noop :: Executor (F.Whichever '[] c)
+-- noop = Executor . const $ pure ()
 
-instance Semigroup (Executor '[] cmds) where
-    _ <> _ = Executor (const empty)
+-- -- | 'noop' is also identity for 'orExecutor'
+-- -- | The intention of this combinator is to allow combining executors for different
+-- -- input actions together.
+-- -- Therefore, it is will be compile error to `orExecutor` of the same input types.
+-- -- This is to prevent accidently processing an action twice.
+-- -- The compile error only appears at the point when 'F.runWhichever'
+-- -- is used to extract the Which type.
+-- -- The compile error will be due to @(Append c1 c2)@ which will not satisfy
+-- -- @UniqueMember@ constraints.
+-- -- NB. The use of <|> only the first executor for a particular action will be used.
+-- orExecutor
+--     :: Executor (F.Whichever c1 c)
+--     -> Executor (F.Whichever c2 c)
+--     -> Executor (F.Whichever (Append c1 c2) c)
+-- orExecutor (Executor r) (Executor r') =
+--     Executor (\(Tagged c) -> r (Tagged c) <|> r' (Tagged c))
 
-instance Monoid (Executor '[] cmds) where
-    mempty = Executor (const empty)
-    mappend = (<>)
+-- executor'
+--     :: (UniqueMember c' c)
+--     => (c' -> MaybeT IO ()) -> Executor (F.Whichever '[c'] c)
+-- executor' f = Executor $ \(Tagged c) -> case trial' c of
+--             Nothing -> empty
+--             Just c' -> f c'
 
--- | mempty is also identity for 'orExecutor'
--- NB. Due to the use of <|> only the first handler for a particular command will be used.
--- This is to prevent running executors twice for the one command.
--- This will be compile time check with @Append c1 c2@ and @UniqueMember@ constraints.
-orExecutor
-    :: Executor c1 cmds
-    -> Executor c2 cmds
-    -> Executor (Append c1 c2) cmds
-orExecutor (Executor r) (Executor r') =
-    Executor (\cs -> coerce r cs <|> coerce r' cs)
-
-executor'
-    :: (UniqueMember c cmds)
-    => (c -> MaybeT IO ()) -> Executor '[c] cmds
-executor' f = Executor go
-  where
-    go cmd =
-        case trial' cmd of
-            Nothing -> empty
-            Just cmd' -> f cmd'
-
-executor
-    :: Reinterpret' c cmds
-    => (Which c -> MaybeT IO ()) -> Executor c cmds
-executor f = Executor go
-  where
-    go cmd = case reinterpret' cmd of
-        Nothing -> empty
-        Just c -> f c
-
--- trivial :: UniqueMember () cmds => Executor '[()] cmds
--- trivial = executor (const $ pure ())
+-- executor
+--     :: Reinterpret' c' c
+--     => (Which c' -> MaybeT IO ()) -> Executor (F.Whichever c' c)
+-- executor f = Executor $ \(Tagged c) -> case reinterpret' c of
+--         Nothing -> empty
+--         Just c' -> f c'

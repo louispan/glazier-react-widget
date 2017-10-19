@@ -31,7 +31,7 @@ library
                        Glazier.React.Framework.Builder
                        Glazier.React.Framework.Display
                        Glazier.React.Framework.Handler
-                       -- Glazier.React.Framework.Executor
+                       Glazier.React.Framework.Executor
                        -- Glazier.React.Framework.Prototype
                        -- Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget
@@ -44,7 +44,7 @@ library
                      , contravariant >= 1.4 && < 2
                      , monadplus >= 1.4 && < 2
                      , data-diverse >= 1.2.0.1 && < 2
-                     , data-diverse-lens >= 0.5.0.0 && < 1
+                     , data-diverse-lens >= 0.5.1.0 && < 1
                      , deepseq >= 1.4 && < 2
                      , dlist >= 0.8 && < 0.9
                      , glazier-react >= 0.7 && < 1

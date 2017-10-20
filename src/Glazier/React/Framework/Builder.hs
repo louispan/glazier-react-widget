@@ -5,7 +5,7 @@
 -- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PolyKinds #-}
+-- {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -13,10 +13,10 @@
 
 module Glazier.React.Framework.Builder where
 
--- import Control.Lens
-import Control.Monad
+import Control.Lens
+-- import Control.Monad
 -- import Control.Monad.Reader
-import Data.Functor.Contravariant
+import Data.Biapplicative
 import Data.Diverse.Lens
 -- import Data.Kind
 import Data.Proxy
@@ -29,27 +29,17 @@ newtype MkModel p m s = MkModel {
             runMkModel :: p -> m s -- make inactive model
             } deriving Functor
 
-instance F.AModelWrapper (MkModel p m s) (MkModel p) m s where
-    toModelWrapper = id
-    fromModelWrapper = id
+newtype MkModel_Planner s m p = MkModel_Planner { runMkModel_Planner :: MkModel p m s }
 
-instance R.MonadReactor m => F.ModelWrapper (MkModel p) m where
-    wrapModel f _ mkMdl = f <$> mkMdl
-    wrapMModel f _ (MkModel mkMdl) = MkModel (mkMdl >=> f)
+instance Contravariant (MkModel_Planner s m) where
+    contramap f (MkModel_Planner (MkModel mkMdl)) = MkModel_Planner . MkModel $ mkMdl . f
 
-newtype MkModel_PlanWrapper s m p = MkModel_PlanWrapper { runMkModel_PlanWrapper :: MkModel p m s }
+instance F.Planner (MkModel p m s) (MkModel_Planner s m) p where
+    toPlanner = MkModel_Planner
+    fromPlanner = runMkModel_Planner
 
-instance Contravariant (MkModel_PlanWrapper s m) where
-    contramap f (MkModel_PlanWrapper (MkModel mkMdl)) = MkModel_PlanWrapper . MkModel $ mkMdl . f
-
-instance F.APlanWrapper (MkModel p m s) (MkModel_PlanWrapper s) m p where
-    toPlanWrapper = MkModel_PlanWrapper
-    fromPlanWrapper = runMkModel_PlanWrapper
-
-instance R.MonadReactor m => F.PlanWrapper (MkModel_PlanWrapper s) m where
-    wrapPlan _ = contramap
-    wrapMPlan _ g (MkModel_PlanWrapper (MkModel mkMdl)) =
-        MkModel_PlanWrapper . MkModel $ g >=> mkMdl
+instance R.MonadReactor m => F.ViaPlan (MkModel_Planner s m) where
+    viaPlan l = contramap (view l)
 
 ------------------------------------------------
 
@@ -57,68 +47,69 @@ newtype MkPlan s m p = MkPlan {
             runMkPlan :: s -> m p
             } deriving Functor
 
-instance F.APlanWrapper (MkPlan s m p) (MkPlan s) m p where
-    toPlanWrapper = id
-    fromPlanWrapper = id
+newtype MkPlan_Modeller p m s = MkPlan_Modeller { runMkPlan_Modeller :: MkPlan s m p }
 
-instance R.MonadReactor m => F.PlanWrapper (MkPlan s) m where
-    wrapPlan f _ mkMdl = f <$> mkMdl
-    wrapMPlan f _ (MkPlan mkPln) = MkPlan (mkPln >=> f)
+instance Contravariant (MkPlan_Modeller s m) where
+    contramap f (MkPlan_Modeller (MkPlan mkPln)) = MkPlan_Modeller . MkPlan $ mkPln . f
 
-newtype MkPlan_ModelWrapper p m s = MkPlan_ModelWrapper { runMkPlan_ModelWrapper :: MkPlan s m p }
+instance F.Modeller (MkPlan s m p) (MkPlan_Modeller p m) s where
+    toModeller = MkPlan_Modeller
+    fromModeller = runMkPlan_Modeller
 
-instance Contravariant (MkPlan_ModelWrapper s m) where
-    contramap f (MkPlan_ModelWrapper (MkPlan mkPln)) = MkPlan_ModelWrapper . MkPlan $ mkPln . f
-
-instance F.AModelWrapper (MkPlan s m p) (MkPlan_ModelWrapper p) m s where
-    toModelWrapper = MkPlan_ModelWrapper
-    fromModelWrapper = runMkPlan_ModelWrapper
-
-instance R.MonadReactor m => F.ModelWrapper (MkPlan_ModelWrapper p) m where
-    wrapModel _ = contramap
-    wrapMModel _ g (MkPlan_ModelWrapper (MkPlan mkMdl)) =
-        MkPlan_ModelWrapper . MkPlan $ g >=> mkMdl
+instance R.MonadReactor m => F.ViaModel (MkPlan_Modeller p m) where
+    viaModel l = contramap (view l)
 
 ------------------------------------------------
 
-newtype Builder m p' p s' s =
+-- | @p' s'@ are the types the builder knows how to make
+-- @p s@ are the type the builder knows how to read
+newtype Builder p s m p' s' =
     Builder ( MkPlan s m p' -- from specifications
             , MkModel p m s' -- make inactive specifications
             )
 
-newtype Builder_PlanWrapper s' s m p = Builder_PlanWrapper { runBuilder_PlanWrapper :: Builder m p p s' s }
+newtype Builder_Planner s p' s' m p = Builder_Planner { runBuilder_Planner :: Builder p s m p' s' }
 
-instance F.APlanWrapper (Builder m p p s' s) (Builder_PlanWrapper s' s) m p where
-    toPlanWrapper = Builder_PlanWrapper
-    fromPlanWrapper = runBuilder_PlanWrapper
+instance F.Planner (Builder p s m p' s') (Builder_Planner s p' s' m) p where
+    toPlanner = Builder_Planner
+    fromPlanner = runBuilder_Planner
 
-instance R.MonadReactor m => F.PlanWrapper (Builder_PlanWrapper s' s) m where
-    wrapPlan f g (Builder_PlanWrapper (Builder (mkPln, mkMdl))) =
-        Builder_PlanWrapper $ Builder (F.wrapPlan' f g mkPln, F.wrapPlan' f g mkMdl)
-    wrapMPlan f g (Builder_PlanWrapper (Builder (mkPln, mkMdl))) =
-        Builder_PlanWrapper $ Builder (F.wrapMPlan' f g mkPln, F.wrapMPlan' f g mkMdl)
+instance R.MonadReactor m => F.ViaPlan (Builder_Planner s p' s' m) where
+    viaPlan l (Builder_Planner (Builder (mkPln, mkMdl))) =
+        Builder_Planner $ Builder (mkPln, F.viaPlan' l mkMdl)
 
-newtype Builder_ModelWrapper p' p m s = Builder_ModelWrapper { runBuilder_ModelWrapper :: Builder m p' p s s }
+newtype Builder_Modeller p p' s' m s = Builder_Modeller { runBuilder_Modeller :: Builder p s m p' s' }
 
-instance F.AModelWrapper (Builder m p' p s s) (Builder_ModelWrapper p' p) m s where
-    toModelWrapper = Builder_ModelWrapper
-    fromModelWrapper = runBuilder_ModelWrapper
+instance F.Modeller (Builder p s m p' s') (Builder_Modeller p p' s' m ) s where
+    toModeller = Builder_Modeller
+    fromModeller = runBuilder_Modeller
 
-instance R.MonadReactor m => F.ModelWrapper (Builder_ModelWrapper p' p) m where
-    wrapModel f g (Builder_ModelWrapper (Builder (mkPln, mkMdl))) =
-        Builder_ModelWrapper $ Builder (F.wrapModel' f g mkPln, F.wrapModel' f g mkMdl)
-    wrapMModel f g (Builder_ModelWrapper (Builder (mkPln, mkMdl))) =
-        Builder_ModelWrapper $ Builder (F.wrapMModel' f g mkPln, F.wrapMModel' f g mkMdl)
+instance R.MonadReactor m => F.ViaModel (Builder_Modeller p p' s' m) where
+    viaModel l (Builder_Modeller (Builder (mkPln, mkMdl))) =
+        Builder_Modeller $ Builder (F.viaModel' l mkPln, mkMdl)
+
+------------------------------------------------
+
+instance Functor m => Bifunctor (Builder p s m) where
+    bimap pq st (Builder (mkPlan, mkMdl)) = Builder (pq <$> mkPlan, st <$> mkMdl)
+
+instance Applicative m => Biapplicative (Builder p s m) where
+    bipure p s = Builder (MkPlan . const $ pure p, MkModel . const $ pure s)
+    (Builder (MkPlan fMkPlan, MkModel fMkMdl)) <<*>> (Builder (MkPlan mkPlan, MkModel mkMdl)) =
+        Builder ( MkPlan $ \p -> fMkPlan p <*> mkPlan p
+                , MkModel $ \s -> fMkMdl s <*> mkMdl s
+                )
 
 -- | identity for 'andBuild'
-nilBuilder :: Applicative m => Builder m (Many '[]) p (Many '[]) s
-nilBuilder = Builder (MkPlan . const $ pure nil, MkModel . const $ pure nil)
+nilBuilder :: Applicative m => Builder p s m (Many '[]) (Many '[])
+nilBuilder = bipure nil nil
 
+-- | Combine 'Builder's using 'Many'
 andBuilder
     :: Applicative m
-    => Builder m (Many p1) p (Many s1) s
-    -> Builder m (Many p2) p (Many s2) s
-    -> Builder m (Many (Append p1 p2)) p (Many (Append s1 s2)) s
+    => Builder p s m (Many p1) (Many s1)
+    -> Builder p s m (Many p2) (Many s2)
+    -> Builder p s m (Many (Append p1 p2)) (Many (Append s1 s2))
 andBuilder (Builder (MkPlan mkPln, MkModel mkMdl)) (Builder (MkPlan mkPln', MkModel mkMdl')) =
     Builder ( MkPlan $ \s -> (/./) <$> mkPln s <*> mkPln' s
             , MkModel $ \p -> (/./) <$> mkMdl p <*> mkMdl' p
@@ -127,7 +118,7 @@ andBuilder (Builder (MkPlan mkPln, MkModel mkMdl)) (Builder (MkPlan mkPln', MkMo
 -- | Add a type @x@ into the factory
 build
     :: (Applicative m, UniqueMember x p, UniqueMember x s)
-    => Proxy x -> Builder m (Many '[x]) (Many p) (Many '[x]) (Many s)
+    => Proxy x -> Builder (Many p) (Many s) m (Many '[x]) (Many '[x])
 build _ = Builder ( MkPlan $ pure . single . fetch
                   , MkModel $ pure . single . fetch
                   )

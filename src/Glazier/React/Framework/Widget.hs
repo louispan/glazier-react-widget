@@ -31,18 +31,18 @@ module Glazier.React.Framework.Widget where
 --   ) where
 -- -- We want to hide mkPlan
 
-import Control.Applicative
-import Control.DeepSeq
--- import Control.Lens
-import Control.Monad.Morph
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.State.Strict
-import Data.Diverse.Lens
-import qualified Data.DList as DL
-import Data.IORef
+-- import Control.Applicative
+-- import Control.DeepSeq
+import Control.Lens
+-- import Control.Monad.Morph
+-- import Control.Monad.Trans.Maybe
+-- import Control.Monad.Trans.State.Strict
+-- import Data.Diverse.Lens
+-- import qualified Data.DList as DL
+-- import Data.IORef
 -- import qualified Data.JSString as JS
 import Data.Kind
-import Data.Semigroup
+-- import Data.Semigroup
 -- import Data.Tagged
 -- import qualified GHC.Generics as G
 -- import qualified GHCJS.Foreign.Callback as J
@@ -53,18 +53,18 @@ import qualified Glazier.React as R
 
 ----------------------------------------------------------
 
-usingIORef :: R.MonadReactor m => IORef s -> MaybeT (StateT s m) a -> MaybeT m a
-usingIORef this m = do
-    s <- lift $ R.doReadIORef this
-    (a, s') <- lift $ runStateT (runMaybeT m) s
-    case a of
-        Nothing -> empty
-        Just a' -> do
-            lift $ R.doWriteIORef this s'
-            pure a'
+-- usingIORef :: R.MonadReactor m => IORef s -> MaybeT (StateT s m) a -> MaybeT m a
+-- usingIORef this m = do
+--     s <- lift $ R.doReadIORef this
+--     (a, s') <- lift $ runStateT (runMaybeT m) s
+--     case a of
+--         Nothing -> empty
+--         Just a' -> do
+--             lift $ R.doWriteIORef this s'
+--             pure a'
 
-catMaybeT :: (Applicative m, Semigroup a) => MaybeT m a -> MaybeT m a -> MaybeT m a
-catMaybeT (MaybeT m) (MaybeT m') = MaybeT (liftA2 (<>) m m')
+-- catMaybeT :: (Applicative m, Semigroup a) => MaybeT m a -> MaybeT m a -> MaybeT m a
+-- catMaybeT (MaybeT m) (MaybeT m') = MaybeT (liftA2 (<>) m m')
 
 ----------------------------------------------------------
 
@@ -85,60 +85,64 @@ catMaybeT (MaybeT m) (MaybeT m') = MaybeT (liftA2 (<>) m m')
 newtype Key = Key { runKey :: J.JSString } deriving R.Dispose
 newtype FrameNum = FrameNum { runFrameNum :: Int } deriving R.Dispose
 
-class ModelWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
-    wrapModel :: (s -> t) -> (t -> s) -> w m s -> w m t
-    wrapMModel :: (s -> m t) -> (t -> m s) -> w m s -> w m t
+-- | Something that knows how to get and set (but not make) a model
+class ViaModel (w :: Type -> Type) where
+    -- | given a lens from @t@ to @s@,
+    -- change something that knows how to manipulate an @s@
+    -- to something that knows how to manipulate a @t@.
+    viaModel :: Lens' t s -> w s -> w t
 
-class AModelWrapper x (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) s | x -> w m s where
-    toModelWrapper :: x -> w m s
-    fromModelWrapper :: w m s -> x
+-- -- | Something that knows how to get and set (but not make) a model
+-- class ViaModelM (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
+--     -- | given monadic getter & setter from @t@ to @s@,
+--     -- change something that knows how to manipulate an @s@
+--     -- to something that knows how to monadically manipulate a @t@.
+--     viaModelM :: (t -> m s) -> (t -> s -> m t) -> w m s -> w m t
 
-wrapModel'
-    :: (AModelWrapper a w m s, AModelWrapper b w m t, ModelWrapper w m)
-    => (s -> t) -> (t -> s) -> a -> b
-wrapModel' f g = fromModelWrapper . wrapModel f g . toModelWrapper
+-- | Converts a type to/from a monadic manipulator of model.
+class Modeller x (w :: Type -> Type) s | x -> w s where
+    toModeller :: x -> w s
+    fromModeller :: w s -> x
 
-wrapMModel'
-    :: (AModelWrapper a w m s, AModelWrapper b w m t, ModelWrapper w m)
-    => (s -> m t) -> (t -> m s) -> a -> b
-wrapMModel' f g = fromModelWrapper . wrapMModel f g . toModelWrapper
+viaModel'
+    :: (Modeller x w s, Modeller y w t, ViaModel w)
+    => Lens' t s -> x -> y
+viaModel' l = fromModeller . viaModel l . toModeller
 
-class PlanWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
-    wrapPlan :: (p -> q) -> (q -> p) -> w m p -> w m q
-    wrapMPlan :: (p -> m q) -> (q -> m p) -> w m p -> w m q
+-- viaModelM'
+--     :: (Modeller x w m s, Modeller y w m t, ViaModelM w m)
+--     => (t -> m s) -> (t -> s -> m t) -> x -> y
+-- viaModelM' f g = fromModeller . viaModelM f g . toModeller
 
-class APlanWrapper x (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) p | x -> w m p where
-    toPlanWrapper :: x -> w m p
-    fromPlanWrapper :: w m p -> x
 
-wrapPlan'
-    :: (APlanWrapper x w m p, APlanWrapper y w m q, PlanWrapper w m)
-    => (p -> q) -> (q -> p) -> x -> y
-wrapPlan' f g = fromPlanWrapper . wrapPlan f g . toPlanWrapper
+-- | Something that knows how to get and set (but not make) a plan
+class ViaPlan (w :: Type -> Type) where
+    -- | given lens from @q@ to @p@,
+    -- change something that knows how to manipulate an @p@
+    -- to something that knows how to manipulate a @q@.
+    viaPlan :: Lens' q p -> w p -> w q
 
-wrapMPlan'
-    :: (APlanWrapper x w m p, APlanWrapper y w m q, PlanWrapper w m)
-    => (p -> m q) -> (q -> m p) -> x -> y
-wrapMPlan' f g = fromPlanWrapper . wrapMPlan f g . toPlanWrapper
+-- -- | Something that knows how to get and set (but not make) a plan
+-- class ViaPlanM (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
+--     -- | given monadic getter & setter from @s@ to @a@,
+--     -- change something that knows how to manipulate an @p@
+--     -- to something that knows how to monadically manipulate a @q@.
+--     viaPlanM :: (q -> m p) -> (q -> p -> m q) -> w m p -> w m q
 
-class EventWrapper (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
-    wrapEvent :: (a -> b) -> (b -> a) -> w m a -> w m b
-    wrapMEvent :: (a -> m b) -> (b -> m a) -> w m a -> w m b
+-- | Converts a type to/from a monadic manipulator of plan.
+class Planner x (w :: Type -> Type) p | x -> w p where
+    toPlanner :: x -> w p
+    fromPlanner :: w p -> x
 
-class AnEventWrapper x (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) a | x -> w m a where
-    toEventWrapper :: x -> w m p
-    fromEventWrapper :: w m p -> x
+viaPlan'
+    :: (Planner x w p, Planner y w q, ViaPlan w)
+    => Lens' q p -> x -> y
+viaPlan' l = fromPlanner . viaPlan l . toPlanner
 
-wrapEvent'
-    :: (AnEventWrapper x w m a, AnEventWrapper y w m b, EventWrapper w m)
-    => (a -> b) -> (b -> a) -> x -> y
-wrapEvent' f g = fromEventWrapper . wrapEvent f g . toEventWrapper
-
-wrapMEvent'
-    :: (AnEventWrapper x w m a, AnEventWrapper y w m b, EventWrapper w m)
-    => (a -> m b) -> (b -> m a) -> x -> y
-wrapMEvent' f g = fromEventWrapper . wrapMEvent f g . toEventWrapper
-
+-- viaPlanM'
+--     :: (Planner x w m s, Planner y w m t, ViaPlanM w m)
+--     => (t -> m s) -> (t -> s -> m t) -> x -> y
+-- viaPlanM' f g = fromPlanner . viaPlanM f g . toPlanner
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

@@ -6,23 +6,17 @@
 
 module Glazier.React.Framework.Executor where
 
-import Data.Functor.Contravariant
 import Data.Diverse
 
-newtype Executor c = Executor
-    { runExecutor :: c -> IO ()
-    }
-
-instance Contravariant Executor where
-    contramap f (Executor exec) = Executor $ exec . f
+type Executor c = c -> IO ()
 
 -- | 'nulExecutor' is also identity for 'orExecutor'
 nulExecutor :: Executor (Which '[])
-nulExecutor = Executor . const $ pure ()
+nulExecutor = const $ pure ()
 
 -- | Ignore certain inputs
 lfilterExecutor :: (a' -> Maybe a) -> Executor a -> Executor a'
-lfilterExecutor f (Executor exec) = Executor $ \a' -> case f a' of
+lfilterExecutor f exec a' = case f a' of
     Nothing -> pure ()
     Just a -> exec a
 
@@ -39,8 +33,7 @@ orExecutor
     => Executor (Which c1)
     -> Executor (Which c2)
     -> Executor (Which (Append c1 c2))
-orExecutor (Executor x) (Executor y) =
-    Executor $ \c ->
-        case reinterpret c of
-            Left c' -> x c'
-            Right c' -> y c'
+orExecutor x y c =
+    case reinterpret c of
+        Left c' -> x c'
+        Right c' -> y c'

@@ -7,10 +7,7 @@
 
 module Glazier.React.Framework.Display where
 
--- import Data.Diverse.Lens
-import Control.Monad
-import Control.Monad.Trans.Class
-import Data.Functor.Contravariant
+import Control.Lens
 import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
@@ -26,14 +23,12 @@ instance Monad m => Monoid (Display m s) where
     mempty = Display mempty
     mappend = (<>)
 
-instance F.AModelWrapper (Display m s) Display m s where
-    toModelWrapper = id
-    fromModelWrapper = id
+instance F.Modeller (Display m s) (Display m) s where
+    toModeller = id
+    fromModeller = id
 
-instance R.MonadReactor m => F.ModelWrapper Display m where
-    wrapModel _ = contramap
-    wrapMModel _ g (Display disp) = Display $ (lift . g) >=> disp
-
+instance R.MonadReactor m => F.ViaModel (Display m) where
+    viaModel l = contramap (view l)
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

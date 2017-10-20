@@ -111,8 +111,8 @@ instance R.MonadReactor m => F.ModelWrapper (Builder_ModelWrapper p' p) m where
         Builder_ModelWrapper $ Builder (F.wrapMModel' f g mkPln, F.wrapMModel' f g mkMdl)
 
 -- | identity for 'andBuild'
-idle :: Applicative m => Builder m (Many '[]) p (Many '[]) s
-idle = Builder (MkPlan . const $ pure nil, MkModel . const $ pure nil)
+nilBuilder :: Applicative m => Builder m (Many '[]) p (Many '[]) s
+nilBuilder = Builder (MkPlan . const $ pure nil, MkModel . const $ pure nil)
 
 andBuilder
     :: Applicative m

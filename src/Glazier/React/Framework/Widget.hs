@@ -43,7 +43,7 @@ import Data.IORef
 -- import qualified Data.JSString as JS
 import Data.Kind
 import Data.Semigroup
-import Data.Tagged
+-- import Data.Tagged
 -- import qualified GHC.Generics as G
 -- import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -264,15 +264,15 @@ wrapMEvent' f g = fromEventWrapper . wrapMEvent f g . toEventWrapper
 --     <$> ((k `JS.append`) <$> R.mkKey') -- key
 --     <*> (Just <$> mkComponentPlan w this)
 
-mkListeners
-    :: (R.MonadReactor m, NFData (Which a))
-    => (Which cmds -> MaybeT IO ())
-    -> (Which a -> MaybeT m (DL.DList (Which cmds)))
-    -> [(J.JSString, J.JSVal -> MaybeT IO (DL.DList (Which a)))]
-    -> m [R.Listener]
-mkListeners exec hdl = traverse toListener -- triggers
-  where
-    toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback f hdl exec
+-- mkListeners
+--     :: (R.MonadReactor m, NFData a)
+--     => (a -> m (DL.DList (Which cmds)))
+--     -> (Which cmds -> IO ())
+--     -> [(J.JSString, J.JSVal -> IO (DL.DList a))]
+--     -> m [R.Listener]
+-- mkListeners hdl exec = traverse toListener -- triggers
+--   where
+--     toListener (n, f) = (\a -> (n, a)) <$> R.mkCallback f hdl exec
 
 -- inactiveDesign
 --     :: [JE.Property]

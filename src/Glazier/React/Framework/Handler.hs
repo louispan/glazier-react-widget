@@ -21,6 +21,28 @@ newtype Handler m s a b = Handler
     { runHandler :: s -> a -> m (DL.DList b)
     }
 
+-- | identity for 'Data.Diverse.Profunctor.+||+'
+nulHandler :: Monad m => Handler m s (Which '[]) (Which '[])
+nulHandler = Handler (\_ _ -> pure DL.empty)
+
+-- | Like unix @cat@, forward input to output.
+idHandler :: Monad m => Handler m s a a
+idHandler = C.id
+
+-- | Ignore certain inputs
+lfilterHandler :: Applicative m => (a' -> Maybe a) -> Handler m s a b -> Handler m s a' b
+lfilterHandler f (Handler hdl) = Handler $ \s a' -> case f a' of
+    Nothing -> pure DL.empty
+    Just a -> hdl s a
+
+-- | Ignore certain outputs
+rfilterHandler :: Applicative m => (b -> Maybe b') -> Handler m s a b -> Handler m s a b'
+rfilterHandler f (Handler hdl) = Handler $ \s a -> foldr go DL.empty <$> hdl s a
+  where
+    go b bs = case f b of
+        Nothing -> bs
+        Just b' -> b' `DL.cons` bs
+
 instance Functor m => Functor (Handler m s a) where
     fmap f (Handler hdl) = Handler $ \s a -> fmap f <$> hdl s a
 
@@ -40,7 +62,7 @@ instance Applicative m => Choice (Handler m s) where
         Right a -> fmap Right <$> hdl s a
 
 instance Monad m => C.Category (Handler m s) where
-    id = Handler $ \_ a -> pure $ DL.singleton a
+    id = Handler $ \_ -> pure . DL.singleton
     (Handler hdl) . (Handler hdl') = Handler $ \s a -> do
         bs <- hdl' s a
         fold <$> traverse (hdl s) (DL.toList bs)
@@ -53,10 +75,6 @@ instance Monad m => Arrow (Handler m s) where
 instance Monad m => ArrowChoice (Handler m s) where
     left = left'
     right = right'
-
--- | identity for 'Data.Diverse.Profunctor.+||+'
-ignore :: Monad m => Handler m s (Which '[]) (Which '[])
-ignore = Handler (\_ _ -> pure DL.empty)
 
 newtype Handler_ModelWrapper a b m s = Handler_ModelWrapper { runHandler_ModelWrapper :: Handler m s a b }
 

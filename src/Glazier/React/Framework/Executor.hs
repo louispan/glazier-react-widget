@@ -7,6 +7,7 @@
 module Glazier.React.Framework.Executor where
 
 import Data.Diverse
+import qualified Data.DList as DL
 
 type Executor c = c -> IO ()
 
@@ -14,16 +15,19 @@ type Executor c = c -> IO ()
 nulExecutor :: Executor (Which '[])
 nulExecutor = const $ pure ()
 
+-- | 'nulListExecutor' is also identity for 'orExecutor'
+nulListExecutor :: Executor (DL.DList (Which '[]))
+nulListExecutor = const $ pure ()
+
 -- | Ignore certain inputs
 lfilterExecutor :: (a' -> Maybe a) -> Executor a -> Executor a'
 lfilterExecutor f exec a' = case f a' of
     Nothing -> pure ()
     Just a -> exec a
 
--- | 'noop' is also identity for 'orExecutor'
 -- | The intention of this combinator is to allow combining executors for different
 -- input actions together.
--- Therefore, it is will be compile error to `orExecutor` of the same input types.
+-- Therefore, it is will be compile error to `orExecutor` of the with the same input types.
 -- This is to prevent accidently processing an action twice.
 -- The compile error will be due to @(Append c1 c2)@ which will not satisfy
 -- @UniqueMember@ constraints.
@@ -37,3 +41,24 @@ orExecutor x y c =
     case reinterpret c of
         Left c' -> x c'
         Right c' -> y c'
+
+-- | Variation of 'orExecutor' for combing 'DL.DList' of 'Which'es.
+orListExecutor
+    :: ( Reinterpret' c2 (Append c1 c2)
+       , Reinterpret' c1 (Append c1 c2)
+       , (Complement (Append c1 c2) c2) ~ c1
+       , (Complement (Append c1 c2) c1) ~ c2
+       )
+    => Executor (DL.DList (Which c1))
+    -> Executor (DL.DList (Which c2))
+    -> Executor (DL.DList (Which (Append c1 c2)))
+orListExecutor x y cs = let lcs = foldMap lgo cs
+                            rcs = foldMap rgo cs
+                        in x lcs >> y rcs
+  where
+    lgo c = case reinterpret' c of
+        Nothing -> DL.empty
+        Just c' -> DL.singleton c'
+    rgo c = case reinterpret' c of
+        Nothing -> DL.empty
+        Just c' -> DL.singleton c'

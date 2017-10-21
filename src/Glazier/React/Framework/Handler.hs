@@ -42,11 +42,11 @@ lfilterHandler f (Handler hdl) = Handler $ \ref this a' -> case f a' of
 
 -- | Ignore certain outputs
 rfilterHandler :: Applicative m => (b -> Maybe b') -> Handler m v s a b -> Handler m v s a b'
-rfilterHandler f (Handler hdl) = Handler $ \ref this a -> foldr go DL.empty <$> hdl ref this a
+rfilterHandler f (Handler hdl) = Handler $ \ref this a -> foldMap go <$> hdl ref this a
   where
-    go b bs = case f b of
-        Nothing -> bs
-        Just b' -> b' `DL.cons` bs
+    go b = case f b of
+        Nothing -> DL.empty
+        Just b' -> DL.singleton b'
 
 instance Functor m => Functor (Handler m v s a) where
     fmap f (Handler hdl) = Handler $ \ref this a -> fmap f <$> hdl ref this a

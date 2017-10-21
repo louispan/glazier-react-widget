@@ -8,50 +8,45 @@ module Glazier.React.Framework.Activator where
 
 import Control.DeepSeq
 import Control.Lens
+import Control.Monad
 import Data.Diverse.Lens
 import qualified Data.DList as DL
+import Data.Foldable
 import Data.IORef
+import Data.Semigroup
+import qualified GHCJS.Foreign.Callback as J
+import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
-import qualified Glazier.React.Framework.Widget as F
-import qualified GHCJS.Types as J
-import qualified GHCJS.Foreign.Callback as J
+-- import qualified Glazier.React.Framework.Widget as F
 
-newtype Activator m a c v s = Activator
+newtype Activator m c v s = Activator
     { runActivator :: IORef v -- IORef that contains the parent state
                    -> ReifiedLens' v s -- how to get to the child state
-                   -> F.Handler m v s a c -- externally provided handlers
                    -> F.Executor (DL.DList c) -- effectful interpreters
                    -- return the monadic action to commit the activation
                    -> m ()
     }
 
--- | identity for 'andActivator'
-inert :: Monad m => Activator m (Which '[]) c v s
-inert = Activator $ \_ _ _ _ -> pure ()
+instance Monad m => Semigroup (Activator m c v s) where
+    (Activator f) <> (Activator g) = Activator $ \ref this exec ->
+        f ref this exec >>
+        g ref this exec
 
--- | It is okay to combine activators the expect the same @a@ action, hence the use of 'AppendUnique'
-andActivator
-    :: ( Monad m
-       , Reinterpret' (AppendUnique a1 a2) a1
-       , Reinterpret' (AppendUnique a1 a2) a2
-       )
-    => Activator m (Which a1) c v s
-    -> Activator m (Which a2) c v s
-    -> Activator m (Which (AppendUnique a1 a2)) c v s
-andActivator (Activator f) (Activator g) = Activator $ \ref this hdl exec ->
-    f ref this (F.lfilterHandler reinterpret' hdl) exec >>
-    g ref this (F.lfilterHandler reinterpret' hdl) exec
+instance Monad m => Monoid (Activator m c v s) where
+    mempty = Activator $ \_ _ _ -> pure ()
+    mappend = (<>)
+
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 activateTriggers
-    :: (R.MonadReactor m, NFData a, UniqueMember (DL.DList R.Listener) s)
-    => [(J.JSString, J.JSVal -> IO a)]
-    -> Activator m a c v (Many s)
-activateTriggers triggers = Activator $ \ref (Lens this) (F.Handler hdl) exec -> do
-    cbs <- traverse (traverse (\t -> R.mkCallback t (hdl ref (Lens this)) exec)) triggers
+    :: (R.MonadReactor m, NFData c, UniqueMember (DL.DList R.Listener) s)
+    => [(J.JSString, J.JSVal -> IO (DL.DList c))]
+    -> Activator m c v (Many s)
+activateTriggers triggers = Activator $ \ref (Lens this) exec -> do
+    cbs <- traverse (traverse (\t -> R.mkCallback t exec)) triggers
     R.doModifyIORef' ref ((this.item) %~ (`DL.append` DL.fromList cbs))
 
 -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
@@ -60,6 +55,7 @@ activateDisplay
     => F.Display m (IORef v)
     -> IORef v
     -> Lens' v (Many s)
+    -- -> F.Executor (DL.DList (Which '[]))
     -> m ()
 activateDisplay (F.Display disp) ref this = do
     rnd <- R.mkRenderer (disp ref)
@@ -67,9 +63,28 @@ activateDisplay (F.Display disp) ref this = do
 
 -- FIXME: What about Modeller?
 
--- viaModelActivator :: Monad m => Lens' t s -> Activator m a c v s -> Activator m a c v t
--- viaModelActivator l (Activator f) =
---     Activator $ \ref (Lens this) hdl exec ->
---         -- FIXME: l is wrong in (F.viaModel' l hdl)
---         -- Wrong direction! How do I convert Handler t to Handler s?
---         f ref (Lens (this.l)) (F.viaModel' l hdl) exec
+viaModelActivator :: Monad m => Lens' t s -> Activator m c v s -> Activator m c v t
+viaModelActivator l (Activator f) =
+    Activator $ \ref (Lens this) exec ->
+        -- FIXME: l is wrong in (F.viaModel' l hdl)
+        -- Wrong direction! How do I convert Handler t to Handler s?
+        f ref (Lens (this.l)) exec
+
+
+wack :: (DL.DList c -> IO (DL.DList d)) -> Activator m c v s -> Activator m d v s
+wack f (Activator g) = Activator $ \ref this exec -> g ref this (f >=> exec)
+
+wock
+    :: R.MonadReactor m
+    => F.Handler m v s c d
+    -> IORef v
+    -> ReifiedLens' v s
+    -> m (DL.DList c -> IO (DL.DList d))
+wock (F.Handler hdl) ref this = R.mkIO go
+  where
+    go cs = fold <$> traverse (hdl ref this) (DL.toList cs)
+
+weck :: R.MonadReactor m => F.Handler m v s c d -> Activator m c v s -> Activator m d v s
+weck f (Activator g) = Activator $ \ref this exec -> do
+    f' <- wock f ref this
+    g ref this (f' >=> exec)

@@ -92,12 +92,10 @@ class ViaModel (w :: Type -> Type) where
     -- to something that knows how to manipulate a @t@.
     viaModel :: Lens' t s -> w s -> w t
 
--- -- | Something that knows how to get and set (but not make) a model
--- class ViaModelM (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
---     -- | given monadic getter & setter from @t@ to @s@,
---     -- change something that knows how to manipulate an @s@
---     -- to something that knows how to monadically manipulate a @t@.
---     viaModelM :: (t -> m s) -> (t -> s -> m t) -> w m s -> w m t
+class IORefModel x y where
+    -- | Given something that knows how to manipulate or make an @s@
+    -- change it to something that can manipulate or make an @IORef s@
+    ioRefModel :: x -> y
 
 -- | Converts a type to/from a monadic manipulator of model.
 class Modeller x (w :: Type -> Type) s | x -> w s where
@@ -109,25 +107,12 @@ viaModel'
     => Lens' t s -> x -> y
 viaModel' l = fromModeller . viaModel l . toModeller
 
--- viaModelM'
---     :: (Modeller x w m s, Modeller y w m t, ViaModelM w m)
---     => (t -> m s) -> (t -> s -> m t) -> x -> y
--- viaModelM' f g = fromModeller . viaModelM f g . toModeller
-
-
 -- | Something that knows how to get and set (but not make) a plan
 class ViaPlan (w :: Type -> Type) where
     -- | given lens from @q@ to @p@,
     -- change something that knows how to manipulate an @p@
     -- to something that knows how to manipulate a @q@.
     viaPlan :: Lens' q p -> w p -> w q
-
--- -- | Something that knows how to get and set (but not make) a plan
--- class ViaPlanM (w :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) where
---     -- | given monadic getter & setter from @s@ to @a@,
---     -- change something that knows how to manipulate an @p@
---     -- to something that knows how to monadically manipulate a @q@.
---     viaPlanM :: (q -> m p) -> (q -> p -> m q) -> w m p -> w m q
 
 -- | Converts a type to/from a monadic manipulator of plan.
 class Planner x (w :: Type -> Type) p | x -> w p where
@@ -138,11 +123,6 @@ viaPlan'
     :: (Planner x w p, Planner y w q, ViaPlan w)
     => Lens' q p -> x -> y
 viaPlan' l = fromPlanner . viaPlan l . toPlanner
-
--- viaPlanM'
---     :: (Planner x w m s, Planner y w m t, ViaPlanM w m)
---     => (t -> m s) -> (t -> s -> m t) -> x -> y
--- viaPlanM' f g = fromPlanner . viaPlanM f g . toPlanner
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

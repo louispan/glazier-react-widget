@@ -8,6 +8,8 @@
 module Glazier.React.Framework.Display where
 
 import Control.Lens
+import Control.Monad.Trans.Class
+import Data.IORef
 import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
@@ -29,6 +31,9 @@ instance F.Modeller (Display m s) (Display m) s where
 
 instance R.MonadReactor m => F.ViaModel (Display m) where
     viaModel l = contramap (view l)
+
+instance R.MonadReactor m => F.IORefModel (Display m s) (Display m (IORef s)) where
+    ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

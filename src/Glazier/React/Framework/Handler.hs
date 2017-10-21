@@ -15,76 +15,83 @@ import Control.Lens
 import Data.Diverse.Profunctor
 import Data.Foldable
 import Data.IORef
+import Data.Kind
 import Data.Profunctor
 import qualified Data.DList as DL
+import qualified Glazier.React as R
 import Glazier.React.Framework.Widget as F
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
-newtype Handler v s m a b = Handler
+newtype Handler (m :: Type -> Type) v s a b = Handler
     { runHandler :: IORef v -> ReifiedLens' v s -> a -> m (DL.DList b)
     }
 
 -- | identity for 'Data.Diverse.Profunctor.+||+'
-nulHandler :: Monad m => Handler v s m (Which '[]) (Which '[])
+nulHandler :: Monad m => Handler m v s (Which '[]) (Which '[])
 nulHandler = Handler (\_ _ _ -> pure DL.empty)
 
 -- | Like unix @cat@, forward input to output.
-idHandler :: Monad m => Handler v s m a a
+idHandler :: Monad m => Handler m v s a a
 idHandler = C.id
 
 -- | Ignore certain inputs
-lfilterHandler :: Applicative m => (a' -> Maybe a) -> Handler v s m a b -> Handler v s m a' b
-lfilterHandler f (Handler hdl) = Handler $ \v l a' -> case f a' of
+lfilterHandler :: Applicative m => (a' -> Maybe a) -> Handler m v s a b -> Handler m v s a' b
+lfilterHandler f (Handler hdl) = Handler $ \ref this a' -> case f a' of
     Nothing -> pure DL.empty
-    Just a -> hdl v l a
+    Just a -> hdl ref this a
 
 -- | Ignore certain outputs
-rfilterHandler :: Applicative m => (b -> Maybe b') -> Handler v s m a b -> Handler v s m a b'
-rfilterHandler f (Handler hdl) = Handler $ \v l a -> foldr go DL.empty <$> hdl v l a
+rfilterHandler :: Applicative m => (b -> Maybe b') -> Handler m v s a b -> Handler m v s a b'
+rfilterHandler f (Handler hdl) = Handler $ \ref this a -> foldr go DL.empty <$> hdl ref this a
   where
     go b bs = case f b of
         Nothing -> bs
         Just b' -> b' `DL.cons` bs
 
-instance Functor m => Functor (Handler v s m a) where
-    fmap f (Handler hdl) = Handler $ \v l a -> fmap f <$> hdl v l a
+instance Functor m => Functor (Handler m v s a) where
+    fmap f (Handler hdl) = Handler $ \ref this a -> fmap f <$> hdl ref this a
 
-instance Functor m => Profunctor (Handler v s m) where
-    dimap f g (Handler hdl) = Handler $ \v l a -> fmap g <$> hdl v l (f a)
+instance Functor m => Profunctor (Handler m v s) where
+    dimap f g (Handler hdl) = Handler $ \ref this a -> fmap g <$> hdl ref this (f a)
 
-instance Functor m => Strong (Handler v s m) where
-    first' (Handler hdl) = Handler $ \v l (a, c) -> fmap (\b -> (b, c)) <$> hdl v l a
-    second' (Handler hdl) = Handler $ \v l (c, a) -> fmap (\b -> (c, b)) <$> hdl v l a
+instance Functor m => Strong (Handler m v s) where
+    first' (Handler hdl) = Handler $ \ref this (a, c) -> fmap (\b -> (b, c)) <$> hdl ref this a
+    second' (Handler hdl) = Handler $ \ref this (c, a) -> fmap (\b -> (c, b)) <$> hdl ref this a
 
-instance Applicative m => Choice (Handler v s m) where
-    left' (Handler hdl) = Handler $ \v l e -> case e of
+instance Applicative m => Choice (Handler m v s) where
+    left' (Handler hdl) = Handler $ \ref this e -> case e of
         Right c -> pure $ DL.singleton $ Right c
-        Left a -> fmap Left <$> hdl v l a
-    right' (Handler hdl) = Handler $ \v l e -> case e of
+        Left a -> fmap Left <$> hdl ref this a
+    right' (Handler hdl) = Handler $ \ref this e -> case e of
         Left c -> pure $ DL.singleton $ Left c
-        Right a -> fmap Right <$> hdl v l a
+        Right a -> fmap Right <$> hdl ref this a
 
-instance Monad m => C.Category (Handler v s m) where
+instance Monad m => C.Category (Handler m v s) where
     id = Handler $ \_ _ -> pure . DL.singleton
-    (Handler hdl) . (Handler hdl') = Handler $ \v l a -> do
-        bs <- hdl' v l a
-        fold <$> traverse (hdl v l) (DL.toList bs)
+    (Handler hdl) . (Handler hdl') = Handler $ \ref this a -> do
+        bs <- hdl' ref this a
+        fold <$> traverse (hdl ref this) (DL.toList bs)
 
-instance Monad m => Arrow (Handler v s m) where
+instance Monad m => Arrow (Handler m v s) where
     arr f = rmap f C.id
     first = first'
     second = second'
 
-instance Monad m => ArrowChoice (Handler v s m) where
+instance Monad m => ArrowChoice (Handler m v s) where
     left = left'
     right = right'
 
-newtype Handler_Modeller v a b m s = Handler_Modeller { runHandler_Modeller :: Handler v s m a b }
+newtype HandlerModeller m a b v s = HandlerModeller { runHandlerModeller :: Handler m v s a b }
 
-instance F.Modeller (Handler v s m a b) (Handler_Modeller v a b m) s where
-    toModeller = Handler_Modeller
-    fromModeller = runHandler_Modeller
+instance F.Modeller (Handler m v s a b) (HandlerModeller m a b v) s where
+    toModeller = HandlerModeller
+    fromModeller = runHandlerModeller
 
-instance Monad m => F.ViaModel (Handler_Modeller v a b m) where
-    viaModel l' (Handler_Modeller (Handler hdl)) =
-        Handler_Modeller . Handler $ \v (Lens l) a -> hdl v (Lens (l . l')) a
+instance Monad m => F.ViaModel (HandlerModeller m a b v) where
+    viaModel l (HandlerModeller (Handler hdl)) =
+        HandlerModeller . Handler $ \ref (Lens this) a -> hdl ref (Lens (this.l)) a
+
+instance R.MonadReactor m => F.IORefModel (Handler m s s a b) (Handler m v (IORef s) a b) where
+    ioRefModel (Handler hdl) = Handler $ \ref (Lens this) a -> do
+        obj <- R.doReadIORef ref
+        hdl (obj ^. this) (Lens id) a

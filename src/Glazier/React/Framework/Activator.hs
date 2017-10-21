@@ -71,20 +71,25 @@ viaModelActivator l (Activator f) =
         f ref (Lens (this.l)) exec
 
 
-wack :: (DL.DList c -> IO (DL.DList d)) -> Activator m c v s -> Activator m d v s
-wack f (Activator g) = Activator $ \ref this exec -> g ref this (f >=> exec)
+-- -- | FIXME: Internal function, do not expose
+-- -- Prefix a given execution to an Activator
+-- preExecute :: (DL.DList c -> IO (DL.DList d)) -> Activator m c v s -> Activator m d v s
+-- preExecute f (Activator g) = Activator $ \ref this exec -> g ref this (f >=> exec)
 
-wock
+-- | FIXME: Internal function, do not expose
+-- Converts a handler to a form that can be chained inside an Activator
+mkIOHandler
     :: R.MonadReactor m
     => F.Handler m v s c d
     -> IORef v
     -> ReifiedLens' v s
     -> m (DL.DList c -> IO (DL.DList d))
-wock (F.Handler hdl) ref this = R.mkIO go
+mkIOHandler (F.Handler hdl) ref this = R.mkIO go
   where
     go cs = fold <$> traverse (hdl ref this) (DL.toList cs)
 
-weck :: R.MonadReactor m => F.Handler m v s c d -> Activator m c v s -> Activator m d v s
-weck f (Activator g) = Activator $ \ref this exec -> do
-    f' <- wock f ref this
+-- | Add a handler so that it is piped before the input 'Executor' in an 'Activator'
+addHandler :: R.MonadReactor m => F.Handler m v s c d -> Activator m c v s -> Activator m d v s
+addHandler f (Activator g) = Activator $ \ref this exec -> do
+    f' <- mkIOHandler f ref this
     g ref this (f' >=> exec)

@@ -82,7 +82,6 @@ import qualified Glazier.React as R
 -- | Plan has to be stored differently to other plans because mkPlan needs
 -- additional parameters
 
-newtype Key = Key { runKey :: J.JSString } deriving R.Dispose
 newtype FrameNum = FrameNum { runFrameNum :: Int } deriving R.Dispose
 
 -- | Something that knows how to get and set (but not make) a model

@@ -4,7 +4,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Glazier.React.Framework.Activator where
+module Glazier.React.Framework.Activator
+    ( Activator(..)
+    , triggersActivator
+    , displayActivator
+    , addHandler
+    ) where
 
 import Control.DeepSeq
 import Control.Lens
@@ -14,13 +19,12 @@ import qualified Data.DList as DL
 import Data.Foldable
 import Data.IORef
 import Data.Semigroup
-import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
--- import qualified Glazier.React.Framework.Widget as F
+import qualified Glazier.React.Framework.Widget as F
 
 newtype Activator m c v s = Activator
     { runActivator :: IORef v -- IORef that contains the parent state
@@ -41,43 +45,38 @@ instance Monad m => Monoid (Activator m c v s) where
 
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
-activateTriggers
+triggersActivator
     :: (R.MonadReactor m, NFData c, UniqueMember (DL.DList R.Listener) s)
     => [(J.JSString, J.JSVal -> IO (DL.DList c))]
     -> Activator m c v (Many s)
-activateTriggers triggers = Activator $ \ref (Lens this) exec -> do
+triggersActivator triggers = Activator $ \ref (Lens this) exec -> do
     cbs <- traverse (traverse (\t -> R.mkCallback t exec)) triggers
     R.doModifyIORef' ref ((this.item) %~ (`DL.append` DL.fromList cbs))
 
 -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
-activateDisplay
-    :: (R.MonadReactor m, UniqueMember (J.Callback (IO J.JSVal)) s)
+displayActivator
+    :: (R.MonadReactor m, UniqueMember R.Renderer s)
     => F.Display m (IORef v)
-    -> IORef v
-    -> Lens' v (Many s)
-    -- -> F.Executor (DL.DList (Which '[]))
-    -> m ()
-activateDisplay (F.Display disp) ref this = do
+    -> Activator m (Which '[]) v (Many s)
+displayActivator (F.Display disp) = Activator $ \ref (Lens this) _ -> do
     rnd <- R.mkRenderer (disp ref)
     R.doModifyIORef' ref ((this.item) .~ rnd)
 
--- FIXME: What about Modeller?
-
-viaModelActivator :: Monad m => Lens' t s -> Activator m c v s -> Activator m c v t
-viaModelActivator l (Activator f) =
-    Activator $ \ref (Lens this) exec ->
-        -- FIXME: l is wrong in (F.viaModel' l hdl)
-        -- Wrong direction! How do I convert Handler t to Handler s?
+instance Monad m => F.ViaModel (Activator m c v) where
+    viaModel l (Activator f) = Activator $ \ref (Lens this) exec ->
         f ref (Lens (this.l)) exec
 
+instance F.Modeller (Activator m c v s) (Activator m c v) s where
+    toModeller = id
+    fromModeller = id
 
--- -- | FIXME: Internal function, do not expose
--- -- Prefix a given execution to an Activator
--- preExecute :: (DL.DList c -> IO (DL.DList d)) -> Activator m c v s -> Activator m d v s
--- preExecute f (Activator g) = Activator $ \ref this exec -> g ref this (f >=> exec)
+instance R.MonadReactor m => F.IORefModel (Activator m c s s) (Activator m c v (IORef s)) where
+    ioRefModel (Activator g) = Activator $ \ref (Lens this) exec -> do
+        obj <- R.doReadIORef ref
+        let ref' = obj ^. this
+        g ref' (Lens id) exec
 
--- | FIXME: Internal function, do not expose
--- Converts a handler to a form that can be chained inside an Activator
+-- | Internal function: Converts a handler to a form that can be chained inside an Activator
 mkIOHandler
     :: R.MonadReactor m
     => F.Handler m v s c d

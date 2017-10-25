@@ -123,6 +123,18 @@ viaPlan'
     => Lens' q p -> x -> y
 viaPlan' l = fromPlanner . viaPlan l . toPlanner
 
+----------------------------------------------------------
+-- FIXME: Different package?
+
+class PPointed m t where
+    ppure :: a -> m t a
+
+class PApplicative m t u v | t u -> v where
+    papply :: m t (a -> b) -> m u a -> m v b
+
+class PApplicative m t u v => PMonad m t u v | t u -> v where
+    pbind :: m t a -> (a -> m u b) -> m v b
+
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent
 --     , _onRender ::  J.Callback (IO J.JSVal)

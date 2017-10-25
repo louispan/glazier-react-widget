@@ -40,12 +40,8 @@ instance R.MonadReactor m => F.ViaModel (DisplayModeller m r) where
 instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r) where
     ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
 
-instance Monad m => Semigroup (Display m s ()) where
-    _ <> _ = Display . const $ pure ()
-
-instance Monad m => Monoid (Display m s ()) where
-    mempty = Display . const $ pure ()
-    mappend = (<>)
+instance Monad m => F.PPointed (Display m) s where
+    ppure = Display . const . pure
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

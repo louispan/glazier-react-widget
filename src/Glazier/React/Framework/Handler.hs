@@ -27,12 +27,12 @@ newtype Handler (m :: Type -> Type) v s a b = Handler
     { runHandler :: IORef v -> ReifiedLens' v s -> a -> m (DL.DList b)
     }
 
-instance Monad m => Semigroup (Handler m v s (Which '[]) (Which '[])) where
-    _ <> _ = nulHandler
+-- instance Monad m => Semigroup (Handler m v s (Which '[]) (Which '[])) where
+--     _ <> _ = nulHandler
 
-instance Monad m => Monoid (Handler m v s (Which '[]) (Which '[])) where
-    mempty = nulHandler
-    mappend = (<>)
+-- instance Monad m => Monoid (Handler m v s (Which '[]) (Which '[])) where
+--     mempty = nulHandler
+--     mappend = (<>)
 
 -- | identity for 'Data.Diverse.Profunctor.+||+'
 nulHandler :: Monad m => Handler m v s (Which '[]) (Which '[])

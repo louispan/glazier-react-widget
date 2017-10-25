@@ -31,7 +31,7 @@ import qualified Glazier.React.Framework.Trigger as F
 newtype Activator m b v s = Activator
     { runActivator :: IORef v -- IORef that contains the parent state
                    -> ReifiedLens' v s -- how to get to the child state
-                   -> F.Executor b -- effectful interpreters
+                   -> F.Executor b () -- effectful interpreters
                    -- return the monadic action to commit the activation
                    -> m ()
     }

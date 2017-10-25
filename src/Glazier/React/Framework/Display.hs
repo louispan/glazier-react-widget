@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -10,29 +11,32 @@ module Glazier.React.Framework.Display where
 import Control.Lens
 import Control.Monad.Trans.Class
 import Data.IORef
-import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Widget as F
 
-newtype Display m s = Display
-    { runDisplay :: s -> R.ReactMlT m ()
-    } deriving (Semigroup)
+newtype Display m s a = Display
+    { runDisplay :: s -> R.ReactMlT m a
+    } deriving (Functor)
 
-instance Contravariant (Display m) where
-    contramap f (Display disp) = Display $ disp . f
+instance Monad m => Applicative (Display m s) where
+    pure = Display . const . pure
+    Display f <*> Display g = Display $ \s -> f s <*> g s
 
-instance Monad m => Monoid (Display m s) where
-    mempty = Display mempty
-    mappend = (<>)
+instance Monad m => Monad (Display m s) where
+    Display f >>= k = Display $ \s -> f s >>= k' s
+      where
+        k' s = (`runDisplay` s) . k
 
-instance F.Modeller (Display m s) (Display m) s where
-    toModeller = id
-    fromModeller = id
+newtype DisplayModeller m a s = DisplayModeller { runDisplayModeller :: Display m s a }
 
-instance R.MonadReactor m => F.ViaModel (Display m) where
-    viaModel l = contramap (view l)
+instance F.Modeller (Display m s a) (DisplayModeller m a) s where
+    toModeller = DisplayModeller
+    fromModeller = runDisplayModeller
 
-instance R.MonadReactor m => F.IORefModel (Display m s) (Display m (IORef s)) where
+instance R.MonadReactor m => F.ViaModel (DisplayModeller m a) where
+    viaModel l (DisplayModeller (Display f)) = DisplayModeller $ Display $ f . view l
+
+instance R.MonadReactor m => F.IORefModel (Display m s a) (Display m (IORef s) a) where
     ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
 
 -- -- | Add a list of static properties to the rendered element.

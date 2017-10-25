@@ -19,17 +19,17 @@ import qualified Data.DList as DL
 import Data.Foldable
 import Data.IORef
 import Data.Semigroup
-import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
+import qualified Glazier.React.Framework.Trigger as F
 import qualified Glazier.React.Framework.Widget as F
 
 newtype Activator m c v s = Activator
     { runActivator :: IORef v -- IORef that contains the parent state
                    -> ReifiedLens' v s -- how to get to the child state
-                   -> F.Executor (DL.DList c) -- effectful interpreters
+                   -> F.Executor c -- effectful interpreters
                    -- return the monadic action to commit the activation
                    -> m ()
     }
@@ -47,16 +47,16 @@ instance Monad m => Monoid (Activator m c v s) where
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 triggersActivator
     :: (R.MonadReactor m, NFData c, UniqueMember (DL.DList R.Listener) s)
-    => [(J.JSString, J.JSVal -> IO (DL.DList c))]
+    => [F.Trigger c]
     -> Activator m c v (Many s)
 triggersActivator triggers = Activator $ \ref (Lens this) exec -> do
-    cbs <- traverse (traverse (\t -> R.mkCallback t exec)) triggers
+    cbs <- traverse (traverse (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
     R.doModifyIORef' ref ((this.item) %~ (`DL.append` DL.fromList cbs))
 
 -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
 displayActivator
     :: (R.MonadReactor m, UniqueMember R.Renderer s)
-    => F.Display m (IORef v)
+    => F.Display m (IORef v) ()
     -> Activator m (Which '[]) v (Many s)
 displayActivator (F.Display disp) = Activator $ \ref (Lens this) _ -> do
     rnd <- R.mkRenderer (disp ref)

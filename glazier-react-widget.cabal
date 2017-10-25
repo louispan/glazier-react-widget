@@ -33,7 +33,7 @@ library
                        Glazier.React.Framework.Handler
                        Glazier.React.Framework.Executor
                        -- Glazier.React.Framework.Prototype
-                       -- Glazier.React.Framework.Trigger
+                       Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget
                        -- Glazier.React.Widgets.Input
                        -- Glazier.React.Widgets.Input.TextInput

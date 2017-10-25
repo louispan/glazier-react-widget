@@ -16,8 +16,9 @@ import Data.Biapplicative
 import Data.Diverse.Lens
 import Data.IORef
 import Data.Proxy
+import Data.Semigroup
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Widget as F
+import qualified Glazier.React.Framework.Core as F
 
 ------------------------------------------------
 
@@ -98,6 +99,13 @@ instance Applicative m => Biapplicative (Builder m p s) where
 
 instance R.MonadReactor m => F.IORefModel (Builder m p s p' s') (Builder m p s p' (IORef s')) where
     ioRefModel (Builder (mkPlan, MkModel mkModel)) = Builder (mkPlan, MkModel (mkModel >=> R.doNewIORef))
+
+instance Applicative m => Semigroup (Builder m p s (Many '[]) (Many '[])) where
+    _ <> _ = nilBuilder
+
+instance Applicative m => Monoid (Builder m p s (Many '[]) (Many '[])) where
+    mempty = nilBuilder
+    mappend = (<>)
 
 -- | identity for 'andBuild'
 nilBuilder :: Applicative m => Builder m p s (Many '[]) (Many '[])

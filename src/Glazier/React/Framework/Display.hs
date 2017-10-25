@@ -11,11 +11,12 @@ module Glazier.React.Framework.Display where
 import Control.Lens
 import Control.Monad.Trans.Class
 import Data.IORef
+import Data.Semigroup
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Widget as F
+import qualified Glazier.React.Framework.Core as F
 
-newtype Display m s a = Display
-    { runDisplay :: s -> R.ReactMlT m a
+newtype Display m s r = Display
+    { runDisplay :: s -> R.ReactMlT m r
     } deriving (Functor)
 
 instance Monad m => Applicative (Display m s) where
@@ -27,17 +28,24 @@ instance Monad m => Monad (Display m s) where
       where
         k' s = (`runDisplay` s) . k
 
-newtype DisplayModeller m a s = DisplayModeller { runDisplayModeller :: Display m s a }
+newtype DisplayModeller m r s = DisplayModeller { runDisplayModeller :: Display m s r }
 
-instance F.Modeller (Display m s a) (DisplayModeller m a) s where
+instance F.Modeller (Display m s r) (DisplayModeller m r) s where
     toModeller = DisplayModeller
     fromModeller = runDisplayModeller
 
-instance R.MonadReactor m => F.ViaModel (DisplayModeller m a) where
+instance R.MonadReactor m => F.ViaModel (DisplayModeller m r) where
     viaModel l (DisplayModeller (Display f)) = DisplayModeller $ Display $ f . view l
 
-instance R.MonadReactor m => F.IORefModel (Display m s a) (Display m (IORef s) a) where
+instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r) where
     ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
+
+instance Monad m => Semigroup (Display m s ()) where
+    _ <> _ = Display . const $ pure ()
+
+instance Monad m => Monoid (Display m s ()) where
+    mempty = Display . const $ pure ()
+    mappend = (<>)
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

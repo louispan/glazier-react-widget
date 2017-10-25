@@ -29,6 +29,7 @@ library
                        Glazier.React.Framework.Activator
                        -- Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Builder
+                       Glazier.React.Framework.Core
                        Glazier.React.Framework.Display
                        Glazier.React.Framework.Handler
                        Glazier.React.Framework.Executor

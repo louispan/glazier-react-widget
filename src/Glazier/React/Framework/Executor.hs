@@ -1,21 +1,31 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Glazier.React.Framework.Executor where
 
 import Data.Diverse
 import qualified Data.DList as DL
+import Data.Semigroup
 
-type Executor c = DL.DList c -> IO ()
+newtype Executor c = Executor { runExecutor :: DL.DList c -> IO () }
+
+instance Semigroup (Executor (Which '[])) where
+    _ <> _ = nulExecutor
+
+instance Monoid (Executor (Which '[])) where
+    mempty = nulExecutor
+    mappend = (<>)
 
 -- | 'nulExecutor' is also identity for 'orExecutor'
 nulExecutor :: Executor (Which '[])
-nulExecutor = const $ pure ()
+nulExecutor = Executor $ const $ pure ()
 
 -- | Ignore certain inputs
 lfilterExecutor :: (a' -> Maybe a) -> Executor a -> Executor a'
-lfilterExecutor f exec as' = exec (foldMap go as')
+lfilterExecutor f (Executor exec) = Executor $ \as' -> exec (foldMap go as')
   where
     go a'= case f a' of
         Nothing -> mempty
@@ -37,9 +47,10 @@ orExecutor
     => Executor (Which c1)
     -> Executor (Which c2)
     -> Executor (Which (Append c1 c2))
-orExecutor x y cs = let lcs = foldMap lgo cs
-                        rcs = foldMap rgo cs
-                    in x lcs >> y rcs
+orExecutor (Executor x) (Executor y) = Executor $ \cs ->
+    let lcs = foldMap lgo cs
+        rcs = foldMap rgo cs
+    in x lcs >> y rcs
   where
     lgo c = case reinterpret' c of
         Nothing -> DL.empty

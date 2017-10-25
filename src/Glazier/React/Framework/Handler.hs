@@ -9,22 +9,30 @@
 
 module Glazier.React.Framework.Handler where
 
-import qualified Control.Category as C
 import Control.Arrow
+import qualified Control.Category as C
 import Control.Lens
 import Data.Diverse.Profunctor
+import qualified Data.DList as DL
 import Data.Foldable
 import Data.IORef
 import Data.Kind
 import Data.Profunctor
-import qualified Data.DList as DL
+import Data.Semigroup
 import qualified Glazier.React as R
-import Glazier.React.Framework.Widget as F
+import Glazier.React.Framework.Core as F
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
 newtype Handler (m :: Type -> Type) v s a b = Handler
     { runHandler :: IORef v -> ReifiedLens' v s -> a -> m (DL.DList b)
     }
+
+instance Monad m => Semigroup (Handler m v s (Which '[]) (Which '[])) where
+    _ <> _ = nulHandler
+
+instance Monad m => Monoid (Handler m v s (Which '[]) (Which '[])) where
+    mempty = nulHandler
+    mappend = (<>)
 
 -- | identity for 'Data.Diverse.Profunctor.+||+'
 nulHandler :: Monad m => Handler m v s (Which '[]) (Which '[])

@@ -7,11 +7,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Builder where
 
 import Control.Lens
 import Control.Monad
+import Control.Parameterized as P
 import Data.Biapplicative
 import Data.Diverse.Lens
 import Data.IORef
@@ -100,27 +102,32 @@ instance Applicative m => Biapplicative (Builder m p s) where
 instance R.MonadReactor m => F.IORefModel (Builder m p s p' s') (Builder m p s p' (IORef s')) where
     ioRefModel (Builder (mkPlan, MkModel mkModel)) = Builder (mkPlan, MkModel (mkModel >=> R.doNewIORef))
 
--- instance Applicative m => Semigroup (Builder m p s (Many '[]) (Many '[])) where
---     _ <> _ = nilBuilder
+------------------------------------------------
 
--- instance Applicative m => Monoid (Builder m p s (Many '[]) (Many '[])) where
---     mempty = nilBuilder
---     mappend = (<>)
+newtype BuilderPNullary m p s ps' = BuilderPNullary
+    { runBuilderPNullary :: Builder m p s (P.Fst ps') (P.Snd ps')
+    }
 
--- | identity for 'andBuild'
-nilBuilder :: Applicative m => Builder m p s (Many '[]) (Many '[])
-nilBuilder = bipure nil nil
+instance IsPNullary (Builder m p s p' s') (BuilderPNullary m p s) '(p', s') where
+    toPNullary = BuilderPNullary
+    fromPNullary = runBuilderPNullary
 
--- | Combine 'Builder's using 'Many'
-andBuilder
-    :: Applicative m
-    => Builder m p s (Many p1) (Many s1)
-    -> Builder m p s (Many p2) (Many s2)
-    -> Builder m p s (Many (Append p1 p2)) (Many (Append s1 s2))
-andBuilder (Builder (MkPlan mkPln, MkModel mkMdl)) (Builder (MkPlan mkPln', MkModel mkMdl')) =
-    Builder ( MkPlan $ \s -> (/./) <$> mkPln s <*> mkPln' s
-            , MkModel $ \p -> (/./) <$> mkMdl p <*> mkMdl' p
-            )
+-- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
+instance Applicative m => P.PEmpty (BuilderPNullary m p s) '(Many '[], Many '[]) where
+    pempty' = BuilderPNullary $ bipure nil nil
+
+-- | UndecidableInstances!
+instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
+         P.PSemigroup (BuilderPNullary m p s) '(Many p1, Many s1) '(Many p2, Many s2) '(Many p3, Many s3) where
+    (BuilderPNullary (Builder (MkPlan mkPln, MkModel mkMdl))) `pappend'`
+        (BuilderPNullary (Builder (MkPlan mkPln', MkModel mkMdl'))) =
+            BuilderPNullary $
+            Builder
+                ( MkPlan $ \s -> (/./) <$> mkPln s <*> mkPln' s
+                , MkModel $ \p -> (/./) <$> mkMdl p <*> mkMdl' p)
+
+
+------------------------------------------------
 
 -- | Add a type @x@ into the factory
 build

@@ -59,8 +59,8 @@ andActivator
     -> Activator m (Which c) v s
     -> Activator m (Which (AppendUnique b c)) v s
 andActivator (Activator f) (Activator g) = Activator $ \ref this exec ->
-    f ref this (F.lfilterExecutor reinterpret' exec) >>
-    g ref this (F.lfilterExecutor reinterpret' exec)
+    f ref this (F.suppressExecutor reinterpret' exec) >>
+    g ref this (F.suppressExecutor reinterpret' exec)
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 triggersActivator

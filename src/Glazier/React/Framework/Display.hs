@@ -30,7 +30,7 @@ instance Monad m => Monad (Display m s) where
 
 newtype DisplayModeller m r s = DisplayModeller { runDisplayModeller :: Display m s r }
 
-instance F.Modeller (Display m s r) (DisplayModeller m r) s where
+instance F.IsModeller (Display m s r) (DisplayModeller m r) s where
     toModeller = DisplayModeller
     fromModeller = runDisplayModeller
 
@@ -40,8 +40,12 @@ instance R.MonadReactor m => F.ViaModel (DisplayModeller m r) where
 instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r) where
     ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
 
-instance Monad m => F.PPointed (Display m) s where
-    ppure = Display . const . pure
+instance (Semigroup r, Monad m) => Semigroup (Display m s r) where
+    Display a <> Display b = Display $ \s -> a s <> b s
+
+instance (Monoid r, Monad m) => Monoid (Display m s r) where
+    mempty =  Display . const $ pure mempty
+    Display a `mappend` Display b = Display $ \s -> a s `mappend` b s
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

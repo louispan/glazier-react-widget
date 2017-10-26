@@ -1,17 +1,11 @@
 {-# LANGUAGE DataKinds #-}
--- {-# LANGUAGE DeriveGeneric #-}
--- {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
--- {-# LANGUAGE TemplateHaskell #-}
--- {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Core where
 --   ( WidgetCommand(..)
@@ -97,12 +91,13 @@ class IORefModel x y where
     ioRefModel :: x -> y
 
 -- | Converts a type to/from a monadic manipulator of model.
-class Modeller x (w :: Type -> Type) s | x -> w s where
+-- FunctionalDependency: @x -> w s, w s -> x@ so that it is injective both directions.
+class IsModeller x (w :: Type -> Type) s | x -> w s, w s -> x where
     toModeller :: x -> w s
     fromModeller :: w s -> x
 
 viaModel'
-    :: (Modeller x w s, Modeller y w t, ViaModel w)
+    :: (IsModeller x w s, IsModeller y w t, ViaModel w)
     => Lens' t s -> x -> y
 viaModel' l = fromModeller . viaModel l . toModeller
 
@@ -114,26 +109,16 @@ class ViaPlan (w :: Type -> Type) where
     viaPlan :: Lens' q p -> w p -> w q
 
 -- | Converts a type to/from a monadic manipulator of plan.
-class Planner x (w :: Type -> Type) p | x -> w p where
+-- FunctionalDependency: @x -> w p, w p -> x@ so that it is injective both directions.
+class IsPlanner x (w :: Type -> Type) p | x -> w p, w p -> x where
     toPlanner :: x -> w p
     fromPlanner :: w p -> x
 
 viaPlan'
-    :: (Planner x w p, Planner y w q, ViaPlan w)
+    :: (IsPlanner x w p, IsPlanner y w q, ViaPlan w)
     => Lens' q p -> x -> y
 viaPlan' l = fromPlanner . viaPlan l . toPlanner
 
-----------------------------------------------------------
--- FIXME: Different package?
-
-class PPointed m t where
-    ppure :: a -> m t a
-
-class PApplicative m t u v | t u -> v where
-    papply :: m t (a -> b) -> m u a -> m v b
-
-class PApplicative m t u v => PMonad m t u v | t u -> v where
-    pbind :: m t a -> (a -> m u b) -> m v b
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:
+                       Control.Parameterized
                        Glazier.React.Actions
                        Glazier.React.Actions.KeyDownKey
                        Glazier.React.Commands

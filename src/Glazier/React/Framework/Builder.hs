@@ -31,7 +31,7 @@ newtype MkModelPlanner m s p = MkModelPlanner { runMkModelPlanner :: MkModel m p
 instance Contravariant (MkModelPlanner m s) where
     contramap f (MkModelPlanner (MkModel mkMdl)) = MkModelPlanner . MkModel $ mkMdl . f
 
-instance F.Planner (MkModel m p s) (MkModelPlanner m s) p where
+instance F.IsPlanner (MkModel m p s) (MkModelPlanner m s) p where
     toPlanner = MkModelPlanner
     fromPlanner = runMkModelPlanner
 
@@ -49,7 +49,7 @@ newtype MkPlanModeller m p s = MkPlanModeller { runMkPlanModeller :: MkPlan m s 
 instance Contravariant (MkPlanModeller m s) where
     contramap f (MkPlanModeller (MkPlan mkPln)) = MkPlanModeller . MkPlan $ mkPln . f
 
-instance F.Modeller (MkPlan m s p) (MkPlanModeller m p) s where
+instance F.IsModeller (MkPlan m s p) (MkPlanModeller m p) s where
     toModeller = MkPlanModeller
     fromModeller = runMkPlanModeller
 
@@ -67,7 +67,7 @@ newtype Builder m p s p' s' =
 
 newtype BuilderPlanner m s p' s' p = BuilderPlanner { runBuilderPlanner :: Builder m p s p' s' }
 
-instance F.Planner (Builder m p s p' s') (BuilderPlanner m s p' s') p where
+instance F.IsPlanner (Builder m p s p' s') (BuilderPlanner m s p' s') p where
     toPlanner = BuilderPlanner
     fromPlanner = runBuilderPlanner
 
@@ -77,7 +77,7 @@ instance R.MonadReactor m => F.ViaPlan (BuilderPlanner m s p' s') where
 
 newtype BuilderModeller m p p' s' s = BuilderModeller { runBuilderModeller :: Builder m p s p' s' }
 
-instance F.Modeller (Builder m p s p' s') (BuilderModeller m p p' s') s where
+instance F.IsModeller (Builder m p s p' s') (BuilderModeller m p p' s') s where
     toModeller = BuilderModeller
     fromModeller = runBuilderModeller
 

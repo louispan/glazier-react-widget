@@ -12,11 +12,12 @@ module Glazier.React.Framework.Executor where
 
 import Data.Diverse
 import qualified Data.DList as DL
--- import Data.Semigroup
-import qualified Glazier.React.Framework.Core as F
+import qualified Control.Parameterized as P
 
 newtype Executor c r = Executor { runExecutor :: DL.DList c -> IO r }
     deriving Functor
+
+newtype ExecutorPNullary c = ExecutorPNullary { runExecutorPNullary :: Executor c () }
 
 instance Applicative (Executor c) where
     pure = Executor . const . pure
@@ -27,8 +28,42 @@ instance Monad (Executor c) where
       where
         k' s a = runExecutor (k a) s
 
-instance F.PPointed Executor (Which '[]) where
-    ppure = pure
+instance P.IsPNullary (Executor c ()) ExecutorPNullary c where
+    toPNullary = ExecutorPNullary
+    fromPNullary = runExecutorPNullary
+
+instance P.PZero ExecutorPNullary (Which '[]) where
+    pempty' = ExecutorPNullary (P.ppure' ())
+
+-- | UndecidableInstance!
+instance ( Reinterpret' b c
+         , Reinterpret' a c
+         , (Complement c b) ~ a
+         , (Complement c a) ~ b
+         , c ~ Append a b
+         ) =>
+         P.PSemigroup ExecutorPNullary (Which a) (Which b) (Which c) where
+    pappend' (ExecutorPNullary (Executor x)) (ExecutorPNullary (Executor y)) =
+        ExecutorPNullary . Executor $ \cs ->
+            let lcs = foldMap lgo cs
+                rcs = foldMap rgo cs
+            in x lcs >> y rcs
+      where
+        lgo c =
+            case reinterpret' c of
+                Nothing -> DL.empty
+                Just c' -> DL.singleton c'
+        rgo c =
+            case reinterpret' c of
+                Nothing -> DL.empty
+                Just c' -> DL.singleton c'
+
+instance P.IsPUnary (Executor c) Executor c where
+    toPUnary = id
+    fromPUnary = id
+
+instance P.PPointed Executor (Which '[]) where
+    ppure' = pure
 
 -- | UndecidableInstanced!
 -- The intention of this combinator is to allow combining executors for different
@@ -44,8 +79,8 @@ instance ( Reinterpret' b c
          , (Complement c a) ~ b
          , c ~ Append a b
          ) =>
-         F.PApplicative Executor (Which a) (Which b) (Which c) where
-    papply (Executor x) (Executor y) =
+         P.PApplicative Executor (Which a) (Which b) (Which c) where
+    papply' (Executor x) (Executor y) =
         Executor $ \cs ->
             let lcs = foldMap lgo cs
                 rcs = foldMap rgo cs
@@ -67,8 +102,8 @@ instance ( Reinterpret' b c
          , b ~ Complement c a
          , c ~ Append a b
          ) =>
-         F.PMonad Executor (Which a) (Which b) (Which c) where
-    pbind (Executor x) k =
+         P.PMonad Executor (Which a) (Which b) (Which c) where
+    pbind' (Executor x) k =
         Executor $ \cs ->
             let lcs = foldMap lgo cs
                 rcs = foldMap rgo cs

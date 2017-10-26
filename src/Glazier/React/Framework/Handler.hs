@@ -38,9 +38,9 @@ newtype Handler (m :: Type -> Type) v s a b = Handler
 nulHandler :: Monad m => Handler m v s (Which '[]) (Which '[])
 nulHandler = Handler (\_ _ _ -> pure DL.empty)
 
--- | Like unix @cat@, forward input to output.
-idHandler :: Monad m => Handler m v s a a
-idHandler = C.id
+-- -- | Like unix @cat@, forward input to output.
+-- idHandler :: Monad m => Handler m v s a a
+-- idHandler = C.id
 
 -- | Ignore certain inputs
 lfilterHandler :: Applicative m => (a' -> Maybe a) -> Handler m v s a b -> Handler m v s a' b
@@ -91,7 +91,7 @@ instance Monad m => ArrowChoice (Handler m v s) where
 
 newtype HandlerModeller m a b v s = HandlerModeller { runHandlerModeller :: Handler m v s a b }
 
-instance F.Modeller (Handler m v s a b) (HandlerModeller m a b v) s where
+instance F.IsModeller (Handler m v s a b) (HandlerModeller m a b v) s where
     toModeller = HandlerModeller
     fromModeller = runHandlerModeller
 

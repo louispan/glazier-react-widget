@@ -84,7 +84,7 @@ instance Monad m => F.ViaModel (Activator m b v) where
     viaModel l (Activator f) = Activator $ \ref (Lens this) exec ->
         f ref (Lens (this.l)) exec
 
-instance F.Modeller (Activator m b v s) (Activator m b v) s where
+instance F.IsModeller (Activator m b v s) (Activator m b v) s where
     toModeller = id
     fromModeller = id
 

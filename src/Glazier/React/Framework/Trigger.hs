@@ -21,29 +21,41 @@ newtype Trigger a =
 trigger1 :: J.JSString -> (J.JSVal -> IO a) -> Trigger a
 trigger1 n f = Trigger (n, fmap DL.singleton <$> f)
 
--- | A list of trigger, and a value so we can have a monad.
+-- | A list of triggers
 newtype Triggers a r = Triggers
-    { runTriggers :: (DL.DList (Trigger a), r)
-    } deriving (Functor, Applicative, Monad)
+    { runTriggers :: (DL.DList (Trigger a))
+    }
 
-instance F.PPointed Triggers (Which '[]) where
-    ppure a = Triggers (mempty, a)
+-- instance F.PPointed Triggers (Which '[]) where
+--     ppure a = Triggers (mempty, a)
 
--- | It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
--- UndecidableInstance!
-instance ( Diversify a c
-         , Diversify b c
-         , c ~ AppendUnique a b
-         ) =>
-         F.PApplicative Triggers (Which a) (Which b) (Which c) where
-    papply (Triggers (x, f)) (Triggers (y, a)) =
-        Triggers
-            ((fmap diversify <$> x) `DL.append` (fmap diversify <$> y), f a)
+-- -- | UndecidableInstance!
+-- -- It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
+-- instance ( Diversify a c
+--          , Diversify b c
+--          , c ~ AppendUnique a b
+--          ) =>
+--          F.PApplicative Triggers (Which a) (Which b) (Which c) where
+--     papply (Triggers (x, f)) (Triggers (y, a)) =
+--         Triggers
+--             ((fmap diversify <$> x) `DL.append` (fmap diversify <$> y), f a)
 
--- | UndecidableInstance!
-instance (Diversify a c, Diversify b c, c ~ AppendUnique a b) =>
-         F.PMonad Triggers (Which a) (Which b) (Which c) where
-    pbind (Triggers (x, a)) k =
-        let Triggers (y, b) = k a
-        in Triggers
-               ((fmap diversify <$> x) `DL.append` (fmap diversify <$> y), b)
+-- -- | UndecidableInstance!
+-- instance (Diversify a c, Diversify b c, c ~ AppendUnique a b) =>
+--          F.PMonad Triggers (Which a) (Which b) (Which c) where
+--     pbind (Triggers (x, a)) k =
+--         let Triggers (y, b) = k a
+--         in Triggers
+--                ((fmap diversify <$> x) `DL.append` (fmap diversify <$> y), b)
+
+-- instance F.PZero Triggers (Which '[])
+
+-- -- | UndecidableInstance!
+-- instance ( Diversify a c
+--          , Diversify b c
+--          , c ~ AppendUnique a b
+--          ) =>
+--          F.PAppend Triggers (Which a) (Which b) (Which c) where
+--     pappend (Triggers (x, _)) (Triggers (y, _)) =
+--         Triggers
+--             ((fmap diversify <$> x) `DL.append` (fmap diversify <$> y), ())

@@ -63,16 +63,6 @@ instance Monad m => ArrowChoice (Handler m v s) where
     left = left'
     right = right'
 
-newtype HandlerModeller m a b v s = HandlerModeller { runHandlerModeller :: Handler m v s a b }
-
-instance F.IsModeller (Handler m v s a b) (HandlerModeller m a b v) s where
-    toModeller = HandlerModeller
-    fromModeller = runHandlerModeller
-
-instance Monad m => F.ViaModel (HandlerModeller m a b v) where
-    viaModel l (HandlerModeller (Handler hdl)) =
-        HandlerModeller . Handler $ \ref (Lens this) a -> hdl ref (Lens (this.l)) a
-
 instance R.MonadReactor m => F.IORefModel (Handler m s s a b) (Handler m v (IORef s) a b) where
     ioRefModel (Handler hdl) = Handler $ \ref (Lens this) a -> do
         obj <- R.doReadIORef ref
@@ -91,6 +81,18 @@ filterHandler f (Handler hdl) = Handler $ \ref this a -> foldMap go <$> hdl ref 
     go b = case f b of
         Nothing -> DL.empty
         Just b' -> DL.singleton b'
+
+-----------------------------------------------
+
+newtype HandlerModeller m a b v s = HandlerModeller { runHandlerModeller :: Handler m v s a b }
+
+instance F.IsModeller (Handler m v s a b) (HandlerModeller m a b v) s where
+    toModeller = HandlerModeller
+    fromModeller = runHandlerModeller
+
+instance Monad m => F.ViaModel (HandlerModeller m a b v) where
+    viaModel l (HandlerModeller (Handler hdl)) =
+        HandlerModeller . Handler $ \ref (Lens this) a -> hdl ref (Lens (this.l)) a
 
 -------------------------------------
 

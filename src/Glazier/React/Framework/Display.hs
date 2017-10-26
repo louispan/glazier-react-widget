@@ -4,7 +4,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module Glazier.React.Framework.Display where
 
@@ -28,6 +27,18 @@ instance Monad m => Monad (Display m s) where
       where
         k' s = (`runDisplay` s) . k
 
+instance (Semigroup r, Monad m) => Semigroup (Display m s r) where
+    Display a <> Display b = Display $ \s -> a s <> b s
+
+instance (Monoid r, Monad m) => Monoid (Display m s r) where
+    mempty =  Display . const $ pure mempty
+    Display a `mappend` Display b = Display $ \s -> a s `mappend` b s
+
+instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r) where
+    ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
+
+-----------------------------------------
+
 newtype DisplayModeller m r s = DisplayModeller { runDisplayModeller :: Display m s r }
 
 instance F.IsModeller (Display m s r) (DisplayModeller m r) s where
@@ -36,16 +47,6 @@ instance F.IsModeller (Display m s r) (DisplayModeller m r) s where
 
 instance R.MonadReactor m => F.ViaModel (DisplayModeller m r) where
     viaModel l (DisplayModeller (Display f)) = DisplayModeller $ Display $ f . view l
-
-instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r) where
-    ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
-
-instance (Semigroup r, Monad m) => Semigroup (Display m s r) where
-    Display a <> Display b = Display $ \s -> a s <> b s
-
-instance (Monoid r, Monad m) => Monoid (Display m s r) where
-    mempty =  Display . const $ pure mempty
-    Display a `mappend` Display b = Display $ \s -> a s `mappend` b s
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

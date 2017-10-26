@@ -18,7 +18,6 @@ import Data.Biapplicative
 import Data.Diverse.Lens
 import Data.IORef
 import Data.Proxy
--- import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 
@@ -125,7 +124,6 @@ instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
             Builder
                 ( MkPlan $ \s -> (/./) <$> mkPln s <*> mkPln' s
                 , MkModel $ \p -> (/./) <$> mkMdl p <*> mkMdl' p)
-
 
 ------------------------------------------------
 

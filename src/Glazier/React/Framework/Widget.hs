@@ -23,12 +23,12 @@ import qualified Glazier.React.Framework.Handler as F
 
 newtype Widget m p s v a b r =
     Widget ( F.Builder m p s p s
-              , F.Handler m v s a b
-              -- activator contains other prerequisites
-              -- of executor, and actions that need to be handled
-              , F.Activator m b v s
-              , F.Display m s r
-              ) deriving Functor
+           , F.Handler m v s a b
+           -- activator contains other prerequisites
+           -- of executor, and actions that need to be handled
+           , F.Activator m b v s
+           , F.Display m s r
+           ) deriving Functor
 
 -- instance Monad m => Applicative (Widget m p s v a b)
 --     pure a = Widget (F.Bu

@@ -3,19 +3,21 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Activator
     ( Activator(..)
-    , nulActivator
-    , andActivator
     , triggersActivator
     , displayActivator
     , addHandler
+    , ActivatorModeller(..)
     ) where
 
 import Control.DeepSeq
 import Control.Lens
 import Control.Monad
+import qualified Control.Parameterized as P
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
@@ -28,45 +30,54 @@ import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Trigger as F
 
-newtype Activator m b v s = Activator
+newtype Activator m v s a = Activator
     { runActivator :: IORef v -- IORef that contains the parent state
                    -> ReifiedLens' v s -- how to get to the child state
-                   -> F.Executor b () -- effectful interpreters
+                   -> F.Executor a () -- effectful interpreters
                    -- return the monadic action to commit the activation
                    -> m ()
     }
 
-instance Monad m => Semigroup (Activator m b v s) where
+instance Monad m => Semigroup (Activator m v s a) where
     (Activator f) <> (Activator g) = Activator $ \ref this exec ->
         f ref this exec >>
         g ref this exec
 
-instance Monad m => Monoid (Activator m b v s) where
+instance Monad m => Monoid (Activator m v s a) where
     mempty = Activator $ \_ _ _ -> pure ()
     mappend = (<>)
 
--- | 'nulActivator' is also identity for 'andActivator'
-nulActivator :: Monad m => Activator m (Which '[]) v s
-nulActivator = Activator $ \_ _ _ -> pure ()
+instance R.MonadReactor m => F.IORefModel (Activator m s s a) (Activator m v (IORef s) a) where
+    ioRefModel (Activator g) = Activator $ \ref (Lens this) exec -> do
+        obj <- R.doReadIORef ref
+        let ref' = obj ^. this
+        g ref' (Lens id) exec
 
--- | combines Activator of two different types.
-andActivator
-    :: ( Monad m
-       , Reinterpret' (AppendUnique b c) b
-       , Reinterpret' (AppendUnique b c) c
-       )
-    => Activator m (Which b) v s
-    -> Activator m (Which c) v s
-    -> Activator m (Which (AppendUnique b c)) v s
-andActivator (Activator f) (Activator g) = Activator $ \ref this exec ->
-    f ref this (F.suppressExecutor reinterpret' exec) >>
-    g ref this (F.suppressExecutor reinterpret' exec)
+------------------------------------------
+
+instance P.IsPNullary (Activator m v s a) (Activator m v s) a where
+    toPNullary = id
+    fromPNullary = id
+
+instance Applicative m => P.PEmpty (Activator m v s) (Which '[]) where
+    pempty' = Activator $ \_ _ _ -> pure ()
+
+instance ( Monad m
+         , Reinterpret' c a
+         , Reinterpret' c b
+         , c ~ AppendUnique a b
+         ) => P.PSemigroup (Activator m v s) (Which a) (Which b) (Which c) where
+    (Activator f) `pappend'` (Activator g) = Activator $ \ref this exec ->
+        f ref this (F.suppressExecutor reinterpret' exec) >>
+        g ref this (F.suppressExecutor reinterpret' exec)
+
+------------------------------------------
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 triggersActivator
-    :: (R.MonadReactor m, NFData b, UniqueMember (DL.DList R.Listener) s)
-    => [F.Trigger b]
-    -> Activator m b v (Many s)
+    :: (R.MonadReactor m, NFData a, UniqueMember (DL.DList R.Listener) s)
+    => [F.Trigger a]
+    -> Activator m v (Many s) a
 triggersActivator triggers = Activator $ \ref (Lens this) (F.Executor exec) -> do
     cbs <- traverse (traverse (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
     R.doModifyIORef' ref ((this.item) %~ (`DL.append` DL.fromList cbs))
@@ -75,24 +86,10 @@ triggersActivator triggers = Activator $ \ref (Lens this) (F.Executor exec) -> d
 displayActivator
     :: (R.MonadReactor m, UniqueMember R.Renderer s)
     => F.Display m (IORef v) ()
-    -> Activator m (Which '[]) v (Many s)
+    -> Activator m v (Many s) (Which '[])
 displayActivator (F.Display disp) = Activator $ \ref (Lens this) _ -> do
     rnd <- R.mkRenderer (disp ref)
     R.doModifyIORef' ref ((this.item) .~ rnd)
-
-instance Monad m => F.ViaModel (Activator m b v) where
-    viaModel l (Activator f) = Activator $ \ref (Lens this) exec ->
-        f ref (Lens (this.l)) exec
-
-instance F.IsModeller (Activator m b v s) (Activator m b v) s where
-    toModeller = id
-    fromModeller = id
-
-instance R.MonadReactor m => F.IORefModel (Activator m b s s) (Activator m b v (IORef s)) where
-    ioRefModel (Activator g) = Activator $ \ref (Lens this) exec -> do
-        obj <- R.doReadIORef ref
-        let ref' = obj ^. this
-        g ref' (Lens id) exec
 
 -- | Internal function: Converts a handler to a form that can be chained inside an Activator
 mkIOHandler
@@ -106,7 +103,19 @@ mkIOHandler (F.Handler hdl) ref this = R.mkIO go
     go cs = fold <$> traverse (hdl ref this) (DL.toList cs)
 
 -- | Add a handler so that it is piped before the input 'Executor' in an 'Activator'
-addHandler :: R.MonadReactor m => F.Handler m v s a b -> Activator m a v s -> Activator m b v s
+addHandler :: R.MonadReactor m => F.Handler m v s a b -> Activator m v s a -> Activator m v s b
 addHandler f (Activator g) = Activator $ \ref this (F.Executor exec) -> do
     f' <- mkIOHandler f ref this
     g ref this (F.Executor $ f' >=> exec)
+
+------------------------------------------
+
+newtype ActivatorModeller m v a s = ActivatorModeller { runActivatorModeller :: Activator m v s a }
+
+instance F.IsModeller (Activator m v s a) (ActivatorModeller m v a) s where
+    toModeller = ActivatorModeller
+    fromModeller = runActivatorModeller
+
+instance Monad m => F.ViaModel (ActivatorModeller m v a) where
+    viaModel l (ActivatorModeller (Activator f)) = ActivatorModeller . Activator $ \ref (Lens this) exec ->
+        f ref (Lens (this.l)) exec

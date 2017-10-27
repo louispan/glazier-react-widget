@@ -17,7 +17,6 @@ module Glazier.React.Framework.Activator
 import Control.DeepSeq
 import Control.Lens
 import Control.Monad
-import qualified Control.Parameterized as P
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
@@ -29,6 +28,7 @@ import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Trigger as F
+import qualified Parameterized.Data.Monoid as P
 
 newtype Activator m v s a = Activator
     { runActivator :: IORef v -- IORef that contains the parent state
@@ -55,19 +55,21 @@ instance R.MonadReactor m => F.IORefModel (Activator m s s a) (Activator m v (IO
 
 ------------------------------------------
 
+type instance P.PId (Activator m v s) = Which '[]
+
 instance P.IsPNullary (Activator m v s a) (Activator m v s) a where
     toPNullary = id
     fromPNullary = id
 
-instance Applicative m => P.PEmpty (Activator m v s) (Which '[]) where
-    pempty' = Activator $ \_ _ _ -> pure ()
+instance Applicative m => P.PMempty (Activator m v s) where
+    pmempty' = Activator $ \_ _ _ -> pure ()
 
 instance ( Monad m
          , Reinterpret' c a
          , Reinterpret' c b
          , c ~ AppendUnique a b
          ) => P.PSemigroup (Activator m v s) (Which a) (Which b) (Which c) where
-    (Activator f) `pappend'` (Activator g) = Activator $ \ref this exec ->
+    (Activator f) `pmappend'` (Activator g) = Activator $ \ref this exec ->
         f ref this (F.suppressExecutor reinterpret' exec) >>
         g ref this (F.suppressExecutor reinterpret' exec)
 

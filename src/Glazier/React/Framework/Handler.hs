@@ -15,7 +15,6 @@ module Glazier.React.Framework.Handler where
 import Control.Arrow
 import qualified Control.Category as C
 import Control.Lens
-import Control.Parameterized as P
 import Data.Diverse.Profunctor
 import qualified Data.DList as DL
 import Data.Foldable
@@ -24,6 +23,7 @@ import Data.Kind
 import Data.Profunctor
 import qualified Glazier.React as R
 import Glazier.React.Framework.Core as F
+import Parameterized.Data.Monoid as P
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
 newtype Handler (m :: Type -> Type) v s a b = Handler
@@ -96,17 +96,19 @@ instance Monad m => F.ViaModel (HandlerModeller m a b v) where
 
 -------------------------------------
 
+type instance P.PId HandlerPNullary = (Which '[], Which '[])
+
 newtype HandlerPNullary m v s ab = HandlerPNullary
-    { runHandlerPNullary :: Handler m v s (P.Fst ab) (P.Snd ab)
+    { runHandlerPNullary :: Handler m v s (P.At0 ab) (P.At1 ab)
     }
 
-instance IsPNullary (Handler m v s a b) (HandlerPNullary m v s) '(a, b) where
+instance IsPNullary (Handler m v s a b) (HandlerPNullary m v s) (a, b) where
     toPNullary = HandlerPNullary
     fromPNullary = runHandlerPNullary
 
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
-instance Applicative m => P.PEmpty (HandlerPNullary m v s) '(Which '[], Which '[]) where
-    pempty' = HandlerPNullary . Handler $ \_ _ _ -> pure DL.empty
+instance Applicative m => P.PMempty (HandlerPNullary m v s) where
+    pmempty' = HandlerPNullary . Handler $ \_ _ _ -> pure DL.empty
 
 -- | Undecidableinstances!
 instance ( Monad m
@@ -117,8 +119,8 @@ instance ( Monad m
          , Diversify b1 b3
          , Diversify b2 b3
          ) =>
-         P.PSemigroup (HandlerPNullary m v s) '(Which a1, Which b1) '(Which a2, Which b2) '(Which a3, Which b3) where
-    (HandlerPNullary x) `pappend'` (HandlerPNullary y) = HandlerPNullary (x +||+ y)
+         P.PSemigroup (HandlerPNullary m v s) (Which a1, Which b1) (Which a2, Which b2) (Which a3, Which b3) where
+    (HandlerPNullary x) `pmappend'` (HandlerPNullary y) = HandlerPNullary (x +||+ y)
 
 -- -- | Like unix @cat@, forward input to output.
 -- idHandler :: Monad m => Handler m v s a a

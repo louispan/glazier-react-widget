@@ -13,13 +13,13 @@ module Glazier.React.Framework.Builder where
 
 import Control.Lens
 import Control.Monad
-import Control.Parameterized as P
 import Data.Biapplicative
 import Data.Diverse.Lens
 import Data.IORef
 import Data.Proxy
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
+import qualified Parameterized.Data.Monoid as P
 
 ------------------------------------------------
 
@@ -104,21 +104,23 @@ instance R.MonadReactor m => F.IORefModel (Builder m p s p' s') (Builder m p s p
 ------------------------------------------------
 
 newtype BuilderPNullary m p s ps' = BuilderPNullary
-    { runBuilderPNullary :: Builder m p s (P.Fst ps') (P.Snd ps')
+    { runBuilderPNullary :: Builder m p s (P.At0 ps') (P.At1 ps')
     }
 
-instance IsPNullary (Builder m p s p' s') (BuilderPNullary m p s) '(p', s') where
+instance P.IsPNullary (Builder m p s p' s') (BuilderPNullary m p s) (p', s') where
     toPNullary = BuilderPNullary
     fromPNullary = runBuilderPNullary
 
+type instance P.PId (BuilderPNullary m p s) = (Many '[], Many '[])
+
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
-instance Applicative m => P.PEmpty (BuilderPNullary m p s) '(Many '[], Many '[]) where
-    pempty' = BuilderPNullary $ bipure nil nil
+instance Applicative m => P.PMempty (BuilderPNullary m p s) where
+    pmempty' = BuilderPNullary $ bipure nil nil
 
 -- | UndecidableInstances!
 instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
-         P.PSemigroup (BuilderPNullary m p s) '(Many p1, Many s1) '(Many p2, Many s2) '(Many p3, Many s3) where
-    (BuilderPNullary (Builder (MkPlan mkPln, MkModel mkMdl))) `pappend'`
+         P.PSemigroup (BuilderPNullary m p s) (Many p1, Many s1) (Many p2, Many s2) (Many p3, Many s3) where
+    (BuilderPNullary (Builder (MkPlan mkPln, MkModel mkMdl))) `pmappend'`
         (BuilderPNullary (Builder (MkPlan mkPln', MkModel mkMdl'))) =
             BuilderPNullary $
             Builder

@@ -21,14 +21,14 @@ import qualified Glazier.React.Framework.Handler as F
 -- The external event interface of Prototype is that it exposes a Handler for p
 -- p must contain only things inside h. It cannot contain things that are handled by external handlers.
 
-newtype Widget m p s v a b r =
-    Widget ( F.Builder m p s p s
+newtype Widget m p s p' s' v a b =
+    Widget ( F.Builder m p s p' s'
            , F.Handler m v s a b
            -- activator contains other prerequisites
            -- of executor, and actions that need to be handled
            , F.Activator m b v s
-           , F.Display m s r
-           ) deriving Functor
+           , F.Display m s ()
+           )
 
 -- instance Monad m => Applicative (Widget m p s v a b)
 --     pure a = Widget (F.Bu

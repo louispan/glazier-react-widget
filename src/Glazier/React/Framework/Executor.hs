@@ -10,9 +10,10 @@
 
 module Glazier.React.Framework.Executor where
 
-import qualified Control.Parameterized as P
 import Data.Diverse
 import qualified Data.DList as DL
+import qualified Parameterized.Data.Monoid as P
+import qualified Parameterized.Control.Monad as P
 
 newtype Executor c r = Executor { runExecutor :: DL.DList c -> IO r }
     deriving Functor
@@ -27,12 +28,14 @@ instance Monad (Executor c) where
         k' s a = runExecutor (k a) s
 
 -----------------------------------
+type instance P.PId ExecutorPNullary = Which '[]
+type instance P.PId Executor = Which '[]
 
 instance P.IsPUnary (Executor c) Executor c where
     toPUnary = id
     fromPUnary = id
 
-instance P.PPointed Executor (Which '[]) where
+instance P.PPointed Executor where
     ppure' = pure
 
 -- | UndecidableInstanced!
@@ -105,8 +108,8 @@ instance P.IsPNullary (Executor c ()) ExecutorPNullary c where
     toPNullary = ExecutorPNullary
     fromPNullary = runExecutorPNullary
 
-instance P.PEmpty ExecutorPNullary (Which '[]) where
-    pempty' = ExecutorPNullary (P.ppure' ())
+instance P.PMempty ExecutorPNullary where
+    pmempty' = ExecutorPNullary (P.ppure' ())
 
 -- | UndecidableInstance!
 instance ( Reinterpret' b c
@@ -116,7 +119,7 @@ instance ( Reinterpret' b c
          , c ~ Append a b
          ) =>
          P.PSemigroup ExecutorPNullary (Which a) (Which b) (Which c) where
-    pappend' (ExecutorPNullary (Executor x)) (ExecutorPNullary (Executor y)) =
+    pmappend' (ExecutorPNullary (Executor x)) (ExecutorPNullary (Executor y)) =
         ExecutorPNullary . Executor $ \cs ->
             let lcs = foldMap lgo cs
                 rcs = foldMap rgo cs

@@ -61,6 +61,8 @@ extra-deps:
 - data-diverse-lens-0.5.0.0
 - javascript-extras-0.3.2.0
 - ghcjs-base-stub-0.1.0.4
+# - newtype-generics-0.5.1
+- parameterized-0.3.0.0
 # - stm-extras-0.1.0.3
 
 # Override default flag values for local packages and extra-deps

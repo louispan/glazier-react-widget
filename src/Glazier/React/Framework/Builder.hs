@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Glazier.React.Framework.Builder where
 
@@ -19,7 +20,9 @@ import Data.IORef
 import Data.Proxy
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
+-- import qualified Glazier.React.Framework.Parameterized as F
 import qualified Parameterized.Data.Monoid as P
+import qualified Parameterized.TypeLevel as P
 
 ------------------------------------------------
 
@@ -98,37 +101,44 @@ instance Applicative m => Biapplicative (Builder m p s) where
                 , MkModel $ \s -> fMkMdl s <*> mkMdl s
                 )
 
-instance R.MonadReactor m => F.IORefModel (Builder m p s p' s') (Builder m p s p' (IORef s')) where
-    ioRefModel (Builder (mkPlan, MkModel mkModel)) = Builder (mkPlan, MkModel (mkModel >=> R.doNewIORef))
+instance R.MonadReactor m => F.IORefModel (Builder m p s p' s') (Builder m p (IORef s) p' (IORef s')) where
+    ioRefModel (Builder (MkPlan mkPlan, MkModel mkModel)) = Builder
+        ( MkPlan (R.doReadIORef >=> mkPlan)
+        , MkModel (mkModel >=> R.doNewIORef)
+        )
 
 ------------------------------------------------
 
-newtype BuilderPNullary m p s ps' = BuilderPNullary
-    { runBuilderPNullary :: Builder m p s (P.At0 ps') (P.At1 ps')
+newtype PBuilder m p s ps' = PBuilder
+    { runPBuilder :: Builder m p s (P.At0 ps') (P.At1 ps')
     }
 
-instance P.IsPNullary (Builder m p s p' s') (BuilderPNullary m p s) (p', s') where
-    toPNullary = BuilderPNullary
-    fromPNullary = runBuilderPNullary
+-- | Prefer this to PBuilder for construction as it helps type inferencing
+-- as it avoids ambiguous type variable @ps'@
+pBuilder :: Builder m p s p' s' -> PBuilder m p s (p', s')
+pBuilder = PBuilder
 
-type instance P.PId (BuilderPNullary m p s) = (Many '[], Many '[])
+-- instance F.IsPNullary (Builder m p s p' s') (PBuilder m p s) (p', s') where
+--     toPNullary = PBuilder
+--     fromPNullary = runPBuilder
 
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
-instance Applicative m => P.PMempty (BuilderPNullary m p s) where
-    pmempty' = BuilderPNullary $ bipure nil nil
+instance Applicative m => P.PMEmpty (PBuilder m p s) (Many '[], Many '[]) where
+    pmempty = PBuilder $ bipure nil nil
 
 -- | UndecidableInstances!
 instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
-         P.PSemigroup (BuilderPNullary m p s) (Many p1, Many s1) (Many p2, Many s2) (Many p3, Many s3) where
-    (BuilderPNullary (Builder (MkPlan mkPln, MkModel mkMdl))) `pmappend'`
-        (BuilderPNullary (Builder (MkPlan mkPln', MkModel mkMdl'))) =
-            BuilderPNullary $
+         P.PSemigroup (PBuilder m p s) (Many p1, Many s1) (Many p2, Many s2) (Many p3, Many s3) where
+    (PBuilder (Builder (MkPlan mkPln, MkModel mkMdl))) `pmappend`
+        (PBuilder (Builder (MkPlan mkPln', MkModel mkMdl'))) =
+            PBuilder $
             Builder
                 ( MkPlan $ \s -> (/./) <$> mkPln s <*> mkPln' s
                 , MkModel $ \p -> (/./) <$> mkMdl p <*> mkMdl' p)
 
 ------------------------------------------------
 
+-- FIXME: Only allow certain things for react components vs prototypes
 -- | Add a type @x@ into the factory
 build
     :: (Applicative m, UniqueMember x p, UniqueMember x s)

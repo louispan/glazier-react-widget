@@ -12,6 +12,7 @@ module Glazier.React.Framework.Trigger where
 import Data.Diverse
 import qualified Data.DList as DL
 import qualified GHCJS.Types as J
+-- import qualified Glazier.React.Framework.Parameterized as F
 import qualified Parameterized.Data.Monoid as P
 
 newtype Trigger a =
@@ -26,14 +27,16 @@ newtype Triggers a = Triggers
     { runTriggers :: DL.DList (Trigger a)
     }
 
-type instance P.PId Triggers = Which '[]
+instance P.PMEmpty Triggers (Which '[])  where
+    pmempty = Triggers mempty
 
-instance P.PMempty Triggers where
-    pmempty' = Triggers mempty
+-- instance F.IsPNullary (Trigger a) Trigger a where
+--     toPNullary = id
+--     fromPNullary = id
 
 -- | UndecidableInstance!
 -- It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@
 instance (Diversify a c, Diversify b c, c ~ AppendUnique a b) =>
          P.PSemigroup Triggers (Which a) (Which b) (Which c) where
-    pmappend' (Triggers x) (Triggers y) =
+    pmappend (Triggers x) (Triggers y) =
         Triggers $ (fmap diversify <$> x) `DL.append` (fmap diversify <$> y)

@@ -4,6 +4,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -118,7 +119,6 @@ viaPlan'
     :: (IsPlanner x w p, IsPlanner y w q, ViaPlan w)
     => Lens' q p -> x -> y
 viaPlan' l = fromPlanner . viaPlan l . toPlanner
-
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

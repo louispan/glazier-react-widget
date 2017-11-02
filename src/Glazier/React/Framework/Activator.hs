@@ -27,6 +27,7 @@ import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
+-- import qualified Glazier.React.Framework.Parameterized as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 
@@ -55,21 +56,19 @@ instance R.MonadReactor m => F.IORefModel (Activator m s s a) (Activator m v (IO
 
 ------------------------------------------
 
-type instance P.PId (Activator m v s) = Which '[]
+-- instance F.IsPNullary (Activator m v s a) (Activator m v s) a where
+--     toPNullary = id
+--     fromPNullary = id
 
-instance P.IsPNullary (Activator m v s a) (Activator m v s) a where
-    toPNullary = id
-    fromPNullary = id
-
-instance Applicative m => P.PMempty (Activator m v s) where
-    pmempty' = Activator $ \_ _ _ -> pure ()
+instance Applicative m => P.PMEmpty (Activator m v s) (Which '[]) where
+    pmempty = Activator $ \_ _ _ -> pure ()
 
 instance ( Monad m
-         , Reinterpret' c a
-         , Reinterpret' c b
-         , c ~ AppendUnique a b
-         ) => P.PSemigroup (Activator m v s) (Which a) (Which b) (Which c) where
-    (Activator f) `pmappend'` (Activator g) = Activator $ \ref this exec ->
+         , Reinterpret' c3 c1
+         , Reinterpret' c3 c2
+         , c3 ~ AppendUnique c1 c2
+         ) => P.PSemigroup (Activator m v s) (Which c1) (Which c2) (Which c3) where
+    (Activator f) `pmappend` (Activator g) = Activator $ \ref this exec ->
         f ref this (F.suppressExecutor reinterpret' exec) >>
         g ref this (F.suppressExecutor reinterpret' exec)
 

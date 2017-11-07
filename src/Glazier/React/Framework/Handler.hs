@@ -23,7 +23,6 @@ import Data.Kind
 import Data.Profunctor
 import qualified Glazier.React as R
 import Glazier.React.Framework.Core as F
--- import qualified Glazier.React.Framework.Parameterized as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -88,13 +87,11 @@ filterHandler f (Handler hdl) = Handler $ \ref this a -> foldMap go <$> hdl ref 
 
 newtype HandlerModeller m a b v s = HandlerModeller { runHandlerModeller :: Handler m v s a b }
 
-instance F.IsModeller (Handler m v s a b) (HandlerModeller m a b v) s where
-    toModeller = HandlerModeller
-    fromModeller = runHandlerModeller
+type instance F.Modeller (HandlerModeller m a b v) s = Handler m v s a b
 
-instance Monad m => F.ViaModel (HandlerModeller m a b v) where
-    viaModel l (HandlerModeller (Handler hdl)) =
-        HandlerModeller . Handler $ \ref (Lens this) a -> hdl ref (Lens (this.l)) a
+instance F.ViaModel (HandlerModeller m a b v) where
+    viaModel l (Handler hdl) =
+        Handler $ \ref (Lens this) a -> hdl ref (Lens (this.l)) a
 
 -------------------------------------
 
@@ -102,18 +99,11 @@ newtype PHandler m v s ab = PHandler
     { runPHandler :: Handler m v s (P.At0 ab) (P.At1 ab)
     }
 
--- | Prefer this to PHandler for construction as it helps type inferencing
--- as it avoids ambiguous type variable @ab@
-pHandler :: Handler m v s a b -> PHandler m v s (a, b)
-pHandler = PHandler
-
--- instance F.IsPNullary (Handler m v s a b) (PHandler m v s) (a, b) where
---     toPNullary = PHandler
---     fromPNullary = runPHandler
+type instance P.PNullary (PHandler m v s) (a, b) = Handler m v s a b
 
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
 instance Applicative m => P.PMEmpty (PHandler m v s) (Which '[], Which '[]) where
-    pmempty = PHandler . Handler $ \_ _ _ -> pure DL.empty
+    pmempty = Handler $ \_ _ _ -> pure DL.empty
 
 -- | Undecidableinstances!
 instance ( Monad m
@@ -125,7 +115,7 @@ instance ( Monad m
          , Diversify b2 b3
          ) =>
          P.PSemigroup (PHandler m v s) (Which a1, Which b1) (Which a2, Which b2) (Which a3, Which b3) where
-    (PHandler x) `pmappend` (PHandler y) = PHandler (x +||+ y)
+    x `pmappend` y = x +||+ y
 
 -- -- | Like unix @cat@, forward input to output.
 -- idHandler :: Monad m => Handler m v s a a

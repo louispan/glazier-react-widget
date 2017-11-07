@@ -42,7 +42,7 @@ library
                        -- Glazier.React.Widgets.List
                        -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5
-                     , bifunctors >= 5.4.2
+                     , bifunctors >= 5.4.1
                      , containers >= 0.5
                      , contravariant >= 1.4
                      , monadplus >= 1.4
@@ -56,7 +56,7 @@ library
                      , mmorph >= 1
                      , mtl >= 2
                      -- , newtype-generics >= 0.5.1
-                     , parameterized >= 0.2.0.0
+                     , parameterized >= 0.4.0.0
                      , profunctors >= 5.2
                      , tagged >= 0.8.5
                      , transformers >= 0.4

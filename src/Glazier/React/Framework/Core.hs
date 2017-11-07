@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 
 module Glazier.React.Framework.Core where
 --   ( WidgetCommand(..)
@@ -79,46 +79,50 @@ import qualified Glazier.React as R
 
 newtype FrameNum = FrameNum { runFrameNum :: Int } deriving R.Dispose
 
+type family Modeller (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
+
 -- | Something that knows how to get and set (but not make) a model
 class ViaModel (w :: Type -> Type) where
     -- | given a lens from @t@ to @s@,
     -- change something that knows how to manipulate an @s@
     -- to something that knows how to manipulate a @t@.
-    viaModel :: Lens' t s -> w s -> w t
+    viaModel :: Lens' t s -> Modeller w s -> Modeller w t
 
 class IORefModel x y where
     -- | Given something that knows how to manipulate or make an @s@
     -- change it to something that can manipulate or make an @IORef s@
     ioRefModel :: x -> y
 
--- | Converts a type to/from a monadic manipulator of model.
--- FunctionalDependency: @x -> w s, w s -> x@ so that it is injective both directions.
-class IsModeller x (w :: Type -> Type) s | x -> w s, w s -> x where
-    toModeller :: x -> w s
-    fromModeller :: w s -> x
+-- -- | Converts a type to/from a monadic manipulator of model.
+-- -- FunctionalDependency: @x -> w s, w s -> x@ so that it is injective both directions.
+-- class IsModeller x (w :: Type -> Type) s | x -> w s, w s -> x where
+--     toModeller :: x -> w s
+--     fromModeller :: w s -> x
 
-viaModel'
-    :: (IsModeller x w s, IsModeller y w t, ViaModel w)
-    => Lens' t s -> x -> y
-viaModel' l = fromModeller . viaModel l . toModeller
+-- viaModel'
+--     :: (IsModeller x w s, IsModeller y w t, ViaModel w)
+--     => Lens' t s -> x -> y
+-- viaModel' l = fromModeller . viaModel l . toModeller
+
+type family Planner (w :: Type -> Type) (p :: Type) = (r :: Type) | r -> w p
 
 -- | Something that knows how to get and set (but not make) a plan
 class ViaPlan (w :: Type -> Type) where
     -- | given lens from @q@ to @p@,
     -- change something that knows how to manipulate an @p@
     -- to something that knows how to manipulate a @q@.
-    viaPlan :: Lens' q p -> w p -> w q
+    viaPlan :: Lens' q p -> Planner w p -> Planner w q
 
--- | Converts a type to/from a monadic manipulator of plan.
--- FunctionalDependency: @x -> w p, w p -> x@ so that it is injective both directions.
-class IsPlanner x (w :: Type -> Type) p | x -> w p, w p -> x where
-    toPlanner :: x -> w p
-    fromPlanner :: w p -> x
+-- -- | Converts a type to/from a monadic manipulator of plan.
+-- -- FunctionalDependency: @x -> w p, w p -> x@ so that it is injective both directions.
+-- class IsPlanner x (w :: Type -> Type) p | x -> w p, w p -> x where
+--     toPlanner :: x -> w p
+--     fromPlanner :: w p -> x
 
-viaPlan'
-    :: (IsPlanner x w p, IsPlanner y w q, ViaPlan w)
-    => Lens' q p -> x -> y
-viaPlan' l = fromPlanner . viaPlan l . toPlanner
+-- viaPlan'
+--     :: (IsPlanner x w p, IsPlanner y w q, ViaPlan w)
+--     => Lens' q p -> x -> y
+-- viaPlan' l = fromPlanner . viaPlan l . toPlanner
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

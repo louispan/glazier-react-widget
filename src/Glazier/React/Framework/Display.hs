@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Framework.Display where
 
@@ -41,12 +42,10 @@ instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r
 
 newtype DisplayModeller m r s = DisplayModeller { runDisplayModeller :: Display m s r }
 
-instance F.IsModeller (Display m s r) (DisplayModeller m r) s where
-    toModeller = DisplayModeller
-    fromModeller = runDisplayModeller
+type instance F.Modeller (DisplayModeller m r) s = Display m s r
 
-instance R.MonadReactor m => F.ViaModel (DisplayModeller m r) where
-    viaModel l (DisplayModeller (Display f)) = DisplayModeller $ Display $ f . view l
+instance F.ViaModel (DisplayModeller m r) where
+    viaModel l (Display f) = Display $ f . view l
 
 -- -- | Add a list of static properties to the rendered element.
 -- decorate :: [JE.Property] -> Display m specs

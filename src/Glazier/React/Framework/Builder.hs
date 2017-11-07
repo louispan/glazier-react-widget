@@ -4,7 +4,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -20,7 +19,6 @@ import Data.IORef
 import Data.Proxy
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
--- import qualified Glazier.React.Framework.Parameterized as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -30,17 +28,14 @@ newtype MkModel m p s = MkModel {
             runMkModel :: p -> m s -- make inactive model
             } deriving Functor
 
+------------------------------------------------
+
 newtype MkModelPlanner m s p = MkModelPlanner { runMkModelPlanner :: MkModel m p s }
 
-instance Contravariant (MkModelPlanner m s) where
-    contramap f (MkModelPlanner (MkModel mkMdl)) = MkModelPlanner . MkModel $ mkMdl . f
+type instance F.Planner (MkModelPlanner m s) p = MkModel m p s
 
-instance F.IsPlanner (MkModel m p s) (MkModelPlanner m s) p where
-    toPlanner = MkModelPlanner
-    fromPlanner = runMkModelPlanner
-
-instance R.MonadReactor m => F.ViaPlan (MkModelPlanner m s) where
-    viaPlan l = contramap (view l)
+instance F.ViaPlan (MkModelPlanner m s) where
+    viaPlan l (MkModel mkMdl) = MkModel $ mkMdl . view l
 
 ------------------------------------------------
 
@@ -48,17 +43,14 @@ newtype MkPlan m s p = MkPlan {
             runMkPlan :: s -> m p
             } deriving Functor
 
+------------------------------------------------
+
 newtype MkPlanModeller m p s = MkPlanModeller { runMkPlanModeller :: MkPlan m s p }
 
-instance Contravariant (MkPlanModeller m s) where
-    contramap f (MkPlanModeller (MkPlan mkPln)) = MkPlanModeller . MkPlan $ mkPln . f
+type instance F.Modeller (MkPlanModeller m p) s = MkPlan m s p
 
-instance F.IsModeller (MkPlan m s p) (MkPlanModeller m p) s where
-    toModeller = MkPlanModeller
-    fromModeller = runMkPlanModeller
-
-instance R.MonadReactor m => F.ViaModel (MkPlanModeller m p) where
-    viaModel l = contramap (view l)
+instance F.ViaModel (MkPlanModeller m p) where
+    viaModel l (MkPlan mkPln) = MkPlan $ mkPln . view l
 
 ------------------------------------------------
 
@@ -68,28 +60,6 @@ newtype Builder m p s p' s' =
     Builder ( MkPlan m s p' -- from specifications
             , MkModel m p s' -- make inactive specifications
             )
-
-newtype BuilderPlanner m s p' s' p = BuilderPlanner { runBuilderPlanner :: Builder m p s p' s' }
-
-instance F.IsPlanner (Builder m p s p' s') (BuilderPlanner m s p' s') p where
-    toPlanner = BuilderPlanner
-    fromPlanner = runBuilderPlanner
-
-instance R.MonadReactor m => F.ViaPlan (BuilderPlanner m s p' s') where
-    viaPlan l (BuilderPlanner (Builder (mkPln, mkMdl))) =
-        BuilderPlanner $ Builder (mkPln, F.viaPlan' l mkMdl)
-
-newtype BuilderModeller m p p' s' s = BuilderModeller { runBuilderModeller :: Builder m p s p' s' }
-
-instance F.IsModeller (Builder m p s p' s') (BuilderModeller m p p' s') s where
-    toModeller = BuilderModeller
-    fromModeller = runBuilderModeller
-
-instance R.MonadReactor m => F.ViaModel (BuilderModeller m p p' s') where
-    viaModel l (BuilderModeller (Builder (mkPln, mkMdl))) =
-        BuilderModeller $ Builder (F.viaModel' l mkPln, mkMdl)
-
-------------------------------------------------
 
 instance Functor m => Bifunctor (Builder m p s) where
     bimap pq st (Builder (mkPlan, mkMdl)) = Builder (pq <$> mkPlan, st <$> mkMdl)
@@ -109,29 +79,40 @@ instance R.MonadReactor m => F.IORefModel (Builder m p s p' s') (Builder m p (IO
 
 ------------------------------------------------
 
+newtype BuilderPlanner m s p' s' p = BuilderPlanner { runBuilderPlanner :: Builder m p s p' s' }
+
+type instance F.Planner (BuilderPlanner m s p' s') p = Builder m p s p' s'
+
+instance F.ViaPlan (BuilderPlanner m s p' s') where
+    viaPlan l (Builder (mkPln, mkMdl)) =
+        Builder (mkPln, F.viaPlan l mkMdl)
+
+------------------------------------------------
+
+newtype BuilderModeller m p p' s' s = BuilderModeller { runBuilderModeller :: Builder m p s p' s' }
+
+type instance F.Modeller (BuilderModeller m p p' s') s = Builder m p s p' s'
+
+instance F.ViaModel (BuilderModeller m p p' s') where
+    viaModel l (Builder (mkPln, mkMdl)) =
+        Builder (F.viaModel l mkPln, mkMdl)
+
+------------------------------------------------
 newtype PBuilder m p s ps' = PBuilder
     { runPBuilder :: Builder m p s (P.At0 ps') (P.At1 ps')
     }
 
--- | Prefer this to PBuilder for construction as it helps type inferencing
--- as it avoids ambiguous type variable @ps'@
-pBuilder :: Builder m p s p' s' -> PBuilder m p s (p', s')
-pBuilder = PBuilder
-
--- instance F.IsPNullary (Builder m p s p' s') (PBuilder m p s) (p', s') where
---     toPNullary = PBuilder
---     fromPNullary = runPBuilder
+type instance P.PNullary (PBuilder m p s) (p', s') = Builder m p s p' s'
 
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
 instance Applicative m => P.PMEmpty (PBuilder m p s) (Many '[], Many '[]) where
-    pmempty = PBuilder $ bipure nil nil
+    pmempty = bipure nil nil
 
 -- | UndecidableInstances!
 instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
          P.PSemigroup (PBuilder m p s) (Many p1, Many s1) (Many p2, Many s2) (Many p3, Many s3) where
-    (PBuilder (Builder (MkPlan mkPln, MkModel mkMdl))) `pmappend`
-        (PBuilder (Builder (MkPlan mkPln', MkModel mkMdl'))) =
-            PBuilder $
+    (Builder (MkPlan mkPln, MkModel mkMdl)) `pmappend`
+        (Builder (MkPlan mkPln', MkModel mkMdl')) =
             Builder
                 ( MkPlan $ \s -> (/./) <$> mkPln s <*> mkPln' s
                 , MkModel $ \p -> (/./) <$> mkMdl p <*> mkMdl' p)

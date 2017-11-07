@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-8.17
+resolver: lts-7.19
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -62,7 +62,7 @@ extra-deps:
 - javascript-extras-0.3.2.0
 - ghcjs-base-stub-0.1.0.4
 # - newtype-generics-0.5.1
-- parameterized-0.3.0.0
+- parameterized-0.4.0.0
 # - stm-extras-0.1.0.3
 
 # Override default flag values for local packages and extra-deps

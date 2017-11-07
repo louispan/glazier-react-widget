@@ -27,7 +27,6 @@ import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
--- import qualified Glazier.React.Framework.Parameterized as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 
@@ -56,9 +55,7 @@ instance R.MonadReactor m => F.IORefModel (Activator m s s a) (Activator m v (IO
 
 ------------------------------------------
 
--- instance F.IsPNullary (Activator m v s a) (Activator m v s) a where
---     toPNullary = id
---     fromPNullary = id
+type instance P.PNullary (Activator m v s) a = Activator m v s a
 
 instance Applicative m => P.PMEmpty (Activator m v s) (Which '[]) where
     pmempty = Activator $ \_ _ _ -> pure ()
@@ -113,10 +110,8 @@ addHandler f (Activator g) = Activator $ \ref this (F.Executor exec) -> do
 
 newtype ActivatorModeller m v a s = ActivatorModeller { runActivatorModeller :: Activator m v s a }
 
-instance F.IsModeller (Activator m v s a) (ActivatorModeller m v a) s where
-    toModeller = ActivatorModeller
-    fromModeller = runActivatorModeller
+type instance F.Modeller (ActivatorModeller m v a) s = Activator m v s a
 
-instance Monad m => F.ViaModel (ActivatorModeller m v a) where
-    viaModel l (ActivatorModeller (Activator f)) = ActivatorModeller . Activator $ \ref (Lens this) exec ->
+instance F.ViaModel (ActivatorModeller m v a) where
+    viaModel l (Activator f) = Activator $ \ref (Lens this) exec ->
         f ref (Lens (this.l)) exec

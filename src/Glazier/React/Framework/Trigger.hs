@@ -12,7 +12,6 @@ module Glazier.React.Framework.Trigger where
 import Data.Diverse
 import qualified Data.DList as DL
 import qualified GHCJS.Types as J
--- import qualified Glazier.React.Framework.Parameterized as F
 import qualified Parameterized.Data.Monoid as P
 
 newtype Trigger a =
@@ -27,12 +26,10 @@ newtype Triggers a = Triggers
     { runTriggers :: DL.DList (Trigger a)
     }
 
-instance P.PMEmpty Triggers (Which '[])  where
-    pmempty = Triggers mempty
+type instance P.PNullary Triggers r = Triggers r
 
--- instance F.IsPNullary (Trigger a) Trigger a where
---     toPNullary = id
---     fromPNullary = id
+instance P.PMEmpty Triggers (Which '[]) where
+    pmempty = Triggers mempty
 
 -- | UndecidableInstance!
 -- It is okay for more than one trigger to results in the same action, hence the use of @AppendUnique@

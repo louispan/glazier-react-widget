@@ -12,12 +12,9 @@
 module Glazier.React.Framework.Builder where
 
 import Control.Lens
-import Control.Monad
 import Data.Biapplicative
 import Data.Diverse.Lens
-import Data.IORef
 import Data.Proxy
-import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -61,7 +58,7 @@ newtype Builder m p s p' s' =
             , MkModel m p s' -- make inactive specifications
             )
 
-instance Functor m => Bifunctor (Builder m p s) where
+instance Functor m => Bifunctor (Builder  m p s) where
     bimap pq st (Builder (mkPlan, mkMdl)) = Builder (pq <$> mkPlan, st <$> mkMdl)
 
 instance Applicative m => Biapplicative (Builder m p s) where
@@ -71,11 +68,13 @@ instance Applicative m => Biapplicative (Builder m p s) where
                 , MkModel $ \s -> fMkMdl s <*> mkMdl s
                 )
 
-instance R.MonadReactor m => F.IORefModel (Builder m p s p' s') (Builder m p (IORef s) p' (IORef s')) where
-    ioRefModel (Builder (MkPlan mkPlan, MkModel mkModel)) = Builder
-        ( MkPlan (R.doReadIORef >=> mkPlan)
-        , MkModel (mkModel >=> R.doNewIORef)
-        )
+-- instance R.MonadReactor m => F.IORefModel
+--         (Builder m p s p' s')
+--         (Builder m p (IORef s) p' (IORef s')) where
+--     ioRefModel (Builder (MkPlan mkPlan, MkModel mkModel)) = Builder
+--         ( MkPlan (R.doReadIORef >=> mkPlan)
+--         , MkModel (mkModel >=> R.doNewIORef)
+--         )
 
 ------------------------------------------------
 

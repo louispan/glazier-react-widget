@@ -9,8 +9,8 @@
 module Glazier.React.Framework.Display where
 
 import Control.Lens
-import Control.Monad.Trans.Class
-import Data.IORef
+-- import Control.Monad.Trans.Class
+-- import Data.IORef
 import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
@@ -35,8 +35,8 @@ instance (Monoid r, Monad m) => Monoid (Display m s r) where
     mempty =  Display . const $ pure mempty
     Display a `mappend` Display b = Display $ \s -> a s `mappend` b s
 
-instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r) where
-    ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
+-- instance R.MonadReactor m => F.IORefModel (Display m s r) (Display m (IORef s) r) where
+--     ioRefModel (Display disp) = Display $ \ref -> lift (R.doReadIORef ref) >>= disp
 
 -----------------------------------------
 

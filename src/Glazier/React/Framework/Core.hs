@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -6,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 
 module Glazier.React.Framework.Core where
@@ -39,7 +41,7 @@ import Control.Lens
 import Data.Kind
 -- import Data.Semigroup
 -- import Data.Tagged
--- import qualified GHC.Generics as G
+import qualified GHC.Generics as G
 -- import qualified GHCJS.Foreign.Callback as J
 -- import qualified GHCJS.Types as J
 import qualified Glazier.React as R
@@ -88,21 +90,10 @@ class ViaModel (w :: Type -> Type) where
     -- to something that knows how to manipulate a @t@.
     viaModel :: Lens' t s -> Modeller w s -> Modeller w t
 
-class IORefModel x y where
-    -- | Given something that knows how to manipulate or make an @s@
-    -- change it to something that can manipulate or make an @IORef s@
-    ioRefModel :: x -> y
-
--- -- | Converts a type to/from a monadic manipulator of model.
--- -- FunctionalDependency: @x -> w s, w s -> x@ so that it is injective both directions.
--- class IsModeller x (w :: Type -> Type) s | x -> w s, w s -> x where
---     toModeller :: x -> w s
---     fromModeller :: w s -> x
-
--- viaModel'
---     :: (IsModeller x w s, IsModeller y w t, ViaModel w)
---     => Lens' t s -> x -> y
--- viaModel' l = fromModeller . viaModel l . toModeller
+-- class IORefModel x y where
+--     -- | Given something that knows how to manipulate or make an @s@
+--     -- change it to something that can manipulate or make an @IORef s@
+--     ioRefModel :: x -> y
 
 type family Planner (w :: Type -> Type) (p :: Type) = (r :: Type) | r -> w p
 
@@ -113,16 +104,19 @@ class ViaPlan (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaPlan :: Lens' q p -> Planner w p -> Planner w q
 
--- -- | Converts a type to/from a monadic manipulator of plan.
--- -- FunctionalDependency: @x -> w p, w p -> x@ so that it is injective both directions.
--- class IsPlanner x (w :: Type -> Type) p | x -> w p, w p -> x where
---     toPlanner :: x -> w p
---     fromPlanner :: w p -> x
 
--- viaPlan'
---     :: (IsPlanner x w p, IsPlanner y w q, ViaPlan w)
---     => Lens' q p -> x -> y
--- viaPlan' l = fromPlanner . viaPlan l . toPlanner
+-- FIXME: key, ioref s
+data ComponentModel = ComponentModel
+    { _component :: R.ReactComponent
+    , _componentKey :: R.Key
+    , _componentRender ::  R.Renderer
+    , _componentListeners :: [R.Listener]
+    } deriving (G.Generic)
+
+makeClassy ''ComponentModel
+
+instance R.Dispose ComponentModel
+
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

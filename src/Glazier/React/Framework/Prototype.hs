@@ -2,19 +2,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Widget where
+module Glazier.React.Framework.Prototype where
 
-import Control.Lens
-import Control.Monad
-import Control.Monad.Trans.Class
 import Data.Diverse
-import Data.IORef
 import Data.Semigroup (Semigroup(..))
-import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Core as F
@@ -22,9 +16,6 @@ import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
-import qualified GHCJS.Foreign.Callback.Internal as J
-import qualified GHCJS.Types as J
-import qualified JavaScript.Extras as JE
 
 newtype Prototype m v p s p' s' a b c = Prototype {
     runPrototype ::
@@ -36,17 +27,6 @@ newtype Prototype m v p s p' s' a b c = Prototype {
            , F.Display m s ()
            )
     }
-
--- instance R.MonadReactor m =>
---          F.IORefModel
---              (Prototype m s p s p' s' a b c)
---              (Prototype m v p (IORef s) p' (IORef s') a b c) where
---     ioRefModel (Prototype (bld, hdl, act, disp)) = Prototype
---         ( F.ioRefModel bld
---         , F.ioRefModel hdl
---         , F.ioRefModel act
---         , F.ioRefModel disp
---         )
 
 ------------------------------------------
 
@@ -202,53 +182,3 @@ instance F.ViaPlan (PrototypePlanner m v s p' s' a b c) where
                    , act
                    , disp
                    )
-
-newtype Archetype m p s a b c = Archetype {
-    runArchetype ::
-           ( F.Builder m p s p s
-           , F.Handler m s a b
-           -- activator contains other prerequisites
-           -- of executor, and actions that need to be handled
-           , F.Activator m s c
-           , F.Display m s ()
-           )
-    }
-
--- type Widget = (F.ComponentModel, 
-
-
--- | FIXME: add component triggers, etc
-archetype :: R.MonadReactor m
-    => Prototype m (F.ComponentModel, s) p s p s a b c
-    -> Archetype m p (IORef (F.ComponentModel, s)) a b c
-archetype (Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
-                     , F.Handler hdl
-                     , F.Activator act
-                     , F.Display disp)) = Archetype
-     ( F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
-                 , F.MkModel $ \p -> do
-                         s <- mkModel p
-                         -- create a model with a dummy render for now
-                         cm <- F.ComponentModel
-                                 <$> R.getComponent
-                                 <*> R.mkKey
-                                 <*> pure (R.Renderer (J.Callback J.nullRef))
-                                 <*> pure []
-                         ref <- R.doNewIORef (cm, s)
-                         -- now replace the render in the model
-                         rnd <- R.mkRenderer $ do
-                             (_, s') <- lift $ R.doReadIORef ref
-                             disp s'
-                         R.doModifyIORef' ref (\(cm', s') -> (cm' & F.componentRender .~ rnd, s'))
-                         pure ref
-                 )
-     , F.Handler $ \ref a -> hdl (ref, Lens _2) a
-     , F.Activator $ \ref exec -> act (ref, Lens _2) exec
-     , F.Display $ \ref -> do
-             (cm, _) <- lift $ R.doReadIORef ref
-             R.lf (cm ^. F.component . to JE.toJS')
-                 (cm ^. F.componentListeners)
-                 [ ("key",  cm ^. F.componentKey . to (JE.toJS' . R.runKey))
-                 , ("render", cm ^. F.componentRender . to (JE.toJS' . R.runRenderer))
-                 ]
-     )

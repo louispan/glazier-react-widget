@@ -34,6 +34,7 @@ newtype Archetype m p s a b c = Archetype {
            )
     }
 
+-- | NB. prototype . archetype != id
 archetype :: R.MonadReactor m
     => F.Prototype m (F.ComponentModel, s) p s p s a b c
     -> Archetype m p (IORef (F.ComponentModel, s)) a b c
@@ -68,3 +69,19 @@ archetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                  , ("render", cm ^. F.componentRender . to (JE.toJS' . R.runRenderer))
                  ]
      )
+
+
+-- | NB. prototype . archetype != id
+prototype :: R.MonadReactor m => Archetype m p s a b c -> F.Prototype m v p s p s a b c
+prototype (Archetype ( bld
+                     , F.Handler hdl
+                     , F.Activator act
+                     , disp)) = F.Prototype
+    ( bld
+    , F.Handler $ \(ref, Lens this) a -> do
+            obj <- R.doReadIORef ref
+            hdl (obj ^. this) a
+    , F.Activator $ \(ref, Lens this) exec -> do
+            obj <- R.doReadIORef ref
+            act (obj ^. this) exec
+    , disp )

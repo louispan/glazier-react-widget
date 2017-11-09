@@ -81,7 +81,7 @@ triggersActivator
     => [F.Trigger a]
     -> Activator' m v (Many s) a
 triggersActivator triggers = Activator $ \(ref, Lens this) (F.Executor exec) -> do
-    cbs <- traverse (traverse (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
+    cbs <- traverse (traverse {- tuple traverse -} (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
     R.doModifyIORef' ref ((this.item) %~ (`DL.append` DL.fromList cbs))
 
 -- | Store the rendering instructions inside a render callback and add it to this state's render holder.

@@ -18,9 +18,6 @@ newtype Trigger a =
     Trigger { runTrigger :: (J.JSString, J.JSVal -> IO (DL.DList a)) }
     deriving Functor
 
--- trigger1 :: J.JSString -> (J.JSVal -> IO a) -> Trigger a
--- trigger1 n f = Trigger (n, fmap DL.singleton <$> f)
-
 -- | A list of triggers
 newtype Triggers a = Triggers
     { runTriggers :: DL.DList (Trigger a)

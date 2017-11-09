@@ -38,6 +38,7 @@ import Control.Lens
 -- import qualified Data.DList as DL
 -- import Data.IORef
 -- import qualified Data.JSString as JS
+import qualified Data.DList as DL
 import Data.Kind
 -- import Data.Semigroup
 -- import Data.Tagged
@@ -45,6 +46,7 @@ import qualified GHC.Generics as G
 -- import qualified GHCJS.Foreign.Callback as J
 -- import qualified GHCJS.Types as J
 import qualified Glazier.React as R
+
 -- import qualified Glazier.React.Commands.Rerender as C
 -- import qualified JavaScript.Extras as JE
 
@@ -65,17 +67,6 @@ import qualified Glazier.React as R
 
 ----------------------------------------------------------
 
--- -- | This helps prevernt nested levels of 'diversify'.
--- -- Known types are tracked in @a'@ while the @a@ type is left polymorphic.
--- -- 'runWhichever' should be used to extract the final Which type, which ensures
--- -- @a'@ fulfills all the constraints of @a@.
--- type Whichever (a' :: [Type]) (a :: [Type]) = Tagged a' (Which a)
-
--- runWhichever :: Whichever a a -> Which a
--- runWhichever = unTagged
-
-----------------------------------------------------------
-
 -- | Plan has to be stored differently to other plans because mkPlan needs
 -- additional parameters
 
@@ -90,11 +81,6 @@ class ViaModel (w :: Type -> Type) where
     -- to something that knows how to manipulate a @t@.
     viaModel :: Lens' t s -> Modeller w s -> Modeller w t
 
--- class IORefModel x y where
---     -- | Given something that knows how to manipulate or make an @s@
---     -- change it to something that can manipulate or make an @IORef s@
---     ioRefModel :: x -> y
-
 type family Planner (w :: Type -> Type) (p :: Type) = (r :: Type) | r -> w p
 
 -- | Something that knows how to get and set (but not make) a plan
@@ -104,13 +90,11 @@ class ViaPlan (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaPlan :: Lens' q p -> Planner w p -> Planner w q
 
-
--- FIXME: key, ioref s
 data ComponentModel = ComponentModel
     { _component :: R.ReactComponent
+    , _componentListeners :: DL.DList R.Listener
     , _componentKey :: R.Key
     , _componentRender ::  R.Renderer
-    , _componentListeners :: [R.Listener]
     } deriving (G.Generic)
 
 makeClassy ''ComponentModel

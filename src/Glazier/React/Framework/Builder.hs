@@ -1,20 +1,21 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Glazier.React.Framework.Builder where
 
 import Control.Lens
 import Data.Biapplicative
 import Data.Diverse.Lens
-import Data.Proxy
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -120,9 +121,20 @@ instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
 
 -- FIXME: Only allow certain things for react components vs prototypes
 -- | Add a type @x@ into the factory
+-- @forall@ so that the type can be specified first
 build
-    :: (Applicative m, UniqueMember x p, UniqueMember x s)
-    => Proxy x -> Builder m (Many p) (Many s) (Many '[x]) (Many '[x])
+    :: forall x m p s proxy. (Applicative m, UniqueMember x p, UniqueMember x s)
+    => proxy x -> Builder m (Many p) (Many s) (Many '[x]) (Many '[x])
 build _ = Builder ( MkPlan $ pure . single . fetch
                   , MkModel $ pure . single . fetch
+                  )
+
+-- | Add a value @x@ into the model
+-- @forall@ so that the type can be specified first
+-- Intentional redunadant constraint of (UniqueMember x s)
+model
+    :: forall x m p s. (Applicative m, UniqueMember x s)
+    => x -> Builder m p (Many s) (Many '[]) (Many '[x])
+model x = Builder ( MkPlan . const $ pure nil
+                  , MkModel . const . pure $ single x
                   )

@@ -11,6 +11,7 @@ module Glazier.React.Framework.Archetype where
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
+import qualified Data.DList as DL
 import Data.IORef
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
@@ -44,19 +45,23 @@ archetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                      , F.Display disp)) = Archetype
      ( F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
                  , F.MkModel $ \p -> do
+                         -- tuple the original state with a ComponentModel
+                         -- and wrap inside a IORef
                          s <- mkModel p
-                         -- create a model with a dummy render for now
+                         -- create a ComponentModel with a dummy render for now
                          cm <- F.ComponentModel
                                  <$> R.getComponent
+                                 <*> pure DL.empty
                                  <*> R.mkKey
                                  <*> pure (R.Renderer (J.Callback J.nullRef))
-                                 <*> pure []
+                         -- create the IORef
                          ref <- R.doNewIORef (cm, s)
                          -- now replace the render in the model
                          rnd <- R.mkRenderer $ do
                              (_, s') <- lift $ R.doReadIORef ref
                              disp s'
                          R.doModifyIORef' ref (\(cm', s') -> (cm' & F.componentRender .~ rnd, s'))
+                         -- return the ioref
                          pure ref
                  )
      , F.Handler $ \ref a -> hdl (ref, Lens _2) a
@@ -64,12 +69,11 @@ archetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
      , F.Display $ \ref -> do
              (cm, _) <- lift $ R.doReadIORef ref
              R.lf (cm ^. F.component . to JE.toJS')
-                 (cm ^. F.componentListeners)
+                 (cm ^. F.componentListeners . to DL.toList)
                  [ ("key",  cm ^. F.componentKey . to (JE.toJS' . R.runKey))
                  , ("render", cm ^. F.componentRender . to (JE.toJS' . R.runRenderer))
                  ]
      )
-
 
 -- | NB. prototype . archetype != id
 prototype :: R.MonadReactor m => Archetype m p s a b c -> F.Prototype m v p s p s a b c

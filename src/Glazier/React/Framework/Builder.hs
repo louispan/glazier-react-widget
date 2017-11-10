@@ -59,7 +59,7 @@ newtype Builder m p s p' s' =
             , MkModel m p s' -- make inactive specifications
             )
 
-instance Functor m => Bifunctor (Builder  m p s) where
+instance Functor m => Bifunctor (Builder m p s) where
     bimap pq st (Builder (mkPlan, mkMdl)) = Builder (pq <$> mkPlan, st <$> mkMdl)
 
 instance Applicative m => Biapplicative (Builder m p s) where

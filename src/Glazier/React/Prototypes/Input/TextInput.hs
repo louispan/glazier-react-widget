@@ -13,7 +13,7 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
-import qualified Glazier.React.Prototypes.Input as W
+import qualified Glazier.React.Prototypes.Input as P
 import qualified JavaScript.Extras as JE
 
 textInputPrototype
@@ -29,7 +29,7 @@ textInputPrototype
             (Many '[DL.DList JE.Property, DL.DList R.Listener])
             (Which '[])
             (Which '[])
-            (Which '[W.SubmitInput, W.CancelInput])
+            (Which '[P.SubmitInput, P.CancelInput])
 textInputPrototype = F.mapBuilder
     (second (\s -> s & item @(DL.DList JE.Property) %~ (DL.cons ("type", "text"))))
-    W.inputPrototype
+    P.inputPrototype

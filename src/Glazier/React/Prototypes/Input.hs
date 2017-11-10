@@ -30,13 +30,13 @@ data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
     :: ( R.MonadReactor m
-       , UniqueMember (DL.DList JE.Property) p
-       , UniqueMember (DL.DList JE.Property) s
-       , UniqueMember (DL.DList R.Listener) s
+       , UniqueMember (DL.DList JE.Property) ps
+       , UniqueMember (DL.DList JE.Property) ss
+       , UniqueMember (DL.DList R.Listener) ss
        )
     => F.Prototype m v
-            (Many p)
-            (Many s)
+            (Many ps)
+            (Many ss)
             (Many '[DL.DList JE.Property])
             (Many '[DL.DList JE.Property, DL.DList R.Listener])
             (Which '[])
@@ -48,9 +48,9 @@ inputPrototype =
             `P.pmappend` F.model @(DL.DList R.Listener) DL.empty
         , P.pmempty
         , F.triggersActivator [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
-        , F.Display $ \s -> R.lf "input"
-            (DL.toList $ fetch @(DL.DList R.Listener) s)
-            (DL.toList $ fetch @(DL.DList JE.Property) s)
+        , F.Display $ \ss -> R.lf "input"
+            (DL.toList $ fetch @(DL.DList R.Listener) ss)
+            (DL.toList $ fetch @(DL.DList JE.Property) ss)
         )
   where
     go (A.KeyDownKey target k) =

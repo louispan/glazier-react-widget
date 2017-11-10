@@ -15,30 +15,19 @@
 -- {-# LANGUAGE TypeFamilies #-}
 -- {-# LANGUAGE TypeOperators #-}
 
-module Glazier.React.Widgets.List where
+module Glazier.React.Prototypes.List where
 
--- import Control.Monad.Plus as MP
--- import Control.Applicative.Alternative as A?
-import Control.Applicative
 import Control.Lens
-import Control.Monad.Free.Church
--- import Control.Monad.Morph
--- import Control.Monad.Reader
-import Control.Monad.State.Strict
-import Control.Monad.Trans.Maybe
-import qualified Data.List as L
 import qualified Data.DList as DL
 import Data.Diverse.Lens
 import Data.Foldable
 -- import qualified Data.JSString as J
 -- import Data.Maybe
-import Data.IORef
-import Data.Proxy
 import qualified Data.Sequence as S
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
-import qualified Glazier.React.Commands as C
--- import qualified JavaScript.Extras as JE
+-- import qualified Glazier.React.Commands as C
+import qualified JavaScript.Extras as JE
 -- import qualified Pipes.Concurrent as PC
 
 -- | List specific actions
@@ -52,21 +41,54 @@ data MakeListItem r = MakeListItem r
     -- | SetSortAction (R.OutlineOf w -> Bool)
 
 listBuilder
-    :: forall deleteListItem r reqs s specs a acts' c cmds.
-    ( UniqueMember (S.Seq r) reqs
-    , UniqueMember (S.Seq (IORef s)) specs)
-    => Proxy deleteListItem -> F.Archetype r s a acts' c cmds
-    -> F.Builder '[S.Seq r] reqs '[S.Seq (IORef s)] specs
-listBuilder _ (F.Archetype (_ , _, _, frmEnt, mkEnt, _)) =
-    F.Builder (frmSpecs, mkSpecs)
+    :: forall m p s a b c ps ss.
+    ( Applicative m
+    , UniqueMember (S.Seq p) ps
+    , UniqueMember (S.Seq s) ss
+    )
+    => F.Archetype m p s a b c
+    -> F.Builder m (Many ps) (Many ss) (Many '[S.Seq p]) (Many '[S.Seq s])
+listBuilder (F.Archetype (F.Builder (F.MkPlan mkPln, F.MkModel mkMdl), _, _, _)) =
+    F.Builder (F.MkPlan mkPln', F.MkModel mkMdl')
   where
-    frmSpecs :: Many specs -> m (Many '[S.Seq r])
-    frmSpecs ss = single <$> traverse frmEnt' (fetch @(S.Seq (IORef s)) ss)
-    frmEnt' v = readIORef v >>= frmEnt
+    mkPln' ss = single <$> traverse mkPln (fetch @(S.Seq s) ss)
+    mkMdl' ps = single <$> traverse mkMdl (fetch @(S.Seq p) ps)
 
-    mkSpecs :: Many reqs -> m (Many '[S.Seq (IORef s)])
-    mkSpecs rs = single <$> traverse mkEnt' (fetch @(S.Seq r) rs)
-    mkEnt' r = mkEnt r >>= newIORef
+listDisplay
+    :: forall m p s a b c ss.
+    ( R.MonadReactor m
+    , UniqueMember (S.Seq s) ss
+    , UniqueMember (DL.DList JE.Property) ss
+    , UniqueMember (DL.DList R.Listener) ss
+    )
+    => F.Archetype m p s a b c
+    -> F.Display m (Many ss) ()
+listDisplay (F.Archetype (_, _, _, F.Display disp)) = F.Display $ \ss ->
+    let xs = ss ^. (item @(S.Seq s))
+        xs' = toLi <$> xs
+        toLi s = R.bh "li" [] [] (disp s)
+    in R.bh "ul"
+        (DL.toList $ fetch @(DL.DList R.Listener) ss)
+        (DL.toList $ fetch @(DL.DList JE.Property) ss)
+        (mconcat $ toList xs')
+
+broadcastHandler
+    :: forall m p s a b c ss.
+    ( R.MonadReactor m
+    , UniqueMember (S.Seq s) ss
+    , UniqueMember (DL.DList JE.Property) ss
+    , UniqueMember (DL.DList R.Listener) ss
+    )
+    => F.Archetype m p s a b c
+    -> F.Display m (Many ss) ()
+broadcastHandler (F.Archetype (_, _, _, F.Display disp)) = F.Display $ \ss ->
+    let xs = ss ^. (item @(S.Seq s))
+        xs' = toLi <$> xs
+        toLi s = R.bh "li" [] [] (disp s)
+    in R.bh "ul"
+        (DL.toList $ fetch @(DL.DList R.Listener) ss)
+        (DL.toList $ fetch @(DL.DList JE.Property) ss)
+        (mconcat $ toList xs')
 
 -- listActivator
 --     :: forall deleteListItem r s specs a acts' acts c cmds.
@@ -127,21 +149,6 @@ listBuilder _ (F.Archetype (_ , _, _, frmEnt, mkEnt, _)) =
 --     => Proxy deleteListItem -> IORef s
 --     -> F.Handler (F.Design specs) '[deleteListItem] acts '[C.Rerender] cmds
 -- deleteListItemHandler _ s = F.stateHandler (\_ _ -> deleteListItem' s)
-
-listDisplay
-    :: forall m r s specs h a hc acs.
-    (R.MonadReactor m, UniqueMember (S.Seq (IORef s)) specs)
-    => R.ReactMlT m ()
-    -> F.Archetype m r s h a hc acs
-    -> F.Display m specs
-listDisplay separator (F.Archetype (_, _, disp, _, _, _)) = F.display disp'
-  where
-    disp' ls ps s = do
-        let xs = s ^. (F.specifications . item @(S.Seq (IORef s)))
-            xs' = toLi <$> xs
-            toLi v = R.bh "li" [] [] (lift (readIORef v) >>= disp)
-            xs'' = L.intersperse separator (toList xs')
-        R.bh "ul" (ls s) (ps s) (mconcat xs'')
 
 
 -- wack

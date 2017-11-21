@@ -15,6 +15,7 @@ module Glazier.React.Framework.Builder where
 
 import Control.Lens
 import Data.Biapplicative
+import Data.Coerce
 import Data.Diverse.Lens
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
@@ -35,6 +36,9 @@ type instance F.Planner (MkModelPlanner m s) p = MkModel m p s
 instance F.ViaPlan (MkModelPlanner m s) where
     viaPlan l (MkModel mkMdl) = MkModel $ mkMdl . view l
 
+instance Contravariant (MkModelPlanner m s) where
+    contramap f (MkModelPlanner (MkModel g)) = coerce (g . f)
+
 ------------------------------------------------
 
 newtype MkPlan m s p = MkPlan {
@@ -49,6 +53,9 @@ type instance F.Modeller (MkPlanModeller m p) s = MkPlan m s p
 
 instance F.ViaModel (MkPlanModeller m p) where
     viaModel l (MkPlan mkPln) = MkPlan $ mkPln . view l
+
+instance Contravariant (MkPlanModeller m s) where
+    contramap f (MkPlanModeller (MkPlan g)) = coerce (g . f)
 
 ------------------------------------------------
 
@@ -119,22 +126,56 @@ instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
 
 ------------------------------------------------
 
+-- | Return a builder that builds an item inside a Many
+itemizing
+    :: forall m p s p' s' ps ss.
+    ( Applicative m
+    , UniqueMember p ps
+    , UniqueMember s ss
+    )
+    => Builder m p s p' s'
+    -> Builder m (Many ps) (Many ss) (Many '[p']) (Many '[s'])
+itemizing (Builder (MkPlan mkPln, MkModel mkMdl)) =
+    Builder (MkPlan mkPln', MkModel mkMdl')
+  where
+    mkPln' ss = single <$> mkPln (fetch @s ss)
+    mkMdl' ps = single <$> mkMdl (fetch @p ps)
+
+
+-- | Add a type @x@ into the model that is used directly from the plan.
+-- @forall@ so that the type can be specified first
+build'
+    :: forall x m proxy. (Applicative m)
+    => proxy x -> Builder m x x x x
+build' _ = Builder ( MkPlan $ pure
+                  , MkModel $ pure
+                  )
+
 -- FIXME: Only allow certain things for react components vs prototypes
--- | Add a type @x@ into the factory
+-- | Add a type @x@ into the model that is used directly from the plan
+-- and return a builder that uses a Many.
 -- @forall@ so that the type can be specified first
 build
     :: forall x m p s proxy. (Applicative m, UniqueMember x p, UniqueMember x s)
     => proxy x -> Builder m (Many p) (Many s) (Many '[x]) (Many '[x])
-build _ = Builder ( MkPlan $ pure . single . fetch
-                  , MkModel $ pure . single . fetch
-                  )
+build = itemizing . build'
 
--- | Add a value @x@ into the model
+-- | Add a value @x@ into the model that is not from the plan.
 -- @forall@ so that the type can be specified first
 -- Intentional redunadant constraint of (UniqueMember x s)
-model
+hardcode
     :: forall x m p s. (Applicative m, UniqueMember x s)
     => x -> Builder m p (Many s) (Many '[]) (Many '[x])
-model x = Builder ( MkPlan . const $ pure nil
+hardcode x = Builder ( MkPlan . const $ pure nil
                   , MkModel . const . pure $ single x
                   )
+
+dimapPlan :: Functor m => (q -> p) -> (p' -> q') -> Builder m p s p' s' -> Builder m q s q' s'
+dimapPlan f g (Builder (mkPln, mkMdl)) =
+    Builder ( g <$> mkPln
+            , coerce (contramap f (MkModelPlanner mkMdl)))
+
+dimapModel :: Functor m => (t -> s) -> (s' -> t') -> Builder m p s p' s' -> Builder m p t p' t'
+dimapModel f g (Builder (mkPln, mkMdl)) =
+    Builder ( coerce (contramap f (MkPlanModeller mkPln))
+            , g <$> mkMdl)

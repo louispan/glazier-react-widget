@@ -8,9 +8,9 @@
 
 module Glazier.React.Framework.Activator
     ( Activator(..)
-    , Activator'
-    , triggersActivator
-    , displayActivator
+    , RefActivator
+    , triggersRefActivator
+    , displayRefActivator
     , addHandler
     , ActivatorModeller(..)
     ) where
@@ -40,7 +40,7 @@ newtype Activator m r a = Activator
     }
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
-type Activator' m v s a = Activator m (IORef v, ReifiedLens' v s) a
+type RefActivator m v s a = Activator m (IORef v, ReifiedLens' v s) a
 
 instance Monad m => Semigroup (Activator m r a) where
     (Activator f) <> (Activator g) = Activator $ \env exec ->
@@ -76,20 +76,20 @@ instance ( Monad m
 ------------------------------------------
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
-triggersActivator
+triggersRefActivator
     :: (R.MonadReactor m, NFData a, UniqueMember (DL.DList R.Listener) s)
     => [F.Trigger a]
-    -> Activator' m v (Many s) a
-triggersActivator triggers = Activator $ \(ref, Lens this) (F.Executor exec) -> do
+    -> RefActivator m v (Many s) a
+triggersRefActivator triggers = Activator $ \(ref, Lens this) (F.Executor exec) -> do
     cbs <- traverse (traverse {- tuple traverse -} (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
     R.doModifyIORef' ref ((this.item) %~ (`DL.append` DL.fromList cbs))
 
 -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
-displayActivator
+displayRefActivator
     :: (R.MonadReactor m, UniqueMember R.Renderer s)
     => F.Display m (IORef v) ()
-    -> Activator' m v (Many s) (Which '[])
-displayActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
+    -> RefActivator m v (Many s) (Which '[])
+displayRefActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
     rnd <- R.mkRenderer (disp ref)
     R.doModifyIORef' ref ((this.item) .~ rnd)
 
@@ -111,9 +111,9 @@ addHandler f (Activator g) = Activator $ \env (F.Executor exec) -> do
 
 ------------------------------------------
 
-newtype ActivatorModeller m v a s = ActivatorModeller { runActivatorModeller :: Activator' m v s a }
+newtype ActivatorModeller m v a s = ActivatorModeller { runActivatorModeller :: RefActivator m v s a }
 
-type instance F.Modeller (ActivatorModeller m v a) s = Activator' m v s a
+type instance F.Modeller (ActivatorModeller m v a) s = RefActivator m v s a
 
 instance F.ViaModel (ActivatorModeller m v a) where
     viaModel l (Activator f) = Activator $ \(ref, Lens this) exec ->

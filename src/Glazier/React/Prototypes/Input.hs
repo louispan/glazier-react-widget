@@ -45,9 +45,9 @@ inputPrototype
 inputPrototype =
     F.Prototype
         (F.build @(DL.DList JE.Property) Proxy
-            `P.pmappend` F.model @(DL.DList R.Listener) DL.empty
+            `P.pmappend` F.hardcode @(DL.DList R.Listener) DL.empty
         , P.pmempty
-        , F.triggersActivator [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
+        , F.triggersRefActivator [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
         , F.Display $ \ss -> R.lf "input"
             (DL.toList $ fetch @(DL.DList R.Listener) ss)
             (DL.toList $ fetch @(DL.DList JE.Property) ss)

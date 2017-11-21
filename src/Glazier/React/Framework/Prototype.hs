@@ -20,10 +20,10 @@ import qualified Parameterized.TypeLevel as P
 newtype Prototype m v p s p' s' a b c = Prototype {
     runPrototype ::
            ( F.Builder m p s p' s'
-           , F.Handler' m v s a b
+           , F.RefHandler m v s a b
            -- activator contains other prerequisites
            -- of executor, and actions that need to be handled
-           , F.Activator' m v s c
+           , F.RefActivator m v s c
            , F.Display m s ()
            )
     }
@@ -79,21 +79,21 @@ building bld = Prototype
         , P.pmempty
         , mempty)
 
-handling
+refHandling
     :: Monad m
-    => F.Handler' m v s a b
+    => F.RefHandler m v s a b
     -> Prototype m v p s (Many '[]) (Many '[]) a b (Which '[])
-handling hdl = Prototype
+refHandling hdl = Prototype
         ( P.pmempty
         , hdl
         , P.pmempty
         , mempty)
 
-activating
+refActivating
     :: Monad m
-    => F.Activator' m v s c
+    => F.RefActivator m v s c
     -> Prototype m v p s (Many '[]) (Many '[]) (Which '[]) (Which '[]) c
-activating act = Prototype
+refActivating act = Prototype
         ( P.pmempty
         , P.pmempty
         , act
@@ -121,21 +121,21 @@ mapBuilder f (Prototype (bld, hdl, act, disp)) = Prototype
                    , act
                    , disp)
 
-mapHandler
-    :: (F.Handler' m v s a1 b1 -> F.Handler' m v s a2 b2)
+mapRefHandler
+    :: (F.RefHandler m v s a1 b1 -> F.RefHandler m v s a2 b2)
     -> Prototype m v p s p' s' a1 b1 c
     -> Prototype m v p s p' s' a2 b2 c
-mapHandler f (Prototype (bld, hdl, act, disp)) = Prototype
+mapRefHandler f (Prototype (bld, hdl, act, disp)) = Prototype
                    ( bld
                    , f hdl
                    , act
                    , disp)
 
-mapActivator
-    :: (F.Activator' m v s c1 -> F.Activator' m v s c2)
+mapRefActivator
+    :: (F.RefActivator m v s c1 -> F.RefActivator m v s c2)
     -> Prototype m v p s p' s' a b c1
     -> Prototype m v p s p' s' a b c2
-mapActivator f (Prototype (bld, hdl, act, disp)) = Prototype
+mapRefActivator f (Prototype (bld, hdl, act, disp)) = Prototype
                    ( bld
                    , hdl
                    , f act

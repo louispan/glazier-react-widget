@@ -15,7 +15,7 @@
 -- {-# LANGUAGE TypeFamilies #-}
 -- {-# LANGUAGE TypeOperators #-}
 
-module Glazier.React.Prototypes.List where
+module Glazier.React.Prototypes.Listing where
 
 import Control.Lens
 import qualified Data.DList as DL
@@ -23,72 +23,102 @@ import Data.Diverse.Lens
 import Data.Foldable
 -- import qualified Data.JSString as J
 -- import Data.Maybe
-import qualified Data.Sequence as S
+import qualified Data.Map.Strict as M
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 -- import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
 -- import qualified Pipes.Concurrent as PC
 
+-- Make a key that will fit in between the two provided keys,
+-- Except when the inputs are equal, then it will return the same key.
+betweenIdx :: [Int] -> [Int] -> [Int]
+betweenIdx [] [] = []
+betweenIdx [] (y : _) = [y - 1]
+betweenIdx (x : _) [] = [x - 1]
+betweenIdx (x : xs) (y : ys) =
+    case compare x y of
+        LT -> x : (incrementIdx xs)
+        GT -> y : (incrementIdx ys)
+        EQ -> x : (betweenIdx xs ys)
+
+incrementIdx :: [Int] -> [Int]
+incrementIdx [] = [1]
+incrementIdx (a : _) = [a + 1]
+
+
+-- | A listing is actually a map so that we allow for fast insert/deleting
+-- and also be able to reorder the elements.
+type Listing a = M.Map [Int] a
+
 -- | List specific actions
-data DeleteListItem = DeleteListItem
-data MakeListItem r = MakeListItem r
+data DeleteListingItem = DeleteListingItem [Int]
+data AddListingItem a = AddListingItem [Int] a
+data MoveListingItem = MoveListingItem [Int] [Int]
 
--- data ListItemAction s a = ListItemAction s a
+-- | MakeItemAction (F (R.Reactor a) o)
+-- | SetFilterAction (R.OutlineOf w -> Bool)
+-- | SetSortAction (R.OutlineOf w -> Bool)
 
-    -- | MakeItemAction (F (R.Reactor a) o)
-    -- | SetFilterAction (R.OutlineOf w -> Bool)
-    -- | SetSortAction (R.OutlineOf w -> Bool)
-
-listBuilder
-    :: forall m p s a b c ps ss.
-    ( Applicative m
-    , UniqueMember (S.Seq p) ps
-    , UniqueMember (S.Seq s) ss
+listingHandler ::
+    ( R.MonadReactor m
+    , UniqueMember (Listing s) ss
     )
-    => F.Archetype m p s a b c
-    -> F.Builder m (Many ps) (Many ss) (Many '[S.Seq p]) (Many '[S.Seq s])
-listBuilder (F.Archetype (F.Builder (F.MkPlan mkPln, F.MkModel mkMdl), _, _, _)) =
+    => F.Handler m (Many ss)
+    (Which '[DeleteListingItem, AddListingItem s, MoveListingItem])
+    b
+listingHandler = undefined
+
+-- | Converts a builder with a plan of @[a]@ to a @Listing a@
+toListingBuilder
+    :: Applicative m
+    => F.Builder m [p] s [p'] s'
+    -> F.Builder m (Listing p) s (Listing p') s'
+toListingBuilder = F.dimapPlan toList (M.fromAscList . zip idxs)
+  where
+    idxs = (\x -> [x]) <$> [0..]
+
+listingBuilder
+    :: (Applicative m)
+    => F.Builder m p s p' s'
+    -> F.Builder m (Listing p) (Listing s) (Listing p') (Listing s')
+listingBuilder (F.Builder (F.MkPlan mkPln, F.MkModel mkMdl)) =
     F.Builder (F.MkPlan mkPln', F.MkModel mkMdl')
   where
-    mkPln' ss = single <$> traverse mkPln (fetch @(S.Seq s) ss)
-    mkMdl' ps = single <$> traverse mkMdl (fetch @(S.Seq p) ps)
+    mkPln' ss = traverse mkPln ss
+    mkMdl' ps = traverse mkMdl ps
 
-listDisplay
-    :: forall m p s a b c ss.
+listingDisplay
+    :: forall m s ss.
     ( R.MonadReactor m
-    , UniqueMember (S.Seq s) ss
+    , UniqueMember (Listing s) ss
     , UniqueMember (DL.DList JE.Property) ss
     , UniqueMember (DL.DList R.Listener) ss
     )
-    => F.Archetype m p s a b c
+    => F.Display m s ()
     -> F.Display m (Many ss) ()
-listDisplay (F.Archetype (_, _, _, F.Display disp)) = F.Display $ \ss ->
-    let xs = ss ^. (item @(S.Seq s))
+listingDisplay (F.Display disp) = F.Display $ \ss ->
+    let xs = ss ^. (item @(Listing s))
         xs' = toLi <$> xs
         toLi s = R.bh "li" [] [] (disp s)
     in R.bh "ul"
         (DL.toList $ fetch @(DL.DList R.Listener) ss)
         (DL.toList $ fetch @(DL.DList JE.Property) ss)
-        (mconcat $ toList xs')
+        (mconcat $ (snd <$> M.toList xs'))
 
-broadcastHandler
-    :: forall m p s a b c ss.
+-- | lift a handler for a single widget into a handler of a list of widgets
+-- where the input is broadcast to all the items in the list and the results DList'ed together.
+listingBroadcastHandler
+    :: forall m s a b ss.
     ( R.MonadReactor m
-    , UniqueMember (S.Seq s) ss
-    , UniqueMember (DL.DList JE.Property) ss
-    , UniqueMember (DL.DList R.Listener) ss
+    , UniqueMember (Listing s) ss
     )
-    => F.Archetype m p s a b c
-    -> F.Display m (Many ss) ()
-broadcastHandler (F.Archetype (_, _, _, F.Display disp)) = F.Display $ \ss ->
-    let xs = ss ^. (item @(S.Seq s))
-        xs' = toLi <$> xs
-        toLi s = R.bh "li" [] [] (disp s)
-    in R.bh "ul"
-        (DL.toList $ fetch @(DL.DList R.Listener) ss)
-        (DL.toList $ fetch @(DL.DList JE.Property) ss)
-        (mconcat $ toList xs')
+    => F.Handler m s a b
+    -> F.Handler m (Many ss) a b
+listingBroadcastHandler (F.Handler hdl) = F.Handler $ \ss a -> do
+    let xs = ss ^. (item @(Listing s))
+    ys <- traverse (\x -> hdl x a) xs
+    pure $ fold ys
 
 -- listActivator
 --     :: forall deleteListItem r s specs a acts' acts c cmds.

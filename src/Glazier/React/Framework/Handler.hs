@@ -21,7 +21,7 @@ import Data.Foldable
 import Data.IORef
 import Data.Kind
 import Data.Profunctor
--- import qualified Glazier.React as R
+import qualified Glazier.React as R
 import Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -29,9 +29,6 @@ import qualified Parameterized.TypeLevel as P
 newtype Handler (m :: Type -> Type) r a b = Handler
     { runHandler :: r -> a -> m (DL.DList b)
     }
-
--- | Uses ReifiedLens' to avoid impredicative polymorphism
-type Handler' m v s a b = Handler m (IORef v, ReifiedLens' v s) a b
 
 instance Functor m => Functor (Handler m r a) where
     fmap f (Handler hdl) = Handler $ \env a -> fmap f <$> hdl env a
@@ -89,15 +86,23 @@ filterHandler f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env a
 
 -----------------------------------------------
 
+-- | Uses ReifiedLens' to avoid impredicative polymorphism
+type LensedHandler m v s a b = Handler m (IORef v, ReifiedLens' v s) a b
+
 newtype HandlerModeller m a b v s = HandlerModeller {
-    runHandlerModeller :: Handler' m v s a b
+    runHandlerModeller :: LensedHandler m v s a b
     }
 
-type instance F.Modeller (HandlerModeller m a b v) s = Handler' m v s a b
+type instance F.Modeller (HandlerModeller m a b v) s = LensedHandler m v s a b
 
 instance F.ViaModel (HandlerModeller m a b v) where
     viaModel l (Handler hdl) =
         Handler $ \(ref, Lens this) a -> hdl (ref, Lens (this.l)) a
+
+toLensedHandler :: R.MonadReactor m => Handler m s a b -> LensedHandler m v s a b
+toLensedHandler (Handler hdl) = Handler $ \(ref, Lens this) a -> do
+    obj <- R.doReadIORef ref
+    hdl (obj ^. this) a
 
 -------------------------------------
 

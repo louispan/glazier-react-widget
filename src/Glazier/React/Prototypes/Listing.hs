@@ -56,20 +56,62 @@ data DeleteListingItem = DeleteListingItem [Int]
 data AddListingItem a = AddListingItem [Int] a
 data MoveListingItem = MoveListingItem [Int] [Int]
 
--- | MakeItemAction (F (R.Reactor a) o)
--- | SetFilterAction (R.OutlineOf w -> Bool)
--- | SetSortAction (R.OutlineOf w -> Bool)
+newtype ListingAction s = ListingAction {
+    runListingAction :: Which '[DeleteListingItem, AddListingItem s, MoveListingItem] }
+
+-- data Schema k w (p :: R.Part) = Schema
+--     { _className :: J.JSString
+--     , _idx :: k
+--     , _items :: M.Map k (R.Widget's p w)
+--     , _itemsFilter :: R.OutlineOf w -> Bool
+--     }
+-- data Plan = Plan
+--     { _componentPlan :: D.Component.Plan
+--     , _renderPlan :: D.Render.Plan
+--     , _disposePlan :: D.Dispose.Plan
+--     } deriving (G.Generic)
+
+-- data ListingModel s = ListingModel
+--     { _items :: Listing s
+--     , _disposables :: R.Disposable () -- Things to be disposed on the next componentUpdate
+--     } deriving (G.Generic)
+
+-- MakeItemAction (F (R.Reactor a) o)
 
 listingHandler ::
     ( R.MonadReactor m
-    , UniqueMember (Listing s) ss
+    , R.Dispose s
     )
-    => F.Handler m (Many ss)
-    (Which '[DeleteListingItem, AddListingItem s, MoveListingItem])
-    b
-listingHandler = undefined
+    => F.RefHandler m v (Listing s) (ListingAction s) (R.Disposable ())
+listingHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
+    case trial' @DeleteListingItem a of
+        Nothing -> pure mempty
+        Just (DeleteListingItem k) -> do
+            obj <- R.doReadIORef ref
+            let mi = M.lookup k (obj ^. this)
+            R.doModifyIORef' ref (this %~ M.delete k)
+            -- FIXME: Acutally want to dispose on ComponentRefUpdate
+            pure $ DL.singleton $ R.dispose mi
 
--- | Converts a builder with a plan of @[a]@ to a @Listing a@
+
+-- listingHandler2 ::
+--     ( R.MonadReactor m
+--     , R.Dispose s
+--     , UniqueMember (Listing s) ss
+--     , UniqueMember F.ComponentListeners ss
+--     )
+--     => F.RefHandler m v (Listing s) (Many ss) (R.Disposable ())
+-- listingHandler2 = F.Handler $ \(ref, Lens this) (ListingAction a) ->
+--     case trial' @DeleteListingItem a of
+--         Nothing -> pure mempty
+--         Just (DeleteListingItem k) -> do
+--             obj <- R.doReadIORef ref
+--             let mi = M.lookup k (obj ^. this)
+--             R.doModifyIORef' ref (this %~ M.delete k)
+--             -- FIXME: Acutally want to dispose on ComponentRefUpdate
+--             pure $ DL.singleton $ R.dispose mi
+
+-- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 toListingBuilder
     :: Applicative m
     => F.Builder m [p] s [p'] s'
@@ -108,16 +150,15 @@ listingDisplay (F.Display disp) = F.Display $ \ss ->
 
 -- | lift a handler for a single widget into a handler of a list of widgets
 -- where the input is broadcast to all the items in the list and the results DList'ed together.
-listingBroadcastHandler
-    :: forall m s a b ss.
+listingBroadcastRefHandler
+    ::
     ( R.MonadReactor m
-    , UniqueMember (Listing s) ss
     )
     => F.Handler m s a b
-    -> F.Handler m (Many ss) a b
-listingBroadcastHandler (F.Handler hdl) = F.Handler $ \ss a -> do
-    let xs = ss ^. (item @(Listing s))
-    ys <- traverse (\x -> hdl x a) xs
+    -> F.RefHandler m v (Listing s) a b
+listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> do
+    obj <- R.doReadIORef ref
+    ys <- traverse (\x -> hdl x a) (obj ^. this)
     pure $ fold ys
 
 -- listActivator

@@ -9,6 +9,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Core where
 --   ( WidgetCommand(..)
@@ -38,6 +39,7 @@ import Control.Lens
 -- import qualified Data.DList as DL
 -- import Data.IORef
 -- import qualified Data.JSString as JS
+import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Kind
 -- import Data.Semigroup
@@ -92,14 +94,30 @@ class ViaPlan (w :: Type -> Type) where
 
 data ComponentModel = ComponentModel
     { _component :: R.ReactComponent
-    , _componentListeners :: DL.DList R.Listener
-    , _componentKey :: R.Key
+    -- , _componentListeners :: DL.DList R.Listener
+    -- , _componentKey :: R.ReactKey
     , _componentRender ::  R.Renderer
     } deriving (G.Generic)
 
 makeClassy ''ComponentModel
 
 instance R.Dispose ComponentModel
+
+class HasReactKey c where
+    reactKey :: Lens' c R.ReactKey
+
+-- | Undecidableinstances!
+instance UniqueMember R.ReactKey s => HasReactKey (Many s) where
+    reactKey = item
+
+newtype ComponentListeners = ComponentListeners { runComponentListeners :: DL.DList R.Listener }
+
+class HasComponentListeners c where
+    componentListeners :: Lens' c ComponentListeners
+
+-- | Undecidableinstances!
+instance UniqueMember ComponentListeners s => HasComponentListeners (Many s) where
+    componentListeners = item
 
 
 -- data ComponentPlan = ComponentPlan

@@ -87,20 +87,20 @@ filterHandler f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env a
 -----------------------------------------------
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
-type LensedHandler m v s a b = Handler m (IORef v, ReifiedLens' v s) a b
+type RefHandler m v s a b = Handler m (IORef v, ReifiedLens' v s) a b
 
 newtype HandlerModeller m a b v s = HandlerModeller {
-    runHandlerModeller :: LensedHandler m v s a b
+    runHandlerModeller :: RefHandler m v s a b
     }
 
-type instance F.Modeller (HandlerModeller m a b v) s = LensedHandler m v s a b
+type instance F.Modeller (HandlerModeller m a b v) s = RefHandler m v s a b
 
 instance F.ViaModel (HandlerModeller m a b v) where
     viaModel l (Handler hdl) =
         Handler $ \(ref, Lens this) a -> hdl (ref, Lens (this.l)) a
 
-toLensedHandler :: R.MonadReactor m => Handler m s a b -> LensedHandler m v s a b
-toLensedHandler (Handler hdl) = Handler $ \(ref, Lens this) a -> do
+toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s a b
+toRefHandler (Handler hdl) = Handler $ \(ref, Lens this) a -> do
     obj <- R.doReadIORef ref
     hdl (obj ^. this) a
 

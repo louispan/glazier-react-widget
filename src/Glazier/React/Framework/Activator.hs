@@ -10,7 +10,9 @@ module Glazier.React.Framework.Activator
     ( Activator(..)
     , RefActivator
     , triggersRefActivator
+    , triggersRefActivator'
     , displayRefActivator
+    , displayRefActivator'
     , addHandler
     , ActivatorModeller(..)
     ) where
@@ -77,21 +79,35 @@ instance ( Monad m
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 triggersRefActivator
+    :: (R.MonadReactor m, NFData a)
+    => [F.Trigger a]
+    -> RefActivator m v (DL.DList R.Listener) a
+triggersRefActivator triggers = Activator $ \(ref, Lens this) (F.Executor exec) -> do
+    cbs <- traverse (traverse {- tuple traverse -} (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
+    R.doModifyIORef' ref (this %~ (`DL.append` DL.fromList cbs))
+
+-- | Variation of 'triggersRefActivator' using a state of @(F.ComponentModel, Many s)@
+triggersRefActivator'
     :: (R.MonadReactor m, NFData a, UniqueMember (DL.DList R.Listener) s)
     => [F.Trigger a]
     -> RefActivator m v (F.ComponentModel, Many s) a
-triggersRefActivator triggers = Activator $ \(ref, Lens this) (F.Executor exec) -> do
-    cbs <- traverse (traverse {- tuple traverse -} (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
-    R.doModifyIORef' ref ((this._2.item) %~ (`DL.append` DL.fromList cbs))
+triggersRefActivator' = F.viaModel (_2.item) . triggersRefActivator
 
 -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
 displayRefActivator
+    :: (R.MonadReactor m)
+    => F.Display m (IORef v) ()
+    -> RefActivator m v R.Renderer (Which '[])
+displayRefActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
+    rnd <- R.mkRenderer (disp ref)
+    R.doModifyIORef' ref (this .~ rnd)
+
+-- | Variation of 'displayRefActivator' using a state of @(F.ComponentModel, Many s)@
+displayRefActivator'
     :: (R.MonadReactor m, UniqueMember R.Renderer s)
     => F.Display m (IORef v) ()
     -> RefActivator m v (F.ComponentModel, Many s) (Which '[])
-displayRefActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
-    rnd <- R.mkRenderer (disp ref)
-    R.doModifyIORef' ref ((this._2.item) .~ rnd)
+displayRefActivator' = F.viaModel (_2.item) . displayRefActivator
 
 -- | Internal function: Converts a handler to a form that can be chained inside an Activator
 mkIOHandler

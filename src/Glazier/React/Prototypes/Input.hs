@@ -48,7 +48,7 @@ inputPrototype =
         , F.build @(DL.DList JE.Property) Proxy
             `P.pmappend` F.hardcode @(DL.DList R.Listener) DL.empty
         , P.pmempty
-        , F.triggersRefActivator [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
+        , F.triggersRefActivator' [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
         , F.Display $ \(k, ss) -> R.lf "input"
             (DL.toList $ fetch @(DL.DList R.Listener) ss)
             (DL.toList . (DL.cons ("k", JE.toJS' . R.runReactKey $ k)) $ fetch @(DL.DList JE.Property) ss)

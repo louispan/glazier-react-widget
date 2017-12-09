@@ -14,6 +14,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- {-# LANGUAGE TypeFamilies #-}
 -- {-# LANGUAGE TypeOperators #-}
+-- {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Glazier.React.Prototypes.Listing where
 
@@ -94,22 +95,20 @@ listingHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
             pure $ DL.singleton $ R.dispose mi
 
 
--- listingHandler2 ::
---     ( R.MonadReactor m
---     , R.Dispose s
---     , UniqueMember (Listing s) ss
---     , UniqueMember F.ComponentListeners ss
---     )
---     => F.RefHandler m v (Listing s) (Many ss) (R.Disposable ())
--- listingHandler2 = F.Handler $ \(ref, Lens this) (ListingAction a) ->
---     case trial' @DeleteListingItem a of
---         Nothing -> pure mempty
---         Just (DeleteListingItem k) -> do
---             obj <- R.doReadIORef ref
---             let mi = M.lookup k (obj ^. this)
---             R.doModifyIORef' ref (this %~ M.delete k)
---             -- FIXME: Acutally want to dispose on ComponentRefUpdate
---             pure $ DL.singleton $ R.dispose mi
+listingHandler2 ::
+    ( R.MonadReactor m
+    , R.Dispose s
+    )
+    => F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction s) (R.Disposable ())
+listingHandler2 = F.Handler $ \(ref, Lens this) (ListingAction a) ->
+    case trial' @DeleteListingItem a of
+        Nothing -> pure mempty
+        Just (DeleteListingItem k) -> do
+            obj <- R.doReadIORef ref
+            let mi = M.lookup k (obj ^. (this._2))
+            R.doModifyIORef' ref ((this._2) %~ M.delete k)
+            -- FIXME: Acutally want to dispose on ComponentRefUpdate
+            pure $ DL.singleton $ R.dispose mi
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 toListingBuilder

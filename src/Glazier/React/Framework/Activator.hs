@@ -79,19 +79,19 @@ instance ( Monad m
 triggersRefActivator
     :: (R.MonadReactor m, NFData a, UniqueMember (DL.DList R.Listener) s)
     => [F.Trigger a]
-    -> RefActivator m v (Many s) a
+    -> RefActivator m v (F.ComponentModel, Many s) a
 triggersRefActivator triggers = Activator $ \(ref, Lens this) (F.Executor exec) -> do
     cbs <- traverse (traverse {- tuple traverse -} (\t' -> R.mkCallback t' exec) . F.runTrigger) triggers
-    R.doModifyIORef' ref ((this.item) %~ (`DL.append` DL.fromList cbs))
+    R.doModifyIORef' ref ((this._2.item) %~ (`DL.append` DL.fromList cbs))
 
 -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
 displayRefActivator
     :: (R.MonadReactor m, UniqueMember R.Renderer s)
     => F.Display m (IORef v) ()
-    -> RefActivator m v (Many s) (Which '[])
+    -> RefActivator m v (F.ComponentModel, Many s) (Which '[])
 displayRefActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
     rnd <- R.mkRenderer (disp ref)
-    R.doModifyIORef' ref ((this.item) .~ rnd)
+    R.doModifyIORef' ref ((this._2.item) .~ rnd)
 
 -- | Internal function: Converts a handler to a form that can be chained inside an Activator
 mkIOHandler

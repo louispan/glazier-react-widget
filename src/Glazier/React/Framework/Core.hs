@@ -39,7 +39,7 @@ import Control.Lens
 -- import qualified Data.DList as DL
 -- import Data.IORef
 -- import qualified Data.JSString as JS
-import Data.Diverse.Lens
+-- import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Kind
 -- import Data.Semigroup
@@ -48,6 +48,7 @@ import qualified GHC.Generics as G
 -- import qualified GHCJS.Foreign.Callback as J
 -- import qualified GHCJS.Types as J
 import qualified Glazier.React as R
+-- import qualified JavaScript.Extras as JE
 
 -- import qualified Glazier.React.Commands.Rerender as C
 -- import qualified JavaScript.Extras as JE
@@ -94,30 +95,56 @@ class ViaPlan (w :: Type -> Type) where
 
 data ComponentModel = ComponentModel
     { _component :: R.ReactComponent
-    -- , _componentListeners :: DL.DList R.Listener
-    -- , _componentKey :: R.ReactKey
-    , _componentRender ::  R.Renderer
+    , _componentListeners :: DL.DList R.Listener
+    , _componentKey :: R.ReactKey
+    , _componentRender :: R.Renderer
     } deriving (G.Generic)
 
 makeClassy ''ComponentModel
 
 instance R.Dispose ComponentModel
 
-class HasReactKey c where
-    reactKey :: Lens' c R.ReactKey
+-- mkEmptyComponentModel :: R.MonadReactor m => m ComponentModel
+-- mkEmptyComponentModel = ComponentModel
+--     <$> R.getComponent
+--     <*> pure mempty
+--     <*> R.mkReactKey
+--     -- <*> pure (R.Renderer (J.Callback J.nullRef))
 
--- | Undecidableinstances!
-instance UniqueMember R.ReactKey s => HasReactKey (Many s) where
-    reactKey = item
+-- instance Semigroup ComponentModel where
+--     (ComponentModel c ls1 k) <> (ComponentModel _ ls2 _) = ComponentModel c (ls1 <> ls2) k
 
-newtype ComponentListeners = ComponentListeners { runComponentListeners :: DL.DList R.Listener }
+-- wack :: Lens' Int Bool
+-- wack = lens even (\i b -> if b then i else i+)
 
-class HasComponentListeners c where
-    componentListeners :: Lens' c ComponentListeners
 
--- | Undecidableinstances!
-instance UniqueMember ComponentListeners s => HasComponentListeners (Many s) where
-    componentListeners = item
+-- weck :: Lens' (a, Int) (a, Bool)
+-- weck = alongside _1 (_2.wack)
+
+-- -- class HasReactKey c where
+--     reactKey :: Lens' c R.ReactKey
+
+-- -- | Undecidableinstances!
+-- instance UniqueMember R.ReactKey s => HasReactKey (Many s) where
+--     reactKey = item
+
+-- newtype ComponentListeners = ComponentListeners { runComponentListeners :: DL.DList R.Listener }
+--    deriving G.Generic
+-- instance R.Dispose ComponentListeners
+
+-- class HasComponentListeners c where
+--     componentListeners :: Lens' c ComponentListeners
+
+-- -- | Undecidableinstances!
+-- instance UniqueMember ComponentListeners s => HasComponentListeners (Many s) where
+--     componentListeners = item
+
+-- class HasReactComponent c where
+--     reactComponent :: Lens' c R.ReactComponent
+
+-- -- | Undecidableinstances!
+-- instance UniqueMember R.ReactComponent s => HasReactComponent (Many s) where
+--     reactComponent = item
 
 
 -- data ComponentPlan = ComponentPlan

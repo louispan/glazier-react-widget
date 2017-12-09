@@ -36,13 +36,14 @@ newtype Archetype m p s a b c = Archetype {
     }
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: (R.MonadReactor m, F.HasReactKey s, F.HasComponentListeners s)
+toArchetype :: R.MonadReactor m
     => F.Prototype m (F.ComponentModel, s) p s p s a b c
     -> Archetype m p (IORef (F.ComponentModel, s)) a b c
-toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
-                     , F.Handler hdl
-                     , F.Activator act
-                     , F.Display disp)) = Archetype
+toArchetype (F.Prototype ( cls
+                         , F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
+                         , F.Handler hdl
+                         , F.Activator act
+                         , F.Display disp)) = Archetype
      ( F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
                  , F.MkModel $ \p -> do
                          -- tuple the original state with a ComponentModel
@@ -51,25 +52,27 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          -- create a ComponentModel with a dummy render for now
                          cm <- F.ComponentModel
                                  <$> R.getComponent
+                                 <*> pure cls
+                                 <*> R.mkReactKey
                                  <*> pure (R.Renderer (J.Callback J.nullRef))
                          -- create the IORef
                          ref <- R.doNewIORef (cm, s)
                          -- now replace the render in the model
                          rnd <- R.mkRenderer $ do
-                             (_, s') <- lift $ R.doReadIORef ref
-                             disp s'
+                             (cm', s') <- lift $ R.doReadIORef ref
+                             disp (cm' ^. F.componentKey, s')
                          R.doModifyIORef' ref (\(cm', s') -> (cm' & F.componentRender .~ rnd, s'))
                          -- return the ioref
                          pure ref
                  )
-     , F.Handler $ \ref a -> hdl (ref, Lens _2) a
-     , F.Activator $ \ref exec -> act (ref, Lens _2) exec
+     , F.Handler $ \ref a -> hdl (ref, Lens id) a
+     , F.Activator $ \ref exec -> act (ref, Lens id) exec
      , F.Display $ \ref -> do
-             (cm, s) <- lift $ R.doReadIORef ref
+             (cm, _) <- lift $ R.doReadIORef ref
              R.lf (cm ^. F.component . to JE.toJS')
-                 (s ^. F.componentListeners . to (DL.toList . F.runComponentListeners))
-                 [ ("key",  s ^. F.reactKey . to (JE.toJS' . R.runReactKey))
-                 , ("render", cm ^. F.componentRender . to (JE.toJS' . R.runRenderer))
+                 (cm ^. F.componentListeners . to DL.toList)
+                 [ ("key",  cm ^. F.componentKey . to JE.toJS')
+                 , ("render", cm ^. F.componentRender . to JE.toJS')
                  ]
      )
 
@@ -78,53 +81,54 @@ fromArchetype :: R.MonadReactor m => Archetype m p s a b c -> F.Prototype m v p 
 fromArchetype (Archetype ( bld
                      , F.Handler hdl
                      , F.Activator act
-                     , disp)) = F.Prototype
-    ( bld
+                     , F.Display disp)) = F.Prototype
+    ( mempty
+    , bld
     , F.Handler $ \(ref, Lens this) a -> do
             obj <- R.doReadIORef ref
-            hdl (obj ^. this) a
+            hdl (obj ^. this . _2) a
     , F.Activator $ \(ref, Lens this) exec -> do
             obj <- R.doReadIORef ref
-            act (obj ^. this) exec
-    , disp )
+            act (obj ^. this . _2) exec
+    , F.Display $ \(_, s) -> disp s)
 
 
-mapBuilder2
-    :: (F.Builder m p s p s -> F.Builder m p s p s)
-    -> Archetype m p s a b c
-    -> Archetype m p s a b c
-mapBuilder2 f (Archetype (bld, hdl, act, disp)) = Archetype
-                   ( f bld
-                   , hdl
-                   , act
-                   , disp)
+-- mapBuilder2
+--     :: (F.Builder m p s p s -> F.Builder m p s p s)
+--     -> Archetype m p s a b c
+--     -> Archetype m p s a b c
+-- mapBuilder2 f (Archetype (bld, hdl, act, disp)) = Archetype
+--                    ( f bld
+--                    , hdl
+--                    , act
+--                    , disp)
 
-mapHandler2
-    :: (F.Handler m s a1 b1 -> F.Handler m s a2 b2)
-    -> Archetype m p s a1 b1 c
-    -> Archetype m p s a2 b2 c
-mapHandler2 f (Archetype (bld, hdl, act, disp)) = Archetype
-                   ( bld
-                   , f hdl
-                   , act
-                   , disp)
+-- mapHandler2
+--     :: (F.Handler m s a1 b1 -> F.Handler m s a2 b2)
+--     -> Archetype m p s a1 b1 c
+--     -> Archetype m p s a2 b2 c
+-- mapHandler2 f (Archetype (bld, hdl, act, disp)) = Archetype
+--                    ( bld
+--                    , f hdl
+--                    , act
+--                    , disp)
 
-mapActivator2
-    :: (F.Activator m s c1 -> F.Activator m s c2)
-    -> Archetype m p s a b c1
-    -> Archetype m p s a b c2
-mapActivator2 f (Archetype (bld, hdl, act, disp)) = Archetype
-                   ( bld
-                   , hdl
-                   , f act
-                   , disp)
+-- mapActivator2
+--     :: (F.Activator m s c1 -> F.Activator m s c2)
+--     -> Archetype m p s a b c1
+--     -> Archetype m p s a b c2
+-- mapActivator2 f (Archetype (bld, hdl, act, disp)) = Archetype
+--                    ( bld
+--                    , hdl
+--                    , f act
+--                    , disp)
 
-mapDisplay2
-    :: (F.Display m s () -> F.Display m s ())
-    -> Archetype m p s a b c
-    -> Archetype m p s a b c
-mapDisplay2 f (Archetype (bld, hdl, act, disp)) = Archetype
-                   ( bld
-                   , hdl
-                   , act
-                   , f disp)
+-- mapDisplay2
+--     :: (F.Display m s () -> F.Display m s ())
+--     -> Archetype m p s a b c
+--     -> Archetype m p s a b c
+-- mapDisplay2 f (Archetype (bld, hdl, act, disp)) = Archetype
+--                    ( bld
+--                    , hdl
+--                    , act
+--                    , f disp)

@@ -22,6 +22,7 @@ import Control.Lens
 import qualified Data.DList as DL
 import Data.Diverse.Lens
 import Data.Foldable
+import Data.IORef
 -- import qualified Data.JSString as J
 -- import Data.Maybe
 import qualified Data.Map.Strict as M
@@ -53,47 +54,59 @@ incrementIdx (a : _) = [a + 1]
 type Listing a = M.Map [Int] a
 
 -- | List specific actions
-data DeleteListingItem = DeleteListingItem [Int]
-data AddListingItem a = AddListingItem [Int] a
-data MoveListingItem = MoveListingItem [Int] [Int]
+data ListingDeleteItem = ListingDeleteItem [Int]
+data ListingAddItem a = ListingAddItem [Int] a
+data ListingMoveItem = ListingMoveItem [Int] [Int]
 
 newtype ListingAction s = ListingAction {
-    runListingAction :: Which '[DeleteListingItem, AddListingItem s, MoveListingItem] }
+    runListingAction :: Which '[ListingDeleteItem, ListingAddItem s, ListingMoveItem] }
 
--- data Schema k w (p :: R.Part) = Schema
---     { _className :: J.JSString
---     , _idx :: k
---     , _items :: M.Map k (R.Widget's p w)
---     , _itemsFilter :: R.OutlineOf w -> Bool
---     }
--- data Plan = Plan
---     { _componentPlan :: D.Component.Plan
---     , _renderPlan :: D.Render.Plan
---     , _disposePlan :: D.Dispose.Plan
---     } deriving (G.Generic)
+onListingDeleteItem :: (R.MonadReactor m, R.Dispose s)
+ => IORef v
+ -> Lens' v (F.ComponentModel, Listing s)
+ -> ListingDeleteItem
+ -> m (DL.DList C.Rerender)
+onListingDeleteItem ref this (ListingDeleteItem k) = do
+       R.doModifyIORef' ref $ \obj ->
+            let mi = M.lookup k (obj ^. this._2)
+            in obj & (this._2 %~ M.delete k)
+                   . (this._1.F.componentDisposables %~ (R.dispose mi :))
+       DL.singleton <$> C.mkRerender ref (this._1)
 
--- data ListingModel s = ListingModel
---     { _items :: Listing s
---     , _disposables :: R.Disposable () -- Things to be disposed on the next componentUpdate
---     } deriving (G.Generic)
+onListingMoveItem :: (R.MonadReactor m)
+ => IORef v
+ -> Lens' v (F.ComponentModel, Listing s)
+ -> ListingMoveItem
+ -> m (DL.DList C.Rerender)
+onListingMoveItem ref this (ListingMoveItem oldK newK) = do
+       R.doModifyIORef' ref $ \obj ->
+            let mi = M.lookup oldK (obj ^. this._2)
+            in case mi of
+                Nothing -> obj
+                Just i -> obj & (this._2 %~ M.delete oldK)
+                              . (this._2 %~ M.insert newK i)
+       DL.singleton <$> C.mkRerender ref (this._1)
 
--- MakeItemAction (F (R.Reactor a) o)
+onListingAddItem :: (R.MonadReactor m)
+ => IORef v
+ -> Lens' v (F.ComponentModel, Listing s)
+ -> ListingAddItem s
+ -> m (DL.DList C.Rerender)
+onListingAddItem ref this (ListingAddItem k s) = do
+            R.doModifyIORef' ref (this._2 %~ M.insert k s)
+            DL.singleton <$> C.mkRerender ref (this._1)
 
-listingHandler ::
-    ( R.MonadReactor m
+listingHandler2 ::
+    forall m s v. ( R.MonadReactor m
     , R.Dispose s
     )
     => F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction s) C.Rerender
-listingHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
-    case trial' @DeleteListingItem a of
-        Nothing -> pure mempty
-        Just (DeleteListingItem k) -> do
-            obj <- R.doReadIORef ref
-            let mi = M.lookup k (obj ^. this._2)
-            R.doModifyIORef' ref ((this._2 %~ M.delete k)
-                                  . (this._1.F.componentDisposables %~ (R.dispose mi :))
-                                 )
-            DL.singleton <$> C.mkRerender ref (this._1)
+listingHandler2 = F.Handler $ \(ref, Lens this) (ListingAction a) ->
+    switch a . cases $
+        (onListingDeleteItem @m ref this)
+     ./ (onListingMoveItem @m ref this)
+     ./ (onListingAddItem @m ref this)
+     ./ nil
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 toListingBuilder

@@ -11,7 +11,6 @@ module Glazier.React.Framework.Archetype where
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
-import qualified Data.DList as DL
 import Data.IORef
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
@@ -39,8 +38,7 @@ newtype Archetype m p s a b c = Archetype {
 toArchetype :: R.MonadReactor m
     => F.Prototype m (F.ComponentModel, s) p s p s a b c
     -> Archetype m p (IORef (F.ComponentModel, s)) a b c
-toArchetype (F.Prototype ( cls
-                         , F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
+toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          , F.Handler hdl
                          , F.Activator act
                          , F.Display disp)) = Archetype
@@ -49,10 +47,11 @@ toArchetype (F.Prototype ( cls
                          -- tuple the original state with a ComponentModel
                          -- and wrap inside a IORef
                          s <- mkModel p
-                         -- create a ComponentModel with a dummy render for now
+                         -- create a ComponentModel with a dummy render and updated for now
                          cm <- F.ComponentModel
                                  <$> R.getComponent
-                                 <*> pure cls
+                                 <*> pure (pure ()) -- Disposable
+                                 <*> pure (J.Callback J.nullRef)
                                  <*> R.mkReactKey
                                  <*> pure (R.Renderer (J.Callback J.nullRef))
                          -- create the IORef
@@ -61,7 +60,16 @@ toArchetype (F.Prototype ( cls
                          rnd <- R.mkRenderer $ do
                              (cm', s') <- lift $ R.doReadIORef ref
                              disp (cm' ^. F.componentKey, s')
-                         R.doModifyIORef' ref (\(cm', s') -> (cm' & F.componentRender .~ rnd, s'))
+                         upd <- R.mkCallback (const $ pure ()) (const $ do
+                                 (cm', _) <- readIORef ref
+                                 let d = cm' ^. F.componentDisposable
+                                 modifyIORef' ref (\(cm'', s') ->
+                                     (cm'' & F.componentDisposable .~ (pure ()), s'))
+                                 R.runDisposable d)
+                         R.doModifyIORef' ref (\(cm', s') ->
+                                     ( cm' & F.componentRender .~ rnd
+                                           & F.componentUpdated .~ upd
+                                     , s'))
                          -- return the ioref
                          pure ref
                  )
@@ -69,10 +77,11 @@ toArchetype (F.Prototype ( cls
      , F.Activator $ \ref exec -> act (ref, Lens id) exec
      , F.Display $ \ref -> do
              (cm, _) <- lift $ R.doReadIORef ref
-             R.lf (cm ^. F.component . to JE.toJS')
-                 (cm ^. F.componentListeners . to DL.toList)
-                 [ ("key",  cm ^. F.componentKey . to JE.toJS')
-                 , ("render", cm ^. F.componentRender . to JE.toJS')
+             R.lf (cm ^. F.component.to JE.toJS')
+                 mempty
+                 [ ("key",  cm ^. F.componentKey.to JE.toJS')
+                 , ("render", cm ^. F.componentRender.to JE.toJS')
+                 , ("render", cm ^. F.componentRender.to JE.toJS')
                  ]
      )
 
@@ -82,14 +91,13 @@ fromArchetype (Archetype ( bld
                      , F.Handler hdl
                      , F.Activator act
                      , F.Display disp)) = F.Prototype
-    ( mempty
-    , bld
+    ( bld
     , F.Handler $ \(ref, Lens this) a -> do
             obj <- R.doReadIORef ref
-            hdl (obj ^. this . _2) a
+            hdl (obj ^. this._2) a
     , F.Activator $ \(ref, Lens this) exec -> do
             obj <- R.doReadIORef ref
-            act (obj ^. this . _2) exec
+            act (obj ^. this._2) exec
     , F.Display $ \(_, s) -> disp s)
 
 

@@ -44,8 +44,7 @@ inputPrototype
             (Which '[SubmitInput, CancelInput])
 inputPrototype =
     F.Prototype
-        ( mempty
-        , F.build @(DL.DList JE.Property) Proxy
+        ( F.build @(DL.DList JE.Property) Proxy
             `P.pmappend` F.hardcode @(DL.DList R.Listener) DL.empty
         , P.pmempty
         , F.triggersRefActivator' [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]

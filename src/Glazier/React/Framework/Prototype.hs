@@ -22,8 +22,7 @@ import qualified Parameterized.TypeLevel as P
 
 newtype Prototype m v p s p' s' a b c = Prototype {
     runPrototype ::
-           ( DL.DList R.Listener -- component listeners, not prototype listeners
-           , F.Builder m p s p' s'
+           ( F.Builder m p s p' s'
            , F.RefHandler m v (F.ComponentModel, s) a b
            -- activator contains other prerequisites
            -- of executor, and actions that need to be handled
@@ -42,8 +41,7 @@ type instance P.PNullary (PPrototype m v p s) (p', s', a, b, c) = Prototype m v 
 
 instance Monad m => P.PMEmpty (PPrototype m p s v) (Many '[], Many '[], Which '[], Which '[], Which '[]) where
     pmempty = Prototype
-        ( mempty
-        , P.pmempty
+        ( P.pmempty
         , P.pmempty
         , P.pmempty
         , mempty)
@@ -64,10 +62,9 @@ instance ( Monad m
              (Many p1, Many s1, Which a1, Which b1, Which c1)
              (Many p2, Many s2, Which a2, Which b2, Which c2)
              (Many p3, Many s3, Which a3, Which b3, Which c3) where
-    (Prototype (cls1, bld1, hdl1, act1, disp1)) `pmappend` (Prototype (cls2, bld2, hdl2, act2, disp2)) =
+    (Prototype (bld1, hdl1, act1, disp1)) `pmappend` (Prototype (bld2, hdl2, act2, disp2)) =
         Prototype
-        ( cls1 <> cls2
-        , bld1 `P.pmappend` bld2
+        ( bld1 `P.pmappend` bld2
         , hdl1 `P.pmappend` hdl2
         , act1 `P.pmappend` act2
         , disp1 <> disp2
@@ -80,8 +77,7 @@ building
     => F.Builder m p s p' s'
     -> Prototype m v p s p' s' (Which '[]) (Which '[]) (Which '[])
 building bld = Prototype
-        ( mempty
-        , bld
+        ( bld
         , P.pmempty
         , P.pmempty
         , mempty)
@@ -91,8 +87,7 @@ refHandling
     => F.RefHandler m v (F.ComponentModel, s) a b
     -> Prototype m v p s (Many '[]) (Many '[]) a b (Which '[])
 refHandling hdl = Prototype
-        ( mempty
-        , P.pmempty
+        ( P.pmempty
         , hdl
         , P.pmempty
         , mempty)
@@ -102,8 +97,7 @@ refActivating
     => F.RefActivator m v (F.ComponentModel, s) c
     -> Prototype m v p s (Many '[]) (Many '[]) (Which '[]) (Which '[]) c
 refActivating act = Prototype
-        ( mempty
-        , P.pmempty
+        ( P.pmempty
         , P.pmempty
         , act
         , mempty)
@@ -113,8 +107,7 @@ displaying
     => F.Display m (R.ReactKey, s) ()
     -> Prototype m v p s (Many '[]) (Many '[]) (Which '[]) (Which '[]) (Which '[])
 displaying d = Prototype
-        ( mempty
-        , P.pmempty
+        ( P.pmempty
         , P.pmempty
         , P.pmempty
         , d)
@@ -125,9 +118,8 @@ mapBuilder
     :: (F.Builder m p1 s p1' s1' -> F.Builder m p2 s p2' s2')
     -> Prototype m v p1 s p1' s1' a b c
     -> Prototype m v p2 s p2' s2' a b c
-mapBuilder f (Prototype (cls, bld, hdl, act, disp)) = Prototype
-                   ( cls
-                   , f bld
+mapBuilder f (Prototype (bld, hdl, act, disp)) = Prototype
+                   ( f bld
                    , hdl
                    , act
                    , disp)
@@ -136,9 +128,8 @@ mapRefHandler
     :: (F.RefHandler m v (F.ComponentModel, s) a1 b1 -> F.RefHandler m v (F.ComponentModel, s) a2 b2)
     -> Prototype m v p s p' s' a1 b1 c
     -> Prototype m v p s p' s' a2 b2 c
-mapRefHandler f (Prototype (cls, bld, hdl, act, disp)) = Prototype
-                   ( cls
-                   , bld
+mapRefHandler f (Prototype (bld, hdl, act, disp)) = Prototype
+                   ( bld
                    , f hdl
                    , act
                    , disp)
@@ -147,9 +138,8 @@ mapRefActivator
     :: (F.RefActivator m v (F.ComponentModel, s) c1 -> F.RefActivator m v (F.ComponentModel, s) c2)
     -> Prototype m v p s p' s' a b c1
     -> Prototype m v p s p' s' a b c2
-mapRefActivator f (Prototype (cls, bld, hdl, act, disp)) = Prototype
-                   ( cls
-                   , bld
+mapRefActivator f (Prototype (bld, hdl, act, disp)) = Prototype
+                   ( bld
                    , hdl
                    , f act
                    , disp)
@@ -158,9 +148,8 @@ mapDisplay
     :: (F.Display m (R.ReactKey, s) () -> F.Display m (R.ReactKey, s) ())
     -> Prototype m v p s p' s' a b c
     -> Prototype m v p s p' s' a b c
-mapDisplay f (Prototype (cls, bld, hdl, act, disp)) = Prototype
-                   ( cls
-                   , bld
+mapDisplay f (Prototype (bld, hdl, act, disp)) = Prototype
+                   ( bld
                    , hdl
                    , act
                    , f disp)
@@ -174,9 +163,8 @@ newtype PrototypeModeller m v p p' s' a b c s = PrototypeModeller
 type instance F.Modeller (PrototypeModeller m v p p' s' a b c) s = Prototype m v p s p' s' a b c
 
 instance F.ViaModel (PrototypeModeller m v p p' s' a b c) where
-    viaModel l (Prototype (cls, bld, hdl, act, disp)) = Prototype
-                   ( cls
-                   , F.viaModel l bld
+    viaModel l (Prototype (bld, hdl, act, disp)) = Prototype
+                   ( F.viaModel l bld
                    , F.viaModel (alongside id l) hdl
                    , F.viaModel (alongside id l) act
                    , F.viaModel (alongside id l) disp
@@ -191,9 +179,8 @@ newtype PrototypePlanner m v s p' s' a b c p = PrototypePlanner
 type instance F.Planner (PrototypePlanner m v s p' s' a b c) p = Prototype m v p s p' s' a b c
 
 instance F.ViaPlan (PrototypePlanner m v s p' s' a b c) where
-    viaPlan l (Prototype (cls, bld, hdl, act, disp)) = Prototype
-                   ( cls
-                   , F.viaPlan l bld
+    viaPlan l (Prototype (bld, hdl, act, disp)) = Prototype
+                   ( F.viaPlan l bld
                    , hdl
                    , act
                    , disp

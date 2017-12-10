@@ -50,10 +50,11 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          -- create a ComponentModel with a dummy render and updated for now
                          cm <- F.ComponentModel
                                  <$> R.getComponent
-                                 <*> pure (pure ()) -- Disposable
+                                 <*> pure [] -- Disposables
                                  <*> pure (J.Callback J.nullRef)
                                  <*> R.mkReactKey
                                  <*> pure (R.Renderer (J.Callback J.nullRef))
+                                 <*> pure 0
                          -- create the IORef
                          ref <- R.doNewIORef (cm, s)
                          -- now replace the render in the model
@@ -62,10 +63,15 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                              disp (cm' ^. F.componentKey, s')
                          upd <- R.mkCallback (const $ pure ()) (const $ do
                                  (cm', _) <- readIORef ref
-                                 let d = cm' ^. F.componentDisposable
-                                 modifyIORef' ref (\(cm'', s') ->
-                                     (cm'' & F.componentDisposable .~ (pure ()), s'))
-                                 R.runDisposable d)
+                                 let ds = cm' ^. F.componentDisposables
+                                 case ds of
+                                     [] -> pure ()
+                                     ds' -> do
+                                         modifyIORef' ref (\(cm'', s') ->
+                                             (cm'' & F.componentDisposables .~ []
+                                                   & F.componentFrameNum %~ (\j -> (j `mod` JE.maxSafeInteger) + 1)
+                                             , s'))
+                                         R.runDisposable . R.dispose $ ds')
                          R.doModifyIORef' ref (\(cm', s') ->
                                      ( cm' & F.componentRender .~ rnd
                                            & F.componentUpdated .~ upd

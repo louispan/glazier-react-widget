@@ -73,7 +73,7 @@ import qualified Glazier.React as R
 -- | Plan has to be stored differently to other plans because mkPlan needs
 -- additional parameters
 
-newtype FrameNum = FrameNum { runFrameNum :: Int } deriving R.Dispose
+-- newtype FrameNum = FrameNum { runFrameNum :: Int } deriving R.Dispose
 
 type family Modeller (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
 
@@ -95,10 +95,11 @@ class ViaPlan (w :: Type -> Type) where
 
 data ComponentModel = ComponentModel
     { _component :: R.ReactComponent
-    , _componentDisposable :: R.Disposable () -- List of things to dispose on updated
+    , _componentDisposables :: [R.Disposable ()] -- List of things to dispose on updated
     , _componentUpdated :: J.Callback (J.JSVal -> IO ())
     , _componentKey :: R.ReactKey
     , _componentRender :: R.Renderer
+    , _componentFrameNum :: Int
     } deriving (G.Generic)
 
 makeClassy ''ComponentModel

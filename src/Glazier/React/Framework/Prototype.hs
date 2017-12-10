@@ -9,7 +9,6 @@ module Glazier.React.Framework.Prototype where
 
 import Control.Lens
 import Data.Diverse
-import qualified Data.DList as DL
 import Data.Semigroup (Semigroup(..))
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F

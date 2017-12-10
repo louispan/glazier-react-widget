@@ -27,7 +27,7 @@ import Data.Foldable
 import qualified Data.Map.Strict as M
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
--- import qualified Glazier.React.Commands as C
+import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
 -- import qualified Pipes.Concurrent as PC
 
@@ -83,32 +83,17 @@ listingHandler ::
     ( R.MonadReactor m
     , R.Dispose s
     )
-    => F.RefHandler m v (Listing s) (ListingAction s) (R.Disposable ())
+    => F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction s) C.Rerender
 listingHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
     case trial' @DeleteListingItem a of
         Nothing -> pure mempty
         Just (DeleteListingItem k) -> do
             obj <- R.doReadIORef ref
-            let mi = M.lookup k (obj ^. this)
-            R.doModifyIORef' ref (this %~ M.delete k)
-            -- FIXME: Acutally want to dispose on ComponentRefUpdate
-            pure $ DL.singleton $ R.dispose mi
-
-
-listingHandler2 ::
-    ( R.MonadReactor m
-    , R.Dispose s
-    )
-    => F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction s) (R.Disposable ())
-listingHandler2 = F.Handler $ \(ref, Lens this) (ListingAction a) ->
-    case trial' @DeleteListingItem a of
-        Nothing -> pure mempty
-        Just (DeleteListingItem k) -> do
-            obj <- R.doReadIORef ref
-            let mi = M.lookup k (obj ^. (this._2))
-            R.doModifyIORef' ref ((this._2) %~ M.delete k)
-            -- FIXME: Acutally want to dispose on ComponentRefUpdate
-            pure $ DL.singleton $ R.dispose mi
+            let mi = M.lookup k (obj ^. this._2)
+            R.doModifyIORef' ref ((this._2 %~ M.delete k)
+                                  . (this._1.F.componentDisposables %~ (R.dispose mi :))
+                                 )
+            DL.singleton <$> C.mkRerender ref (this._1)
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 toListingBuilder
@@ -137,8 +122,8 @@ listingDisplay
     , UniqueMember (DL.DList R.Listener) ss
     )
     => F.Display m s ()
-    -> F.Display m (Many ss) ()
-listingDisplay (F.Display disp) = F.Display $ \ss ->
+    -> F.Display m (R.ReactKey, Many ss) ()
+listingDisplay (F.Display disp) = F.Display $ \(_, ss) ->
     let xs = ss ^. (item @(Listing s))
         xs' = toLi <$> xs
         toLi s = R.bh "li" [] [] (disp s)

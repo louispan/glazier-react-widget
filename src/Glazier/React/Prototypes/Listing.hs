@@ -55,11 +55,18 @@ type Listing a = M.Map [Int] a
 
 -- | List specific actions
 data ListingDeleteItem = ListingDeleteItem [Int]
-data ListingAddItem a = ListingAddItem [Int] a
 data ListingMoveItem = ListingMoveItem [Int] [Int]
+data ListingInsertItem a = ListingInsertItem [Int] a
+data ListingConsItem a = ListingConsItem a
+data ListingSnocItem a = ListingSnocItem a
 
 newtype ListingAction s = ListingAction {
-    runListingAction :: Which '[ListingDeleteItem, ListingAddItem s, ListingMoveItem] }
+    runListingAction :: Which '[ ListingDeleteItem
+                               , ListingMoveItem
+                               , ListingInsertItem s
+                               , ListingConsItem s
+                               , ListingSnocItem s
+                               ] }
 
 onListingDeleteItem :: (R.MonadReactor m, R.Dispose s)
  => IORef v
@@ -73,39 +80,74 @@ onListingDeleteItem ref this (ListingDeleteItem k) = do
                    . (this._1.F.componentDisposables %~ (R.dispose mi :))
        DL.singleton <$> C.mkRerender ref (this._1)
 
-onListingMoveItem :: (R.MonadReactor m)
+-- | Move an item from one key to another
+-- If the Listing at the old key didn't exist and an item at the new key
+-- already exist, this will delete the item at the new key.
+onListingMoveItem :: (R.MonadReactor m, R.Dispose s)
  => IORef v
  -> Lens' v (F.ComponentModel, Listing s)
  -> ListingMoveItem
  -> m (DL.DList C.Rerender)
 onListingMoveItem ref this (ListingMoveItem oldK newK) = do
        R.doModifyIORef' ref $ \obj ->
-            let mi = M.lookup oldK (obj ^. this._2)
-            in case mi of
-                Nothing -> obj
-                Just i -> obj & (this._2 %~ M.delete oldK)
-                              . (this._2 %~ M.insert newK i)
+            let mi = M.lookup newK (obj ^. this._2)
+                mj = M.lookup oldK (obj ^. this._2)
+            in case mj of
+                Nothing -> obj & (this._1.F.componentDisposables %~ (R.dispose mi :))
+                Just i -> obj & (this._2 %~ M.insert newK i)
+                   . (this._1.F.componentDisposables %~ (R.dispose mi :))
        DL.singleton <$> C.mkRerender ref (this._1)
 
-onListingAddItem :: (R.MonadReactor m)
+onListingInsertItem :: (R.MonadReactor m, R.Dispose s)
  => IORef v
  -> Lens' v (F.ComponentModel, Listing s)
- -> ListingAddItem s
+ -> ListingInsertItem s
  -> m (DL.DList C.Rerender)
-onListingAddItem ref this (ListingAddItem k s) = do
-            R.doModifyIORef' ref (this._2 %~ M.insert k s)
-            DL.singleton <$> C.mkRerender ref (this._1)
+onListingInsertItem ref this (ListingInsertItem k s) = do
+       R.doModifyIORef' ref $ \obj ->
+            let mi = M.lookup k (obj ^. this._2)
+            in obj & (this._2 %~ M.insert k s)
+                   . (this._1.F.componentDisposables %~ (R.dispose mi :))
+       DL.singleton <$> C.mkRerender ref (this._1)
 
-listingHandler2 ::
+onListingConsItem :: (R.MonadReactor m, R.Dispose s)
+ => IORef v
+ -> Lens' v (F.ComponentModel, Listing s)
+ -> ListingConsItem s
+ -> m (DL.DList C.Rerender)
+onListingConsItem ref this (ListingConsItem s) = do
+       R.doModifyIORef' ref $ \obj ->
+            let xs = M.toAscList (obj ^. this._2)
+            in case xs of
+                [] -> obj & (this._2 .~ M.singleton [] s)
+                ((k, _) : _) -> obj & (this._2 %~ M.insert (incrementIdx k) s) -- FIXME: Wrong!
+       DL.singleton <$> C.mkRerender ref (this._1)
+
+onListingSnocItem :: (R.MonadReactor m, R.Dispose s)
+ => IORef v
+ -> Lens' v (F.ComponentModel, Listing s)
+ -> ListingSnocItem s
+ -> m (DL.DList C.Rerender)
+onListingSnocItem ref this (ListingSnocItem s) = do
+       R.doModifyIORef' ref $ \obj ->
+            let xs = M.toDescList (obj ^. this._2)
+            in case xs of
+                [] -> obj & (this._2 .~ M.singleton [] s)
+                ((k, _) : _) -> obj & (this._2 %~ M.insert (incrementIdx k) s)
+       DL.singleton <$> C.mkRerender ref (this._1)
+
+listingHandler ::
     forall m s v. ( R.MonadReactor m
     , R.Dispose s
     )
     => F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction s) C.Rerender
-listingHandler2 = F.Handler $ \(ref, Lens this) (ListingAction a) ->
+listingHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
     switch a . cases $
         (onListingDeleteItem @m ref this)
      ./ (onListingMoveItem @m ref this)
-     ./ (onListingAddItem @m ref this)
+     ./ (onListingInsertItem @m ref this)
+     ./ (onListingConsItem @m ref this)
+     ./ (onListingSnocItem @m ref this)
      ./ nil
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@

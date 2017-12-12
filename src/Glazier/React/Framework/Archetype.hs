@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -11,6 +12,7 @@ module Glazier.React.Framework.Archetype where
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
+import Data.Generics.Product
 import Data.IORef
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
@@ -50,7 +52,7 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          -- create a ComponentModel with a dummy render and updated for now
                          cm <- F.ComponentModel
                                  <$> R.getComponent
-                                 <*> pure [] -- Disposables
+                                 <*> pure mempty -- Disposables
                                  <*> pure (J.Callback J.nullRef)
                                  <*> R.mkReactKey
                                  <*> pure (R.Renderer (J.Callback J.nullRef))
@@ -59,22 +61,21 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          ref <- R.doNewIORef (cm, s)
                          -- now replace the render in the model
                          rnd <- R.mkRenderer $ do
-                             (cm', s') <- lift $ R.doReadIORef ref
-                             disp (cm' ^. F.componentKey, s')
+                             (_, s') <- lift $ R.doReadIORef ref
+                             disp s'
                          upd <- R.mkCallback (const $ pure ()) (const $ do
                                  (cm', _) <- readIORef ref
-                                 let ds = cm' ^. F.componentDisposables
-                                 case ds of
-                                     [] -> pure ()
-                                     ds' -> do
+                                 let ds = cm' ^. field @"componentDisposable"
+                                 case R.runDisposable ds of
+                                     Nothing -> pure ()
+                                     Just ds' -> do
                                          modifyIORef' ref (\(cm'', s') ->
-                                             (cm'' & F.componentDisposables .~ []
-                                                   & F.componentFrameNum %~ (\j -> (j `mod` JE.maxSafeInteger) + 1)
+                                             (cm'' & field @"componentDisposable" .~ mempty
                                              , s'))
-                                         R.runDisposable . R.dispose $ ds')
+                                         ds')
                          R.doModifyIORef' ref (\(cm', s') ->
-                                     ( cm' & F.componentRender .~ rnd
-                                           & F.componentUpdated .~ upd
+                                     ( cm' & field @"componentRender" .~ rnd
+                                           & field @"componentUpdated" .~ upd
                                      , s'))
                          -- return the ioref
                          pure ref
@@ -83,11 +84,11 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
      , F.Activator $ \ref exec -> act (ref, Lens id) exec
      , F.Display $ \ref -> do
              (cm, _) <- lift $ R.doReadIORef ref
-             R.lf (cm ^. F.component.to JE.toJS')
+             R.lf (cm ^. field @"component".to JE.toJS')
                  mempty
-                 [ ("key",  cm ^. F.componentKey.to JE.toJS')
-                 , ("render", cm ^. F.componentRender.to JE.toJS')
-                 , ("render", cm ^. F.componentRender.to JE.toJS')
+                 [ ("key",  cm ^. field @"componentKey".to JE.toJS')
+                 , ("render", cm ^. field @"componentRender".to JE.toJS')
+                 , ("updated", cm ^. field @"componentUpdated".to JE.toJS')
                  ]
      )
 
@@ -96,7 +97,7 @@ fromArchetype :: R.MonadReactor m => Archetype m p s a b c -> F.Prototype m v p 
 fromArchetype (Archetype ( bld
                      , F.Handler hdl
                      , F.Activator act
-                     , F.Display disp)) = F.Prototype
+                     , disp)) = F.Prototype
     ( bld
     , F.Handler $ \(ref, Lens this) a -> do
             obj <- R.doReadIORef ref
@@ -104,7 +105,7 @@ fromArchetype (Archetype ( bld
     , F.Activator $ \(ref, Lens this) exec -> do
             obj <- R.doReadIORef ref
             act (obj ^. this._2) exec
-    , F.Display $ \(_, s) -> disp s)
+    , disp)
 
 
 -- mapBuilder2

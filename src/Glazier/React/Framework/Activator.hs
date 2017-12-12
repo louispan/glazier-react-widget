@@ -93,21 +93,21 @@ triggersRefActivator'
     -> RefActivator m v (F.ComponentModel, Many s) a
 triggersRefActivator' = F.viaModel (_2.item) . triggersRefActivator
 
--- | Store the rendering instructions inside a render callback and add it to this state's render holder.
-displayRefActivator
-    :: (R.MonadReactor m)
-    => F.Display m (IORef v) ()
-    -> RefActivator m v R.Renderer (Which '[])
-displayRefActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
-    rnd <- R.mkRenderer (disp ref)
-    R.doModifyIORef' ref (this .~ rnd)
+-- -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
+-- displayRefActivator
+--     :: (R.MonadReactor m)
+--     => F.Display m (IORef v) ()
+--     -> RefActivator m v R.Renderer (Which '[])
+-- displayRefActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
+--     rnd <- R.mkRenderer (disp ref)
+--     R.doModifyIORef' ref (this .~ rnd)
 
--- | Variation of 'displayRefActivator' using a state of @(F.ComponentModel, Many s)@
-displayRefActivator'
-    :: (R.MonadReactor m, UniqueMember R.Renderer s)
-    => F.Display m (IORef v) ()
-    -> RefActivator m v (F.ComponentModel, Many s) (Which '[])
-displayRefActivator' = F.viaModel (_2.item) . displayRefActivator
+-- -- | Variation of 'displayRefActivator' using a state of @(F.ComponentModel, Many s)@
+-- displayRefActivator'
+--     :: (R.MonadReactor m, UniqueMember R.Renderer s)
+--     => F.Display m (IORef v) ()
+--     -> RefActivator m v (F.ComponentModel, Many s) (Which '[])
+-- displayRefActivator' = F.viaModel (_2.item) . displayRefActivator
 
 -- | Internal function: Converts a handler to a form that can be chained inside an Activator
 mkIOHandler

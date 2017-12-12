@@ -93,16 +93,18 @@ class ViaPlan (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaPlan :: Lens' q p -> Planner w p -> Planner w q
 
+
+-- FIXME: Use generic-lens
 data ComponentModel = ComponentModel
-    { _component :: R.ReactComponent
-    , _componentDisposables :: [R.Disposable ()] -- List of things to dispose on updated
-    , _componentUpdated :: J.Callback (J.JSVal -> IO ())
-    , _componentKey :: R.ReactKey
-    , _componentRender :: R.Renderer
-    , _componentFrameNum :: Int
+    { component :: R.ReactComponent
+    , componentDisposable :: R.Disposable () -- List of things to dispose on updated
+    , componentUpdated :: J.Callback (J.JSVal -> IO ())
+    , componentKey :: R.ReactKey
+    , componentRender :: R.Renderer
+    , componentFrameNum :: Int
     } deriving (G.Generic)
 
-makeClassy ''ComponentModel
+-- makeClassy ''ComponentModel
 
 instance R.Dispose ComponentModel
 

@@ -15,7 +15,6 @@ import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Handler as F
-import qualified Glazier.React as R
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -26,7 +25,7 @@ newtype Prototype m v p s p' s' a b c = Prototype {
            -- activator contains other prerequisites
            -- of executor, and actions that need to be handled
            , F.RefActivator m v (F.ComponentModel, s) c
-           , F.Display m (R.ReactKey, s) ()
+           , F.Display m s ()
            )
     }
 
@@ -103,7 +102,7 @@ refActivating act = Prototype
 
 displaying
     :: Applicative m
-    => F.Display m (R.ReactKey, s) ()
+    => F.Display m s ()
     -> Prototype m v p s (Many '[]) (Many '[]) (Which '[]) (Which '[]) (Which '[])
 displaying d = Prototype
         ( P.pmempty
@@ -144,7 +143,7 @@ mapRefActivator f (Prototype (bld, hdl, act, disp)) = Prototype
                    , disp)
 
 mapDisplay
-    :: (F.Display m (R.ReactKey, s) () -> F.Display m (R.ReactKey, s) ())
+    :: (F.Display m s () -> F.Display m s ())
     -> Prototype m v p s p' s' a b c
     -> Prototype m v p s p' s' a b c
 mapDisplay f (Prototype (bld, hdl, act, disp)) = Prototype
@@ -166,7 +165,7 @@ instance F.ViaModel (PrototypeModeller m v p p' s' a b c) where
                    ( F.viaModel l bld
                    , F.viaModel (alongside id l) hdl
                    , F.viaModel (alongside id l) act
-                   , F.viaModel (alongside id l) disp
+                   , F.viaModel l disp
                    )
 
 ------------------------------------------

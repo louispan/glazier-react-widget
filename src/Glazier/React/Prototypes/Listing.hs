@@ -22,8 +22,11 @@ import Control.Lens
 import qualified Data.DList as DL
 import Data.Diverse.Lens
 import Data.Foldable
+import Data.Generics.Product
 import Data.IORef
+import qualified Data.List.NonEmpty as NE
 -- import qualified Data.JSString as J
+import Data.Semigroup
 -- import Data.Maybe
 import qualified Data.Map.Strict as M
 import qualified Glazier.React as R
@@ -32,31 +35,51 @@ import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
 -- import qualified Pipes.Concurrent as PC
 
--- Make a key that will fit in between the two provided keys,
+-- | Internal: Make a key that will fit in between the two provided keys,
 -- Except when the inputs are equal, then it will return the same key.
-betweenIdx :: [Int] -> [Int] -> [Int]
-betweenIdx [] [] = []
-betweenIdx [] (y : _) = [y - 1]
-betweenIdx (x : _) [] = [x - 1]
-betweenIdx (x : xs) (y : ys) =
+betweenIdx' :: [Int] -> [Int] -> [Int]
+betweenIdx' [] [] = []
+betweenIdx' [] (y : _) = [y - 1]
+betweenIdx' (x : _) [] = [x - 1]
+betweenIdx' (x : xs) (y : ys) =
     case compare x y of
-        LT -> x : (incrementIdx xs)
-        GT -> y : (incrementIdx ys)
-        EQ -> x : (betweenIdx xs ys)
+        LT -> x : (largerIdx' xs)
+        GT -> y : (largerIdx' ys)
+        EQ -> x : (betweenIdx' xs ys)
 
-incrementIdx :: [Int] -> [Int]
-incrementIdx [] = [1]
-incrementIdx (a : _) = [a + 1]
+-- | Make a key that will fit in between the two provided keys,
+-- Except when the inputs are equal, then it will return the same key.
+betweenIdx :: NE.NonEmpty Int -> NE.NonEmpty Int -> NE.NonEmpty Int
+betweenIdx (x NE.:| xs) (y NE.:| ys) =
+    case compare x y of
+        LT -> x NE.:| (largerIdx' xs)
+        GT -> y NE.:| (largerIdx' ys)
+        EQ -> x NE.:| (betweenIdx' xs ys)
 
+-- | Internal: Create a key larger than the input key.
+-- NB. It does not create the smallest key that is larger.
+largerIdx' :: [Int] -> [Int]
+largerIdx' [] = [1]
+largerIdx' (a : _) = [a + 1]
+
+-- | Create a key larger than the input key.
+-- NB. It does not create the smallest key that is larger.
+largerIdx :: NE.NonEmpty Int -> NE.NonEmpty Int
+largerIdx (a NE.:| _) = (a + 1) NE.:| []
+
+-- | Create a key smaller than the input key.
+-- NB. It does not create the largest key that is smaller.
+smallerIdx :: NE.NonEmpty Int -> NE.NonEmpty Int
+smallerIdx (a NE.:| _) = (a - 1) NE.:| []
 
 -- | A listing is actually a map so that we allow for fast insert/deleting
 -- and also be able to reorder the elements.
-type Listing a = M.Map [Int] a
+type Listing a = M.Map (NE.NonEmpty Int) a
 
 -- | List specific actions
-data ListingDeleteItem = ListingDeleteItem [Int]
-data ListingMoveItem = ListingMoveItem [Int] [Int]
-data ListingInsertItem a = ListingInsertItem [Int] a
+data ListingDeleteItem = ListingDeleteItem (NE.NonEmpty Int)
+data ListingMoveItem = ListingMoveItem (NE.NonEmpty Int) (NE.NonEmpty Int)
+data ListingInsertItem a = ListingInsertItem (NE.NonEmpty Int) a
 data ListingConsItem a = ListingConsItem a
 data ListingSnocItem a = ListingSnocItem a
 
@@ -68,6 +91,10 @@ newtype ListingAction s = ListingAction {
                                , ListingSnocItem s
                                ] }
 
+newtype ListingItemProperties = ListingItemProperties {
+    runListingItemProperties :: DL.DList JE.Property
+    }
+
 onListingDeleteItem :: (R.MonadReactor m, R.Dispose s)
  => IORef v
  -> Lens' v (F.ComponentModel, Listing s)
@@ -77,8 +104,10 @@ onListingDeleteItem ref this (ListingDeleteItem k) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2)
             in obj & (this._2 %~ M.delete k)
-                   . (this._1.F.componentDisposables %~ (R.dispose mi :))
+                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
+
+-- FIXME: Activator for new item!
 
 -- | Move an item from one key to another
 -- If the Listing at the old key didn't exist and an item at the new key
@@ -93,9 +122,9 @@ onListingMoveItem ref this (ListingMoveItem oldK newK) = do
             let mi = M.lookup newK (obj ^. this._2)
                 mj = M.lookup oldK (obj ^. this._2)
             in case mj of
-                Nothing -> obj & (this._1.F.componentDisposables %~ (R.dispose mi :))
+                Nothing -> obj & (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
                 Just i -> obj & (this._2 %~ M.insert newK i)
-                   . (this._1.F.componentDisposables %~ (R.dispose mi :))
+                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingInsertItem :: (R.MonadReactor m, R.Dispose s)
@@ -107,7 +136,7 @@ onListingInsertItem ref this (ListingInsertItem k s) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2)
             in obj & (this._2 %~ M.insert k s)
-                   . (this._1.F.componentDisposables %~ (R.dispose mi :))
+                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingConsItem :: (R.MonadReactor m, R.Dispose s)
@@ -119,8 +148,8 @@ onListingConsItem ref this (ListingConsItem s) = do
        R.doModifyIORef' ref $ \obj ->
             let xs = M.toAscList (obj ^. this._2)
             in case xs of
-                [] -> obj & (this._2 .~ M.singleton [] s)
-                ((k, _) : _) -> obj & (this._2 %~ M.insert (incrementIdx k) s) -- FIXME: Wrong!
+                [] -> obj & (this._2 .~ M.singleton (0 NE.:| []) s)
+                ((k, _) : _) -> obj & (this._2 %~ M.insert (smallerIdx k) s)
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingSnocItem :: (R.MonadReactor m, R.Dispose s)
@@ -132,16 +161,17 @@ onListingSnocItem ref this (ListingSnocItem s) = do
        R.doModifyIORef' ref $ \obj ->
             let xs = M.toDescList (obj ^. this._2)
             in case xs of
-                [] -> obj & (this._2 .~ M.singleton [] s)
-                ((k, _) : _) -> obj & (this._2 %~ M.insert (incrementIdx k) s)
+                [] -> obj & (this._2 .~ M.singleton (0 NE.:| []) s)
+                ((k, _) : _) -> obj & (this._2 %~ M.insert (largerIdx k) s)
        DL.singleton <$> C.mkRerender ref (this._1)
 
-listingHandler ::
+-- | Handler for ListingAction
+listingRefHandler ::
     forall m s v. ( R.MonadReactor m
     , R.Dispose s
     )
     => F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction s) C.Rerender
-listingHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
+listingRefHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
     switch a . cases $
         (onListingDeleteItem @m ref this)
      ./ (onListingMoveItem @m ref this)
@@ -150,6 +180,19 @@ listingHandler = F.Handler $ \(ref, Lens this) (ListingAction a) ->
      ./ (onListingSnocItem @m ref this)
      ./ nil
 
+-- | lift a handler for a single widget into a handler of a list of widgets
+-- where the input is broadcast to all the items in the list and the results DList'ed together.
+listingBroadcastRefHandler
+    ::
+    ( R.MonadReactor m
+    )
+    => F.Handler m s a b
+    -> F.RefHandler m v (F.ComponentModel, Listing s) a b
+listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> do
+    obj <- R.doReadIORef ref
+    ys <- traverse (\x -> hdl x a) (obj ^. this._2)
+    pure $ fold ys
+
 -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 toListingBuilder
     :: Applicative m
@@ -157,7 +200,7 @@ toListingBuilder
     -> F.Builder m (Listing p) s (Listing p') s'
 toListingBuilder = F.dimapPlan toList (M.fromAscList . zip idxs)
   where
-    idxs = (\x -> [x]) <$> [0..]
+    idxs = (\x -> (x NE.:| [])) <$> [0..]
 
 listingBuilder
     :: (Applicative m)
@@ -174,31 +217,22 @@ listingDisplay
     ( R.MonadReactor m
     , UniqueMember (Listing s) ss
     , UniqueMember (DL.DList JE.Property) ss
+    , UniqueMember ListingItemProperties ss
     , UniqueMember (DL.DList R.Listener) ss
     )
     => F.Display m s ()
-    -> F.Display m (R.ReactKey, Many ss) ()
-listingDisplay (F.Display disp) = F.Display $ \(_, ss) ->
+    -> F.Display m (Many ss) ()
+listingDisplay (F.Display disp) = F.Display $ \ss ->
     let xs = ss ^. (item @(Listing s))
         xs' = toLi <$> xs
-        toLi s = R.bh "li" [] [] (disp s)
+        toLi s = R.bh "li"
+                 []
+                 (DL.toList . runListingItemProperties $ fetch @ListingItemProperties ss)
+                 (disp s)
     in R.bh "ul"
         (DL.toList $ fetch @(DL.DList R.Listener) ss)
         (DL.toList $ fetch @(DL.DList JE.Property) ss)
         (mconcat $ (snd <$> M.toList xs'))
-
--- | lift a handler for a single widget into a handler of a list of widgets
--- where the input is broadcast to all the items in the list and the results DList'ed together.
-listingBroadcastRefHandler
-    ::
-    ( R.MonadReactor m
-    )
-    => F.Handler m s a b
-    -> F.RefHandler m v (Listing s) a b
-listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> do
-    obj <- R.doReadIORef ref
-    ys <- traverse (\x -> hdl x a) (obj ^. this)
-    pure $ fold ys
 
 -- listActivator
 --     :: forall deleteListItem r s specs a acts' acts c cmds.

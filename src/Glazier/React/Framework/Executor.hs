@@ -16,19 +16,23 @@ module Glazier.React.Framework.Executor where
 
 import Data.Diverse
 import qualified Data.DList as DL
+import Data.Profunctor
 import qualified Parameterized.Control.Monad as P
 
-newtype Executor c r = Executor { runExecutor :: DL.DList c -> IO r }
+newtype Executor x r = Executor { runExecutor :: DL.DList x -> IO r }
     deriving Functor
 
-instance Applicative (Executor c) where
+instance Applicative (Executor x) where
     pure = Executor . const . pure
     (Executor f) <*> (Executor g) = Executor $ \s -> f s <*> g s
 
-instance Monad (Executor c) where
+instance Monad (Executor x) where
     (Executor f) >>= k = Executor $ \s -> f s >>= k' s
       where
-        k' s a = runExecutor (k a) s
+        k' s x = runExecutor (k x) s
+
+instance Profunctor Executor where
+    dimap f g (Executor exec) = Executor $ \xs -> g <$> exec (f <$> xs)
 
 -----------------------------------
 
@@ -91,10 +95,14 @@ instance ( Reinterpret' b c
                 Nothing -> DL.empty
                 Just c' -> DL.singleton c'
 
--- | Ignore certain inputs
-suppressExecutor :: (a' -> Maybe a) -> Executor a r -> Executor a' r
-suppressExecutor f (Executor exec) = Executor $ \as' -> exec (foldMap go as')
+-- | Ignore certain commands contravariantly
+suppressExecutor :: (x -> Maybe x') -> Executor x' r -> Executor x r
+suppressExecutor f (Executor exec) = Executor $ \xs -> exec (foldMap go xs)
   where
-    go a'= case f a' of
+    go x = case f x of
         Nothing -> mempty
-        Just a -> DL.singleton a
+        Just x' -> DL.singleton x'
+
+-- | Map a function to the commands contravariantly
+contramapExecutor :: (x -> x') -> Executor x' r -> Executor x r
+contramapExecutor = lmap

@@ -25,21 +25,21 @@ import qualified GHCJS.Foreign.Callback.Internal as J
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
-newtype Archetype m p s a b c = Archetype {
+newtype Archetype m p s x a b y = Archetype {
     runArchetype ::
            ( F.Builder m p s p s
-           , F.Handler m s a b
+           , F.Handler m s x a b
            -- activator contains other prerequisites
            -- of executor, and actions that need to be handled
-           , F.Activator m s c
+           , F.Activator m s y
            , F.Display m s ()
            )
     }
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: R.MonadReactor m
-    => F.Prototype m (F.ComponentModel, s) p s p s a b c
-    -> Archetype m p (IORef (F.ComponentModel, s)) a b c
+    => F.Prototype m (F.ComponentModel, s) p s p s x a b y
+    -> Archetype m p (IORef (F.ComponentModel, s)) x a b y
 toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          , F.Handler hdl
                          , F.Activator act
@@ -80,8 +80,8 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          -- return the ioref
                          pure ref
                  )
-     , F.Handler $ \ref a -> hdl (ref, Lens id) a
-     , F.Activator $ \ref exec -> act (ref, Lens id) exec
+     , F.Handler $ \exec ref a -> hdl exec (ref, Lens id) a
+     , F.Activator $ \exec ref -> act exec (ref, Lens id)
      , F.Display $ \ref -> do
              (cm, _) <- lift $ R.doReadIORef ref
              R.lf (cm ^. field @"component".to JE.toJS')
@@ -93,18 +93,18 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
      )
 
 -- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor m => Archetype m p s a b c -> F.Prototype m v p s p s a b c
+fromArchetype :: R.MonadReactor m => Archetype m p s x a b y -> F.Prototype m v p s p s x a b y
 fromArchetype (Archetype ( bld
                      , F.Handler hdl
                      , F.Activator act
                      , disp)) = F.Prototype
     ( bld
-    , F.Handler $ \(ref, Lens this) a -> do
+    , F.Handler $ \exec (ref, Lens this) a -> do
             obj <- R.doReadIORef ref
-            hdl (obj ^. this._2) a
-    , F.Activator $ \(ref, Lens this) exec -> do
+            hdl exec (obj ^. this._2) a
+    , F.Activator $ \exec (ref, Lens this) -> do
             obj <- R.doReadIORef ref
-            act (obj ^. this._2) exec
+            act exec (obj ^. this._2)
     , disp)
 
 

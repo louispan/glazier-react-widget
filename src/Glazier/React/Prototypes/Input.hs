@@ -41,6 +41,7 @@ inputPrototype
             (Many '[DL.DList JE.Property, DL.DList R.Listener])
             (Which '[])
             (Which '[])
+            (Which '[])
             (Which '[SubmitInput, CancelInput])
 inputPrototype =
     F.Prototype

@@ -246,23 +246,23 @@ listingBuilder (F.Builder (F.MkPlan mkPln, F.MkModel mkMdl)) =
 listingDisplay
     :: forall m s ss.
     ( R.MonadReactor m
-    , UniqueMember (Listing s) ss
-    , UniqueMember (DL.DList JE.Property) ss
-    , UniqueMember ListingItemProperties ss
-    , UniqueMember (DL.DList R.Listener) ss
+    , HasType (Listing s) ss
+    , HasType (DL.DList JE.Property) ss
+    , HasType ListingItemProperties ss
+    , HasType (DL.DList R.Listener) ss
     )
     => F.Display m s ()
-    -> F.Display m (Many ss) ()
+    -> F.Display m ss ()
 listingDisplay (F.Display disp) = F.Display $ \ss ->
-    let xs = ss ^. (item @(Listing s))
+    let xs = ss ^. (typed @(Listing s))
         xs' = toLi <$> xs
         toLi s = R.bh "li"
                  []
-                 (DL.toList . runListingItemProperties $ fetch @ListingItemProperties ss)
+                 (DL.toList . runListingItemProperties $ getTyped @ListingItemProperties ss)
                  (disp s)
     in R.bh "ul"
-        (DL.toList $ fetch @(DL.DList R.Listener) ss)
-        (DL.toList $ fetch @(DL.DList JE.Property) ss)
+        (DL.toList $ getTyped @(DL.DList R.Listener) ss)
+        (DL.toList $ getTyped @(DL.DList JE.Property) ss)
         (mconcat $ (snd <$> M.toList xs'))
 
 broadcastlistingActivator

@@ -12,7 +12,8 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans.Maybe.Extras as Ex
-import Data.Diverse
+import Data.Diverse.Lens
+import Data.Generics.Product
 import qualified Data.DList as DL
 import qualified Data.JSString as J
 import Data.Proxy
@@ -30,13 +31,11 @@ data CancelInput = CancelInput R.EventTarget
 
 inputPrototype
     :: ( R.MonadReactor m
-       , UniqueMember (DL.DList JE.Property) ps
-       , UniqueMember (DL.DList JE.Property) ss
-       , UniqueMember (DL.DList R.Listener) ss
+       , HasType (DL.DList JE.Property) p
+       , HasType (DL.DList JE.Property) s
+       , HasType (DL.DList R.Listener) s
        )
-    => F.Prototype m v
-            (Many ps)
-            (Many ss)
+    => F.Prototype m v p s
             (Many '[DL.DList JE.Property])
             (Many '[DL.DList JE.Property, DL.DList R.Listener])
             (Which '[])
@@ -50,8 +49,8 @@ inputPrototype =
         , P.pmempty
         , F.triggersRefActivator' [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
         , F.Display $ \ss -> R.lf "input"
-            (DL.toList $ fetch @(DL.DList R.Listener) ss)
-            (DL.toList $ fetch @(DL.DList JE.Property) ss)
+            (DL.toList $ getTyped @(DL.DList R.Listener) ss)
+            (DL.toList $ getTyped @(DL.DList JE.Property) ss)
         )
   where
     go (A.KeyDownKey target k) =

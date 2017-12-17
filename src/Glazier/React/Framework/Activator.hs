@@ -27,7 +27,6 @@ import qualified Data.DList as DL
 -- import Data.Foldable
 import Data.IORef
 import Data.Semigroup
-import Data.Generics.Product
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 -- import qualified Glazier.React.Framework.Display as F
@@ -100,10 +99,10 @@ triggersRefActivator triggers = Activator $ \(F.Executor exec) (ref, Lens this) 
 
 -- | Variation of 'triggersRefActivator' using a state of @(F.ComponentModel, Many s)@
 triggersRefActivator'
-    :: (R.MonadReactor m, NFData x, HasType (DL.DList R.Listener) s)
+    :: (R.MonadReactor m, NFData x, HasItem' (DL.DList R.Listener) s)
     => [F.Trigger x]
     -> RefActivator m v (F.ComponentModel, s) x
-triggersRefActivator' = F.viaModel (_2.typed) . triggersRefActivator
+triggersRefActivator' = F.viaModel (_2.item') . triggersRefActivator
 
 -- -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
 -- displayRefActivator

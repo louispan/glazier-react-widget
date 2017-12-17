@@ -7,7 +7,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -39,7 +41,8 @@ import Control.Lens
 -- import qualified Data.DList as DL
 -- import Data.IORef
 -- import qualified Data.JSString as JS
--- import Data.Diverse.Lens
+import Data.Diverse.Lens
+import Data.Generics.Product
 -- import qualified Data.DList as DL
 import Data.Kind
 -- import Data.Semigroup
@@ -93,8 +96,6 @@ class ViaPlan (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaPlan :: Lens' q p -> Planner w p -> Planner w q
 
-
--- FIXME: Use generic-lens
 data ComponentModel = ComponentModel
     { component :: R.ReactComponent
     , componentDisposable :: R.Disposable () -- List of things to dispose on updated
@@ -104,9 +105,10 @@ data ComponentModel = ComponentModel
     , componentFrameNum :: Int
     } deriving (G.Generic)
 
--- makeClassy ''ComponentModel
-
 instance R.Dispose ComponentModel
+
+instance HasField' l ComponentModel a => HasItemTag' l a ComponentModel where
+    itemTag' = field @l
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

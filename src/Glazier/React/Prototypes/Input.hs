@@ -9,14 +9,13 @@ module Glazier.React.Prototypes.Input where
 
 import Control.DeepSeq
 import Control.Applicative
+import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans.Maybe.Extras as Ex
 import Data.Diverse.Lens
-import Data.Generics.Product
 import qualified Data.DList as DL
 import qualified Data.JSString as J
-import Data.Proxy
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
@@ -29,11 +28,11 @@ data SubmitInput = SubmitInput R.EventTarget J.JSString
 data CancelInput = CancelInput R.EventTarget
     deriving (G.Generic, NFData)
 
-inputPrototype
+input
     :: ( R.MonadReactor m
-       , HasType (DL.DList JE.Property) p
-       , HasType (DL.DList JE.Property) s
-       , HasType (DL.DList R.Listener) s
+       , HasItem' (DL.DList JE.Property) p
+       , HasItem' (DL.DList JE.Property) s
+       , HasItem' (DL.DList R.Listener) s
        )
     => F.Prototype m v p s
             (Many '[DL.DList JE.Property])
@@ -42,15 +41,15 @@ inputPrototype
             (Which '[])
             (Which '[])
             (Which '[SubmitInput, CancelInput])
-inputPrototype =
+input =
     F.Prototype
-        ( F.build @(DL.DList JE.Property) Proxy
+        ( F.build @(DL.DList JE.Property)
             `P.pmappend` F.hardcode @(DL.DList R.Listener) DL.empty
         , P.pmempty
         , F.triggersRefActivator' [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
         , F.Display $ \ss -> R.lf "input"
-            (DL.toList $ getTyped @(DL.DList R.Listener) ss)
-            (DL.toList $ getTyped @(DL.DList JE.Property) ss)
+            (DL.toList $ ss ^. item' @(DL.DList R.Listener))
+            (DL.toList $ ss ^. item' @(DL.DList JE.Property))
         )
   where
     go (A.KeyDownKey target k) =

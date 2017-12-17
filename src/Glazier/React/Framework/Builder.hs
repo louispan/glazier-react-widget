@@ -15,7 +15,6 @@ import Control.Lens
 import Data.Biapplicative
 import Data.Coerce
 import Data.Diverse.Lens
-import Data.Generics.Product
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -129,24 +128,24 @@ instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
 itemizing
     :: forall m p s p' s' ps ss.
     ( Applicative m
-    , HasType p ps
-    , HasType s ss
+    , HasItem' p ps
+    , HasItem' s ss
     )
     => Builder m p s p' s'
     -> Builder m ps ss (Many '[p']) (Many '[s'])
 itemizing (Builder (MkPlan mkPln, MkModel mkMdl)) =
     Builder (MkPlan mkPln', MkModel mkMdl')
   where
-    mkPln' ss = single <$> mkPln (getTyped @s ss)
-    mkMdl' ps = single <$> mkMdl (getTyped @p ps)
+    mkPln' ss = single <$> mkPln (view (item' @s) ss)
+    mkMdl' ps = single <$> mkMdl (view (item' @p) ps)
 
 
 -- | Add a type @x@ into the model that is used directly from the plan.
 -- @forall@ so that the type can be specified first
 build'
-    :: forall x m proxy. (Applicative m)
-    => proxy x -> Builder m x x x x
-build' _ = Builder ( MkPlan $ pure
+    :: forall x m. (Applicative m)
+    => Builder m x x x x
+build' = Builder ( MkPlan $ pure
                   , MkModel $ pure
                   )
 
@@ -155,9 +154,9 @@ build' _ = Builder ( MkPlan $ pure
 -- and return a builder that uses a Many.
 -- @forall@ so that the type can be specified first
 build
-    :: forall x m p s proxy. (Applicative m, HasType x p, HasType x s)
-    => proxy x -> Builder m p s (Many '[x]) (Many '[x])
-build = itemizing . build'
+    :: forall x m p s. (Applicative m, HasItem' x p, HasItem' x s)
+    => Builder m p s (Many '[x]) (Many '[x])
+build = itemizing $ build'
 
 -- | Add a value @x@ into the model that is not from the plan.
 -- @forall@ so that the type can be specified first

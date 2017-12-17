@@ -101,6 +101,22 @@ newtype ListingItemProperties = ListingItemProperties {
     runListingItemProperties :: DL.DList JE.Property
     }
 
+
+-- listing :: (R.MonadReactor m, HasItem' (Listing p) ps, HasItem' (Listing s) ss)
+--   => F.Archetype m p s x a b y -> F.Prototype m v ps ss
+--     (Many '[Listing p])
+--     (Many '[Listing s])
+--     x
+--     (ListingAction p s)
+--     C.Rerender
+--     y
+-- listing (F.Archetype (bld, hdl, act, disp)) = F.Prototype
+--     ( listingBuilder bld
+--     , undefined
+--     , undefined
+--     , listingDisplay disp
+--     )
+
 onListingDeleteItem :: (R.MonadReactor m, R.Dispose s)
   => IORef v
   -> Lens' v (F.ComponentModel, Listing s)
@@ -224,45 +240,45 @@ listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \exec (ref, Lens this) 
     ys <- traverse (\x -> hdl exec x a) (obj ^. this._2)
     pure $ fold ys
 
--- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
-toListingBuilder
-    :: Applicative m
-    => F.Builder m [p] s [p'] s'
-    -> F.Builder m (Listing p) s (Listing p') s'
-toListingBuilder = F.dimapPlan toList (M.fromAscList . zip idxs)
-  where
-    idxs = (\x -> (x NE.:| [])) <$> [0..]
+-- -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
+-- toListingBuilder
+--     :: Applicative m
+--     => F.Builder m [p] s [p'] s'
+--     -> F.Builder m (Listing p) s (Listing p') s'
+-- toListingBuilder = F.dimapPlan toList (M.fromAscList . zip idxs)
+--   where
+--     idxs = (\x -> (x NE.:| [])) <$> [0..]
 
 listingBuilder
-    :: (Applicative m)
+    :: (Applicative m, HasType (Listing p) ps, HasType (Listing s) ss)
     => F.Builder m p s p' s'
-    -> F.Builder m (Listing p) (Listing s) (Listing p') (Listing s')
+    -> F.Builder m ps ss (Many '[Listing p']) (Many '[Listing s'])
 listingBuilder (F.Builder (F.MkPlan mkPln, F.MkModel mkMdl)) =
     F.Builder (F.MkPlan mkPln', F.MkModel mkMdl')
   where
-    mkPln' ss = traverse mkPln ss
-    mkMdl' ps = traverse mkMdl ps
+    mkPln' ss = single <$> traverse mkPln (getTyped ss)
+    mkMdl' ps = single <$> traverse mkMdl (getTyped ps)
 
 listingDisplay
     :: forall m s ss.
     ( R.MonadReactor m
-    , HasType (Listing s) ss
-    , HasType (DL.DList JE.Property) ss
-    , HasType ListingItemProperties ss
-    , HasType (DL.DList R.Listener) ss
+    , HasItem' (Listing s) ss
+    , HasItem' (DL.DList JE.Property) ss
+    , HasItem' ListingItemProperties ss
+    , HasItem' (DL.DList R.Listener) ss
     )
     => F.Display m s ()
     -> F.Display m ss ()
 listingDisplay (F.Display disp) = F.Display $ \ss ->
-    let xs = ss ^. (typed @(Listing s))
+    let xs = ss ^. (item' @(Listing s))
         xs' = toLi <$> xs
         toLi s = R.bh "li"
                  []
-                 (DL.toList . runListingItemProperties $ getTyped @ListingItemProperties ss)
+                 (DL.toList . runListingItemProperties $ view (item' @ListingItemProperties) ss)
                  (disp s)
     in R.bh "ul"
-        (DL.toList $ getTyped @(DL.DList R.Listener) ss)
-        (DL.toList $ getTyped @(DL.DList JE.Property) ss)
+        (DL.toList $ view (item' @(DL.DList R.Listener)) ss)
+        (DL.toList $ view (item' @(DL.DList JE.Property)) ss)
         (mconcat $ (snd <$> M.toList xs'))
 
 broadcastlistingActivator
@@ -270,6 +286,14 @@ broadcastlistingActivator
     => F.Activator m s x
     -> F.RefActivator m v (F.ComponentModel, Listing s) x
 broadcastlistingActivator (F.Activator act) = F.Activator $ \exec (ref, Lens this) -> do
+    obj <- R.doReadIORef ref
+    traverse_ (\s -> act exec s) (obj ^. this._2)
+
+listingActivator
+    :: R.MonadReactor m
+    => F.Activator m s x
+    -> F.RefActivator m v (F.ComponentModel, Listing s) x
+listingActivator (F.Activator act) = F.Activator $ \exec (ref, Lens this) -> do
     obj <- R.doReadIORef ref
     traverse_ (\s -> act exec s) (obj ^. this._2)
 

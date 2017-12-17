@@ -100,7 +100,8 @@ newtype ListingItemProperties = ListingItemProperties {
     runListingItemProperties :: DL.DList JE.Property
     }
 
--- | This version drops the original item handlers, and so doesn't require the @x@ executor
+-- | This version drops the original item handlers, and so doesn't require the @y@ executor
+-- The listing activator doesn't require C.Rerender. C.Rerender is only required if the listing handler is used in a parent activator.
 listing ::
     ( R.MonadReactor m
     , R.Dispose s
@@ -110,18 +111,18 @@ listing ::
     , HasItem' ListingItemProperties ss
     , HasItem' (DL.DList R.Listener) ss
     )
-  => F.Archetype m p s x a b y -> F.Prototype m v ps ss
+  => F.Archetype m p s x y a b -> F.Prototype m v ps ss
     (Many '[Listing p])
     (Many '[Listing s])
-    y -- handler executor
+    x -- activator executor
+    x -- handler executor
     (Which '[ListingAction p s])
     (Which '[C.Rerender])
-    y -- activator executor
-listing (F.Archetype (bld@(F.Builder (_, mkMdl)), _, act, disp)) = F.Prototype
-    ( F.toItemBuilder (listingBuilder bld)
-    , F.viaModel (alongside id item') (F.toFacetedHandler (listingRefHandler mkMdl act))
+listing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), act, _)) = F.Prototype
+    ( listingDisplay disp
+    , F.toItemBuilder (listingBuilder bld)
     , F.viaModel (alongside id item') (listingActivator act)
-    , listingDisplay disp
+    , F.viaModel (alongside id item') (F.toFacetedHandler (listingRefHandler mkMdl act))
     )
 
 onListingDeleteItem :: (R.MonadReactor m, R.Dispose s)

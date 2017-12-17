@@ -25,26 +25,35 @@ import qualified GHCJS.Foreign.Callback.Internal as J
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
-newtype Archetype m p s x a b y = Archetype {
+newtype Archetype m p s x y a b = Archetype {
     runArchetype ::
-           ( F.Builder m p s p s
-           , F.Handler m s x a b
+           ( F.Display m s ()
+           , F.Builder m p s p s
            -- activator contains other prerequisites
            -- of executor, and actions that need to be handled
-           , F.Activator m s y
-           , F.Display m s ()
+           , F.Activator m s x
+           , F.Handler m s y a b
            )
     }
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: R.MonadReactor m
-    => F.Prototype m (F.ComponentModel, s) p s p s x a b y
-    -> Archetype m p (IORef (F.ComponentModel, s)) x a b y
-toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
-                         , F.Handler hdl
+    => F.Prototype m (F.ComponentModel, s) p s p s x y a b
+    -> Archetype m p (IORef (F.ComponentModel, s)) x y a b
+toArchetype (F.Prototype ( F.Display disp
+                         , F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          , F.Activator act
-                         , F.Display disp)) = Archetype
-     ( F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
+                         , F.Handler hdl
+                         )) = Archetype
+     ( F.Display $ \ref -> do
+             (cm, _) <- lift $ R.doReadIORef ref
+             R.lf (cm ^. field @"component".to JE.toJS')
+                 mempty
+                 [ ("key",  cm ^. field @"componentKey".to JE.toJS')
+                 , ("render", cm ^. field @"componentRender".to JE.toJS')
+                 , ("updated", cm ^. field @"componentUpdated".to JE.toJS')
+                 ]
+     , F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
                  , F.MkModel $ \p -> do
                          -- tuple the original state with a ComponentModel
                          -- and wrap inside a IORef
@@ -80,32 +89,26 @@ toArchetype (F.Prototype ( F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          -- return the ioref
                          pure ref
                  )
-     , F.Handler $ \exec ref a -> hdl exec (ref, Lens id) a
      , F.Activator $ \exec ref -> act exec (ref, Lens id)
-     , F.Display $ \ref -> do
-             (cm, _) <- lift $ R.doReadIORef ref
-             R.lf (cm ^. field @"component".to JE.toJS')
-                 mempty
-                 [ ("key",  cm ^. field @"componentKey".to JE.toJS')
-                 , ("render", cm ^. field @"componentRender".to JE.toJS')
-                 , ("updated", cm ^. field @"componentUpdated".to JE.toJS')
-                 ]
+     , F.Handler $ \exec ref a -> hdl exec (ref, Lens id) a
      )
 
 -- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor m => Archetype m p s x a b y -> F.Prototype m v p s p s x a b y
-fromArchetype (Archetype ( bld
-                     , F.Handler hdl
-                     , F.Activator act
-                     , disp)) = F.Prototype
-    ( bld
-    , F.Handler $ \exec (ref, Lens this) a -> do
-            obj <- R.doReadIORef ref
-            hdl exec (obj ^. this._2) a
+fromArchetype :: R.MonadReactor m => Archetype m p s x y a b -> F.Prototype m v p s p s x y a b
+fromArchetype (Archetype ( disp
+                         , bld
+                         , F.Activator act
+                         , F.Handler hdl
+                         )) = F.Prototype
+    ( disp
+    , bld
     , F.Activator $ \exec (ref, Lens this) -> do
             obj <- R.doReadIORef ref
             act exec (obj ^. this._2)
-    , disp)
+    , F.Handler $ \exec (ref, Lens this) a -> do
+            obj <- R.doReadIORef ref
+            hdl exec (obj ^. this._2) a
+    )
 
 
 -- mapBuilder2

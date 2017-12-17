@@ -27,21 +27,21 @@ import qualified Glazier.React.Framework.Executor as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
-newtype Handler (m :: Type -> Type) r x a b = Handler
-    { runHandler :: F.Executor x () -> r -> a -> m (DL.DList b)
+newtype Handler (m :: Type -> Type) r y a b = Handler
+    { runHandler :: F.Executor y () -> r -> a -> m (DL.DList b)
     }
 
-instance Functor m => Functor (Handler m r x a) where
+instance Functor m => Functor (Handler m r y a) where
     fmap f (Handler hdl) = Handler $ \exec env a -> fmap f <$> hdl exec env a
 
-instance Functor m => Profunctor (Handler m r x) where
+instance Functor m => Profunctor (Handler m r y) where
     dimap f g (Handler hdl) = Handler $ \exec env a -> fmap g <$> hdl exec env (f a)
 
-instance Functor m => Strong (Handler m r x) where
+instance Functor m => Strong (Handler m r y) where
     first' (Handler hdl) = Handler $ \exec env (a, c) -> fmap (\b -> (b, c)) <$> hdl exec env a
     second' (Handler hdl) = Handler $ \exec env (c, a) -> fmap (\b -> (c, b)) <$> hdl exec env a
 
-instance Applicative m => Choice (Handler m r x) where
+instance Applicative m => Choice (Handler m r y) where
     left' (Handler hdl) = Handler $ \exec env e -> case e of
         Right c -> pure $ DL.singleton $ Right c
         Left a -> fmap Left <$> hdl exec env a
@@ -49,18 +49,18 @@ instance Applicative m => Choice (Handler m r x) where
         Left c -> pure $ DL.singleton $ Left c
         Right a -> fmap Right <$> hdl exec env a
 
-instance Monad m => C.Category (Handler m r x) where
+instance Monad m => C.Category (Handler m r y) where
     id = Handler $ \_ _ -> pure . DL.singleton
     (Handler hdl) . (Handler hdl') = Handler $ \exec env a -> do
         bs <- hdl' exec env a
         fold <$> traverse (hdl exec env) (DL.toList bs)
 
-instance Monad m => Arrow (Handler m r x) where
+instance Monad m => Arrow (Handler m r y) where
     arr f = rmap f C.id
     first = first'
     second = second'
 
-instance Monad m => ArrowChoice (Handler m r x) where
+instance Monad m => ArrowChoice (Handler m r y) where
     left = left'
     right = right'
 
@@ -72,17 +72,17 @@ instance Monad m => ArrowChoice (Handler m r x) where
 --         hdl (obj ^. this) a
 
 -- | Ignore certain inputs contravariantly
-suppressHandlerInput :: Applicative m => (a -> Maybe a') -> Handler m r x a' b -> Handler m r x a b
+suppressHandlerInput :: Applicative m => (a -> Maybe a') -> Handler m r y a' b -> Handler m r y a b
 suppressHandlerInput f (Handler hdl) = Handler $ \exec env a -> case f a of
     Nothing -> pure DL.empty
     Just a' -> hdl exec env a'
 
 -- | More descriptive name for 'lmap'
-contramapHandlerInput :: Functor m => (a -> a') -> Handler m r x a' b -> Handler m r x a b
+contramapHandlerInput :: Functor m => (a -> a') -> Handler m r y a' b -> Handler m r y a b
 contramapHandlerInput = lmap
 
 -- | Ignore certain outputs
-filterHandlerOutput :: Applicative m => (b -> Maybe b') -> Handler m r x a b -> Handler m r x a b'
+filterHandlerOutput :: Applicative m => (b -> Maybe b') -> Handler m r y a b -> Handler m r y a b'
 filterHandlerOutput f (Handler hdl) = Handler $ \exec env a -> foldMap go <$> hdl exec env a
   where
     go b = case f b of
@@ -90,48 +90,48 @@ filterHandlerOutput f (Handler hdl) = Handler $ \exec env a -> foldMap go <$> hd
         Just b' -> DL.singleton b'
 
 -- | More descriptive name for 'rmap'
-mapHandlerOutput :: Functor m => (b -> b') -> Handler m r x a b -> Handler m r x a b'
+mapHandlerOutput :: Functor m => (b -> b') -> Handler m r y a b -> Handler m r y a b'
 mapHandlerOutput = rmap
 
 
 -- | Ignore certain commands contravariantly
-suppressHandlerExecutor :: (x -> Maybe x') ->  Handler m r x a b -> Handler m r x' a b
+suppressHandlerExecutor :: (y -> Maybe y') ->  Handler m r y a b -> Handler m r y' a b
 suppressHandlerExecutor f (Handler hdl) = Handler $ \exec env a -> hdl (F.suppressExecutor f exec) env a
 
 -- | Map a function to the commands contravariantly
-contramapHandlerExecutor :: (x -> x') -> Handler m r x a b -> Handler m r x' a b
+contramapHandlerExecutor :: (y -> y') -> Handler m r y a b -> Handler m r y' a b
 contramapHandlerExecutor f (Handler hdl) = Handler $ \exec env a -> hdl (F.contramapExecutor f exec) env a
 
 -----------------------------------------------
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
-type RefHandler m v s x a b = Handler m (IORef v, ReifiedLens' v s) x a b
+type RefHandler m v s y a b = Handler m (IORef v, ReifiedLens' v s) y a b
 
-newtype RefHandlerModeller m x a b v s = RefHandlerModeller {
-    runHandlerModeller :: RefHandler m v s x a b
+newtype RefHandlerModeller m y a b v s = RefHandlerModeller {
+    runHandlerModeller :: RefHandler m v s y a b
     }
 
-type instance F.Modeller (RefHandlerModeller m x a b v) s = RefHandler m v s x a b
+type instance F.Modeller (RefHandlerModeller m y a b v) s = RefHandler m v s y a b
 
-instance F.ViaModel (RefHandlerModeller m x a b v) where
+instance F.ViaModel (RefHandlerModeller m y a b v) where
     viaModel l (Handler hdl) =
         Handler $ \exec (ref, Lens this) a -> hdl exec (ref, Lens (this.l)) a
 
--- toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s x a b
+-- toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s y a b
 -- toRefHandler (Handler hdl) = Handler $ \(_, ref, Lens this) a -> do
 --     obj <- R.doReadIORef ref
 --     hdl (obj ^. this) a
 
-toFacetedHandler :: Applicative m => Handler m r x a b -> Handler m r x (Which '[a]) (Which '[b])
+toFacetedHandler :: Applicative m => Handler m r y a b -> Handler m r y (Which '[a]) (Which '[b])
 toFacetedHandler hdl = suppressHandlerInput trial' (pickOnly <$> hdl)
 
 -------------------------------------
 
-newtype PHandler m r xab = PHandler
-    { runPHandler :: Handler m r (P.At0 xab) (P.At1 xab) (P.At2 xab)
+newtype PHandler m r yab = PHandler
+    { runPHandler :: Handler m r (P.At0 yab) (P.At1 yab) (P.At2 yab)
     }
 
-type instance P.PNullary (PHandler m r) (x, a, b) = Handler m r x a b
+type instance P.PNullary (PHandler m r) (y, a, b) = Handler m r y a b
 
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
 instance Applicative m => P.PMEmpty (PHandler m r) (Which '[], Which '[], Which '[]) where
@@ -139,9 +139,9 @@ instance Applicative m => P.PMEmpty (PHandler m r) (Which '[], Which '[], Which 
 
 -- | Undecidableinstances!
 instance ( Monad m
-         , x3 ~ AppendUnique x1 x2
-         , Diversify x1 x3
-         , Diversify x2 x3
+         , y3 ~ AppendUnique y1 y2
+         , Diversify y1 y3
+         , Diversify y2 y3
          , a3 ~ Append a1 a2
          , b3 ~ AppendUnique b1 b2
          , Reinterpret a2 a3
@@ -150,9 +150,9 @@ instance ( Monad m
          , Diversify b2 b3
          ) =>
          P.PSemigroup (PHandler m r)
-              (Which x1, Which a1, Which b1)
-              (Which x2, Which a2, Which b2)
-              (Which x3, Which a3, Which b3) where
+              (Which y1, Which a1, Which b1)
+              (Which y2, Which a2, Which b2)
+              (Which y3, Which a3, Which b3) where
     x `pmappend` y = (contramapHandlerExecutor diversify x)
         +||+ (contramapHandlerExecutor diversify y)
 

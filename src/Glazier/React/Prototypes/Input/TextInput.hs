@@ -23,10 +23,10 @@ textInput
     => F.Prototype m v p s
             (Many '[DL.DList JE.Property])
             (Many '[DL.DList JE.Property, DL.DList R.Listener])
-            (Which '[])
-            (Which '[])
-            (Which '[])
             (Which '[P.SubmitInput, P.CancelInput])
+            (Which '[])
+            (Which '[])
+            (Which '[])
 textInput = F.mapBuilder
     (second (\s -> s & item' @(DL.DList JE.Property) %~ (DL.cons ("type", "text"))))
     P.input

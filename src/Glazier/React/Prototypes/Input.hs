@@ -43,8 +43,8 @@ input
             (Which '[SubmitInput, CancelInput])
 input =
     F.Prototype
-        ( F.build @(DL.DList JE.Property)
-            `P.pmappend` F.hardcode @(DL.DList R.Listener) DL.empty
+        ( F.buildItem @(DL.DList JE.Property)
+            `P.pmappend` F.hardcodeItem @(DL.DList R.Listener) DL.empty
         , P.pmempty
         , F.triggersRefActivator' [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
         , F.Display $ \ss -> R.lf "input"

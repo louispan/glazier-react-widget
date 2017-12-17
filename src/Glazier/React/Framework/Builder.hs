@@ -125,7 +125,7 @@ instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
 ------------------------------------------------
 
 -- | Return a builder that builds an item inside a Many
-itemizing
+toItemBuilder
     :: forall m p s p' s' ps ss.
     ( Applicative m
     , HasItem' p ps
@@ -133,7 +133,7 @@ itemizing
     )
     => Builder m p s p' s'
     -> Builder m ps ss (Many '[p']) (Many '[s'])
-itemizing (Builder (MkPlan mkPln, MkModel mkMdl)) =
+toItemBuilder (Builder (MkPlan mkPln, MkModel mkMdl)) =
     Builder (MkPlan mkPln', MkModel mkMdl')
   where
     mkPln' ss = single <$> mkPln (view (item' @s) ss)
@@ -142,28 +142,27 @@ itemizing (Builder (MkPlan mkPln, MkModel mkMdl)) =
 
 -- | Add a type @x@ into the model that is used directly from the plan.
 -- @forall@ so that the type can be specified first
-build'
+build
     :: forall x m. (Applicative m)
     => Builder m x x x x
-build' = Builder ( MkPlan $ pure
+build = Builder ( MkPlan $ pure
                   , MkModel $ pure
                   )
 
--- FIXME: Only allow certain things for react components vs prototypes
 -- | Add a type @x@ into the model that is used directly from the plan
 -- and return a builder that uses a Many.
 -- @forall@ so that the type can be specified first
-build
+buildItem
     :: forall x m p s. (Applicative m, HasItem' x p, HasItem' x s)
     => Builder m p s (Many '[x]) (Many '[x])
-build = itemizing $ build'
+buildItem = toItemBuilder $ build
 
 -- | Add a value @x@ into the model that is not from the plan.
 -- @forall@ so that the type can be specified first
-hardcode
+hardcodeItem
     :: forall x m p s. Applicative m
     => x -> Builder m p s (Many '[]) (Many '[x])
-hardcode x = Builder ( MkPlan . const $ pure nil
+hardcodeItem x = Builder ( MkPlan . const $ pure nil
                   , MkModel . const . pure $ single x
                   )
 

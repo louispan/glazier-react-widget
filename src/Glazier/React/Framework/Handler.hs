@@ -122,6 +122,9 @@ instance F.ViaModel (RefHandlerModeller m x a b v) where
 --     obj <- R.doReadIORef ref
 --     hdl (obj ^. this) a
 
+toFacetedHandler :: Applicative m => Handler m r x a b -> Handler m r x (Which '[a]) (Which '[b])
+toFacetedHandler hdl = suppressHandlerInput trial' (pickOnly <$> hdl)
+
 -------------------------------------
 
 newtype PHandler m r xab = PHandler

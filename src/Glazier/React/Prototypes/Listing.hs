@@ -22,7 +22,6 @@ import Control.Lens
 import qualified Data.DList as DL
 import Data.Diverse.Lens
 import Data.Foldable
-import Data.Generics.Product
 import Data.IORef
 import qualified Data.List.NonEmpty as NE
 -- import qualified Data.JSString as J
@@ -101,21 +100,29 @@ newtype ListingItemProperties = ListingItemProperties {
     runListingItemProperties :: DL.DList JE.Property
     }
 
-
--- listing :: (R.MonadReactor m, HasItem' (Listing p) ps, HasItem' (Listing s) ss)
---   => F.Archetype m p s x a b y -> F.Prototype m v ps ss
---     (Many '[Listing p])
---     (Many '[Listing s])
---     x
---     (ListingAction p s)
---     C.Rerender
---     y
--- listing (F.Archetype (bld, hdl, act, disp)) = F.Prototype
---     ( listingBuilder bld
---     , undefined
---     , undefined
---     , listingDisplay disp
---     )
+-- | This version drops the original item handlers, and so doesn't require the @x@ executor
+listing ::
+    ( R.MonadReactor m
+    , R.Dispose s
+    , HasItem' (Listing p) ps
+    , HasItem' (Listing s) ss
+    , HasItem' (DL.DList JE.Property) ss
+    , HasItem' ListingItemProperties ss
+    , HasItem' (DL.DList R.Listener) ss
+    )
+  => F.Archetype m p s x a b y -> F.Prototype m v ps ss
+    (Many '[Listing p])
+    (Many '[Listing s])
+    y -- handler executor
+    (Which '[ListingAction p s])
+    (Which '[C.Rerender])
+    y -- activator executor
+listing (F.Archetype (bld@(F.Builder (_, mkMdl)), _, act, disp)) = F.Prototype
+    ( F.toItemBuilder (listingBuilder bld)
+    , F.viaModel (alongside id item') (F.toFacetedHandler (listingRefHandler mkMdl act))
+    , F.viaModel (alongside id item') (listingActivator act)
+    , listingDisplay disp
+    )
 
 onListingDeleteItem :: (R.MonadReactor m, R.Dispose s)
   => IORef v
@@ -126,7 +133,7 @@ onListingDeleteItem ref this (ListingDeleteItem k) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2)
             in obj & (this._2 %~ M.delete k)
-                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
+                   . (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 -- | Move an item from one key to another
@@ -142,9 +149,9 @@ onListingMoveItem ref this (ListingMoveItem oldK newK) = do
             let mi = M.lookup newK (obj ^. this._2)
                 mj = M.lookup oldK (obj ^. this._2)
             in case mj of
-                Nothing -> obj & (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
+                Nothing -> obj & (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
                 Just i -> obj & (this._2 %~ M.insert newK i)
-                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
+                   . (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingInsertItem :: (R.MonadReactor m, R.Dispose s)
@@ -156,7 +163,7 @@ onListingInsertItem ref this (ListingInsertItem k s) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2)
             in obj & (this._2 %~ M.insert k s)
-                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
+                   . (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingConsItem :: (R.MonadReactor m, R.Dispose s)
@@ -213,12 +220,12 @@ onListingMakeItem mkMdl act exec ref this (ListingMakeItem p f) = do
 
 -- | Handler for ListingAction
 listingRefHandler ::
-    forall m p s v x. ( R.MonadReactor m
+    forall m p s v y. ( R.MonadReactor m
     , R.Dispose s
     )
     => F.MkModel m p s
-    -> F.Activator m s x
-    -> F.RefHandler m v (F.ComponentModel, Listing s) x (ListingAction p s) C.Rerender
+    -> F.Activator m s y
+    -> F.RefHandler m v (F.ComponentModel, Listing s) y (ListingAction p s) C.Rerender
 listingRefHandler mkMdl act = F.Handler $ \exec v@(ref, Lens this) (ListingAction a) ->
     switch a . cases $
         ((F.runHandler (listingNewItemRefHandler @m @s)) exec v)
@@ -250,14 +257,14 @@ listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \exec (ref, Lens this) 
 --     idxs = (\x -> (x NE.:| [])) <$> [0..]
 
 listingBuilder
-    :: (Applicative m, HasType (Listing p) ps, HasType (Listing s) ss)
+    :: (Applicative m)
     => F.Builder m p s p' s'
-    -> F.Builder m ps ss (Many '[Listing p']) (Many '[Listing s'])
+    -> F.Builder m (Listing p) (Listing s) (Listing p') (Listing s')
 listingBuilder (F.Builder (F.MkPlan mkPln, F.MkModel mkMdl)) =
     F.Builder (F.MkPlan mkPln', F.MkModel mkMdl')
   where
-    mkPln' ss = single <$> traverse mkPln (getTyped ss)
-    mkMdl' ps = single <$> traverse mkMdl (getTyped ps)
+    mkPln' ss = traverse mkPln ss
+    mkMdl' ps = traverse mkMdl ps
 
 listingDisplay
     :: forall m s ss.

@@ -24,7 +24,7 @@ module Glazier.React.Commands.Rerender where
 
 import Control.Lens
 import Data.IORef
-import Data.Diverse.Lens
+import Data.Generics.Product
 import qualified Glazier.React as R
 import Glazier.React.Framework.Core
 import qualified JavaScript.Extras as JE
@@ -34,6 +34,6 @@ data Rerender = Rerender R.ReactComponent [JE.Property]
 mkRerender :: R.MonadReactor m => IORef v -> Lens' v ComponentModel -> m Rerender
 mkRerender ref this = do
     obj <- R.doReadIORef ref
-    let (i, obj') = obj & (this . itemTag' @"componentFrameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
+    let (i, obj') = obj & (this . field @"componentFrameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'
-    pure $ Rerender (obj ^. (this . itemTag' @"component")) [("frameNum", JE.toJS' i)]
+    pure $ Rerender (obj ^. (this . field @"component")) [("frameNum", JE.toJS' i)]

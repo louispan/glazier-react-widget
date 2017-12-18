@@ -22,6 +22,7 @@ import Control.Lens
 import qualified Data.DList as DL
 import Data.Diverse.Lens
 import Data.Foldable
+import Data.Generics.Product
 import Data.IORef
 import qualified Data.List.NonEmpty as NE
 -- import qualified Data.JSString as J
@@ -134,7 +135,7 @@ onListingDeleteItem ref this (ListingDeleteItem k) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2)
             in obj & (this._2 %~ M.delete k)
-                   . (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
+                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 -- | Move an item from one key to another
@@ -150,9 +151,9 @@ onListingMoveItem ref this (ListingMoveItem oldK newK) = do
             let mi = M.lookup newK (obj ^. this._2)
                 mj = M.lookup oldK (obj ^. this._2)
             in case mj of
-                Nothing -> obj & (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
+                Nothing -> obj & (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
                 Just i -> obj & (this._2 %~ M.insert newK i)
-                   . (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
+                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingInsertItem :: (R.MonadReactor m, R.Dispose s)
@@ -164,7 +165,7 @@ onListingInsertItem ref this (ListingInsertItem k s) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2)
             in obj & (this._2 %~ M.insert k s)
-                   . (this._1.itemTag' @"componentDisposable" %~ (<> R.dispose mi))
+                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingConsItem :: (R.MonadReactor m, R.Dispose s)

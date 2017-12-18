@@ -21,17 +21,16 @@ module Glazier.React.Framework.Activator
 
 import Control.DeepSeq
 import Control.Lens
--- import Control.Monad
+import Control.Monad
 import Data.Diverse.Lens
 import qualified Data.DList as DL
--- import Data.Foldable
+import Data.Foldable
 import Data.IORef
 import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
--- import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
--- import qualified Glazier.React.Framework.Handler as F
+import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 
@@ -120,22 +119,32 @@ triggersRefActivator' = F.viaModel (_2.item') . triggersRefActivator
 --     -> RefActivator m v (F.ComponentModel, Many s) (Which '[])
 -- displayRefActivator' = F.viaModel (_2.item) . displayRefActivator
 
--- -- | Internal function: Converts a handler to a form that can be chained inside an Activator
--- mkIOHandler
---     :: R.MonadReactor m
---     => F.Handler m r x a b
---     -> F.Executor x ()
---     -> r
---     -> m (DL.DList a -> IO (DL.DList b))
--- mkIOHandler (F.Handler hdl) exec env = R.mkIO go
---   where
---     go cs = fold <$> traverse (hdl exec env) (DL.toList cs)
+-- | Internal function: Converts a handler to a form that can be chained inside an Activator
+mkIOHandler
+    :: R.MonadReactor m
+    => F.Handler m r y a b
+    -> F.Executor y ()
+    -> r
+    -> m (DL.DList a -> IO (DL.DList b))
+mkIOHandler (F.Handler hdl) exec env = R.mkIO go
+  where
+    go cs = fold <$> traverse (hdl exec env) (DL.toList cs)
 
--- -- | Add a handler so that it is piped before the input 'Executor' in an 'Activator'
--- addHandler :: R.MonadReactor m => F.Handler m r x a b -> Activator m r a -> Activator m r b
--- addHandler f (Activator g) = Activator $ \(F.Executor exec) env -> do
---     f' <- mkIOHandler f env
---     g (F.Executor $ f' >=> exec) env
+-- | Add a handler so that it is piped before the input 'Executor' in an 'Activator'
+-- The final Activator executor will be able to execute:
+-- * the input handler's commands + input handler's after
+-- TODO: Given Activator m r x ->       F.Handler m r (Which y) (Which a) (Which b)
+addHandler ::
+    ( R.MonadReactor m
+    , Diversify y x
+    , Diversify b x
+    , x ~ AppendUnique y b {- Redundant constraint, but helps specify the type of x -}
+    )
+    => F.Handler m r (Which y) (Which a) (Which b) -> Activator m r (Which a) -> Activator m r (Which x)
+addHandler hdl (Activator act) = Activator $ \(ex@(F.Executor exec)) env -> do
+    let hdlExec = F.contramapExecutor diversify ex
+    hdl' <- mkIOHandler (rmap diversify hdl) hdlExec env
+    act (F.Executor $ hdl' >=> exec) env
 
 ------------------------------------------
 

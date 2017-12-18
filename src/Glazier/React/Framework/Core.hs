@@ -41,8 +41,8 @@ import Control.Lens
 -- import qualified Data.DList as DL
 -- import Data.IORef
 -- import qualified Data.JSString as JS
-import Data.Diverse.Lens
-import Data.Generics.Product
+-- import Data.Diverse.Lens
+-- import Data.Generics.Product
 -- import qualified Data.DList as DL
 import Data.Kind
 -- import Data.Semigroup
@@ -107,8 +107,8 @@ data ComponentModel = ComponentModel
 
 instance R.Dispose ComponentModel
 
-instance HasField' l ComponentModel a => HasItemTag' l a ComponentModel where
-    itemTag' = field @l
+-- instance HasField' l ComponentModel a => HasItemTag' l a ComponentModel where
+--     itemTag' = field @l
 
 -- data ComponentPlan = ComponentPlan
 --     { _component :: R.ReactComponent

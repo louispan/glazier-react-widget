@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -124,6 +125,21 @@ instance F.ViaModel (RefHandlerModeller m y a b v) where
 
 toFacetedHandler :: Applicative m => Handler m r y a b -> Handler m r y (Which '[a]) (Which '[b])
 toFacetedHandler hdl = suppressHandlerInput trial' (pickOnly <$> hdl)
+
+-- -- | expand the types a handler handles, by '+||+' with an id handler for the extra types.
+-- -- AllowAmbiguousTypes: Use TypeApplications to specify x instead of proxy.
+-- bypass :: forall x a' b' m r y a b.
+--     ( Monad m
+--     , a' ~ Append a x
+--     , b' ~ AppendUnique b x
+--     , a ~ Complement a' x
+--     , Reinterpret x a'
+--     , Diversify b b'
+--     , Diversify x b'
+--     )
+--     => Handler m r y (Which a) (Which b) -> Handler m r y (Which a') (Which b')
+-- bypass hdl = let cid = C.id :: Handler m r y (Which x) (Which x)
+--              in hdl +||+ cid
 
 -------------------------------------
 

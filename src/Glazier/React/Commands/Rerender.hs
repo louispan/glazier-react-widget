@@ -31,7 +31,7 @@ import qualified JavaScript.Extras as JE
 
 data Rerender = Rerender R.ReactComponent [JE.Property]
 
-mkRerender :: R.MonadReactor m => IORef v -> Lens' v ComponentModel -> m Rerender
+mkRerender :: R.MonadReactor x m => IORef v -> Lens' v ComponentModel -> m Rerender
 mkRerender ref this = do
     obj <- R.doReadIORef ref
     let (i, obj') = obj & (this . field @"componentFrameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))

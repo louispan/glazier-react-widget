@@ -15,7 +15,7 @@ import qualified Glazier.React.Prototypes.Input as P
 import qualified JavaScript.Extras as JE
 
 textInput
-    :: ( R.MonadReactor m
+    :: ( R.MonadReactor x m
        , HasItem' (DL.DList JE.Property) p
        , HasItem' (DL.DList JE.Property) s
        , HasItem' (DL.DList R.Listener) s
@@ -23,10 +23,10 @@ textInput
     => F.Prototype m v p s
             (Many '[DL.DList JE.Property])
             (Many '[DL.DList JE.Property, DL.DList R.Listener])
+            (Which '[])
+            (Which '[])
+            x
             (Which '[P.SubmitInput, P.CancelInput])
-            (Which '[])
-            (Which '[])
-            (Which '[])
 textInput = F.mapBuilder
     (second (\s -> s & item' @(DL.DList JE.Property) %~ (DL.cons ("type", "text"))))
     P.input

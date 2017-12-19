@@ -25,7 +25,7 @@ import qualified Parameterized.Data.Monoid as P
 ------------------------------------------
 
 newtype Activator m r x c = Activator
-    { runActivator :: F.Executor m c x -- final transformation)
+    { runActivator :: F.Executor m c (DL.DList x) -- final transformation)
                    -> r -- Handler env
                    -> m () -- return the monadic action to commit the activation
     }
@@ -78,6 +78,9 @@ triggersRefActivator triggers = Activator $ \(F.Executor exec) (ref, Lens this) 
               (traverse {- tuple traverse -} (\t' ->
                    R.mkCallback t' exec) . F.runTrigger) triggers
     R.doModifyIORef' ref (this %~ (`DL.append` DL.fromList cbs))
+  where
+    -- go :: (a -> m (DL.DList x)) -> DL.DList a -> m (DL.DList x)
+    -- go exec as = fold <$> traverse exec (DL.toList as)
 
 -- | Variation of 'triggersRefActivator' using a state of @(F.ComponentModel, Many s)@
 triggersRefActivator'

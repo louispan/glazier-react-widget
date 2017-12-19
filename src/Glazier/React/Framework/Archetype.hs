@@ -25,25 +25,25 @@ import qualified GHCJS.Foreign.Callback.Internal as J
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
-newtype Archetype m p s x y a b = Archetype {
+newtype Archetype m p s a b x c = Archetype {
     runArchetype ::
            ( F.Display m s ()
            , F.Builder m p s p s
+           , F.Handler m s a b
            -- activator contains other prerequisites
            -- of executor, and actions that need to be handled
-           , F.Activator m s x
-           , F.Handler m s y a b
+           , F.Activator m s x c
            )
     }
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: R.MonadReactor m
-    => F.Prototype m (F.ComponentModel, s) p s p s x y a b
-    -> Archetype m p (IORef (F.ComponentModel, s)) x y a b
+toArchetype :: (R.MonadReactor x m, x ~ R.Disposable ())
+    => F.Prototype m (F.ComponentModel, s) p s p s a b x c
+    -> Archetype m p (IORef (F.ComponentModel, s)) a b x c
 toArchetype (F.Prototype ( F.Display disp
                          , F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
-                         , F.Activator act
                          , F.Handler hdl
+                         , F.Activator act
                          )) = Archetype
      ( F.Display $ \ref -> do
              (cm, _) <- lift $ R.doReadIORef ref
@@ -73,15 +73,16 @@ toArchetype (F.Prototype ( F.Display disp
                              (_, s') <- lift $ R.doReadIORef ref
                              disp s'
                          upd <- R.mkCallback (const $ pure ()) (const $ do
-                                 (cm', _) <- readIORef ref
+                                 (cm', _) <- R.doReadIORef ref
                                  let ds = cm' ^. field @"componentDisposable"
                                  case R.runDisposable ds of
-                                     Nothing -> pure ()
+                                     Nothing -> pure mempty -- ()
                                      Just ds' -> do
-                                         modifyIORef' ref (\(cm'', s') ->
+                                         R.doModifyIORef' ref (\(cm'', s') ->
                                              (cm'' & field @"componentDisposable" .~ mempty
                                              , s'))
-                                         ds')
+                                         pure ds)
+                                         -- ds')
                          R.doModifyIORef' ref (\(cm', s') ->
                                      ( cm' & field @"componentRender" .~ rnd
                                            & field @"componentUpdated" .~ upd
@@ -89,64 +90,24 @@ toArchetype (F.Prototype ( F.Display disp
                          -- return the ioref
                          pure ref
                  )
+     , F.Handler $ \ref a -> hdl (ref, Lens id) a
      , F.Activator $ \exec ref -> act exec (ref, Lens id)
-     , F.Handler $ \exec ref a -> hdl exec (ref, Lens id) a
      )
 
--- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor m => Archetype m p s x y a b -> F.Prototype m v p s p s x y a b
-fromArchetype (Archetype ( disp
-                         , bld
-                         , F.Activator act
-                         , F.Handler hdl
-                         )) = F.Prototype
-    ( disp
-    , bld
-    , F.Activator $ \exec (ref, Lens this) -> do
-            obj <- R.doReadIORef ref
-            act exec (obj ^. this._2)
-    , F.Handler $ \exec (ref, Lens this) a -> do
-            obj <- R.doReadIORef ref
-            hdl exec (obj ^. this._2) a
-    )
+-- -- | NB. fromArchetype . toArchetype != id
+-- fromArchetype :: R.MonadReactor m => Archetype m p s x y a b -> F.Prototype m v p s p s x y a b
+-- fromArchetype (Archetype ( disp
+--                          , bld
+--                          , F.Activator act
+--                          , F.Handler hdl
+--                          )) = F.Prototype
+--     ( disp
+--     , bld
+--     , F.Activator $ \exec (ref, Lens this) -> do
+--             obj <- R.doReadIORef ref
+--             act exec (obj ^. this._2)
+--     , F.Handler $ \exec (ref, Lens this) a -> do
+--             obj <- R.doReadIORef ref
+--             hdl exec (obj ^. this._2) a
+--     )
 
-
--- mapBuilder2
---     :: (F.Builder m p s p s -> F.Builder m p s p s)
---     -> Archetype m p s a b c
---     -> Archetype m p s a b c
--- mapBuilder2 f (Archetype (bld, hdl, act, disp)) = Archetype
---                    ( f bld
---                    , hdl
---                    , act
---                    , disp)
-
--- mapHandler2
---     :: (F.Handler m s a1 b1 -> F.Handler m s a2 b2)
---     -> Archetype m p s a1 b1 c
---     -> Archetype m p s a2 b2 c
--- mapHandler2 f (Archetype (bld, hdl, act, disp)) = Archetype
---                    ( bld
---                    , f hdl
---                    , act
---                    , disp)
-
--- mapActivator2
---     :: (F.Activator m s c1 -> F.Activator m s c2)
---     -> Archetype m p s a b c1
---     -> Archetype m p s a b c2
--- mapActivator2 f (Archetype (bld, hdl, act, disp)) = Archetype
---                    ( bld
---                    , hdl
---                    , f act
---                    , disp)
-
--- mapDisplay2
---     :: (F.Display m s () -> F.Display m s ())
---     -> Archetype m p s a b c
---     -> Archetype m p s a b c
--- mapDisplay2 f (Archetype (bld, hdl, act, disp)) = Archetype
---                    ( bld
---                    , hdl
---                    , act
---                    , f disp)

@@ -74,14 +74,6 @@ instance Applicative m => Biapplicative (Builder m p s) where
                 , MkModel $ \s -> fMkMdl s <*> mkMdl s
                 )
 
--- instance R.MonadReactor m => F.IORefModel
---         (Builder m p s p' s')
---         (Builder m p (IORef s) p' (IORef s')) where
---     ioRefModel (Builder (MkPlan mkPlan, MkModel mkModel)) = Builder
---         ( MkPlan (R.doReadIORef >=> mkPlan)
---         , MkModel (mkModel >=> R.doNewIORef)
---         )
-
 ------------------------------------------------
 
 newtype BuilderPlanner m s p' s' p = BuilderPlanner { runBuilderPlanner :: Builder m p s p' s' }
@@ -165,6 +157,14 @@ hardcodeItem
 hardcodeItem x = Builder ( MkPlan . const $ pure nil
                   , MkModel . const . pure $ single x
                   )
+
+-- | More descriptive name for 'second' for Builder
+mapModel :: Functor m => (s' -> t') -> Builder m p s p' s' -> Builder m p s p' t'
+mapModel = second
+
+-- | More descriptive name for 'first' for Builder
+mapPlan :: Functor m => (p' -> q') -> Builder m p s p' s' -> Builder m p s q' s'
+mapPlan = first
 
 dimapPlan :: Functor m => (q -> p) -> (p' -> q') -> Builder m p s p' s' -> Builder m q s q' s'
 dimapPlan f g (Builder (mkPln, mkMdl)) =

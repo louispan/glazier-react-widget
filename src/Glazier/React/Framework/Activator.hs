@@ -6,22 +6,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Activator
-    ( Activator(..)
-    , RefActivator
-    , suppressActivatorExecutor
-    , contramapActivatorExecutor
-    , triggersRefActivator
-    , triggersRefActivator'
-    -- , displayRefActivator
-    -- , displayRefActivator'
-    -- , addHandler
-    , ActivatorModeller(..)
-    ) where
+module Glazier.React.Framework.Activator where
 
 import Control.DeepSeq
 import Control.Lens
-import Control.Monad
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
@@ -36,122 +24,82 @@ import qualified Parameterized.Data.Monoid as P
 
 ------------------------------------------
 
-newtype Activator m r x = Activator
-    { runActivator :: F.Executor x () -- effectful interpreters
+newtype Activator m r x c = Activator
+    { runActivator :: F.Executor m c x -- final transformation)
                    -> r -- Handler env
                    -> m () -- return the monadic action to commit the activation
     }
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
-type RefActivator m v s x = Activator m (IORef v, ReifiedLens' v s) x
+type RefActivator m v s x c = Activator m (IORef v, ReifiedLens' v s) x c
 
-instance Monad m => Semigroup (Activator m r a) where
+instance Monad m => Semigroup (Activator m r x c) where
     (Activator f) <> (Activator g) = Activator $ \exec env ->
         f exec env >>
         g exec env
 
-instance Monad m => Monoid (Activator m r x) where
+instance Monad m => Monoid (Activator m r x c) where
     mempty = Activator $ \_ _ -> pure ()
     mappend = (<>)
 
--- instance R.MonadReactor m => F.IORefModel (Activator m s s a) (Activator m v (IORef s) a) where
---     ioRefModel (Activator g) = Activator $ \ref (Lens this) exec -> do
---         obj <- R.doReadIORef ref
---         let ref' = obj ^. this
---         g ref' (Lens id) exec
-
 ------------------------------------------
 
-type instance P.PNullary (Activator m r) x = Activator m r x
+type instance P.PNullary (Activator m r x) c = Activator m r x c
 
-instance Applicative m => P.PMEmpty (Activator m r) (Which '[]) where
+instance Applicative m => P.PMEmpty (Activator m r x) (Which '[]) where
     pmempty = Activator $ \_ _ -> pure ()
 
 instance ( Monad m
-         , Reinterpret' x3 x1
-         , Reinterpret' x3 x2
-         , x3 ~ AppendUnique x1 x2
-         ) => P.PSemigroup (Activator m r) (Which x1) (Which x2) (Which x3) where
+         , Reinterpret' c3 c1
+         , Reinterpret' c3 c2
+         , c3 ~ AppendUnique c1 c2
+         ) => P.PSemigroup (Activator m r x) (Which c1) (Which c2) (Which c3) where
     (Activator f) `pmappend` (Activator g) = Activator $ \exec env ->
         f (F.suppressExecutor reinterpret' exec) env >>
         g (F.suppressExecutor reinterpret' exec) env
 
 ------------------------------------------
 
--- | Ignore certain commands contravariantly
-suppressActivatorExecutor :: (x -> Maybe x') ->  Activator m r x -> Activator m r x'
-suppressActivatorExecutor f (Activator act) = Activator $ \exec env -> act (F.suppressExecutor f exec) env
+-- | Ignore certain commands
+suppressActivator :: (c -> Maybe c') ->  Activator m r x c -> Activator m r x c'
+suppressActivator f (Activator act) = Activator $ \exec env -> act (F.suppressExecutor f exec) env
 
--- | Map a function to the commands contravariantly
-contramapActivatorExecutor :: (x -> x') -> Activator m r x -> Activator m r x'
-contramapActivatorExecutor f (Activator act) = Activator $ \exec env -> act (F.contramapExecutor f exec) env
+-- | Map a function to the commands accepted by the Executor
+instance Functor m => Functor (Activator m r x) where
+    fmap f (Activator act) = Activator $ \exec env -> act (F.contramapExecutor f exec) env
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 triggersRefActivator
-    :: (R.MonadReactor m, NFData x)
-    => [F.Trigger x]
-    -> RefActivator m v (DL.DList R.Listener) x
+    :: (R.MonadReactor x m, NFData a)
+    => [F.Trigger a]
+    -> RefActivator m v (DL.DList R.Listener) x a
 triggersRefActivator triggers = Activator $ \(F.Executor exec) (ref, Lens this) -> do
-    cbs <- traverse (traverse {- tuple traverse -} (\t' ->
-               R.mkCallback t' exec) . F.runTrigger) triggers
+    cbs <- traverse {- list of triggers traverse -}
+              (traverse {- tuple traverse -} (\t' ->
+                   R.mkCallback t' exec) . F.runTrigger) triggers
     R.doModifyIORef' ref (this %~ (`DL.append` DL.fromList cbs))
 
 -- | Variation of 'triggersRefActivator' using a state of @(F.ComponentModel, Many s)@
 triggersRefActivator'
-    :: (R.MonadReactor m, NFData x, HasItem' (DL.DList R.Listener) s)
-    => [F.Trigger x]
-    -> RefActivator m v (F.ComponentModel, s) x
+    :: (R.MonadReactor x m, NFData a, HasItem' (DL.DList R.Listener) s)
+    => [F.Trigger a]
+    -> RefActivator m v (F.ComponentModel, s) x a
 triggersRefActivator' = F.viaModel (_2.item') . triggersRefActivator
 
--- -- | Store the rendering instructions inside a render callback and add it to this state's render holder.
--- displayRefActivator
---     :: (R.MonadReactor m)
---     => F.Display m (IORef v) ()
---     -> RefActivator m v R.Renderer (Which '[])
--- displayRefActivator (F.Display disp) = Activator $ \(ref, Lens this) _ -> do
---     rnd <- R.mkRenderer (disp ref)
---     R.doModifyIORef' ref (this .~ rnd)
-
--- -- | Variation of 'displayRefActivator' using a state of @(F.ComponentModel, Many s)@
--- displayRefActivator'
---     :: (R.MonadReactor m, UniqueMember R.Renderer s)
---     => F.Display m (IORef v) ()
---     -> RefActivator m v (F.ComponentModel, Many s) (Which '[])
--- displayRefActivator' = F.viaModel (_2.item) . displayRefActivator
-
--- | Internal function: Converts a handler to a form that can be chained inside an Activator
-mkIOHandler
-    :: R.MonadReactor m
-    => F.Handler m r y a b
-    -> F.Executor y ()
-    -> r
-    -> m (DL.DList a -> IO (DL.DList b))
-mkIOHandler (F.Handler hdl) exec env = R.mkIO go
-  where
-    go cs = fold <$> traverse (hdl exec env) (DL.toList cs)
-
 -- | Add a handler so that it is piped before the input 'Executor' in an 'Activator'
--- The final Activator executor will be able to execute:
--- * the input handler's commands + input handler's after
--- TODO: Given Activator m r x ->       F.Handler m r (Which y) (Which a) (Which b)
 addHandler ::
-    ( R.MonadReactor m
-    , Diversify y x
-    , Diversify b x
-    , x ~ AppendUnique y b {- Redundant constraint, but helps specify the type of x -}
+    ( R.MonadReactor x m
     )
-    => F.Handler m r (Which y) (Which a) (Which b) -> Activator m r (Which a) -> Activator m r (Which x)
-addHandler hdl (Activator act) = Activator $ \(ex@(F.Executor exec)) env -> do
-    let hdlExec = F.contramapExecutor diversify ex
-    hdl' <- mkIOHandler (rmap diversify hdl) hdlExec env
-    act (F.Executor $ hdl' >=> exec) env
+    => F.Handler m r a b -> Activator m r x a -> Activator m r x b
+addHandler (F.Handler hdl) (Activator act) = Activator $ \(F.Executor exec) env ->
+    act (F.Executor $ \as -> fold <$> traverse (hdl env) (DL.toList as) >>= exec) env
 
 ------------------------------------------
 
-newtype ActivatorModeller m v x s = ActivatorModeller { runActivatorModeller :: RefActivator m v s x }
+newtype ActivatorModeller m v x c s = ActivatorModeller { runActivatorModeller :: RefActivator m v s x c }
 
-type instance F.Modeller (ActivatorModeller m v x) s = RefActivator m v s x
+type instance F.Modeller (ActivatorModeller m v x c) s = RefActivator m v s x c
 
-instance F.ViaModel (ActivatorModeller m v x) where
+instance F.ViaModel (ActivatorModeller m v a b) where
     viaModel l (Activator f) = Activator $ \exec (ref, Lens this) ->
         f exec (ref, Lens (this.l))

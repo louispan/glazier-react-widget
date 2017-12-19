@@ -19,23 +19,22 @@ import qualified Data.DList as DL
 import Data.Profunctor
 -- import qualified Parameterized.Control.Monad as P
 
-newtype Executor x r = Executor { runExecutor :: DL.DList x -> IO r }
+newtype Executor m c x = Executor { runExecutor :: DL.DList c -> m x }
     deriving Functor
 
-instance Applicative (Executor x) where
+instance Applicative m => Applicative (Executor m c) where
     pure = Executor . const . pure
     (Executor f) <*> (Executor g) = Executor $ \s -> f s <*> g s
 
-instance Monad (Executor x) where
+instance Monad m => Monad (Executor m c) where
     (Executor f) >>= k = Executor $ \s -> f s >>= k' s
       where
         k' s x = runExecutor (k x) s
 
-instance Profunctor Executor where
+instance Functor m => Profunctor (Executor m) where
     dimap f g (Executor exec) = Executor $ \xs -> g <$> exec (f <$> xs)
 
 -- -----------------------------------
--- Works, but not needed
 
 -- type instance P.PUnary Executor c = Executor c
 
@@ -97,7 +96,7 @@ instance Profunctor Executor where
 --                 Just c' -> DL.singleton c'
 
 -- | Ignore certain commands contravariantly
-suppressExecutor :: (x -> Maybe x') -> Executor x' r -> Executor x r
+suppressExecutor :: (c -> Maybe c') -> Executor m c' x  -> Executor m c x
 suppressExecutor f (Executor exec) = Executor $ \xs -> exec (foldMap go xs)
   where
     go x = case f x of
@@ -105,5 +104,5 @@ suppressExecutor f (Executor exec) = Executor $ \xs -> exec (foldMap go xs)
         Just x' -> DL.singleton x'
 
 -- | Map a function to the commands contravariantly
-contramapExecutor :: (x -> x') -> Executor x' r -> Executor x r
+contramapExecutor :: Functor m => (c -> c') -> Executor m c' x -> Executor m c x
 contramapExecutor = lmap

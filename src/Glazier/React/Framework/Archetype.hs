@@ -21,31 +21,28 @@ import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Display as F
+import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Prototype as F
 import qualified GHCJS.Foreign.Callback.Internal as J
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
-newtype Archetype m p s a b x c = Archetype {
+newtype Archetype m p s x c a b = Archetype {
     runArchetype ::
            ( F.Display m s ()
            , F.Builder m p s p s
-           , F.Handler m s a b
-           -- activator contains other prerequisites
-           -- of executor, and actions that need to be handled
-           , F.Activator m s x c
+           , F.Executor m s x c a b
            )
     }
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: (R.MonadReactor x m, AsFacet (R.Disposable ()) x)
-    => F.Prototype m (F.ComponentModel, s) p s p s a b x c
-    -> Archetype m p (IORef (F.ComponentModel, s)) a b x c
+    => F.Prototype m (F.ComponentModel, s) p s p s x c a b
+    -> Archetype m p (IORef (F.ComponentModel, s)) x c a b
 toArchetype (F.Prototype ( F.Display disp
                          , F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
-                         , F.Handler hdl
-                         , F.Activator act
+                         , F.Executor exec
                          )) = Archetype
      ( F.Display $ \ref -> do
              (cm, _) <- lift $ R.doReadIORef ref
@@ -92,23 +89,28 @@ toArchetype (F.Prototype ( F.Display disp
                          -- return the ioref
                          pure ref
                  )
-     , F.Handler $ \ref a -> hdl (ref, Lens id) a
-     , F.Activator $ \exec ref -> act exec (ref, Lens id)
+     , F.Executor $ \k -> let (F.Activator act, F.Handler hdl) = exec k
+                          in ( F.Activator $ \ref -> act (ref, Lens id)
+                             , F.Handler $ \ref a -> hdl (ref, Lens id) a
+                             )
      )
 
 -- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor x m => Archetype m p s a b x c -> F.Prototype m v p s p s a b x c
+fromArchetype :: R.MonadReactor x m => Archetype m p s x c a b -> F.Prototype m v p s p s x c a b
 fromArchetype (Archetype ( disp
                          , bld
-                         , F.Handler hdl
-                         , F.Activator act
+                         , F.Executor exec
+                         -- , F.Handler hdl
+                         -- , F.Activator act
                          )) = F.Prototype
     ( disp
     , bld
-    , F.Handler $ \(ref, Lens this) a -> do
-            obj <- R.doReadIORef ref
-            hdl (obj ^. this._2) a
-    , F.Activator $ \exec (ref, Lens this) -> do
-            obj <- R.doReadIORef ref
-            act exec (obj ^. this._2)
+    , F.Executor $ \k -> let (F.Activator act, F.Handler hdl) = exec k
+                          in ( F.Activator $ \(ref, Lens this) -> do
+                                     obj <- R.doReadIORef ref
+                                     act (obj ^. this._2)
+                             , F.Handler $ \(ref, Lens this) a -> do
+                                     obj <- R.doReadIORef ref
+                                     hdl (obj ^. this._2) a
+                             )
     )

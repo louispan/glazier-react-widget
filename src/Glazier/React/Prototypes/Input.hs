@@ -37,10 +37,10 @@ input
     => F.Prototype m v p s
             (Many '[DL.DList JE.Property])
             (Many '[DL.DList JE.Property, DL.DList R.Listener])
-            (Which '[])
-            (Which '[])
             x
             (Which '[SubmitInput, CancelInput])
+            (Which '[])
+            (Which '[])
 input =
     F.Prototype
         ( F.Display $ \ss -> R.lf "input"
@@ -48,8 +48,7 @@ input =
             (DL.toList $ ss ^. item' @(DL.DList JE.Property))
         , F.buildItem @(DL.DList JE.Property)
             `P.pmappend` F.hardcodeItem @(DL.DList R.Listener) DL.empty
-        , P.pmempty
-        , F.triggersRefActivator' [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
+        , F.triggerExecutor' [F.Trigger ("onKeyDown", Ex.fromMaybeT . (A.fireKeyDownKey >=> go))]
         )
   where
     go (A.KeyDownKey target k) =

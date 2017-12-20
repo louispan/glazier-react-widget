@@ -30,8 +30,7 @@ import qualified Parameterized.TypeLevel as P
 
 newtype Executor m r x c a b = Executor {
     runExecutor
-        :: r
-        -> (DL.DList c -> m (DL.DList x)) -- final transformation
+        :: (DL.DList c -> m (DL.DList x)) -- final transformation
         -> (F.Handler m r a b, F.Activator m r)
     }
 
@@ -47,7 +46,7 @@ newtype PExecutor m r x cab = PExecutor
 type instance P.PNullary (PExecutor m r x) (c, a, b) = Executor m r x c a b
 
 instance Monad m => P.PMEmpty (PExecutor m r x) (Which '[], Which '[], Which '[]) where
-    pmempty = Executor $ \_ _ -> (P.pmempty, mempty)
+    pmempty = Executor $ \_ -> (P.pmempty, mempty)
 
 -- | Undecidableinstances!
 instance ( Monad m
@@ -65,14 +64,14 @@ instance ( Monad m
               (Which c1, Which a1, Which b1)
               (Which c2, Which a2, Which b2)
               (Which c3, Which a3, Which b3) where
-    x `pmappend` y = Executor $ \env k ->
-        let (hdl1, act1) = runExecutor (mapExecutor diversify x) env k
-            (hdl2, act2) = runExecutor (mapExecutor diversify y) env k
+    x `pmappend` y = Executor $ \k ->
+        let (hdl1, act1) = runExecutor (mapExecutor diversify x) k
+            (hdl2, act2) = runExecutor (mapExecutor diversify y) k
         in (hdl1 +||+ hdl2, act1 <> act2)
 
 -- | Ignore certain commands
 suppressExecutor :: (c -> Maybe c') -> Executor m r x c a b  -> Executor m r x c' a b
-suppressExecutor f (Executor exec) = Executor $ \env k -> exec env (k . foldMap go)
+suppressExecutor f (Executor exec) = Executor $ \k -> exec (k . foldMap go)
   where
     go x = case f x of
         Nothing -> mempty
@@ -80,14 +79,14 @@ suppressExecutor f (Executor exec) = Executor $ \env k -> exec env (k . foldMap 
 
 -- | Map a function to the commands
 mapExecutor :: (c -> c') -> Executor m r x c a b -> Executor m r x c' a b
-mapExecutor f (Executor exec) = Executor $ \env k -> exec env (k . fmap f)
+mapExecutor f (Executor exec) = Executor $ \k -> exec (k . fmap f)
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 addTriggers
     :: (R.MonadReactor x m, NFData a)
     => [F.Trigger a]
     -> RefExecutor m v (DL.DList R.Listener) x a (Which '[]) (Which '[])
-addTriggers triggers = Executor $ \_ k -> (P.pmempty, F.Activator $ act k)
+addTriggers triggers = Executor $ \k -> (P.pmempty, F.Activator $ act k)
   where
     act k (ref, Lens this) = do
         cbs <- traverse {- list of triggers traverse -}
@@ -103,19 +102,20 @@ addTriggers'
 addTriggers' = F.viaModel (_2.item') . addTriggers
 
 -- | Add a handler so that it is piped before the final transformation to @x@
-addHandler ::
+addHandler2 ::
     ( R.MonadReactor x m
     )
     => F.Handler m r c d -> Executor m r x c a b -> Executor m r x d a b
-addHandler (F.Handler hdl) (Executor exec) = Executor $ \env k ->
-    let (hdl', act') = exec env (k' env k)
-    in (hdl', act')
+addHandler2 (F.Handler hdl) (Executor exec) = Executor $ \k ->
+    ( F.Handler $ \env a -> (F.runHandler . fst $ exec (k' env k)) env a
+    , F.Activator $ \env -> (F.runActivator . snd $ exec (k' env k)) env
+    )
   where
     k' env k cs = fold <$> traverse (hdl env) (DL.toList cs) >>= k
 
 mapExecutorHandler :: (F.Handler m r a b -> F.Handler m r a' b') -> Executor m r x c a b -> Executor m r x c a' b'
-mapExecutorHandler f (Executor exec) = Executor $ \env k ->
-    let (hdl', act') = exec env k
+mapExecutorHandler f (Executor exec) = Executor $ \k ->
+    let (hdl', act') = exec k
     in (f hdl', act')
 
 ------------------------------------------
@@ -127,6 +127,6 @@ newtype ExecutorModeller m v x c a b s = ExecutorModeller {
 type instance F.Modeller (ExecutorModeller m v x c a b) s = RefExecutor m v s x c a b
 
 instance F.ViaModel (ExecutorModeller m v x c a b) where
-    viaModel l (Executor exec) = Executor $ \(ref, Lens this) k ->
-        let (hdl, act) = exec (ref, Lens (this.l)) k
+    viaModel l (Executor exec) = Executor $ \k ->
+        let (hdl, act) = exec k
         in (F.viaModel l hdl, F.viaModel l act)

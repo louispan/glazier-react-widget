@@ -12,7 +12,7 @@
 -- {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
--- {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies #-}
 -- {-# LANGUAGE TypeOperators #-}
 -- {-# LANGUAGE NoMonomorphismRestriction #-}
 
@@ -21,6 +21,7 @@ module Glazier.React.Prototypes.Listing where
 import Control.Lens
 import qualified Data.DList as DL
 import Data.Diverse.Lens
+import Data.Diverse.Profunctor
 import Data.Foldable
 import Data.Generics.Product
 import Data.IORef
@@ -33,6 +34,7 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Commands as C
 import qualified JavaScript.Extras as JE
+import qualified Parameterized.Data.Monoid as P
 -- import qualified Pipes.Concurrent as PC
 
 -- | Internal: Make a key that will fit in between the two provided keys,
@@ -101,9 +103,35 @@ newtype ListingItemProperties = ListingItemProperties {
     runListingItemProperties :: DL.DList JE.Property
     }
 
--- -- | This version drops the original item handlers.
--- -- The listing activator doesn't require C.Rerender. C.Rerender is only required if the listing handler is used in a parent activator.
--- listing ::
+-- | This version drops the original item handlers @a -> b@, and only have list handlers.
+listing ::
+    ( R.MonadReactor x m
+    , R.Dispose s
+    , HasItem' (Listing p) ps
+    , HasItem' (Listing s) ss
+    , HasItem' (DL.DList JE.Property) ss
+    , HasItem' ListingItemProperties ss
+    , HasItem' (DL.DList R.Listener) ss
+    )
+  => F.Archetype m p s x c a b -> F.Prototype m v ps ss
+    (Many '[Listing p])
+    (Many '[Listing s])
+    x
+    c
+    (Which '[ListingAction p s])
+    (Which '[C.Rerender])
+listing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
+    ( listingDisplay disp
+    , F.toItemBuilder (listingBuilder bld)
+    , F.Executor $ \k ->
+            let (act, _) = exec k
+            in ( F.viaModel (alongside id item') (listingActivator act)
+               , F.viaModel (alongside id item') (faceted' (listingRefHandler mkMdl act))
+               )
+    )
+
+-- TODO:
+-- broadcastListing ::
 --     ( R.MonadReactor x m
 --     , R.Dispose s
 --     , HasItem' (Listing p) ps
@@ -112,18 +140,21 @@ newtype ListingItemProperties = ListingItemProperties {
 --     , HasItem' ListingItemProperties ss
 --     , HasItem' (DL.DList R.Listener) ss
 --     )
---   => F.Archetype m p s a b x x -> F.Prototype m v ps ss
+--   => F.Archetype m p s x c (Which as) (Which bs) -> F.Prototype m v ps ss
 --     (Many '[Listing p])
 --     (Many '[Listing s])
---     (Which '[ListingAction p s])
---     (Which '[C.Rerender])
 --     x
---     x
--- listing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), _, act)) = F.Prototype
+--     c
+--     (Which (ListingAction p s ': as))
+--     (Which (C.Rerender ': bs))
+-- broadcastListing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
 --     ( listingDisplay disp
 --     , F.toItemBuilder (listingBuilder bld)
---     , F.viaModel (alongside id item') (F.toFacetedHandler (listingRefHandler mkMdl act))
---     , F.viaModel (alongside id item') (listingActivator act)
+--     , F.Executor $ \k ->
+--             let (act, _) = exec k
+--             in ( F.viaModel (alongside id item') (listingActivator act)
+--                , F.viaModel (alongside id item') (F.toFacetedHandler (listingRefHandler mkMdl act))
+--                )
 --     )
 
 onListingDeleteItem :: (R.MonadReactor x m, R.Dispose s)
@@ -207,33 +238,33 @@ listingNewItemRefHandler = F.Handler $ \(ref, Lens this) (ListingNewItemAction a
      ./ (onListingSnocItem @x @m ref this)
      ./ nil
 
--- onListingMakeItem :: forall x m p s v. (R.MonadReactor x m, R.Dispose s)
---   => F.MkModel m p s
---   -> F.Activator m s x x
---   -> IORef v
---   -> Lens' v (F.ComponentModel, Listing s)
---   -> ListingMakeItem p (s -> ListingNewItemAction s)
---   -> m (DL.DList C.Rerender)
--- onListingMakeItem mkMdl act ref this (ListingMakeItem p f) = do
---     s <- (F.runMkModel mkMdl) p
---     (F.runActivator act) (F.Executor $ pure) s
---     (F.runHandler listingNewItemRefHandler) (ref, Lens this) (f s)
+onListingMakeItem :: forall x m p s v. (R.MonadReactor x m, R.Dispose s)
+  => F.MkModel m p s
+  -> F.Activator m s
+  -> IORef v
+  -> Lens' v (F.ComponentModel, Listing s)
+  -> ListingMakeItem p (s -> ListingNewItemAction s)
+  -> m (DL.DList C.Rerender)
+onListingMakeItem mkMdl act ref this (ListingMakeItem p f) = do
+    s <- (F.runMkModel mkMdl) p
+    (F.runActivator act) s
+    (F.runHandler listingNewItemRefHandler) (ref, Lens this) (f s)
 
--- -- | Handler for ListingAction
--- listingRefHandler ::
---     forall m p s v x. ( R.MonadReactor x m
---     , R.Dispose s
---     )
---     => F.MkModel m p s
---     -> F.Activator m s x x
---     -> F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction p s) C.Rerender
--- listingRefHandler mkMdl act = F.Handler $ \v@(ref, Lens this) (ListingAction a) ->
---     switch a . cases $
---         ((F.runHandler (listingNewItemRefHandler @x @m @s)) v)
---      ./ (onListingMakeItem @x @m @p @s mkMdl act ref this)
---      ./ (onListingDeleteItem @x @m ref this)
---      ./ (onListingMoveItem @x @m ref this)
---      ./ nil
+-- | Handler for ListingAction
+listingRefHandler ::
+    forall m p s v x. ( R.MonadReactor x m
+    , R.Dispose s
+    )
+    => F.MkModel m p s
+    -> F.Activator m s
+    -> F.RefHandler m v (F.ComponentModel, Listing s) (ListingAction p s) C.Rerender
+listingRefHandler mkMdl act = F.Handler $ \v@(ref, Lens this) (ListingAction a) ->
+    switch a . cases $
+        ((F.runHandler (listingNewItemRefHandler @x @m @s)) v)
+     ./ (onListingMakeItem @x @m @p @s mkMdl act ref this)
+     ./ (onListingDeleteItem @x @m ref this)
+     ./ (onListingMoveItem @x @m ref this)
+     ./ nil
 
 -- | lift a handler for a single widget into a handler of a list of widgets
 -- where the input is broadcast to all the items in the list and the results DList'ed together.
@@ -247,6 +278,19 @@ listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> 
     obj <- R.doReadIORef ref
     ys <- traverse (\x -> hdl x a) (obj ^. this._2)
     pure $ fold ys
+
+listingBroadcastRefHandler' ::
+    ( R.MonadReactor x m
+    , R.Dispose s
+    , ChooseBetween '[ListingAction p s] a2 a3 '[C.Rerender] b2 b3
+    )
+    => F.MkModel m p s
+    -> F.Activator m s
+    -> F.Handler m s (Which a2) (Which b2)
+    -> F.RefHandler m v (F.ComponentModel, Listing s) (Which a3) (Which b3)
+
+listingBroadcastRefHandler' mkMdl act hdl =
+    (faceted' (listingRefHandler mkMdl act)) `P.pmappend` (listingBroadcastRefHandler hdl)
 
 -- -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 -- toListingBuilder
@@ -289,21 +333,13 @@ listingDisplay (F.Display disp) = F.Display $ \ss ->
         (DL.toList $ view (item' @(DL.DList JE.Property)) ss)
         (mconcat $ (snd <$> M.toList xs'))
 
--- broadcastlistingActivator
---     :: R.MonadReactor x m
---     => F.Activator m s x c
---     -> F.RefActivator m v (F.ComponentModel, Listing s) x c
--- broadcastlistingActivator (F.Activator act) = F.Activator $ \exec (ref, Lens this) -> do
---     obj <- R.doReadIORef ref
---     traverse_ (\s -> act exec s) (obj ^. this._2)
-
--- listingActivator
---     :: R.MonadReactor x m
---     => F.Activator m s x c
---     -> F.RefActivator m v (F.ComponentModel, Listing s) x c
--- listingActivator (F.Activator act) = F.Activator $ \exec (ref, Lens this) -> do
---     obj <- R.doReadIORef ref
---     traverse_ (\s -> act exec s) (obj ^. this._2)
+listingActivator
+    :: R.MonadReactor x m
+    => F.Activator m s
+    -> F.RefActivator m v (F.ComponentModel, Listing s)
+listingActivator (F.Activator act) = F.Activator $ \(ref, Lens this) -> do
+    obj <- R.doReadIORef ref
+    traverse_ (\s -> act s) (obj ^. this._2)
 
 
 

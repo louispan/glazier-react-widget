@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -85,18 +85,17 @@ type instance P.PNullary (PExecutor m r x) (c, a, b) = Executor m r x c a b
 instance Monad m => P.PMEmpty (PExecutor m r x) (Which '[], Which '[], Which '[]) where
     pmempty = Executor $ \_ -> (mempty, P.pmempty)
 
+-- | A friendlier constraint synonym for 'Executor' 'pmappend'.
+type PmappendExecutor c1 c2 c3 a1 a2 a3 b1 b2 b3 =
+    ( ChooseBetween a1 a2 a3 b1 b2 b3
+    , Diversify c1 c3
+    , Diversify c2 c3
+    , c3 ~ AppendUnique c1 c2
+    )
+
 -- | Undecidableinstances!
 instance ( Monad m
-         , a3 ~ Append a1 a2
-         , b3 ~ AppendUnique b1 b2
-         , Reinterpret a2 a3
-         , a1 ~ Complement a3 a2
-         , Diversify b1 b3
-         , Diversify b2 b3
-         , c3 ~ AppendUnique c1 c2
-         , Diversify c1 c3
-         , Diversify c2 c3
-         ) =>
+         , PmappendExecutor c1 c2 c3 a1 a2 a3 b1 b2 b3) =>
          P.PSemigroup (PExecutor m r x)
               (Which c1, Which a1, Which b1)
               (Which c2, Which a2, Which b2)

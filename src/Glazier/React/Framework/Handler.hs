@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -105,9 +105,6 @@ instance F.ViaModel (RefHandlerModeller m a b v) where
 --     obj <- R.doReadIORef ref
 --     hdl (obj ^. this) a
 
-toFacetedHandler :: Applicative m => Handler m r a b -> Handler m r (Which '[a]) (Which '[b])
-toFacetedHandler hdl = suppressHandlerInput trial' (pickOnly <$> hdl)
-
 -- -- | expand the types a handler handles, by '+||+' with an id handler for the extra types.
 -- -- AllowAmbiguousTypes: Use TypeApplications to specify x instead of proxy.
 -- bypass :: forall x a' b' m r y a b.
@@ -136,13 +133,8 @@ instance Applicative m => P.PMEmpty (PHandler m r) (Which '[], Which '[]) where
     pmempty = Handler $ \_ _ -> pure DL.empty
 
 -- | Undecidableinstances!
-instance ( Monad m
-         , a3 ~ Append a1 a2
-         , b3 ~ AppendUnique b1 b2
-         , Reinterpret a2 a3
-         , a1 ~ Complement a3 a2
-         , Diversify b1 b3
-         , Diversify b2 b3
+instance (Monad m
+         , ChooseBetween a1 a2 a3 b1 b2 b3
          ) =>
          P.PSemigroup (PHandler m r)
               (Which a1, Which b1)

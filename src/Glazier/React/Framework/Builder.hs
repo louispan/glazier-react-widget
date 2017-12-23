@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -106,7 +107,10 @@ instance Applicative m => P.PMEmpty (PBuilder m p s) (Many '[], Many '[]) where
     pmempty = bipure nil nil
 
 -- | UndecidableInstances!
-instance (Applicative m, p3 ~ Append p1 p2, s3 ~ Append s1 s2) =>
+instance (Applicative m
+         , p3 ~ Append p1 p2
+         , s3 ~ Append s1 s2
+         ) =>
          P.PSemigroup (PBuilder m p s) (Many p1, Many s1) (Many p2, Many s2) (Many p3, Many s3) where
     (Builder (MkPlan mkPln, MkModel mkMdl)) `pmappend`
         (Builder (MkPlan mkPln', MkModel mkMdl')) =

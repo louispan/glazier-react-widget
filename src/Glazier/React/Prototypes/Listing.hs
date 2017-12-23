@@ -130,32 +130,34 @@ listing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Pr
                )
     )
 
--- TODO:
--- broadcastListing ::
---     ( R.MonadReactor x m
---     , R.Dispose s
---     , HasItem' (Listing p) ps
---     , HasItem' (Listing s) ss
---     , HasItem' (DL.DList JE.Property) ss
---     , HasItem' ListingItemProperties ss
---     , HasItem' (DL.DList R.Listener) ss
---     )
---   => F.Archetype m p s x c (Which as) (Which bs) -> F.Prototype m v ps ss
---     (Many '[Listing p])
---     (Many '[Listing s])
---     x
---     c
---     (Which (ListingAction p s ': as))
---     (Which (C.Rerender ': bs))
--- broadcastListing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
---     ( listingDisplay disp
---     , F.toItemBuilder (listingBuilder bld)
---     , F.Executor $ \k ->
---             let (act, _) = exec k
---             in ( F.viaModel (alongside id item') (listingActivator act)
---                , F.viaModel (alongside id item') (F.toFacetedHandler (listingRefHandler mkMdl act))
---                )
---     )
+-- | Creates a listing with a handler that handles listing actions,
+-- as well as broadcasting original actions to in each item in the listing.
+broadcastListing ::
+    ( R.MonadReactor x m
+    , R.Dispose s
+    , HasItem' (Listing p) ps
+    , HasItem' (Listing s) ss
+    , HasItem' (DL.DList JE.Property) ss
+    , HasItem' ListingItemProperties ss
+    , HasItem' (DL.DList R.Listener) ss
+    , ChooseBetween '[ListingAction p s] as a3 '[C.Rerender] bs b3
+    )
+  => F.Archetype m p s x c (Which as) (Which bs) -> F.Prototype m v ps ss
+    (Many '[Listing p])
+    (Many '[Listing s])
+    x
+    c
+    (Which a3)
+    (Which b3)
+broadcastListing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
+    ( listingDisplay disp
+    , F.toItemBuilder (listingBuilder bld)
+    , F.Executor $ \k ->
+            let (act, hdl) = exec k
+            in ( F.viaModel (alongside id item') (listingActivator act)
+               , F.viaModel (alongside id item') (listingBroadcastRefHandler' mkMdl act hdl)
+               )
+    )
 
 onListingDeleteItem :: (R.MonadReactor x m, R.Dispose s)
   => IORef v

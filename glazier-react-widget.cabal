@@ -35,9 +35,11 @@ library
                        Glazier.React.Framework.Executor
                        Glazier.React.Framework.Prototype
                        Glazier.React.Framework.Trigger
+                       Glazier.React.Prototypes
                        Glazier.React.Prototypes.Input
                        Glazier.React.Prototypes.Input.TextInput
                        Glazier.React.Prototypes.Listing
+                       Glazier.React.Prototypes.Listing.Internal
                        -- Glazier.React.Widgets.List.Run
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.2.0

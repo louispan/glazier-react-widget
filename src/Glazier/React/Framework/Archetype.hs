@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Archetype where
@@ -16,6 +17,7 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
+import Data.Maybe
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
@@ -24,8 +26,6 @@ import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Prototype as F
-import qualified GHCJS.Foreign.Callback.Internal as J
-import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
 newtype Archetype m p s x c a b = Archetype {
@@ -48,50 +48,51 @@ toArchetype (F.Prototype ( F.Display disp
              (cm, _) <- lift $ R.doReadIORef ref
              R.lf (cm ^. field @"component".to JE.toJS')
                  mempty
-                 [ ("key",  cm ^. field @"componentKey".to JE.toJS')
-                 , ("render", cm ^. field @"componentRender".to JE.toJS')
-                 , ("updated", cm ^. field @"componentUpdated".to JE.toJS')
-                 ]
+                 (catMaybes $ [ Just ("key", cm ^. field @"componentKey".to JE.toJS')
+                              , (\a -> ("render", JE.toJS' a)) <$> cm ^. field @"componentRender"
+                              , (\a -> ("updated", JE.toJS' a)) <$> cm ^. field @"componentUpdated"
+                              ]
+                 )
      , F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
                  , F.MkModel $ \p -> do
                          -- tuple the original state with a ComponentModel
                          -- and wrap inside a IORef
                          s <- mkModel p
-                         -- FIXME: builder should not create callbacks - memory leak!
+                         -- FIXME: builder should not create callbacks - memory leak! move to activator
                          -- create a ComponentModel with a dummy render and updated for now
                          cm <- F.ComponentModel
                                  <$> R.getComponent
                                  <*> pure mempty -- Disposables
-                                 <*> pure (J.Callback J.nullRef)
+                                 <*> pure Nothing
                                  <*> R.mkReactKey
-                                 <*> pure (R.Renderer (J.Callback J.nullRef))
+                                 <*> pure Nothing
                                  <*> pure 0
                          -- create the IORef
-                         ref <- R.doNewIORef (cm, s)
-                         -- now replace the render in the model
-                         rnd <- R.mkRenderer $ do
-                             (_, s') <- lift $ R.doReadIORef ref
-                             disp s'
-                         upd <- R.mkCallback (const $ pure ()) (const $ do
-                                 (cm', _) <- R.doReadIORef ref
-                                 let ds = cm' ^. field @"componentDisposable"
-                                 case R.runDisposable ds of
-                                     Nothing -> pure DL.empty
-                                     Just _ -> do
-                                         R.doModifyIORef' ref (\(cm'', s') ->
-                                             (cm'' & field @"componentDisposable" .~ mempty
-                                             , s'))
-                                         pure $ DL.singleton $ review facet ds)
-                                         -- ds')
-                         R.doModifyIORef' ref (\(cm', s') ->
-                                     ( cm' & field @"componentRender" .~ rnd
-                                           & field @"componentUpdated" .~ upd
-                                     , s'))
-                         -- return the ioref
-                         pure ref
+                         R.doNewIORef (cm, s)
                  )
      , F.Executor $ \k -> let (F.Activator act, F.Handler hdl) = exec k
-                          in ( F.Activator $ \ref -> act (ref, Lens id)
+                          in ( F.Activator $ \ref -> do
+                                     act (ref, Lens id)
+                                     -- now replace the render in the model
+                                     rnd <- R.mkRenderer $ do
+                                         (_, s') <- lift $ R.doReadIORef ref
+                                         disp s'
+                                     upd <- R.mkCallback (const $ pure ()) (const $ do
+                                             (cm', _) <- R.doReadIORef ref
+                                             let ds = cm' ^. field @"componentDisposable"
+                                             case R.runDisposable ds of
+                                                 Nothing -> pure DL.empty
+                                                 Just _ -> do
+                                                     R.doModifyIORef' ref (\(cm'', s') ->
+                                                         (cm'' & field @"componentDisposable" .~ mempty
+                                                         , s'))
+                                                     pure $ DL.singleton $ review facet ds)
+                                                     -- ds')
+                                     R.doModifyIORef' ref (\(cm', s') ->
+                                                 ( cm' & field @"componentRender" .~ (Just rnd)
+                                                       & field @"componentUpdated" .~ (Just upd)
+                                                 , s'))
+
                              , F.Handler $ \ref a -> hdl (ref, Lens id) a
                              )
      )

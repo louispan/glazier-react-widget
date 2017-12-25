@@ -18,7 +18,6 @@ import Control.Lens
 import Control.Monad.Trans.Class
 import qualified Control.Monad.ListM as LM
 import qualified Data.DList as DL
-import Data.Diverse.Lens
 import Data.Diverse.Profunctor
 import Data.Foldable
 import Data.Generics.Product
@@ -103,10 +102,6 @@ newtype ListingAction m p s = ListingAction {
                                , ListingFilter m s
                                ] }
 
-newtype ListingItemProperties = ListingItemProperties {
-    runListingItemProperties :: DL.DList JE.Property
-    }
-
 -- | This version drops the original item handlers @a -> b@, and only have list handlers.
 listing ::
     ( R.MonadReactor x m
@@ -114,18 +109,17 @@ listing ::
     , HasItem' (Listing m s p) ps
     , HasItem' (Listing m s s) ss
     , HasItem' (DL.DList JE.Property) ss
-    , HasItem' ListingItemProperties ss
     , HasItem' (DL.DList R.Listener) ss
     )
-  => F.Archetype m p s x c a b -> F.Prototype m v ps ss
+  => (s -> [JE.Property]) -> F.Archetype m p s x c a b -> F.Prototype m v ps ss
     (Many '[Listing m s p])
     (Many '[Listing m s s])
     x
     c
     (Which '[ListingAction m p s])
     (Which '[C.Rerender])
-listing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
-    ( listingDisplay disp
+listing f (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
+    ( listingDisplay f disp
     , F.toItemBuilder (listingBuilder bld)
     , F.Executor $ \k ->
             let (act, _) = exec k
@@ -142,19 +136,18 @@ broadcastListing ::
     , HasItem' (Listing m s p) ps
     , HasItem' (Listing m s s) ss
     , HasItem' (DL.DList JE.Property) ss
-    , HasItem' ListingItemProperties ss
     , HasItem' (DL.DList R.Listener) ss
     , ChooseBetween '[ListingAction m p s] as a3 '[C.Rerender] bs b3
     )
-  => F.Archetype m p s x c (Which as) (Which bs) -> F.Prototype m v ps ss
+  => (s -> [JE.Property]) -> F.Archetype m p s x c (Which as) (Which bs) -> F.Prototype m v ps ss
     (Many '[Listing m s p])
     (Many '[Listing m s s])
     x
     c
     (Which a3)
     (Which b3)
-broadcastListing (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
-    ( listingDisplay disp
+broadcastListing f (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
+    ( listingDisplay f disp
     , F.toItemBuilder (listingBuilder bld)
     , F.Executor $ \k ->
             let (act, hdl) = exec k
@@ -329,16 +322,16 @@ listingDisplay
     ( R.MonadReactor x m
     , HasItem' (Listing m s s) ss
     , HasItem' (DL.DList JE.Property) ss
-    , HasItem' ListingItemProperties ss
     , HasItem' (DL.DList R.Listener) ss
     )
-    => F.Display m s ()
-    -> F.Display m ss ()
-listingDisplay (F.Display disp) = F.Display $ \ss -> do
-    let (Listing df ds ys xs) = ss ^. (item' @(Listing m s s))
+    => (s -> [JE.Property])
+    -> F.Display m s ()
+    -> F.Display m (F.ComponentModel, ss) ()
+listingDisplay f (F.Display disp) = F.Display $ \(_, ss) -> do
+    let Listing df ds ys xs = ss ^. item' @(Listing m s s)
         toLi s = R.bh "li"
                  []
-                 (DL.toList . runListingItemProperties $ view (item' @ListingItemProperties) ss)
+                 (f s)
                  (disp s)
     ys' <- lift $ case ys of
               [] -> do

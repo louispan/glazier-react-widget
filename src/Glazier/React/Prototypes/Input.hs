@@ -43,7 +43,7 @@ input
             (Which '[])
 input =
     F.Prototype
-        ( F.Display $ \ss -> R.lf "input"
+        ( F.Display $ \(_, ss) -> R.lf "input"
             (DL.toList $ ss ^. item' @(DL.DList R.Listener))
             (DL.toList $ ss ^. item' @(DL.DList JE.Property))
         , F.buildItem @(DL.DList JE.Property)

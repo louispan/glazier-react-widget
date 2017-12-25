@@ -17,7 +17,6 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
-import Data.Maybe
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
@@ -47,11 +46,14 @@ toArchetype (F.Prototype ( F.Display disp
      ( F.Display $ \ref -> do
              (cm, _) <- lift $ R.doReadIORef ref
              R.lf (cm ^. field @"component".to JE.toJS')
-                 mempty
-                 (catMaybes $ [ Just ("key", cm ^. field @"componentKey".to JE.toJS')
-                              , (\a -> ("render", JE.toJS' a)) <$> cm ^. field @"componentRender"
-                              , (\a -> ("updated", JE.toJS' a)) <$> cm ^. field @"componentUpdated"
-                              ]
+                 (JE.justSnds $
+                     [ ("updated", cm ^. field @"componentUpdated")
+                     ]
+                 )
+                 (JE.justSnds $
+                     [ ("key", Just . JE.toJS' $ cm ^. field @"componentKey")
+                     , ("render", JE.toJS' <$> cm ^. field @"componentRender")
+                     ]
                  )
      , F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
                  , F.MkModel $ \p -> do
@@ -77,8 +79,8 @@ toArchetype (F.Prototype ( F.Display disp
                               rnd <- case cm ^. field @"componentRender" of
                                          Just rnd' -> pure rnd'
                                          Nothing -> R.mkRenderer $ do
-                                             (_, s') <- lift $ R.doReadIORef ref
-                                             disp s'
+                                             s <- lift $ R.doReadIORef ref
+                                             disp s
                               upd <- case cm ^. field @"componentUpdated" of
                                          Just upd' -> pure upd'
                                          Nothing -> R.mkCallback (const $ pure ()) (const $ do
@@ -102,13 +104,13 @@ toArchetype (F.Prototype ( F.Display disp
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor x m => Archetype m p s x c a b -> F.Prototype m v p s p s x c a b
-fromArchetype (Archetype ( disp
+fromArchetype (Archetype ( F.Display disp
                          , bld
                          , F.Executor exec
                          -- , F.Handler hdl
                          -- , F.Activator act
                          )) = F.Prototype
-    ( disp
+    ( F.Display $ \(_, s) -> disp s
     , bld
     , F.Executor $ \k -> let (F.Activator act, F.Handler hdl) = exec k
                           in ( F.Activator $ \(ref, Lens this) -> do

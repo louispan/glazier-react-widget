@@ -12,7 +12,6 @@ module Glazier.React.Prototypes.Listing
     , ListingFilter(..)
     , ListingNewItemAction(..)
     , ListingAction(..)
-    , ListingItemProperties(..)
     , listing
     , broadcastListing
     )

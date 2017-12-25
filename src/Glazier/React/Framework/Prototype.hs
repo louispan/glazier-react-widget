@@ -20,7 +20,7 @@ import qualified Parameterized.TypeLevel as P
 
 newtype Prototype m v p s p' s' x c a b = Prototype {
     runPrototype ::
-           ( F.Display m s ()
+           ( F.Display m (F.ComponentModel, s) ()
            , F.Builder m p s p' s'
            , F.RefExecutor m v (F.ComponentModel, s) x c a b
            )
@@ -68,7 +68,7 @@ instance ( R.MonadReactor x m
 
 displaying
     :: Monad m
-    => F.Display m s ()
+    => F.Display m (F.ComponentModel, s) ()
     -> Prototype m v p s (Many '[]) (Many '[]) x (Which '[]) (Which '[]) (Which '[])
 displaying d = Prototype
         ( d
@@ -99,7 +99,7 @@ refExecuting exec = Prototype
 ------------------------------------------
 
 mapDisplay
-    :: (F.Display m s () -> F.Display m s ())
+    :: (F.Display m (F.ComponentModel, s) () -> F.Display m (F.ComponentModel, s) ())
     -> Prototype m v p s p' s' x c a b
     -> Prototype m v p s p' s' x c a b
 mapDisplay f (Prototype (disp, bld, exec)) = Prototype
@@ -139,7 +139,7 @@ type instance F.Modeller (PrototypeModeller m v p p' s' x c a b) s = Prototype m
 
 instance F.ViaModel (PrototypeModeller m v p p' s' x c a b) where
     viaModel l (Prototype (disp, bld, exec)) = Prototype
-                   ( F.viaModel l disp
+                   ( F.viaModel (alongside id l) disp
                    , F.viaModel l bld
                    , F.viaModel (alongside id l) exec
                    )

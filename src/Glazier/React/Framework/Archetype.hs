@@ -47,12 +47,12 @@ toArchetype (F.Prototype ( F.Display disp
              (cm, _) <- lift $ R.doReadIORef ref
              R.lf (cm ^. field @"component".to JE.toJS')
                  (JE.justSnds $
-                     [ ("updated", cm ^. field @"componentUpdated")
+                     [ ("updated", cm ^. field @"onUpdated")
                      ]
                  )
                  (JE.justSnds $
-                     [ ("key", Just . JE.toJS' $ cm ^. field @"componentKey")
-                     , ("render", JE.toJS' <$> cm ^. field @"componentRender")
+                     [ ("key", Just . JE.toJS' $ cm ^. field @"key")
+                     , ("render", JE.toJS' <$> cm ^. field @"onRender")
                      ]
                  )
      , F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
@@ -76,26 +76,26 @@ toArchetype (F.Prototype ( F.Display disp
                               act (ref, Lens id)
                               (cm, _) <- R.doReadIORef ref
                               -- now replace the render and componentUpdated in the model if not already activated
-                              rnd <- case cm ^. field @"componentRender" of
+                              rnd <- case cm ^. field @"onRender" of
                                          Just rnd' -> pure rnd'
                                          Nothing -> R.mkRenderer $ do
                                              s <- lift $ R.doReadIORef ref
                                              disp s
-                              upd <- case cm ^. field @"componentUpdated" of
+                              upd <- case cm ^. field @"onUpdated" of
                                          Just upd' -> pure upd'
                                          Nothing -> R.mkCallback (const $ pure ()) (const $ do
                                              (cm', _) <- R.doReadIORef ref
-                                             let ds = cm' ^. field @"componentDisposable"
+                                             let ds = cm' ^. field @"disposable"
                                              case R.runDisposable ds of
                                                  Nothing -> pure DL.empty
                                                  Just _ -> do
                                                      R.doModifyIORef' ref (\(cm'', s') ->
-                                                         (cm'' & field @"componentDisposable" .~ mempty
+                                                         (cm'' & field @"disposable" .~ mempty
                                                          , s'))
                                                      pure $ DL.singleton $ review facet ds)
                               R.doModifyIORef' ref (\(cm', s') ->
-                                          ( cm' & field @"componentRender" .~ (Just rnd)
-                                                & field @"componentUpdated" .~ (Just upd)
+                                          ( cm' & field @"onRender" .~ (Just rnd)
+                                                & field @"onUpdated" .~ (Just upd)
                                           , s'))
 
                              , F.Handler $ \ref a -> hdl (ref, Lens id) a

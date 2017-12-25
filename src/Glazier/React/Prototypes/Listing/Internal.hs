@@ -73,9 +73,9 @@ smallerIdx (a NE.:| _) = (a - 1) NE.:| []
 -- and also be able to reorder the elements.
 -- Assumption: Once a key is assigned to an item, it is never changed, so the item can use it's key in a callback.
 data Listing m a s = Listing
-    { displayFilter :: a -> m Bool
-    , displaySort :: a -> a -> m Ordering
-    , displayItems :: [a] -- filtered and sorted
+    { filter :: a -> m Bool
+    , sort :: a -> a -> m Ordering
+    , list :: [a] -- filtered and sorted
     , items :: M.Map (NE.NonEmpty Int) s
     } deriving G.Generic
 
@@ -165,8 +165,8 @@ onListingDeleteItem ref this (ListingDeleteItem k) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2.field @"items")
             in obj & (this._2.field @"items" %~ M.delete k)
-                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
-                   . (this._2.field @"displayItems" .~ []) -- this tells render to update displayItems
+                   . (this._1.field @"disposable" %~ (<> R.dispose mi))
+                   . (this._2.field @"list" .~ []) -- this tells render to update displayItems
        DL.singleton <$> C.mkRerender ref (this._1)
 
 -- | Sort the items on the listing given a sorting function
@@ -202,8 +202,8 @@ onListingInsertItem ref this (ListingInsertItem k s) = do
        R.doModifyIORef' ref $ \obj ->
             let mi = M.lookup k (obj ^. this._2.field @"items")
             in obj & (this._2.field @"items" %~ M.insert k s)
-                   . (this._1.field @"componentDisposable" %~ (<> R.dispose mi))
-                   . (this._2.field @"displayItems" .~ []) -- this tells render to update displayItems
+                   . (this._1.field @"disposable" %~ (<> R.dispose mi))
+                   . (this._2.field @"list" .~ []) -- this tells render to update displayItems
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingConsItem :: (R.MonadReactor x m, R.Dispose s)
@@ -216,9 +216,9 @@ onListingConsItem ref this (ListingConsItem s) = do
             let xs = M.toAscList (obj ^. this._2.field @"items")
             in case xs of
                 [] -> obj & (this._2.field @"items" .~ M.singleton (0 NE.:| []) s)
-                    . (this._2.field @"displayItems" .~ []) -- this tells render to update displayItems
+                    . (this._2.field @"list" .~ []) -- this tells render to update displayItems
                 ((k, _) : _) -> obj & (this._2.field @"items" %~ M.insert (smallerIdx k) s)
-                    . (this._2.field @"displayItems" .~ []) -- this tells render to update displayItems
+                    . (this._2.field @"list" .~ []) -- this tells render to update displayItems
        DL.singleton <$> C.mkRerender ref (this._1)
 
 onListingSnocItem :: (R.MonadReactor x m, R.Dispose s)
@@ -231,9 +231,9 @@ onListingSnocItem ref this (ListingSnocItem s) = do
             let xs = M.toDescList (obj ^. this._2.field @"items")
             in case xs of
                 [] -> obj & (this._2.field @"items" .~ M.singleton (0 NE.:| []) s)
-                    . (this._2.field @"displayItems" .~ []) -- this tells render to update displayItems
+                    . (this._2.field @"list" .~ []) -- this tells render to update displayItems
                 ((k, _) : _) -> obj & (this._2.field @"items" %~ M.insert (largerIdx k) s)
-                    . (this._2.field @"displayItems" .~ []) -- this tells render to update displayItems
+                    . (this._2.field @"list" .~ []) -- this tells render to update displayItems
        DL.singleton <$> C.mkRerender ref (this._1)
 
 -- | Handler for ListingAction

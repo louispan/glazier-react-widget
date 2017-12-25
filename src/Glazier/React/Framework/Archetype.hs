@@ -58,26 +58,30 @@ toArchetype (F.Prototype ( F.Display disp
                          -- tuple the original state with a ComponentModel
                          -- and wrap inside a IORef
                          s <- mkModel p
-                         -- FIXME: builder should not create callbacks - memory leak! move to activator
-                         -- create a ComponentModel with a dummy render and updated for now
+                         -- create a ComponentModel with no callbackss
                          cm <- F.ComponentModel
                                  <$> R.getComponent
                                  <*> pure mempty -- Disposables
-                                 <*> pure Nothing
                                  <*> R.mkReactKey
-                                 <*> pure Nothing
+                                 <*> pure Nothing -- render
+                                 <*> pure Nothing -- callback
                                  <*> pure 0
                          -- create the IORef
                          R.doNewIORef (cm, s)
                  )
      , F.Executor $ \k -> let (F.Activator act, F.Handler hdl) = exec k
                           in ( F.Activator $ \ref -> do
-                                     act (ref, Lens id)
-                                     -- now replace the render in the model
-                                     rnd <- R.mkRenderer $ do
-                                         (_, s') <- lift $ R.doReadIORef ref
-                                         disp s'
-                                     upd <- R.mkCallback (const $ pure ()) (const $ do
+                              act (ref, Lens id)
+                              (cm, _) <- R.doReadIORef ref
+                              -- now replace the render and componentUpdated in the model if not already activated
+                              rnd <- case cm ^. field @"componentRender" of
+                                         Just rnd' -> pure rnd'
+                                         Nothing -> R.mkRenderer $ do
+                                             (_, s') <- lift $ R.doReadIORef ref
+                                             disp s'
+                              upd <- case cm ^. field @"componentUpdated" of
+                                         Just upd' -> pure upd'
+                                         Nothing -> R.mkCallback (const $ pure ()) (const $ do
                                              (cm', _) <- R.doReadIORef ref
                                              let ds = cm' ^. field @"componentDisposable"
                                              case R.runDisposable ds of
@@ -87,11 +91,10 @@ toArchetype (F.Prototype ( F.Display disp
                                                          (cm'' & field @"componentDisposable" .~ mempty
                                                          , s'))
                                                      pure $ DL.singleton $ review facet ds)
-                                                     -- ds')
-                                     R.doModifyIORef' ref (\(cm', s') ->
-                                                 ( cm' & field @"componentRender" .~ (Just rnd)
-                                                       & field @"componentUpdated" .~ (Just upd)
-                                                 , s'))
+                              R.doModifyIORef' ref (\(cm', s') ->
+                                          ( cm' & field @"componentRender" .~ (Just rnd)
+                                                & field @"componentUpdated" .~ (Just upd)
+                                          , s'))
 
                              , F.Handler $ \ref a -> hdl (ref, Lens id) a
                              )

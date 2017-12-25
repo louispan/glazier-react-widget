@@ -313,12 +313,6 @@ listingBroadcastRefHandler' mkMdl act hdl =
 
 -- -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 -- toListingBuilder
---     :: Applicative m
---     => F.Builder m [p] s [p'] s'
---     -> F.Builder m (Listing p) s (Listing p') s'
--- toListingBuilder = F.dimapPlan toList (M.fromAscList . zip idxs)
---   where
---     idxs = (\x -> (x NE.:| [])) <$> [0..]
 
 listingBuilder
     :: (Applicative m)

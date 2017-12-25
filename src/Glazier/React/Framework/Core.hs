@@ -99,8 +99,8 @@ class ViaPlan (w :: Type -> Type) where
 data ComponentModel = ComponentModel
     { component :: R.ReactComponent
     , componentDisposable :: R.Disposable () -- List of things to dispose on updated
-    , componentUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , componentKey :: R.ReactKey
+    , componentUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , componentRender :: Maybe (J.Callback (IO J.JSVal))
     , componentFrameNum :: Int
     } deriving (G.Generic)

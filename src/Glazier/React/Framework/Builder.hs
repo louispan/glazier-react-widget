@@ -22,8 +22,9 @@ import qualified Parameterized.TypeLevel as P
 
 ------------------------------------------------
 
+-- | Make inactive model, monadic as it may need to create IORefs
 newtype MkModel m p s = MkModel {
-            runMkModel :: p -> m s -- make inactive model
+            runMkModel :: p -> m s
             } deriving Functor
 
 ------------------------------------------------
@@ -40,6 +41,7 @@ instance Contravariant (MkModelPlanner m s) where
 
 ------------------------------------------------
 
+-- | Monadic because we may need to 'R.doReadIORef' to get the data to make the plan.
 newtype MkPlan m s p = MkPlan {
             runMkPlan :: s -> m p
             } deriving Functor

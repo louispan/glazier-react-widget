@@ -57,6 +57,7 @@ toArchetype (F.Prototype ( F.Display disp
                          -- tuple the original state with a ComponentModel
                          -- and wrap inside a IORef
                          s <- mkModel p
+                         -- FIXME: builder should not create callbacks - memory leak!
                          -- create a ComponentModel with a dummy render and updated for now
                          cm <- F.ComponentModel
                                  <$> R.getComponent

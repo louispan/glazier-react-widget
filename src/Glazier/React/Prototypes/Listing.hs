@@ -2,13 +2,14 @@ module Glazier.React.Prototypes.Listing
     ( betweenIdx
     , largerIdx
     , smallerIdx
-    , Listing
+    , Listing(..)
     , ListingDeleteItem(..)
-    , ListingMoveItem(..)
     , ListingInsertItem(..)
     , ListingConsItem(..)
     , ListingSnocItem(..)
     , ListingMakeItem(..)
+    , ListingSort(..)
+    , ListingFilter(..)
     , ListingNewItemAction(..)
     , ListingAction(..)
     , ListingItemProperties(..)

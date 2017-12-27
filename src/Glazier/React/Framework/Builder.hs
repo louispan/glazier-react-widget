@@ -23,161 +23,161 @@ import qualified Parameterized.TypeLevel as P
 ------------------------------------------------
 
 -- | Make inactive model, monadic as it may need to create IORefs
-newtype MkModel m p s = MkModel {
-            runMkModel :: p -> m s
+newtype MkModel m i s = MkModel {
+            runMkModel :: i -> m s
             } deriving Functor
 
 ------------------------------------------------
 
-newtype MkModelPlanner m s p = MkModelPlanner { runMkModelPlanner :: MkModel m p s }
+newtype MkModelOnInfo m s i = MkModelOnInfo { runMkModelOnInfo :: MkModel m i s }
 
-type instance F.Planner (MkModelPlanner m s) p = MkModel m p s
+type instance F.OnInfo (MkModelOnInfo m s) i = MkModel m i s
 
-instance F.ViaPlan (MkModelPlanner m s) where
-    viaPlan l (MkModel mkMdl) = MkModel $ mkMdl . view l
+instance F.ViaInfo (MkModelOnInfo m s) where
+    viaInfo l (MkModel mkMdl) = MkModel $ mkMdl . view l
 
-instance Contravariant (MkModelPlanner m s) where
-    contramap f (MkModelPlanner (MkModel g)) = coerce (g . f)
+instance Contravariant (MkModelOnInfo m s) where
+    contramap f (MkModelOnInfo (MkModel g)) = coerce (g . f)
 
 ------------------------------------------------
 
--- | Monadic because we may need to 'R.doReadIORef' to get the data to make the plan.
-newtype MkPlan m s p = MkPlan {
-            runMkPlan :: s -> m p
+-- | Monadic because we may need to 'R.doReadIORef' to get the data to make the info.
+newtype MkInfo m s i = MkInfo {
+            runMkInfo :: s -> m i
             } deriving Functor
 
 ------------------------------------------------
 
-newtype MkPlanModeller m p s = MkPlanModeller { runMkPlanModeller :: MkPlan m s p }
+newtype MkInfoOnModel m i s = MkInfoOnModel { runMkInfoOnModel :: MkInfo m s i }
 
-type instance F.Modeller (MkPlanModeller m p) s = MkPlan m s p
+type instance F.OnModel (MkInfoOnModel m i) s = MkInfo m s i
 
-instance F.ViaModel (MkPlanModeller m p) where
-    viaModel l (MkPlan mkPln) = MkPlan $ mkPln . view l
+instance F.ViaModel (MkInfoOnModel m i) where
+    viaModel l (MkInfo mkInf) = MkInfo $ mkInf . view l
 
-instance Contravariant (MkPlanModeller m s) where
-    contramap f (MkPlanModeller (MkPlan g)) = coerce (g . f)
+instance Contravariant (MkInfoOnModel m s) where
+    contramap f (MkInfoOnModel (MkInfo g)) = coerce (g . f)
 
 ------------------------------------------------
 
 -- | @p' s'@ are the types the builder knows how to make
 -- @p s@ are the type the builder knows how to read
-newtype Builder m p s p' s' =
-    Builder ( MkPlan m s p' -- from specifications
-            , MkModel m p s' -- make inactive specifications
+newtype Builder m i s i' s' =
+    Builder ( MkInfo m s i' -- from specifications
+            , MkModel m i s' -- make inactive specifications
             )
 
-instance Functor m => Bifunctor (Builder m p s) where
-    bimap pq st (Builder (mkPlan, mkMdl)) = Builder (pq <$> mkPlan, st <$> mkMdl)
+instance Functor m => Bifunctor (Builder m i s) where
+    bimap ij st (Builder (mkInfo, mkMdl)) = Builder (ij <$> mkInfo, st <$> mkMdl)
 
-instance Applicative m => Biapplicative (Builder m p s) where
-    bipure p s = Builder (MkPlan . const $ pure p, MkModel . const $ pure s)
-    (Builder (MkPlan fMkPlan, MkModel fMkMdl)) <<*>> (Builder (MkPlan mkPlan, MkModel mkMdl)) =
-        Builder ( MkPlan $ \p -> fMkPlan p <*> mkPlan p
+instance Applicative m => Biapplicative (Builder m i s) where
+    bipure i s = Builder (MkInfo . const $ pure i, MkModel . const $ pure s)
+    (Builder (MkInfo fMkInfo, MkModel fMkMdl)) <<*>> (Builder (MkInfo mkInfo, MkModel mkMdl)) =
+        Builder ( MkInfo $ \i -> fMkInfo i <*> mkInfo i
                 , MkModel $ \s -> fMkMdl s <*> mkMdl s
                 )
 
 ------------------------------------------------
 
-newtype BuilderPlanner m s p' s' p = BuilderPlanner { runBuilderPlanner :: Builder m p s p' s' }
+newtype BuilderOnInfo m s i' s' i = BuilderOnInfo { runBuilderOnInfo :: Builder m i s i' s' }
 
-type instance F.Planner (BuilderPlanner m s p' s') p = Builder m p s p' s'
+type instance F.OnInfo (BuilderOnInfo m s i' s') i = Builder m i s i' s'
 
-instance F.ViaPlan (BuilderPlanner m s p' s') where
-    viaPlan l (Builder (mkPln, mkMdl)) =
-        Builder (mkPln, F.viaPlan l mkMdl)
-
-------------------------------------------------
-
-newtype BuilderModeller m p p' s' s = BuilderModeller { runBuilderModeller :: Builder m p s p' s' }
-
-type instance F.Modeller (BuilderModeller m p p' s') s = Builder m p s p' s'
-
-instance F.ViaModel (BuilderModeller m p p' s') where
-    viaModel l (Builder (mkPln, mkMdl)) =
-        Builder (F.viaModel l mkPln, mkMdl)
+instance F.ViaInfo (BuilderOnInfo m s i' s') where
+    viaInfo l (Builder (mkInf, mkMdl)) =
+        Builder (mkInf, F.viaInfo l mkMdl)
 
 ------------------------------------------------
-newtype PBuilder m p s ps' = PBuilder
-    { runPBuilder :: Builder m p s (P.At0 ps') (P.At1 ps')
+
+newtype BuilderOnModel m i i' s' s = BuilderOnModel { runBuilderOnModel :: Builder m i s i' s' }
+
+type instance F.OnModel (BuilderOnModel m i i' s') s = Builder m i s i' s'
+
+instance F.ViaModel (BuilderOnModel m i i' s') where
+    viaModel l (Builder (mkInf, mkMdl)) =
+        Builder (F.viaModel l mkInf, mkMdl)
+
+------------------------------------------------
+newtype PBuilder m i s is' = PBuilder
+    { runPBuilder :: Builder m i s (P.At0 is') (P.At1 is')
     }
 
-type instance P.PNullary (PBuilder m p s) (p', s') = Builder m p s p' s'
+type instance P.PNullary (PBuilder m i s) (i', s') = Builder m i s i' s'
 
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
-instance Applicative m => P.PMEmpty (PBuilder m p s) (Many '[], Many '[]) where
+instance Applicative m => P.PMEmpty (PBuilder m i s) (Many '[], Many '[]) where
     pmempty = bipure nil nil
 
 -- | UndecidableInstances!
 instance (Applicative m
-         , p3 ~ Append p1 p2
+         , i3 ~ Append i1 i2
          , s3 ~ Append s1 s2
          ) =>
-         P.PSemigroup (PBuilder m p s) (Many p1, Many s1) (Many p2, Many s2) (Many p3, Many s3) where
-    (Builder (MkPlan mkPln, MkModel mkMdl)) `pmappend`
-        (Builder (MkPlan mkPln', MkModel mkMdl')) =
+         P.PSemigroup (PBuilder m i s) (Many i1, Many s1) (Many i2, Many s2) (Many i3, Many s3) where
+    (Builder (MkInfo mkInf, MkModel mkMdl)) `pmappend`
+        (Builder (MkInfo mkInf', MkModel mkMdl')) =
             Builder
-                ( MkPlan $ \s -> (/./) <$> mkPln s <*> mkPln' s
-                , MkModel $ \p -> (/./) <$> mkMdl p <*> mkMdl' p)
+                ( MkInfo $ \s -> (/./) <$> mkInf s <*> mkInf' s
+                , MkModel $ \i -> (/./) <$> mkMdl i <*> mkMdl' i)
 
 ------------------------------------------------
 
 -- | Return a builder that builds an item inside a Many
 toItemBuilder
-    :: forall m p s p' s' ps ss.
+    :: forall m i s i' s' is ss.
     ( Applicative m
-    , HasItem' p ps
+    , HasItem' i is
     , HasItem' s ss
     )
-    => Builder m p s p' s'
-    -> Builder m ps ss (Many '[p']) (Many '[s'])
-toItemBuilder (Builder (MkPlan mkPln, MkModel mkMdl)) =
-    Builder (MkPlan mkPln', MkModel mkMdl')
+    => Builder m i s i' s'
+    -> Builder m is ss (Many '[i']) (Many '[s'])
+toItemBuilder (Builder (MkInfo mkInf, MkModel mkMdl)) =
+    Builder (MkInfo mkInf', MkModel mkMdl')
   where
-    mkPln' ss = single <$> mkPln (view (item' @s) ss)
-    mkMdl' ps = single <$> mkMdl (view (item' @p) ps)
+    mkInf' ss = single <$> mkInf (view (item' @s) ss)
+    mkMdl' is = single <$> mkMdl (view (item' @i) is)
 
 
--- | Add a type @x@ into the model that is used directly from the plan.
+-- | Add a type @x@ into the model that is used directly from the info.
 -- @forall@ so that the type can be specified first
 build
     :: forall x m. (Applicative m)
     => Builder m x x x x
-build = Builder ( MkPlan $ pure
-                  , MkModel $ pure
-                  )
+build = Builder ( MkInfo $ pure
+                , MkModel $ pure
+                )
 
--- | Add a type @x@ into the model that is used directly from the plan
+-- | Add a type @x@ into the model that is used directly from the info
 -- and return a builder that uses a Many.
 -- @forall@ so that the type can be specified first
 buildItem
-    :: forall x m p s. (Applicative m, HasItem' x p, HasItem' x s)
-    => Builder m p s (Many '[x]) (Many '[x])
+    :: forall x m i s. (Applicative m, HasItem' x i, HasItem' x s)
+    => Builder m i s (Many '[x]) (Many '[x])
 buildItem = toItemBuilder $ build
 
--- | Add a value @x@ into the model that is not from the plan.
+-- | Add a value @x@ into the model that is not from the info.
 -- @forall@ so that the type can be specified first
 hardcodeItem
-    :: forall x m p s. Applicative m
-    => x -> Builder m p s (Many '[]) (Many '[x])
-hardcodeItem x = Builder ( MkPlan . const $ pure nil
+    :: forall x m i s. Applicative m
+    => x -> Builder m i s (Many '[]) (Many '[x])
+hardcodeItem x = Builder ( MkInfo . const $ pure nil
                   , MkModel . const . pure $ single x
                   )
 
 -- | More descriptive name for 'second' for Builder
-mapModel :: Functor m => (s' -> t') -> Builder m p s p' s' -> Builder m p s p' t'
+mapModel :: Functor m => (s' -> t') -> Builder m i s i' s' -> Builder m i s i' t'
 mapModel = second
 
 -- | More descriptive name for 'first' for Builder
-mapPlan :: Functor m => (p' -> q') -> Builder m p s p' s' -> Builder m p s q' s'
-mapPlan = first
+mapInfo :: Functor m => (i' -> j') -> Builder m i s i' s' -> Builder m i s j' s'
+mapInfo = first
 
-dimapPlan :: Functor m => (q -> p) -> (p' -> q') -> Builder m p s p' s' -> Builder m q s q' s'
-dimapPlan f g (Builder (mkPln, mkMdl)) =
-    Builder ( g <$> mkPln
-            , coerce (contramap f (MkModelPlanner mkMdl)))
+dimapInfo :: Functor m => (j -> i) -> (i' -> j') -> Builder m i s i' s' -> Builder m j s j' s'
+dimapInfo f g (Builder (mkInf, mkMdl)) =
+    Builder ( g <$> mkInf
+            , coerce (contramap f (MkModelOnInfo mkMdl)))
 
-dimapModel :: Functor m => (t -> s) -> (s' -> t') -> Builder m p s p' s' -> Builder m p t p' t'
-dimapModel f g (Builder (mkPln, mkMdl)) =
-    Builder ( coerce (contramap f (MkPlanModeller mkPln))
+dimapModel :: Functor m => (t -> s) -> (s' -> t') -> Builder m i s i' s' -> Builder m i t i' t'
+dimapModel f g (Builder (mkInf, mkMdl)) =
+    Builder ( coerce (contramap f (MkInfoOnModel mkInf))
             , g <$> mkMdl)

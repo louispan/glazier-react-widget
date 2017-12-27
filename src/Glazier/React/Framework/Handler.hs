@@ -90,13 +90,13 @@ mapHandlerOutput = rmap
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
 type RefHandler m v s a b = Handler m (IORef v, ReifiedLens' v s) a b
 
-newtype RefHandlerModeller m a b v s = RefHandlerModeller {
-    runHandlerModeller :: RefHandler m v s a b
+newtype RefHandlerOnModel m a b v s = RefHandlerOnModel {
+    runHandlerOnModel :: RefHandler m v s a b
     }
 
-type instance F.Modeller (RefHandlerModeller m a b v) s = RefHandler m v s a b
+type instance F.OnModel (RefHandlerOnModel m a b v) s = RefHandler m v s a b
 
-instance F.ViaModel (RefHandlerModeller m a b v) where
+instance F.ViaModel (RefHandlerOnModel m a b v) where
     viaModel l (Handler hdl) =
         Handler $ \(ref, Lens this) a -> hdl (ref, Lens (this.l)) a
 

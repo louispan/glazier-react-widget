@@ -103,10 +103,10 @@ instance Contravariant (Activator m) where
 
 ------------------------------------------
 
-newtype ActivatorModeller m v s = ActivatorModeller { runActivatorModeller :: RefActivator m v s}
+newtype ActivatorOnModel m v s = ActivatorOnModel { runActivatorOnModel :: RefActivator m v s}
 
-type instance F.Modeller (ActivatorModeller m v) s = RefActivator m v s
+type instance F.OnModel (ActivatorOnModel m v) s = RefActivator m v s
 
-instance F.ViaModel (ActivatorModeller m v) where
+instance F.ViaModel (ActivatorOnModel m v) where
     viaModel l (Activator f) = Activator $ \(ref, Lens this) ->
         f (ref, Lens (this.l))

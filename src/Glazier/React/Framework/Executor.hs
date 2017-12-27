@@ -161,13 +161,13 @@ mapExecutorHandler f (Executor exec) = Executor $ \k ->
 
 ------------------------------------------
 
-newtype ExecutorModeller m v x c a b s = ExecutorModeller {
-    runExecutorModeller :: RefExecutor m v s x c a b
+newtype ExecutorOnModel m v x c a b s = ExecutorOnModel {
+    runExecutorOnModel :: RefExecutor m v s x c a b
     }
 
-type instance F.Modeller (ExecutorModeller m v x c a b) s = RefExecutor m v s x c a b
+type instance F.OnModel (ExecutorOnModel m v x c a b) s = RefExecutor m v s x c a b
 
-instance F.ViaModel (ExecutorModeller m v x c a b) where
+instance F.ViaModel (ExecutorOnModel m v x c a b) where
     viaModel l (Executor exec) = Executor $ \k ->
         let (act, hdl) = exec k
         in (F.viaModel l act, F.viaModel l hdl)

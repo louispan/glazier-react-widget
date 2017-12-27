@@ -29,20 +29,20 @@ import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Prototype as F
 import qualified JavaScript.Extras as JE
 
-newtype Archetype m p s x c a b = Archetype {
+newtype Archetype m i s x c a b = Archetype {
     runArchetype ::
            ( F.Display m s ()
-           , F.Builder m p s p s
+           , F.Builder m i s i s
            , F.Executor m s x c a b
            )
     }
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: (R.MonadReactor x m, AsFacet (CD.Disposable ()) x)
-    => JS.JSString -> F.Prototype m (F.ComponentModel, s) p s p s x c a b
-    -> Archetype m p (IORef (F.ComponentModel, s)) x c a b
+    => JS.JSString -> F.Prototype m (F.ComponentModel, s) i s i s x c a b
+    -> Archetype m i (IORef (F.ComponentModel, s)) x c a b
 toArchetype n (F.Prototype ( F.Display disp
-                         , F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
+                         , F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)
                          , F.Executor exec
                          )) = Archetype
      ( F.Display $ \ref -> do
@@ -57,11 +57,11 @@ toArchetype n (F.Prototype ( F.Display disp
                      , ("render", JE.toJS' <$> cm ^. field @"onRender")
                      ]
                  )
-     , F.Builder ( F.MkPlan (R.doReadIORef >=> (mkPlan . snd))
-                 , F.MkModel $ \p -> do
+     , F.Builder ( F.MkInfo (R.doReadIORef >=> (mkInf . snd))
+                 , F.MkModel $ \i -> do
                          -- tuple the original state with a ComponentModel
                          -- and wrap inside a IORef
-                         s <- mkModel p
+                         s <- mkMdl i
                          -- create a ComponentModel with no callbackss
                          cm <- F.ComponentModel
                                  <$> R.getComponent
@@ -105,7 +105,7 @@ toArchetype n (F.Prototype ( F.Display disp
      )
 
 -- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor x m => Archetype m p s x c a b -> F.Prototype m v p s p s x c a b
+fromArchetype :: R.MonadReactor x m => Archetype m i s x c a b -> F.Prototype m v i s i s x c a b
 fromArchetype (Archetype ( F.Display disp
                          , bld
                          , F.Executor exec

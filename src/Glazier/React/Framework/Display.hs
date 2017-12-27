@@ -40,11 +40,11 @@ instance (Monoid r, Monad m) => Monoid (Display m s r) where
 
 -----------------------------------------
 
-newtype DisplayModeller m r s = DisplayModeller { runDisplayModeller :: Display m s r }
+newtype DisplayOnModel m r s = DisplayOnModel { runDisplayOnModel :: Display m s r }
 
-type instance F.Modeller (DisplayModeller m r) s = Display m s r
+type instance F.OnModel (DisplayOnModel m r) s = Display m s r
 
-instance F.ViaModel (DisplayModeller m r) where
+instance F.ViaModel (DisplayOnModel m r) where
     viaModel l (Display f) = Display $ f . view l
 
 -- -- | Add a list of static properties to the rendered element.

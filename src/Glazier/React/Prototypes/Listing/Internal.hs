@@ -85,7 +85,7 @@ data ListingDeleteItem = ListingDeleteItem (NE.NonEmpty Int)
 data ListingInsertItem s = ListingInsertItem (NE.NonEmpty Int) s
 data ListingConsItem s = ListingConsItem s
 data ListingSnocItem s = ListingSnocItem s
-data ListingMakeItem p f = ListingMakeItem p f
+data ListingMakeItem i f = ListingMakeItem i f
 data ListingSort m s = ListingSort (s -> s -> m Ordering)
 data ListingFilter m s = ListingFilter (s -> m Bool)
 
@@ -95,9 +95,9 @@ newtype ListingNewItemAction s = ListingNewItemAction {
                                       , ListingSnocItem s
                                       ] }
 
-newtype ListingAction m p s = ListingAction {
+newtype ListingAction m i s = ListingAction {
     runListingAction :: Which '[ ListingNewItemAction s
-                               , ListingMakeItem p (s -> ListingNewItemAction s)
+                               , ListingMakeItem i (s -> ListingNewItemAction s)
                                , ListingDeleteItem
                                , ListingSort m s
                                , ListingFilter m s
@@ -107,15 +107,15 @@ newtype ListingAction m p s = ListingAction {
 listing ::
     ( R.MonadReactor x m
     , CD.Dispose s
-    , HasItem' (Listing m s p) ps
+    , HasItem' (Listing m s i) is
     , HasItem' (Listing m s s) ss
     )
-  => (s -> [JE.Property]) -> F.Archetype m p s x c a b -> F.Prototype m v ps ss
-    (Many '[Listing m s p])
+  => (s -> [JE.Property]) -> F.Archetype m i s x c a b -> F.Prototype m v is ss
+    (Many '[Listing m s i])
     (Many '[Listing m s s])
     x
     c
-    (Which '[ListingAction m p s])
+    (Which '[ListingAction m i s])
     (Which '[C.Rerender])
 listing f (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
     ( listingDisplay f disp
@@ -132,12 +132,12 @@ listing f (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.
 broadcastListing ::
     ( R.MonadReactor x m
     , CD.Dispose s
-    , HasItem' (Listing m s p) ps
+    , HasItem' (Listing m s i) is
     , HasItem' (Listing m s s) ss
-    , ChooseBetween '[ListingAction m p s] as a3 '[C.Rerender] bs b3
+    , ChooseBetween '[ListingAction m i s] as a3 '[C.Rerender] bs b3
     )
-  => (s -> [JE.Property]) -> F.Archetype m p s x c (Which as) (Which bs) -> F.Prototype m v ps ss
-    (Many '[Listing m s p])
+  => (s -> [JE.Property]) -> F.Archetype m i s x c (Which as) (Which bs) -> F.Prototype m v is ss
+    (Many '[Listing m s i])
     (Many '[Listing m s s])
     x
     c
@@ -246,30 +246,30 @@ listingNewItemRefHandler = F.Handler $ \(ref, Lens this) (ListingNewItemAction a
      ./ (onListingSnocItem @x @m ref this)
      ./ nil
 
-onListingMakeItem :: forall x m p s v. (R.MonadReactor x m, CD.Dispose s)
-  => F.MkModel m p s
+onListingMakeItem :: forall x m i s v. (R.MonadReactor x m, CD.Dispose s)
+  => F.MkModel m i s
   -> F.Activator m s
   -> IORef v
   -> Lens' v (F.ComponentModel, Listing m s s)
-  -> ListingMakeItem p (s -> ListingNewItemAction s)
+  -> ListingMakeItem i (s -> ListingNewItemAction s)
   -> m (DL.DList C.Rerender)
-onListingMakeItem mkMdl act ref this (ListingMakeItem p f) = do
-    s <- (F.runMkModel mkMdl) p
+onListingMakeItem mkMdl act ref this (ListingMakeItem i f) = do
+    s <- (F.runMkModel mkMdl) i
     (F.runActivator act) s
     (F.runHandler listingNewItemRefHandler) (ref, Lens this) (f s)
 
 -- | Handler for ListingAction
 listingRefHandler ::
-    forall m p s v x. ( R.MonadReactor x m
+    forall m i s v x. ( R.MonadReactor x m
     , CD.Dispose s
     )
-    => F.MkModel m p s
+    => F.MkModel m i s
     -> F.Activator m s
-    -> F.RefHandler m v (F.ComponentModel, Listing m s s) (ListingAction m p s) C.Rerender
+    -> F.RefHandler m v (F.ComponentModel, Listing m s s) (ListingAction m i s) C.Rerender
 listingRefHandler mkMdl act = F.Handler $ \v@(ref, Lens this) (ListingAction a) ->
     switch a . cases $
         ((F.runHandler (listingNewItemRefHandler @x @m @s)) v)
-     ./ (onListingMakeItem @x @m @p @s mkMdl act ref this)
+     ./ (onListingMakeItem @x @m @i @s mkMdl act ref this)
      ./ (onListingDeleteItem @x @m ref this)
      ./ (onListingSort @x @m ref this)
      ./ (onListingFilter @x @m ref this)
@@ -291,9 +291,9 @@ listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> 
 listingBroadcastRefHandler' ::
     ( R.MonadReactor x m
     , CD.Dispose s
-    , ChooseBetween '[ListingAction m p s] a2 a3 '[C.Rerender] b2 b3
+    , ChooseBetween '[ListingAction m i s] a2 a3 '[C.Rerender] b2 b3
     )
-    => F.MkModel m p s
+    => F.MkModel m i s
     -> F.Activator m s
     -> F.Handler m s (Which a2) (Which b2)
     -> F.RefHandler m v (F.ComponentModel, Listing m s s) (Which a3) (Which b3)
@@ -306,12 +306,12 @@ listingBroadcastRefHandler' mkMdl act hdl =
 
 listingBuilder
     :: (Applicative m)
-    => F.Builder m p s p s
-    -> F.Builder m (Listing m s p) (Listing m s s) (Listing m s p) (Listing m s s)
-listingBuilder (F.Builder (F.MkPlan mkPln, F.MkModel mkMdl)) =
-    F.Builder (F.MkPlan mkPln', F.MkModel mkMdl')
+    => F.Builder m i s i s
+    -> F.Builder m (Listing m s i) (Listing m s s) (Listing m s i) (Listing m s s)
+listingBuilder (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) =
+    F.Builder (F.MkInfo mkInf', F.MkModel mkMdl')
   where
-    mkPln' (Listing df ds di ss) = Listing df ds di <$> (traverse mkPln ss)
+    mkInf' (Listing df ds di ss) = Listing df ds di <$> (traverse mkInf ss)
     mkMdl' (Listing df ds di ps) = Listing df ds di <$> (traverse mkMdl ps)
 
 listingDisplay

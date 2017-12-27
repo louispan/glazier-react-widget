@@ -17,24 +17,24 @@ import qualified JavaScript.Extras as JE
 -- to the model.
 divideContent ::
     ( Monad m
-    , HasItem' (DL.DList JE.Property) ps
+    , HasItem' (DL.DList JE.Property) is
     , HasItem' (DL.DList JE.Property) ss
     , HasItem' (DL.DList R.Listener) ss
-    ) => F.Prototype m v ps ss (Many ps') (Many ss') x c a b
-    -> F.Prototype m v ps ss
-        (Many ((DL.DList JE.Property) ': ps'))
+    ) => F.Prototype m v is ss (Many is') (Many ss') x c a b
+    -> F.Prototype m v is ss
+        (Many ((DL.DList JE.Property) ': is'))
         (Many ((DL.DList R.Listener) ': (DL.DList JE.Property) ': ss'))
         x c a b
-divideContent (F.Prototype (F.Display disp, F.Builder (F.MkPlan mkPln, F.MkModel mkMdl), exec)) =
+divideContent (F.Prototype (F.Display disp, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec)) =
     F.Prototype
         ( F.Display $ \(cm, ss) -> do
                 R.bh "div"
                     (DL.toList $ view (item' @(DL.DList R.Listener)) ss)
                     (DL.toList $ view (item' @(DL.DList JE.Property)) ss)
                     (disp (cm, ss))
-        , F.Builder ( F.MkPlan $ \ps -> (\p -> (ps ^. item' @(DL.DList JE.Property)) ./ p)
-                        <$> mkPln ps
-                    , F.MkModel $ \ss -> (\p -> mempty ./ (ss ^. item' @(DL.DList JE.Property)) ./ p)
-                        <$> mkMdl ss
+        , F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @(DL.DList JE.Property)) ./ i)
+                        <$> mkInf ss
+                    , F.MkModel $ \is -> (\s -> mempty ./ (is ^. item' @(DL.DList JE.Property)) ./ s)
+                        <$> mkMdl is
                     )
         , exec)

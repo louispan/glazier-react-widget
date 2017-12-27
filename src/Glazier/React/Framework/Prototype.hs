@@ -18,23 +18,23 @@ import qualified Glazier.React.Framework.Executor as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
-newtype Prototype m v p s p' s' x c a b = Prototype {
+newtype Prototype m v i s i' s' x c a b = Prototype {
     runPrototype ::
            ( F.Display m (F.ComponentModel, s) ()
-           , F.Builder m p s p' s'
+           , F.Builder m i s i' s'
            , F.RefExecutor m v (F.ComponentModel, s) x c a b
            )
     }
 
 ------------------------------------------
 
-newtype PPrototype m v p s x pscab = PPrototype {
-    runPPrototype :: Prototype m v p s (P.At0 pscab) (P.At1 pscab) x (P.At2 pscab) (P.At3 pscab) (P.At4 pscab)
+newtype PPrototype m v i s x iscab = PPrototype {
+    runPPrototype :: Prototype m v i s (P.At0 iscab) (P.At1 iscab) x (P.At2 iscab) (P.At3 iscab) (P.At4 iscab)
     }
 
-type instance P.PNullary (PPrototype m v p s x) (p', s', c, a, b) = Prototype m v p s p' s' x c a b
+type instance P.PNullary (PPrototype m v i s x) (i', s', c, a, b) = Prototype m v i s i' s' x c a b
 
-instance R.MonadReactor x m => P.PMEmpty (PPrototype m p s v x) (Many '[], Many '[], Which '[], Which '[], Which '[]) where
+instance R.MonadReactor x m => P.PMEmpty (PPrototype m i s v x) (Many '[], Many '[], Which '[], Which '[], Which '[]) where
     pmempty = Prototype
         ( mempty
         , P.pmempty
@@ -42,7 +42,7 @@ instance R.MonadReactor x m => P.PMEmpty (PPrototype m p s v x) (Many '[], Many 
         )
 
 instance ( R.MonadReactor x m
-         , p3 ~ Append p1 p2
+         , i3 ~ Append i1 i2
          , s3 ~ Append s1 s2
          , a3 ~ Append a1 a2
          , b3 ~ AppendUnique b1 b2
@@ -53,10 +53,10 @@ instance ( R.MonadReactor x m
          , Diversify c1 c3
          , Diversify c2 c3
          , c3 ~ AppendUnique c1 c2
-         ) => P.PSemigroup (PPrototype m v p s x)
-             (Many p1, Many s1, Which c1, Which a1, Which b1)
-             (Many p2, Many s2, Which c2,  Which a2, Which b2)
-             (Many p3, Many s3, Which c3, Which a3, Which b3) where
+         ) => P.PSemigroup (PPrototype m v i s x)
+             (Many i1, Many s1, Which c1, Which a1, Which b1)
+             (Many i2, Many s2, Which c2,  Which a2, Which b2)
+             (Many i3, Many s3, Which c3, Which a3, Which b3) where
     (Prototype (disp1, bld1, exec1)) `pmappend` (Prototype (disp2, bld2, exec2)) =
         Prototype
         ( disp1 <> disp2
@@ -69,7 +69,7 @@ instance ( R.MonadReactor x m
 displaying
     :: Monad m
     => F.Display m (F.ComponentModel, s) ()
-    -> Prototype m v p s (Many '[]) (Many '[]) x (Which '[]) (Which '[]) (Which '[])
+    -> Prototype m v i s (Many '[]) (Many '[]) x (Which '[]) (Which '[]) (Which '[])
 displaying d = Prototype
         ( d
         , P.pmempty
@@ -78,8 +78,8 @@ displaying d = Prototype
 
 building
     :: Monad m
-    => F.Builder m p s p' s'
-    -> Prototype m v p s p' s' x (Which '[]) (Which '[]) (Which '[])
+    => F.Builder m i s i' s'
+    -> Prototype m v i s i' s' x (Which '[]) (Which '[]) (Which '[])
 building bld = Prototype
         ( mempty
         , bld
@@ -89,7 +89,7 @@ building bld = Prototype
 refExecuting
     :: Monad m
     => (F.RefExecutor m v (F.ComponentModel, s) x c a b)
-    -> Prototype m v p s (Many '[]) (Many '[]) x c a b
+    -> Prototype m v i s (Many '[]) (Many '[]) x c a b
 refExecuting exec = Prototype
         ( mempty
         , P.pmempty
@@ -100,8 +100,8 @@ refExecuting exec = Prototype
 
 mapDisplay
     :: (F.Display m (F.ComponentModel, s) () -> F.Display m (F.ComponentModel, s) ())
-    -> Prototype m v p s p' s' x c a b
-    -> Prototype m v p s p' s' x c a b
+    -> Prototype m v i s i' s' x c a b
+    -> Prototype m v i s i' s' x c a b
 mapDisplay f (Prototype (disp, bld, exec)) = Prototype
                    ( f disp
                    , bld
@@ -109,9 +109,9 @@ mapDisplay f (Prototype (disp, bld, exec)) = Prototype
                    )
 
 mapBuilder
-    :: (F.Builder m p1 s p1' s1' -> F.Builder m p2 s p2' s2')
-    -> Prototype m v p1 s p1' s1' x c a b
-    -> Prototype m v p2 s p2' s2' x c a b
+    :: (F.Builder m i1 s i1' s1' -> F.Builder m i2 s i2' s2')
+    -> Prototype m v i1 s i1' s1' x c a b
+    -> Prototype m v i2 s i2' s2' x c a b
 mapBuilder f (Prototype (disp, bld, exec)) = Prototype
                    ( disp
                    , f bld
@@ -121,8 +121,8 @@ mapBuilder f (Prototype (disp, bld, exec)) = Prototype
 mapRefExecutor
     :: (   (F.RefExecutor m v (F.ComponentModel, s) x c1 a1 b1)
         -> (F.RefExecutor m v (F.ComponentModel, s) x c2 a2 b2))
-    -> Prototype m v p s p' s' x c1 a1 b1
-    -> Prototype m v p s p' s' x c2 a2 b2
+    -> Prototype m v i s i' s' x c1 a1 b1
+    -> Prototype m v i s i' s' x c2 a2 b2
 mapRefExecutor f (Prototype (disp, bld, exec)) = Prototype
                    ( disp
                    , bld
@@ -131,13 +131,13 @@ mapRefExecutor f (Prototype (disp, bld, exec)) = Prototype
 
 ------------------------------------------
 
-newtype PrototypeModeller m v p p' s' x c a b s = PrototypeModeller
-    { runPrototypeModeller :: Prototype m v p s p' s' x c a b
+newtype PrototypeOnModel m v i i' s' x c a b s = PrototypeOnModel
+    { runPrototypeOnModel :: Prototype m v i s i' s' x c a b
     }
 
-type instance F.Modeller (PrototypeModeller m v p p' s' x c a b) s = Prototype m v p s p' s' x c a b
+type instance F.OnModel (PrototypeOnModel m v i i' s' x c a b) s = Prototype m v i s i' s' x c a b
 
-instance F.ViaModel (PrototypeModeller m v p p' s' x c a b) where
+instance F.ViaModel (PrototypeOnModel m v i i' s' x c a b) where
     viaModel l (Prototype (disp, bld, exec)) = Prototype
                    ( F.viaModel (alongside id l) disp
                    , F.viaModel l bld
@@ -146,15 +146,15 @@ instance F.ViaModel (PrototypeModeller m v p p' s' x c a b) where
 
 ------------------------------------------
 
-newtype PrototypePlanner m v s p' s' a b x c p = PrototypePlanner
-    { runPrototypePlanner :: Prototype m v p s p' s' a b x c
+newtype PrototypeOnInfo m v s i' s' a b x c i = PrototypeOnInfo
+    { runPrototypeOnInfo :: Prototype m v i s i' s' a b x c
     }
 
-type instance F.Planner (PrototypePlanner m v s p' s' a b x c) p = Prototype m v p s p' s' a b x c
+type instance F.OnInfo (PrototypeOnInfo m v s i' s' a b x c) i = Prototype m v i s i' s' a b x c
 
-instance F.ViaPlan (PrototypePlanner m v s p' s' x c a b) where
-    viaPlan l (Prototype (disp, bld, exec)) = Prototype
+instance F.ViaInfo (PrototypeOnInfo m v s i' s' x c a b) where
+    viaInfo l (Prototype (disp, bld, exec)) = Prototype
                    ( disp
-                   , F.viaPlan l bld
+                   , F.viaInfo l bld
                    , exec
                    )

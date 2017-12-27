@@ -155,7 +155,7 @@ broadcastListing f (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor ex
 
 onListingDeleteItem :: (R.MonadReactor x m, CD.Dispose s)
   => IORef v
-  -> Lens' v (F.ComponentModel, Listing m s s)
+  -> Lens' v (F.ComponentPlan, Listing m s s)
   -> ListingDeleteItem
   -> m (DL.DList C.Rerender)
 onListingDeleteItem ref this (ListingDeleteItem k) = do
@@ -169,7 +169,7 @@ onListingDeleteItem ref this (ListingDeleteItem k) = do
 -- | Sort the items on the listing given a sorting function
 onListingSort :: (R.MonadReactor x m, CD.Dispose s)
   => IORef v
-  -> Lens' v (F.ComponentModel, Listing m s s)
+  -> Lens' v (F.ComponentPlan, Listing m s s)
   -> ListingSort m s
   -> m (DL.DList C.Rerender)
 onListingSort ref this (ListingSort f) = do
@@ -181,7 +181,7 @@ onListingSort ref this (ListingSort f) = do
 -- | Filter the items on the listing given a filter function
 onListingFilter :: forall x m v s. (R.MonadReactor x m, CD.Dispose s)
   => IORef v
-  -> Lens' v (F.ComponentModel, Listing m s s)
+  -> Lens' v (F.ComponentPlan, Listing m s s)
   -> ListingFilter m s
   -> m (DL.DList C.Rerender)
 onListingFilter ref this (ListingFilter f) = do
@@ -192,7 +192,7 @@ onListingFilter ref this (ListingFilter f) = do
 
 onListingInsertItem :: (R.MonadReactor x m, CD.Dispose s)
   => IORef v
-  -> Lens' v (F.ComponentModel, Listing m s s)
+  -> Lens' v (F.ComponentPlan, Listing m s s)
   -> ListingInsertItem s
   -> m (DL.DList C.Rerender)
 onListingInsertItem ref this (ListingInsertItem k s) = do
@@ -205,7 +205,7 @@ onListingInsertItem ref this (ListingInsertItem k s) = do
 
 onListingConsItem :: (R.MonadReactor x m, CD.Dispose s)
   => IORef v
-  -> Lens' v (F.ComponentModel, Listing m s s)
+  -> Lens' v (F.ComponentPlan, Listing m s s)
   -> ListingConsItem s
   -> m (DL.DList C.Rerender)
 onListingConsItem ref this (ListingConsItem s) = do
@@ -220,7 +220,7 @@ onListingConsItem ref this (ListingConsItem s) = do
 
 onListingSnocItem :: (R.MonadReactor x m, CD.Dispose s)
   => IORef v
-  -> Lens' v (F.ComponentModel, Listing m s s)
+  -> Lens' v (F.ComponentPlan, Listing m s s)
   -> ListingSnocItem s
   -> m (DL.DList C.Rerender)
 onListingSnocItem ref this (ListingSnocItem s) = do
@@ -238,7 +238,7 @@ listingNewItemRefHandler ::
     forall x m s v. ( R.MonadReactor x m
     , CD.Dispose s
     )
-    => F.RefHandler m v (F.ComponentModel, Listing m s s) (ListingNewItemAction s) C.Rerender
+    => F.RefHandler m v (F.ComponentPlan, Listing m s s) (ListingNewItemAction s) C.Rerender
 listingNewItemRefHandler = F.Handler $ \(ref, Lens this) (ListingNewItemAction a) ->
     switch a . cases $
         (onListingInsertItem @x @m ref this)
@@ -250,7 +250,7 @@ onListingMakeItem :: forall x m i s v. (R.MonadReactor x m, CD.Dispose s)
   => F.MkModel m i s
   -> F.Activator m s
   -> IORef v
-  -> Lens' v (F.ComponentModel, Listing m s s)
+  -> Lens' v (F.ComponentPlan, Listing m s s)
   -> ListingMakeItem i (s -> ListingNewItemAction s)
   -> m (DL.DList C.Rerender)
 onListingMakeItem mkMdl act ref this (ListingMakeItem i f) = do
@@ -265,7 +265,7 @@ listingRefHandler ::
     )
     => F.MkModel m i s
     -> F.Activator m s
-    -> F.RefHandler m v (F.ComponentModel, Listing m s s) (ListingAction m i s) C.Rerender
+    -> F.RefHandler m v (F.ComponentPlan, Listing m s s) (ListingAction m i s) C.Rerender
 listingRefHandler mkMdl act = F.Handler $ \v@(ref, Lens this) (ListingAction a) ->
     switch a . cases $
         ((F.runHandler (listingNewItemRefHandler @x @m @s)) v)
@@ -282,7 +282,7 @@ listingBroadcastRefHandler
     ( R.MonadReactor x m
     )
     => F.Handler m s a b
-    -> F.RefHandler m v (F.ComponentModel, Listing m s s) a b
+    -> F.RefHandler m v (F.ComponentPlan, Listing m s s) a b
 listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> do
     obj <- R.doReadIORef ref
     ys <- traverse (\x -> hdl x a) (obj ^. this._2.field @"items")
@@ -296,7 +296,7 @@ listingBroadcastRefHandler' ::
     => F.MkModel m i s
     -> F.Activator m s
     -> F.Handler m s (Which a2) (Which b2)
-    -> F.RefHandler m v (F.ComponentModel, Listing m s s) (Which a3) (Which b3)
+    -> F.RefHandler m v (F.ComponentPlan, Listing m s s) (Which a3) (Which b3)
 
 listingBroadcastRefHandler' mkMdl act hdl =
     (faceted' (listingRefHandler mkMdl act)) `P.pmappend` (listingBroadcastRefHandler hdl)
@@ -321,7 +321,7 @@ listingDisplay
     )
     => (s -> [JE.Property])
     -> F.Display m s ()
-    -> F.Display m (F.ComponentModel, ss) ()
+    -> F.Display m (F.ComponentPlan, ss) ()
 listingDisplay f (F.Display disp) = F.Display $ \(_, ss) -> do
     let Listing df ds ys xs = ss ^. item' @(Listing m s s)
         toLi s = R.bh "li"
@@ -341,7 +341,7 @@ listingDisplay f (F.Display disp) = F.Display $ \(_, ss) -> do
 listingActivator
     :: R.MonadReactor x m
     => F.Activator m s
-    -> F.RefActivator m v (F.ComponentModel, Listing m s s)
+    -> F.RefActivator m v (F.ComponentPlan, Listing m s s)
 listingActivator (F.Activator act) = F.Activator $ \(ref, Lens this) -> do
     obj <- R.doReadIORef ref
     traverse_ (\s -> act s) (obj ^. this._2.field @"items")

@@ -27,11 +27,11 @@ divideContent ::
         x c a b
 divideContent (F.Prototype (F.Display disp, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec)) =
     F.Prototype
-        ( F.Display $ \(cm, ss) -> do
+        ( F.Display $ \(cp, ss) -> do
                 R.bh "div"
                     (DL.toList $ view (item' @(DL.DList R.Listener)) ss)
                     (DL.toList $ view (item' @(DL.DList JE.Property)) ss)
-                    (disp (cm, ss))
+                    (disp (cp, ss))
         , F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @(DL.DList JE.Property)) ./ i)
                         <$> mkInf ss
                     , F.MkModel $ \is -> (\s -> mempty ./ (is ^. item' @(DL.DList JE.Property)) ./ s)

@@ -122,7 +122,7 @@ triggerExecutor triggers = Executor $ \k -> (F.Activator $ act k, P.pmempty)
 triggerExecutor'
     :: (R.MonadReactor x m, NFData a, HasItem' (DL.DList R.Listener) s)
     => [F.Trigger a]
-    -> RefExecutor m v (F.ComponentModel, s) x a (Which '[]) (Which '[])
+    -> RefExecutor m v (F.ComponentPlan, s) x a (Which '[]) (Which '[])
 triggerExecutor' = F.viaModel (_2.item') . triggerExecutor
 
 -- | Add a handler so that it is piped before the final transformation to @x@

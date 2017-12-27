@@ -39,31 +39,31 @@ newtype Archetype m i s x c a b = Archetype {
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: (R.MonadReactor x m, AsFacet (CD.Disposable ()) x)
-    => JS.JSString -> F.Prototype m (F.ComponentModel, s) i s i s x c a b
-    -> Archetype m i (IORef (F.ComponentModel, s)) x c a b
+    => JS.JSString -> F.Prototype m (F.ComponentPlan, s) i s i s x c a b
+    -> Archetype m i (IORef (F.ComponentPlan, s)) x c a b
 toArchetype n (F.Prototype ( F.Display disp
                          , F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)
                          , F.Executor exec
                          )) = Archetype
      ( F.Display $ \ref -> do
-             (cm, _) <- lift $ R.doReadIORef ref
-             R.lf (cm ^. field @"component".to JE.toJS')
+             (cp, _) <- lift $ R.doReadIORef ref
+             R.lf (cp ^. field @"component".to JE.toJS')
                  (JE.justSnds $
-                     [ ("updated", cm ^. field @"onUpdated")
+                     [ ("updated", cp ^. field @"onUpdated")
                      ]
                  )
                  (JE.justSnds $
-                     [ ("key", Just . JE.toJS' $ cm ^. field @"key")
-                     , ("render", JE.toJS' <$> cm ^. field @"onRender")
+                     [ ("key", Just . JE.toJS' $ cp ^. field @"key")
+                     , ("render", JE.toJS' <$> cp ^. field @"onRender")
                      ]
                  )
      , F.Builder ( F.MkInfo (R.doReadIORef >=> (mkInf . snd))
                  , F.MkModel $ \i -> do
-                         -- tuple the original state with a ComponentModel
+                         -- tuple the original state with a ComponentPlan
                          -- and wrap inside a IORef
                          s <- mkMdl i
-                         -- create a ComponentModel with no callbackss
-                         cm <- F.ComponentModel
+                         -- create a ComponentPlan with no callbackss
+                         cp <- F.ComponentPlan
                                  <$> R.getComponent
                                  <*> pure mempty -- Disposables
                                  <*> R.mkReactKey n
@@ -71,32 +71,32 @@ toArchetype n (F.Prototype ( F.Display disp
                                  <*> pure Nothing -- callback
                                  <*> pure 0
                          -- create the IORef
-                         R.doNewIORef (cm, s)
+                         R.doNewIORef (cp, s)
                  )
      , F.Executor $ \k -> let (F.Activator act, F.Handler hdl) = exec k
                           in ( F.Activator $ \ref -> do
                               act (ref, Lens id)
-                              (cm, _) <- R.doReadIORef ref
+                              (cp, _) <- R.doReadIORef ref
                               -- now replace the render and componentUpdated in the model if not already activated
-                              rnd <- case cm ^. field @"onRender" of
+                              rnd <- case cp ^. field @"onRender" of
                                          Just rnd' -> pure rnd'
                                          Nothing -> R.mkRenderer $ do
                                              s <- lift $ R.doReadIORef ref
                                              disp s
-                              upd <- case cm ^. field @"onUpdated" of
+                              upd <- case cp ^. field @"onUpdated" of
                                          Just upd' -> pure upd'
                                          Nothing -> R.mkCallback (const $ pure ()) (const $ do
-                                             (cm', _) <- R.doReadIORef ref
-                                             let ds = cm' ^. field @"disposable"
+                                             (cp', _) <- R.doReadIORef ref
+                                             let ds = cp' ^. field @"disposable"
                                              case CD.runDisposable ds of
                                                  Nothing -> pure DL.empty
                                                  Just _ -> do
-                                                     R.doModifyIORef' ref (\(cm'', s') ->
-                                                         (cm'' & field @"disposable" .~ mempty
+                                                     R.doModifyIORef' ref (\(cp'', s') ->
+                                                         (cp'' & field @"disposable" .~ mempty
                                                          , s'))
                                                      pure $ DL.singleton $ review facet ds)
-                              R.doModifyIORef' ref (\(cm', s') ->
-                                          ( cm' & field @"onRender" .~ (Just rnd)
+                              R.doModifyIORef' ref (\(cp', s') ->
+                                          ( cp' & field @"onRender" .~ (Just rnd)
                                                 & field @"onUpdated" .~ (Just upd)
                                           , s'))
 

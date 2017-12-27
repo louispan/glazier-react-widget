@@ -43,7 +43,7 @@ class ViaInfo (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaInfo :: Lens' j i -> OnInfo w i -> OnInfo w j
 
-data ComponentModel = ComponentModel
+data ComponentPlan = ComponentPlan
     { component :: R.ReactComponent
     , disposable :: CD.Disposable () -- List of things to dispose on updated
     , key :: R.ReactKey
@@ -52,4 +52,4 @@ data ComponentModel = ComponentModel
     , frameNum :: Int
     } deriving (G.Generic)
 
-instance CD.Dispose ComponentModel
+instance CD.Dispose ComponentPlan

@@ -15,6 +15,7 @@
 
 module Glazier.React.Framework.Core where
 
+import qualified Control.Disposable as CD
 import Control.Lens
 import Data.Kind
 import qualified GHC.Generics as G
@@ -44,11 +45,11 @@ class ViaPlan (w :: Type -> Type) where
 
 data ComponentModel = ComponentModel
     { component :: R.ReactComponent
-    , disposable :: R.Disposable () -- List of things to dispose on updated
+    , disposable :: CD.Disposable () -- List of things to dispose on updated
     , key :: R.ReactKey
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     , frameNum :: Int
     } deriving (G.Generic)
 
-instance R.Dispose ComponentModel
+instance CD.Dispose ComponentModel

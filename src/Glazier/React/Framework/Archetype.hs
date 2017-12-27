@@ -10,12 +10,14 @@
 
 module Glazier.React.Framework.Archetype where
 
+import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Generics.Product
+import qualified Data.JSString as JS
 import Data.IORef
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
@@ -36,10 +38,10 @@ newtype Archetype m p s x c a b = Archetype {
     }
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: (R.MonadReactor x m, AsFacet (R.Disposable ()) x)
-    => F.Prototype m (F.ComponentModel, s) p s p s x c a b
+toArchetype :: (R.MonadReactor x m, AsFacet (CD.Disposable ()) x)
+    => JS.JSString -> F.Prototype m (F.ComponentModel, s) p s p s x c a b
     -> Archetype m p (IORef (F.ComponentModel, s)) x c a b
-toArchetype (F.Prototype ( F.Display disp
+toArchetype n (F.Prototype ( F.Display disp
                          , F.Builder (F.MkPlan mkPlan, F.MkModel mkModel)
                          , F.Executor exec
                          )) = Archetype
@@ -64,7 +66,7 @@ toArchetype (F.Prototype ( F.Display disp
                          cm <- F.ComponentModel
                                  <$> R.getComponent
                                  <*> pure mempty -- Disposables
-                                 <*> R.mkReactKey
+                                 <*> R.mkReactKey n
                                  <*> pure Nothing -- render
                                  <*> pure Nothing -- callback
                                  <*> pure 0
@@ -86,7 +88,7 @@ toArchetype (F.Prototype ( F.Display disp
                                          Nothing -> R.mkCallback (const $ pure ()) (const $ do
                                              (cm', _) <- R.doReadIORef ref
                                              let ds = cm' ^. field @"disposable"
-                                             case R.runDisposable ds of
+                                             case CD.runDisposable ds of
                                                  Nothing -> pure DL.empty
                                                  Just _ -> do
                                                      R.doModifyIORef' ref (\(cm'', s') ->

@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -15,12 +16,12 @@ module Glazier.React.Framework.Executor where
 
 import Control.Arrow
 import qualified Control.Category as C
-import Control.DeepSeq
+-- import Control.DeepSeq
 import Control.Lens
-import Data.Diverse.Lens
 import Data.Diverse.Profunctor
 import qualified Data.DList as DL
 import Data.Foldable
+-- import Data.Generics.Product
 import Data.IORef
 import Data.Profunctor
 import Data.Semigroup
@@ -28,7 +29,7 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Handler as F
-import qualified Glazier.React.Framework.Trigger as F
+-- import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -107,23 +108,23 @@ instance ( Monad m
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 triggerExecutor
-    :: (R.MonadReactor x m, NFData a)
+    :: ( R.MonadReactor x m
+       , NFData a
+       , HasItem' (DL.DList R.Listener) ss
+       )
     => [F.Trigger a]
-    -> RefExecutor m v (DL.DList R.Listener) x a (Which '[]) (Which '[])
+    -> RefExecutor m v (F.ComponentPlan, ss) x a (Which '[]) (Which '[])
 triggerExecutor triggers = Executor $ \k -> (F.Activator $ act k, P.pmempty)
   where
     act k (ref, Lens this) = do
         cbs <- traverse {- list of triggers traverse -}
                   (traverse {- tuple traverse -} (\t' ->
                        R.mkCallback t' k) . F.runTrigger) triggers
-        R.doModifyIORef' ref (this %~ (`DL.append` DL.fromList cbs))
-
--- | Variation of 'triggersRefActivator' using a state of @(F.ComponentModel, Many s)@
-triggerExecutor'
-    :: (R.MonadReactor x m, NFData a, HasItem' (DL.DList R.Listener) s)
-    => [F.Trigger a]
-    -> RefExecutor m v (F.ComponentPlan, s) x a (Which '[]) (Which '[])
-triggerExecutor' = F.viaModel (_2.item') . triggerExecutor
+        let cbs' = fmap snd <$> cbs
+            ds = foldMap (fst . snd) cbs
+        R.doModifyIORef' ref $ \obj ->
+            obj & this._2.item' %~ (`DL.append` DL.fromList cbs')
+                & this._1.field @"finalizer" %~ (<> ds)
 
 -- | Add a handler so that it is piped before the final transformation to @x@
 executeHandler ::

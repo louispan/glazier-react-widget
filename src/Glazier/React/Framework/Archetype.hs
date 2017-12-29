@@ -19,6 +19,7 @@ import qualified Data.DList as DL
 import Data.Generics.Product
 import qualified Data.JSString as JS
 import Data.IORef
+import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
@@ -34,16 +35,18 @@ newtype Archetype m i s x c a b = Archetype {
            ( F.Display m s ()
            , F.Builder m i s i s
            , F.Executor m s x c a b
+           , s -> m CD.Disposable
            )
     }
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: (R.MonadReactor x m, AsFacet (CD.Disposable ()) x)
+toArchetype :: (R.MonadReactor x m, AsFacet CD.Disposable x)
     => JS.JSString -> F.Prototype m (F.ComponentPlan, s) i s i s x c a b
     -> Archetype m i (IORef (F.ComponentPlan, s)) x c a b
 toArchetype n (F.Prototype ( F.Display disp
                          , F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)
                          , F.Executor exec
+                         , fin
                          )) = Archetype
      ( F.Display $ \ref -> do
              (cp, _) <- lift $ R.doReadIORef ref
@@ -65,11 +68,12 @@ toArchetype n (F.Prototype ( F.Display disp
                          -- create a ComponentPlan with no callbackss
                          cp <- F.ComponentPlan
                                  <$> R.getComponent
-                                 <*> pure mempty -- Disposables
                                  <*> R.mkReactKey n
+                                 <*> pure 0
+                                 <*> pure mempty -- disposeOnUpdated
+                                 <*> pure mempty -- finalizer
                                  <*> pure Nothing -- render
                                  <*> pure Nothing -- callback
-                                 <*> pure 0
                          -- create the IORef
                          R.doNewIORef (cp, s)
                  )
@@ -79,29 +83,41 @@ toArchetype n (F.Prototype ( F.Display disp
                               (cp, _) <- R.doReadIORef ref
                               -- now replace the render and componentUpdated in the model if not already activated
                               rnd <- case cp ^. field @"onRender" of
-                                         Just rnd' -> pure rnd'
-                                         Nothing -> R.mkRenderer $ do
+                                         Just _ -> pure Nothing
+                                         Nothing -> fmap Just . R.mkRenderer $ do
                                              s <- lift $ R.doReadIORef ref
                                              disp s
                               upd <- case cp ^. field @"onUpdated" of
-                                         Just upd' -> pure upd'
-                                         Nothing -> R.mkCallback (const $ pure ()) (const $ do
+                                         Just _ -> pure Nothing
+                                         Nothing -> Just <$> R.mkCallback (const $ pure ()) (const $ do
                                              (cp', _) <- R.doReadIORef ref
-                                             let ds = cp' ^. field @"disposable"
+                                             let ds = cp' ^. field @"disposeOnUpdated"
                                              case CD.runDisposable ds of
                                                  Nothing -> pure DL.empty
                                                  Just _ -> do
                                                      R.doModifyIORef' ref (\(cp'', s') ->
-                                                         (cp'' & field @"disposable" .~ mempty
+                                                         (cp'' & field @"disposeOnUpdated" .~ mempty
                                                          , s'))
                                                      pure $ DL.singleton $ review facet ds)
-                              R.doModifyIORef' ref (\(cp', s') ->
-                                          ( cp' & field @"onRender" .~ (Just rnd)
-                                                & field @"onUpdated" .~ (Just upd)
-                                          , s'))
-
+                              let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ (Just cb)
+                                                              & field @"finalizer" %~ (<> d)
+                                         ) <$> rnd
+                                  upd' = (\(d, cb) cp' -> cp' & field @"onUpdated" .~ (Just cb)
+                                                              & field @"finalizer" %~ (<> d)
+                                         ) <$> upd
+                                  mf = case (rnd', upd') of
+                                          (Nothing, x) -> x
+                                          (x, Nothing) -> x
+                                          (Just x, Just y) -> Just (y . x)
+                              case mf of
+                                  Nothing -> pure ()
+                                  Just g -> R.doModifyIORef' ref (\(cp', s') -> (g cp', s'))
                              , F.Handler $ \ref a -> hdl (ref, Lens id) a
                              )
+     , \ref -> do
+             (cp, s) <- R.doReadIORef ref
+             fin' <- fin s
+             pure (fin' <> (cp ^. field @"finalizer") <> (cp ^. field @"disposeOnUpdated"))
      )
 
 -- | NB. fromArchetype . toArchetype != id
@@ -109,8 +125,7 @@ fromArchetype :: R.MonadReactor x m => Archetype m i s x c a b -> F.Prototype m 
 fromArchetype (Archetype ( F.Display disp
                          , bld
                          , F.Executor exec
-                         -- , F.Handler hdl
-                         -- , F.Activator act
+                         , fin
                          )) = F.Prototype
     ( F.Display $ \(_, s) -> disp s
     , bld
@@ -122,4 +137,5 @@ fromArchetype (Archetype ( F.Display disp
                                      obj <- R.doReadIORef ref
                                      hdl (obj ^. this._2) a
                              )
+    , fin
     )

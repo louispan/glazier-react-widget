@@ -45,11 +45,10 @@ class ViaInfo (w :: Type -> Type) where
 
 data ComponentPlan = ComponentPlan
     { component :: R.ReactComponent
-    , disposable :: CD.Disposable () -- List of things to dispose on updated
     , key :: R.ReactKey
+    , frameNum :: Int
+    , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
+    , finalizer :: CD.Disposable -- things to dispose when this widget is removed
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
-    , frameNum :: Int
     } deriving (G.Generic)
-
-instance CD.Dispose ComponentPlan

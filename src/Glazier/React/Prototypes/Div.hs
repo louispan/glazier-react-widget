@@ -25,7 +25,7 @@ divideContent ::
         (Many ((DL.DList JE.Property) ': is'))
         (Many ((DL.DList R.Listener) ': (DL.DList JE.Property) ': ss'))
         x c a b
-divideContent (F.Prototype (F.Display disp, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec)) =
+divideContent (F.Prototype (F.Display disp, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec, fin)) =
     F.Prototype
         ( F.Display $ \(cp, ss) -> do
                 R.bh "div"
@@ -37,4 +37,5 @@ divideContent (F.Prototype (F.Display disp, F.Builder (F.MkInfo mkInf, F.MkModel
                     , F.MkModel $ \is -> (\s -> mempty ./ (is ^. item' @(DL.DList JE.Property)) ./ s)
                         <$> mkMdl is
                     )
-        , exec)
+        , exec
+        , fin)

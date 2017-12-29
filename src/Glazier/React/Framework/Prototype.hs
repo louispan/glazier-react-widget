@@ -7,6 +7,8 @@
 
 module Glazier.React.Framework.Prototype where
 
+import Control.Applicative
+import qualified Control.Disposable as CD
 import Control.Lens
 import Data.Diverse
 import Data.Semigroup (Semigroup(..))
@@ -23,6 +25,7 @@ newtype Prototype m v i s i' s' x c a b = Prototype {
            ( F.Display m (F.ComponentPlan, s) ()
            , F.Builder m i s i' s'
            , F.RefExecutor m v (F.ComponentPlan, s) x c a b
+           , s -> m CD.Disposable
            )
     }
 
@@ -39,6 +42,7 @@ instance R.MonadReactor x m => P.PMEmpty (PPrototype m i s v x) (Many '[], Many 
         ( mempty
         , P.pmempty
         , P.pmempty
+        , pure $ pure mempty
         )
 
 instance ( R.MonadReactor x m
@@ -57,11 +61,12 @@ instance ( R.MonadReactor x m
              (Many i1, Many s1, Which c1, Which a1, Which b1)
              (Many i2, Many s2, Which c2,  Which a2, Which b2)
              (Many i3, Many s3, Which c3, Which a3, Which b3) where
-    (Prototype (disp1, bld1, exec1)) `pmappend` (Prototype (disp2, bld2, exec2)) =
+    (Prototype (disp1, bld1, exec1, fin1)) `pmappend` (Prototype (disp2, bld2, exec2, fin2)) =
         Prototype
         ( disp1 <> disp2
         , bld1 `P.pmappend` bld2
         , exec1 `P.pmappend` exec2
+        , liftA2 (liftA2 (<>)) (fin1) (fin2)
         )
 
 ------------------------------------------
@@ -74,6 +79,7 @@ displaying d = Prototype
         ( d
         , P.pmempty
         , P.pmempty
+        , pure $ pure mempty
         )
 
 building
@@ -84,6 +90,7 @@ building bld = Prototype
         ( mempty
         , bld
         , P.pmempty
+        , pure $ pure mempty
         )
 
 refExecuting
@@ -94,6 +101,7 @@ refExecuting exec = Prototype
         ( mempty
         , P.pmempty
         , exec
+        , pure $ pure mempty
         )
 
 ------------------------------------------
@@ -102,20 +110,22 @@ mapDisplay
     :: (F.Display m (F.ComponentPlan, s) () -> F.Display m (F.ComponentPlan, s) ())
     -> Prototype m v i s i' s' x c a b
     -> Prototype m v i s i' s' x c a b
-mapDisplay f (Prototype (disp, bld, exec)) = Prototype
+mapDisplay f (Prototype (disp, bld, exec, fin)) = Prototype
                    ( f disp
                    , bld
                    , exec
+                   , fin
                    )
 
 mapBuilder
     :: (F.Builder m i1 s i1' s1' -> F.Builder m i2 s i2' s2')
     -> Prototype m v i1 s i1' s1' x c a b
     -> Prototype m v i2 s i2' s2' x c a b
-mapBuilder f (Prototype (disp, bld, exec)) = Prototype
+mapBuilder f (Prototype (disp, bld, exec, fin)) = Prototype
                    ( disp
                    , f bld
                    , exec
+                   , fin
                    )
 
 mapRefExecutor
@@ -123,10 +133,11 @@ mapRefExecutor
         -> (F.RefExecutor m v (F.ComponentPlan, s) x c2 a2 b2))
     -> Prototype m v i s i' s' x c1 a1 b1
     -> Prototype m v i s i' s' x c2 a2 b2
-mapRefExecutor f (Prototype (disp, bld, exec)) = Prototype
+mapRefExecutor f (Prototype (disp, bld, exec, fin)) = Prototype
                    ( disp
                    , bld
                    , f exec
+                   , fin
                    )
 
 ------------------------------------------
@@ -138,10 +149,11 @@ newtype PrototypeOnModel m v i i' s' x c a b s = PrototypeOnModel
 type instance F.OnModel (PrototypeOnModel m v i i' s' x c a b) s = Prototype m v i s i' s' x c a b
 
 instance F.ViaModel (PrototypeOnModel m v i i' s' x c a b) where
-    viaModel l (Prototype (disp, bld, exec)) = Prototype
+    viaModel l (Prototype (disp, bld, exec, fin)) = Prototype
                    ( F.viaModel (alongside id l) disp
                    , F.viaModel l bld
                    , F.viaModel (alongside id l) exec
+                   , magnify l fin
                    )
 
 ------------------------------------------
@@ -153,8 +165,9 @@ newtype PrototypeOnInfo m v s i' s' a b x c i = PrototypeOnInfo
 type instance F.OnInfo (PrototypeOnInfo m v s i' s' a b x c) i = Prototype m v i s i' s' a b x c
 
 instance F.ViaInfo (PrototypeOnInfo m v s i' s' x c a b) where
-    viaInfo l (Prototype (disp, bld, exec)) = Prototype
+    viaInfo l (Prototype (disp, bld, exec, fin)) = Prototype
                    ( disp
                    , F.viaInfo l bld
                    , exec
+                   , fin
                    )

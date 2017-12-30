@@ -17,7 +17,7 @@ import Control.Monad.Trans.Class
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Generics.Product
-import qualified Data.JSString as JS
+import qualified Data.JSString as J
 import Data.IORef
 import Data.Semigroup
 import qualified Glazier.React as R
@@ -41,7 +41,7 @@ newtype Archetype m i s x c a b = Archetype {
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: (R.MonadReactor x m, AsFacet CD.Disposable x)
-    => JS.JSString -> F.Prototype m (F.ComponentPlan x m, s) i s i s x c a b
+    => J.JSString -> F.Prototype m (F.ComponentPlan x m, s) i s i s x c a b
     -> Archetype m i (IORef (F.ComponentPlan x m, s)) x c a b
 toArchetype n (F.Prototype ( F.Display disp
                          , F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)
@@ -83,23 +83,23 @@ toArchetype n (F.Prototype ( F.Display disp
                               act (ref, Lens id)
                               (cp, _) <- R.doReadIORef ref
                               -- now replace the render and componentUpdated in the model if not already activated
-                              rnd <- case cp ^. field @"onRender" of
+                              rnd <- case F.onRender cp of
                                          Just _ -> pure Nothing
                                          Nothing -> fmap Just . R.mkRenderer $ do
                                              s <- lift $ R.doReadIORef ref
                                              disp s
-                              upd <- case cp ^. field @"onUpdated" of
+                              upd <- case F.onUpdated cp of
                                          Just _ -> pure Nothing
-                                         Nothing -> Just <$> R.mkCallback (const $ pure ()) (const $ do
+                                         Nothing -> fmap Just . R.mkCallback (const $ pure ()) . const $ do
                                              (cp', _) <- R.doReadIORef ref
-                                             let d = cp' ^. field @"disposeOnUpdated"
+                                             let d = F.disposeOnUpdated cp'
                                                  d' = DL.singleton $ review facet d
-                                                 x = cp' ^. field @"doOnUpdated"
-                                             R.doModifyIORef' ref (\(cp'', s') ->
+                                                 x = F.doOnUpdated cp'
+                                             R.doModifyIORef' ref $ \(cp'', s') ->
                                                   (cp'' & field @"doOnUpdated" `set'` (pure mempty)
                                                         & field @"disposeOnUpdated" .~ mempty
-                                                  , s'))
-                                             (<> d') <$> x)
+                                                  , s')
+                                             (<> d') <$> x
                               let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ (Just cb)
                                                               & field @"finalizer" %~ (<> d)
                                          ) <$> rnd
@@ -118,7 +118,7 @@ toArchetype n (F.Prototype ( F.Display disp
      , \ref -> do
              (cp, s) <- R.doReadIORef ref
              fin' <- fin s
-             pure (fin' <> (cp ^. field @"finalizer") <> (cp ^. field @"disposeOnUpdated"))
+             pure (fin' <> (F.finalizer cp) <> (F.disposeOnUpdated cp))
      )
 
 -- | NB. fromArchetype . toArchetype != id

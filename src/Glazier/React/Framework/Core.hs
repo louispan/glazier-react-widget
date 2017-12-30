@@ -50,7 +50,7 @@ data ComponentPlan x m = ComponentPlan
     , frameNum :: Int
     , finalizer :: CD.Disposable -- things to dispose when this widget is removed
     , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
-    , doOnUpdated :: m (DL.DList x) -- additional monadic action to take after a rerender. This gets reset after each render.
+    , doOnUpdated :: m (DL.DList x) -- additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)

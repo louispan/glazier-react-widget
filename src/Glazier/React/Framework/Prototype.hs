@@ -22,9 +22,9 @@ import qualified Parameterized.TypeLevel as P
 
 newtype Prototype m v i s i' s' x c a b = Prototype {
     runPrototype ::
-           ( F.Display m (F.ComponentPlan, s) ()
+           ( F.Display m (F.ComponentPlan x m, s) ()
            , F.Builder m i s i' s'
-           , F.RefExecutor m v (F.ComponentPlan, s) x c a b
+           , F.RefExecutor m v (F.ComponentPlan x m, s) x c a b
            , s -> m CD.Disposable
            )
     }
@@ -73,7 +73,7 @@ instance ( R.MonadReactor x m
 
 displaying
     :: Monad m
-    => F.Display m (F.ComponentPlan, s) ()
+    => F.Display m (F.ComponentPlan x m, s) ()
     -> Prototype m v i s (Many '[]) (Many '[]) x (Which '[]) (Which '[]) (Which '[])
 displaying d = Prototype
         ( d
@@ -95,7 +95,7 @@ building bld = Prototype
 
 refExecuting
     :: Monad m
-    => (F.RefExecutor m v (F.ComponentPlan, s) x c a b)
+    => (F.RefExecutor m v (F.ComponentPlan x m, s) x c a b)
     -> Prototype m v i s (Many '[]) (Many '[]) x c a b
 refExecuting exec = Prototype
         ( mempty
@@ -107,7 +107,7 @@ refExecuting exec = Prototype
 ------------------------------------------
 
 mapDisplay
-    :: (F.Display m (F.ComponentPlan, s) () -> F.Display m (F.ComponentPlan, s) ())
+    :: (F.Display m (F.ComponentPlan x m, s) () -> F.Display m (F.ComponentPlan x m, s) ())
     -> Prototype m v i s i' s' x c a b
     -> Prototype m v i s i' s' x c a b
 mapDisplay f (Prototype (disp, bld, exec, fin)) = Prototype
@@ -129,8 +129,8 @@ mapBuilder f (Prototype (disp, bld, exec, fin)) = Prototype
                    )
 
 mapRefExecutor
-    :: (   (F.RefExecutor m v (F.ComponentPlan, s) x c1 a1 b1)
-        -> (F.RefExecutor m v (F.ComponentPlan, s) x c2 a2 b2))
+    :: (   (F.RefExecutor m v (F.ComponentPlan x m, s) x c1 a1 b1)
+        -> (F.RefExecutor m v (F.ComponentPlan x m, s) x c2 a2 b2))
     -> Prototype m v i s i' s' x c1 a1 b1
     -> Prototype m v i s i' s' x c2 a2 b2
 mapRefExecutor f (Prototype (disp, bld, exec, fin)) = Prototype

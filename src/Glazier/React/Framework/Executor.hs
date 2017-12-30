@@ -16,12 +16,12 @@ module Glazier.React.Framework.Executor where
 
 import Control.Arrow
 import qualified Control.Category as C
--- import Control.DeepSeq
+import Control.DeepSeq
 import Control.Lens
 import Data.Diverse.Profunctor
 import qualified Data.DList as DL
 import Data.Foldable
--- import Data.Generics.Product
+import Data.Generics.Product
 import Data.IORef
 import Data.Profunctor
 import Data.Semigroup
@@ -29,7 +29,7 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Handler as F
--- import qualified Glazier.React.Framework.Trigger as F
+import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -113,7 +113,7 @@ triggerExecutor
        , HasItem' (DL.DList R.Listener) ss
        )
     => [F.Trigger a]
-    -> RefExecutor m v (F.ComponentPlan, ss) x a (Which '[]) (Which '[])
+    -> RefExecutor m v (F.ComponentPlan x m, ss) x a (Which '[]) (Which '[])
 triggerExecutor triggers = Executor $ \k -> (F.Activator $ act k, P.pmempty)
   where
     act k (ref, Lens this) = do

@@ -17,6 +17,7 @@ module Glazier.React.Framework.Core where
 
 import qualified Control.Disposable as CD
 import Control.Lens
+import qualified Data.DList as DL
 import Data.Kind
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
@@ -43,12 +44,13 @@ class ViaInfo (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaInfo :: Lens' j i -> OnInfo w i -> OnInfo w j
 
-data ComponentPlan = ComponentPlan
+data ComponentPlan x m = ComponentPlan
     { component :: R.ReactComponent
     , key :: R.ReactKey
     , frameNum :: Int
-    , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
     , finalizer :: CD.Disposable -- things to dispose when this widget is removed
+    , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
+    , doOnUpdated :: m (DL.DList x) -- additional monadic action to take after a rerender. This gets reset after each render.
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)

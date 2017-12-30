@@ -41,8 +41,8 @@ newtype Archetype m i s x c a b = Archetype {
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: (R.MonadReactor x m, AsFacet CD.Disposable x)
-    => JS.JSString -> F.Prototype m (F.ComponentPlan, s) i s i s x c a b
-    -> Archetype m i (IORef (F.ComponentPlan, s)) x c a b
+    => JS.JSString -> F.Prototype m (F.ComponentPlan x m, s) i s i s x c a b
+    -> Archetype m i (IORef (F.ComponentPlan x m, s)) x c a b
 toArchetype n (F.Prototype ( F.Display disp
                          , F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)
                          , F.Executor exec
@@ -70,10 +70,11 @@ toArchetype n (F.Prototype ( F.Display disp
                                  <$> R.getComponent
                                  <*> R.mkReactKey n
                                  <*> pure 0
-                                 <*> pure mempty -- disposeOnUpdated
                                  <*> pure mempty -- finalizer
-                                 <*> pure Nothing -- render
+                                 <*> pure mempty -- disposeOnUpdated
+                                 <*> pure (pure mempty) -- doOnUpdated
                                  <*> pure Nothing -- callback
+                                 <*> pure Nothing -- render
                          -- create the IORef
                          R.doNewIORef (cp, s)
                  )
@@ -91,14 +92,14 @@ toArchetype n (F.Prototype ( F.Display disp
                                          Just _ -> pure Nothing
                                          Nothing -> Just <$> R.mkCallback (const $ pure ()) (const $ do
                                              (cp', _) <- R.doReadIORef ref
-                                             let ds = cp' ^. field @"disposeOnUpdated"
-                                             case CD.runDisposable ds of
-                                                 Nothing -> pure DL.empty
-                                                 Just _ -> do
-                                                     R.doModifyIORef' ref (\(cp'', s') ->
-                                                         (cp'' & field @"disposeOnUpdated" .~ mempty
-                                                         , s'))
-                                                     pure $ DL.singleton $ review facet ds)
+                                             let d = cp' ^. field @"disposeOnUpdated"
+                                                 d' = DL.singleton $ review facet d
+                                                 x = cp' ^. field @"doOnUpdated"
+                                             R.doModifyIORef' ref (\(cp'', s') ->
+                                                  (cp'' & field @"doOnUpdated" `set'` (pure mempty)
+                                                        & field @"disposeOnUpdated" .~ mempty
+                                                  , s'))
+                                             (<> d') <$> x)
                               let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ (Just cb)
                                                               & field @"finalizer" %~ (<> d)
                                          ) <$> rnd

@@ -157,7 +157,7 @@ broadcastListing f (F.Archetype (disp, bld@(F.Builder (_, mkMdl)), F.Executor ex
 onListingDeleteItem :: (R.MonadReactor x m)
   => (s -> m CD.Disposable)
   -> IORef v
-  -> Lens' v (F.ComponentPlan, Listing m s s)
+  -> Lens' v (F.ComponentPlan x m, Listing m s s)
   -> ListingDeleteItem
   -> m (DL.DList C.Rerender)
 onListingDeleteItem fin ref this (ListingDeleteItem k) = do
@@ -167,36 +167,36 @@ onListingDeleteItem fin ref this (ListingDeleteItem k) = do
             pure $ obj & (this._2.field @"items" %~ M.delete k)
                    . (this._1.field @"disposeOnUpdated" %~ (<> fin'))
                    . (this._2.field @"list" .~ []) -- this tells render to update displayItems
-       DL.singleton <$> C.mkRerender ref (this._1)
+       DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 -- | Sort the items on the listing given a sorting function
 onListingSort :: (R.MonadReactor x m)
   => IORef v
-  -> Lens' v (F.ComponentPlan, Listing m s s)
+  -> Lens' v (F.ComponentPlan x m, Listing m s s)
   -> ListingSort m s
   -> m (DL.DList C.Rerender)
 onListingSort ref this (ListingSort f) = do
        R.doModifyIORef' ref $ \obj ->
            let (Listing df _ _ xs) = obj ^. this._2
            in obj & this._2 .~ (Listing df f [] xs)
-       DL.singleton <$> C.mkRerender ref (this._1)
+       DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 -- | Filter the items on the listing given a filter function
 onListingFilter :: forall x m v s. (R.MonadReactor x m)
   => IORef v
-  -> Lens' v (F.ComponentPlan, Listing m s s)
+  -> Lens' v (F.ComponentPlan x m, Listing m s s)
   -> ListingFilter m s
   -> m (DL.DList C.Rerender)
 onListingFilter ref this (ListingFilter f) = do
        R.doModifyIORef' ref $ \obj ->
            let (Listing _ ds _ xs) = obj ^. this._2
            in obj & this._2 .~ (Listing f ds [] xs)
-       DL.singleton <$> C.mkRerender ref (this._1)
+       DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 onListingInsertItem :: (R.MonadReactor x m)
   => (s -> m CD.Disposable)
   -> IORef v
-  -> Lens' v (F.ComponentPlan, Listing m s s)
+  -> Lens' v (F.ComponentPlan x m, Listing m s s)
   -> ListingInsertItem s
   -> m (DL.DList C.Rerender)
 onListingInsertItem fin ref this (ListingInsertItem k s) = do
@@ -206,11 +206,11 @@ onListingInsertItem fin ref this (ListingInsertItem k s) = do
             pure $ obj & (this._2.field @"items" %~ M.insert k s)
                    . (this._1.field @"disposeOnUpdated" %~ (<> fin'))
                    . (this._2.field @"list" .~ []) -- this tells render to update displayItems
-       DL.singleton <$> C.mkRerender ref (this._1)
+       DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 onListingConsItem :: (R.MonadReactor x m)
   => IORef v
-  -> Lens' v (F.ComponentPlan, Listing m s s)
+  -> Lens' v (F.ComponentPlan x m, Listing m s s)
   -> ListingConsItem s
   -> m (DL.DList C.Rerender)
 onListingConsItem ref this (ListingConsItem s) = do
@@ -221,11 +221,11 @@ onListingConsItem ref this (ListingConsItem s) = do
                     . (this._2.field @"list" .~ []) -- this tells render to update displayItems
                 ((k, _) : _) -> obj & (this._2.field @"items" %~ M.insert (smallerIdx k) s)
                     . (this._2.field @"list" .~ []) -- this tells render to update displayItems
-       DL.singleton <$> C.mkRerender ref (this._1)
+       DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 onListingSnocItem :: (R.MonadReactor x m)
   => IORef v
-  -> Lens' v (F.ComponentPlan, Listing m s s)
+  -> Lens' v (F.ComponentPlan x m, Listing m s s)
   -> ListingSnocItem s
   -> m (DL.DList C.Rerender)
 onListingSnocItem ref this (ListingSnocItem s) = do
@@ -236,12 +236,12 @@ onListingSnocItem ref this (ListingSnocItem s) = do
                     . (this._2.field @"list" .~ []) -- this tells render to update displayItems
                 ((k, _) : _) -> obj & (this._2.field @"items" %~ M.insert (largerIdx k) s)
                     . (this._2.field @"list" .~ []) -- this tells render to update displayItems
-       DL.singleton <$> C.mkRerender ref (this._1)
+       DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 -- | Handler for ListingAction
 listingNewItemRefHandler ::
     forall x m s v. ( R.MonadReactor x m)
-    => (s -> m CD.Disposable) -> F.RefHandler m v (F.ComponentPlan, Listing m s s) (ListingNewItemAction s) C.Rerender
+    => (s -> m CD.Disposable) -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) (ListingNewItemAction s) C.Rerender
 listingNewItemRefHandler fin = F.Handler $ \(ref, Lens this) (ListingNewItemAction a) ->
     switch a . cases $
         (onListingInsertItem @x @m fin ref this)
@@ -254,7 +254,7 @@ onListingMakeItem :: forall x m i s v. (R.MonadReactor x m)
   -> F.Activator m s
   -> (s -> m CD.Disposable)
   -> IORef v
-  -> Lens' v (F.ComponentPlan, Listing m s s)
+  -> Lens' v (F.ComponentPlan x m, Listing m s s)
   -> ListingMakeItem i (s -> ListingNewItemAction s)
   -> m (DL.DList C.Rerender)
 onListingMakeItem mkMdl act fin ref this (ListingMakeItem i f) = do
@@ -269,7 +269,7 @@ listingRefHandler ::
     => F.MkModel m i s
     -> F.Activator m s
     -> (s -> m CD.Disposable)
-    -> F.RefHandler m v (F.ComponentPlan, Listing m s s) (ListingAction m i s) C.Rerender
+    -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) (ListingAction m i s) C.Rerender
 listingRefHandler mkMdl act fin = F.Handler $ \v@(ref, Lens this) (ListingAction a) ->
     switch a . cases $
         ((F.runHandler (listingNewItemRefHandler @x @m @s fin)) v)
@@ -286,7 +286,7 @@ listingBroadcastRefHandler
     ( R.MonadReactor x m
     )
     => F.Handler m s a b
-    -> F.RefHandler m v (F.ComponentPlan, Listing m s s) a b
+    -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) a b
 listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> do
     obj <- R.doReadIORef ref
     ys <- traverse (\x -> hdl x a) (obj ^. this._2.field @"items")
@@ -300,7 +300,7 @@ listingBroadcastRefHandler' ::
     -> F.Activator m s
     -> F.Handler m s (Which a2) (Which b2)
     -> (s -> m CD.Disposable)
-    -> F.RefHandler m v (F.ComponentPlan, Listing m s s) (Which a3) (Which b3)
+    -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) (Which a3) (Which b3)
 
 listingBroadcastRefHandler' mkMdl act hdl fin =
     (faceted' (listingRefHandler mkMdl act fin)) `P.pmappend` (listingBroadcastRefHandler hdl)
@@ -325,7 +325,7 @@ listingDisplay
     )
     => (s -> [JE.Property])
     -> F.Display m s ()
-    -> F.Display m (F.ComponentPlan, ss) ()
+    -> F.Display m (F.ComponentPlan x m, ss) ()
 listingDisplay f (F.Display disp) = F.Display $ \(_, ss) -> do
     let Listing df ds ys xs = ss ^. item' @(Listing m s s)
         toLi s = R.bh "li"
@@ -345,7 +345,7 @@ listingDisplay f (F.Display disp) = F.Display $ \(_, ss) -> do
 listingActivator
     :: R.MonadReactor x m
     => F.Activator m s
-    -> F.RefActivator m v (F.ComponentPlan, Listing m s s)
+    -> F.RefActivator m v (F.ComponentPlan x m, Listing m s s)
 listingActivator (F.Activator act) = F.Activator $ \(ref, Lens this) -> do
     obj <- R.doReadIORef ref
     traverse_ (\s -> act s) (obj ^. this._2.field @"items")

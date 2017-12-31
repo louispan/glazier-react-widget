@@ -44,7 +44,7 @@ withRef =
         , mempty
         , F.hardcodeItem @(R.EventTarget) (RI.EventTarget $ JE.JSVar J.nullRef)
         , F.triggerExecutor [F.Trigger ("ref", pure . DL.singleton . pick . SetRef . RI.EventTarget . JE.JSVar)]
-          `P.pmappend` (F.handlerExecutor' (F.contramapHandlerInput obvious rh))
+          `P.pmappend` (F.handlerToExecutor' (lmap obvious rh))
         )
   where
     rh = F.viaModel (alongside id item') (F.refHandler whenSetRef)

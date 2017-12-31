@@ -78,9 +78,9 @@ suppressHandlerInput f (Handler hdl) = Handler $ \env a -> case f a of
     Nothing -> pure DL.empty
     Just a' -> hdl env a'
 
--- | More descriptive name for 'lmap'
-contramapHandlerInput :: Functor m => (a -> a') -> Handler m r a' b -> Handler m r a b
-contramapHandlerInput = lmap
+-- -- | More descriptive name for 'lmap'
+-- contramapHandlerInput :: Functor m => (a -> a') -> Handler m r a' b -> Handler m r a b
+-- contramapHandlerInput = lmap
 
 -- | Ignore certain outputs
 filterHandlerOutput :: Applicative m => (b -> Maybe b') -> Handler m r a b -> Handler m r a b'
@@ -90,9 +90,9 @@ filterHandlerOutput f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env
         Nothing -> DL.empty
         Just b' -> DL.singleton b'
 
--- | More descriptive name for 'rmap' for Handler
-mapHandlerOutput :: Functor m => (b -> b') -> Handler m r a b -> Handler m r a b'
-mapHandlerOutput = rmap
+-- -- | More descriptive name for 'rmap' for Handler
+-- mapHandlerOutput :: Functor m => (b -> b') -> Handler m r a b -> Handler m r a b'
+-- mapHandlerOutput = rmap
 
 -----------------------------------------------
 

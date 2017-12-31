@@ -33,6 +33,9 @@ import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
+-- | Creates both Activator and Handler because
+-- sometimes, you need the Activator to create the Handler.
+-- Eg. see 'Glazier.React.Prototypes.Listing.Internal.listing'
 newtype Executor m r x c a b = Executor {
     runExecutor
         :: (DL.DList c -> m (DL.DList x)) -- final transformation
@@ -136,29 +139,50 @@ triggerExecutor triggers = Executor $ \k -> (F.Activator $ act k, P.pmempty)
             obj & this._2.item' %~ (`DL.append` DL.fromList cbs')
                 & this._1.field @"finalizer" %~ (<> ds)
 
-handlerExecutor :: Monad m => ((DL.DList c -> m (DL.DList x)) -> F.Handler m r a b) -> Executor m r x c a b
-handlerExecutor f = Executor $ \k -> (mempty, f k)
+handlerToExecutor :: Monad m => ((DL.DList c -> m (DL.DList x)) -> F.Handler m r a b) -> Executor m r x c a b
+handlerToExecutor f = Executor $ \k -> (mempty, f k)
 
-handlerExecutor' :: Monad m => F.Handler m r a b -> Executor m r x (Which '[]) a b
-handlerExecutor' hdl = Executor $ \_ -> (mempty, hdl)
+handlerToExecutor' :: Monad m => F.Handler m r a b -> Executor m r x (Which '[]) a b
+handlerToExecutor' hdl = Executor $ \_ -> (mempty, hdl)
 
-activatorExecutor :: Monad m => ((DL.DList c -> m (DL.DList x)) -> F.Activator m r) -> Executor m r x c (Which '[]) (Which '[])
-activatorExecutor f = Executor $ \k -> (f k, mempty)
+activatorToExecutor :: Monad m => ((DL.DList c -> m (DL.DList x)) -> F.Activator m r) -> Executor m r x c (Which '[]) (Which '[])
+activatorToExecutor f = Executor $ \k -> (f k, mempty)
 
-activatorExecutor' :: Monad m => F.Activator m r -> Executor m r x (Which '[]) (Which '[]) (Which '[])
-activatorExecutor' act = Executor $ \_ -> (act, mempty)
+activatorToExecutor' :: Monad m => F.Activator m r -> Executor m r x (Which '[]) (Which '[]) (Which '[])
+activatorToExecutor' act = Executor $ \_ -> (act, mempty)
 
--- | Add a handler so that it is piped before the final transformation to @x@
-handleBeforeExecuting ::
+-- | Change the type of an executor so that the handler output matches the continuation input.
+diversifyExecutor ::
+    ( R.MonadReactor x m
+    , Diversify c bc
+    , Diversify b bc
+    )
+    => Executor m r x (Which c) a (Which b) -> Executor m r x (Which bc) a (Which bc)
+diversifyExecutor = rmap diversify . mapExecutorCommand diversify
+
+-- | Chain executors together by using the left Executor's handler before final transformation to @x@
+handleWithBeforeExecuting ::
     ( R.MonadReactor x m
     )
-    => F.Handler m r c d -> Executor m r x c a b -> Executor m r x d a b
-handleBeforeExecuting (F.Handler hdl) (Executor exec) = Executor $ \k ->
-    ( F.Activator $ \env -> (F.runActivator . fst $ exec (k' env k)) env
-    , F.Handler $ \env a -> (F.runHandler . snd $ exec (k' env k)) env a
+    => Executor m r x d c d -> Executor m r x c a b -> Executor m r x d a b
+handleWithBeforeExecuting (Executor exec1) (Executor exec2) = Executor $ \k ->
+    let (act1, F.Handler hdl1) = exec1 k
+        k' env cs = fold <$> traverse (hdl1 env) (DL.toList cs) >>= k
+    in ( act1 <> (F.Activator $ \env -> (F.runActivator . fst $ exec2 (k' env)) env)
+       , F.Handler $ \env a -> (F.runHandler . snd $ exec2 (k' env)) env a
+       )
+
+-- | Combine two executors, given a mapping function on how to combine handlers
+combineExecutorHandlers ::
+    ( R.MonadReactor x m
     )
-  where
-    k' env k cs = fold <$> traverse (hdl env) (DL.toList cs) >>= k
+    => (F.Handler m r a1 b2 -> F.Handler m r a2 b2 -> F.Handler m r a3 b3) -> Executor m r x c a1 b2 -> Executor m r x c a2 b2 -> Executor m r x c a3 b3
+combineExecutorHandlers f (Executor exec1) (Executor exec2) = Executor $ \k ->
+    let (act1, hdl1) = exec1 k
+        (act2, hdl2) = exec2 k
+    in ( act1 <> act2
+       , f hdl1 hdl2
+       )
 
 -- | Ignore certain commands
 suppressExecutorCommand :: (c -> Maybe c') -> Executor m r x c a b  -> Executor m r x c' a b

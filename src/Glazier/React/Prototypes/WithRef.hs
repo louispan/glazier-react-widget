@@ -15,11 +15,13 @@ import Data.IORef
 import qualified GHC.Generics as G
 import qualified Data.DList as DL
 import qualified Glazier.React as R
+import qualified Glazier.React.Event.Internal as RI
 import qualified Glazier.React.Framework as F
 import qualified GHCJS.Types as J
+import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 
-newtype SetRef = SetRef J.JSVal
+newtype SetRef = SetRef RI.EventTarget
     deriving (G.Generic, NFData)
 
 -- | Use with 'divideContent' for the builder of @@DL.DList R.Listener@
@@ -27,11 +29,11 @@ newtype SetRef = SetRef J.JSVal
 withRef
     :: ( R.MonadReactor x m
        , HasItem' (DL.DList R.Listener) s
-       , HasItem' J.JSVal s
+       , HasItem' R.EventTarget s
        )
     => F.Prototype m v p s
             (Many '[])
-            (Many '[J.JSVal])
+            (Many '[RI.EventTarget])
             x
             (Which '[SetRef])
             (Which '[SetRef])
@@ -40,8 +42,8 @@ withRef =
     F.Prototype
         ( mempty
         , mempty
-        , F.hardcodeItem @(J.JSVal) J.nullRef
-        , F.triggerExecutor [F.Trigger ("ref", pure . DL.singleton . pick . SetRef)]
+        , F.hardcodeItem @(R.EventTarget) (RI.EventTarget $ JE.JSVar J.nullRef)
+        , F.triggerExecutor [F.Trigger ("ref", pure . DL.singleton . pick . SetRef . RI.EventTarget . JE.JSVar)]
           `P.pmappend` (F.handlerExecutor' (F.contramapHandlerInput obvious rh))
         )
   where
@@ -49,7 +51,7 @@ withRef =
 
     whenSetRef :: (R.MonadReactor x m)
       => IORef v
-      -> Lens' v (F.ComponentPlan x m, J.JSVal)
+      -> Lens' v (F.ComponentPlan x m, R.EventTarget)
       -> SetRef
       -> m (DL.DList (Which '[]))
     whenSetRef ref this (SetRef j) = do

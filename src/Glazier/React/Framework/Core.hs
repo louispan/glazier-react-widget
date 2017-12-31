@@ -57,4 +57,4 @@ data ComponentPlan x m = ComponentPlan
     } deriving (G.Generic)
 
 -- | Property that is only available in model, not plan
-newtype Hardcoded = Hardcoded JE.Property
+newtype Trait = Trait JE.Property

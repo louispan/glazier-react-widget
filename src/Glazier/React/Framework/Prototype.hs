@@ -178,25 +178,25 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' x c a b) where
                    )
 
 
--- | Wrap a prototype inside a provided 'name', and adds @DL.DList JE.Property@ and @DL.DList R.Listener@
--- to the model.
-enclose ::
+-- | Wrap the display of prototype inside a provided 'name', and adds @DL.DList JE.Property@
+-- to the info and model, and @DL.DList R.Listener@, and @DL.DList F.Trait@ to only the model.
+mark ::
     ( Monad m
     , HasItem' (DL.DList JE.Property) is
     , HasItem' (DL.DList JE.Property) ss
-    , HasItem' (DL.DList F.Hardcoded) ss
+    , HasItem' (DL.DList F.Trait) ss
     , HasItem' (DL.DList R.Listener) ss
     ) => J.JSString -> Prototype m v is ss (Many is') (Many ss') x c a b
     -> Prototype m v is ss
         (Many ((DL.DList JE.Property) ': is'))
-        (Many ((DL.DList R.Listener) ': (DL.DList F.Hardcoded) ': (DL.DList JE.Property) ': ss'))
+        (Many ((DL.DList R.Listener) ': (DL.DList F.Trait) ': (DL.DList JE.Property) ': ss'))
         x c a b
-enclose n (Prototype (fin, F.Window win, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec)) =
+mark n (Prototype (fin, F.Window win, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec)) =
     Prototype
         ( fin
         , F.Window $ \(cp, ss) ->
                 let props = view (item' @(DL.DList JE.Property)) ss
-                    hs = view (item' @(DL.DList F.Hardcoded)) ss
+                    hs = view (item' @(DL.DList F.Trait)) ss
                     ls = view (item' @(DL.DList R.Listener)) ss
                 in R.bh (JE.toJS' n)
                         (DL.toList ls)
@@ -211,3 +211,14 @@ enclose n (Prototype (fin, F.Window win, F.Builder (F.MkInfo mkInf, F.MkModel mk
                         <$> mkMdl is
                     )
         , exec)
+
+
+-- | Wrap a prototype's info and model as an item inside a Many.
+contain
+    :: ( Functor m
+       , HasItem' s ss
+       , HasItem' i is
+       )
+    => Prototype m v i s i' s' x c a b
+    -> Prototype m v is ss (Many '[i']) (Many '[s']) x c a b
+contain p = mapBuilder (bimap single single) (F.viaModel item' (F.viaInfo item' p))

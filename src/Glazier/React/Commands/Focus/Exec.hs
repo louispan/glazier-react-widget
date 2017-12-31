@@ -2,15 +2,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Glazier.React.Commands.FocusElement.Exec
-    ( execFocusElement
+module Glazier.React.Commands.Focus.Exec
+    ( execFocus
     ) where
 
 import qualified Glazier.React as R
-import Glazier.React.Commands.FocusElement
+import Glazier.React.Commands.Focus
 
-execFocusElement :: FocusElement -> IO ()
-execFocusElement (FocusElement j) = js_focus j
+execFocus :: Focus -> IO ()
+execFocus (Focus j) = js_focus j
 
 #ifdef __GHCJS__
 

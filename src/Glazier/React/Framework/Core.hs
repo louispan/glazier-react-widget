@@ -23,6 +23,7 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
+import qualified JavaScript.Extras as JE
 
 ----------------------------------------------------------
 
@@ -54,3 +55,6 @@ data ComponentPlan x m = ComponentPlan
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
+
+-- | Property that is only available in model, not plan
+newtype Hardcoded = Hardcoded JE.Property

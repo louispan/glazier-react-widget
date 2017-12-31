@@ -7,6 +7,8 @@
 module Glazier.React.Prototypes.Div where
 
 import Control.Lens
+import Data.Semigroup
+import Data.Coerce
 import qualified Data.DList as DL
 import Data.Diverse.Profunctor
 import qualified Glazier.React as R
@@ -19,23 +21,30 @@ divideContent ::
     ( Monad m
     , HasItem' (DL.DList JE.Property) is
     , HasItem' (DL.DList JE.Property) ss
+    , HasItem' (DL.DList F.Hardcoded) ss
     , HasItem' (DL.DList R.Listener) ss
     ) => F.Prototype m v is ss (Many is') (Many ss') x c a b
     -> F.Prototype m v is ss
         (Many ((DL.DList JE.Property) ': is'))
-        (Many ((DL.DList R.Listener) ': (DL.DList JE.Property) ': ss'))
+        (Many ((DL.DList R.Listener) ': (DL.DList F.Hardcoded) ': (DL.DList JE.Property) ': ss'))
         x c a b
-divideContent (F.Prototype (F.Display disp, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec, fin)) =
+divideContent (F.Prototype (fin, F.Window win, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec)) =
     F.Prototype
-        ( F.Display $ \(cp, ss) -> do
-                R.bh "div"
-                    (DL.toList $ view (item' @(DL.DList R.Listener)) ss)
-                    (DL.toList $ view (item' @(DL.DList JE.Property)) ss)
-                    (disp (cp, ss))
+        ( fin
+        , F.Window $ \(cp, ss) ->
+                let props = view (item' @(DL.DList JE.Property)) ss
+                    hs = view (item' @(DL.DList F.Hardcoded)) ss
+                    ls = view (item' @(DL.DList R.Listener)) ss
+                in R.bh "div"
+                        (DL.toList ls)
+                        (DL.toList (coerce hs <> props))
+                        (win (cp, ss))
         , F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @(DL.DList JE.Property)) ./ i)
                         <$> mkInf ss
-                    , F.MkModel $ \is -> (\s -> mempty ./ (is ^. item' @(DL.DList JE.Property)) ./ s)
+                    , F.MkModel $ \is -> (\s -> mempty
+                                             ./ mempty
+                                             ./ (is ^. item' @(DL.DList JE.Property))
+                                             ./ s)
                         <$> mkMdl is
                     )
-        , exec
-        , fin)
+        , exec)

@@ -24,7 +24,8 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Core as F
-import qualified Glazier.React.Framework.Display as F
+import qualified Glazier.React.Framework.Disposer as F
+import qualified Glazier.React.Framework.Window as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Prototype as F
@@ -32,10 +33,10 @@ import qualified JavaScript.Extras as JE
 
 newtype Archetype m i s x c a b = Archetype {
     runArchetype ::
-           ( F.Display m s ()
+           ( F.Disposer m s
+           , F.Window m s ()
            , F.Builder m i s i s
            , F.Executor m s x c a b
-           , s -> m CD.Disposable
            )
     }
 
@@ -43,12 +44,16 @@ newtype Archetype m i s x c a b = Archetype {
 toArchetype :: (R.MonadReactor x m, AsFacet CD.Disposable x)
     => J.JSString -> F.Prototype m (F.ComponentPlan x m, s) i s i s x c a b
     -> Archetype m i (IORef (F.ComponentPlan x m, s)) x c a b
-toArchetype n (F.Prototype ( F.Display disp
-                         , F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)
-                         , F.Executor exec
-                         , fin
-                         )) = Archetype
-     ( F.Display $ \ref -> do
+toArchetype n (F.Prototype ( F.Disposer dis
+                           , F.Window win
+                           , F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)
+                           , F.Executor exec
+                           )) = Archetype
+     ( F.Disposer $ \ref -> do
+             (cp, s) <- R.doReadIORef ref
+             dis' <- dis s
+             pure (dis' <> (F.finalizer cp) <> (F.disposeOnUpdated cp))
+     , F.Window $ \ref -> do
              (cp, _) <- lift $ R.doReadIORef ref
              R.lf (cp ^. field @"component".to JE.toJS')
                  (JE.justSnds $
@@ -87,7 +92,7 @@ toArchetype n (F.Prototype ( F.Display disp
                                          Just _ -> pure Nothing
                                          Nothing -> fmap Just . R.mkRenderer $ do
                                              s <- lift $ R.doReadIORef ref
-                                             disp s
+                                             win s
                               upd <- case F.onUpdated cp of
                                          Just _ -> pure Nothing
                                          Nothing -> fmap Just . R.mkCallback (const $ pure ()) . const $ do
@@ -115,20 +120,17 @@ toArchetype n (F.Prototype ( F.Display disp
                                   Just g -> R.doModifyIORef' ref (\(cp', s') -> (g cp', s'))
                              , F.Handler $ \ref a -> hdl (ref, Lens id) a
                              )
-     , \ref -> do
-             (cp, s) <- R.doReadIORef ref
-             fin' <- fin s
-             pure (fin' <> (F.finalizer cp) <> (F.disposeOnUpdated cp))
      )
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor x m => Archetype m i s x c a b -> F.Prototype m v i s i s x c a b
-fromArchetype (Archetype ( F.Display disp
+fromArchetype (Archetype ( dis
+                         , F.Window win
                          , bld
                          , F.Executor exec
-                         , fin
                          )) = F.Prototype
-    ( F.Display $ \(_, s) -> disp s
+    ( dis
+    , F.Window $ \(_, s) -> win s
     , bld
     , F.Executor $ \k -> let (F.Activator act, F.Handler hdl) = exec k
                           in ( F.Activator $ \(ref, Lens this) -> do
@@ -138,5 +140,4 @@ fromArchetype (Archetype ( F.Display disp
                                      obj <- R.doReadIORef ref
                                      hdl (obj ^. this._2) a
                              )
-    , fin
     )

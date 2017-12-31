@@ -19,8 +19,8 @@ library
                        Glazier.React.Actions
                        Glazier.React.Actions.KeyDownKey
                        Glazier.React.Commands
-                       Glazier.React.Commands.FocusElement
-                       Glazier.React.Commands.FocusElement.Exec
+                       Glazier.React.Commands.Focus
+                       Glazier.React.Commands.Focus.Exec
                        Glazier.React.Commands.Rerender
                        Glazier.React.Commands.Rerender.Exec
                        Glazier.React.Commands.SetProperty
@@ -30,15 +30,17 @@ library
                        Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Builder
                        Glazier.React.Framework.Core
-                       Glazier.React.Framework.Display
+                       Glazier.React.Framework.Disposer
                        Glazier.React.Framework.Handler
                        Glazier.React.Framework.Executor
                        Glazier.React.Framework.Prototype
                        Glazier.React.Framework.Trigger
+                       Glazier.React.Framework.Window
                        Glazier.React.Prototypes
                        Glazier.React.Prototypes.Div
                        Glazier.React.Prototypes.Listing
                        Glazier.React.Prototypes.Listing.Internal
+                       Glazier.React.Prototypes.WithRef
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.2.0
                      , bifunctors >= 5.4.1

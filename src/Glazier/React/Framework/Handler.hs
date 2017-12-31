@@ -13,6 +13,7 @@
 
 module Glazier.React.Framework.Handler where
 
+import Control.Applicative
 import Control.Arrow
 import qualified Control.Category as C
 import Control.Lens
@@ -22,6 +23,7 @@ import Data.Foldable
 import Data.IORef
 import Data.Kind
 import Data.Profunctor
+import Data.Semigroup
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -29,6 +31,13 @@ import qualified Parameterized.TypeLevel as P
 newtype Handler (m :: Type -> Type) r a b = Handler
     { runHandler :: r -> a -> m (DL.DList b)
     }
+
+instance Applicative m => Semigroup (Handler m r a b) where
+    Handler f <> Handler g = Handler $ \env a -> liftA2 (<>) (f env a) (g env a)
+
+instance Applicative m => Monoid (Handler m r a b) where
+    mempty = Handler $ \_ _ -> pure mempty
+    mappend = (<>)
 
 instance Functor m => Functor (Handler m r a) where
     fmap f (Handler hdl) = Handler $ \env a -> fmap f <$> hdl env a
@@ -99,6 +108,9 @@ type instance F.OnModel (RefHandlerOnModel m a b v) s = RefHandler m v s a b
 instance F.ViaModel (RefHandlerOnModel m a b v) where
     viaModel l (Handler hdl) =
         Handler $ \(ref, Lens this) a -> hdl (ref, Lens (this.l)) a
+
+refHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> RefHandler m v s a b
+refHandler hdl = Handler $ \(ref, Lens this) a -> hdl ref this a
 
 -- toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s y a b
 -- toRefHandler (Handler hdl) = Handler $ \(_, ref, Lens this) a -> do

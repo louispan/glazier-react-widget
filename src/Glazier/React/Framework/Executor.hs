@@ -39,6 +39,16 @@ newtype Executor m r x c a b = Executor {
         -> (F.Activator m r, F.Handler m r a b)
     } deriving Functor
 
+instance Monad m => Semigroup (Executor m r x c a b) where
+    Executor f <> Executor g = Executor $ \k ->
+        let (act1, hdl1) = f k
+            (act2, hdl2) = g k
+        in (act1 <> act2, hdl1 <> hdl2)
+
+instance Monad m => Monoid (Executor m r x c a b) where
+    mempty = Executor $ \_ -> (mempty, mempty)
+    mappend = (<>)
+
 -- Using 'F.Handler' instance
 instance Functor m => Profunctor (Executor m r x c) where
     dimap f g (Executor exec) = Executor $ fmap (fmap (dimap f g)) exec
@@ -126,12 +136,24 @@ triggerExecutor triggers = Executor $ \k -> (F.Activator $ act k, P.pmempty)
             obj & this._2.item' %~ (`DL.append` DL.fromList cbs')
                 & this._1.field @"finalizer" %~ (<> ds)
 
+handlerExecutor :: Monad m => ((DL.DList c -> m (DL.DList x)) -> F.Handler m r a b) -> Executor m r x c a b
+handlerExecutor f = Executor $ \k -> (mempty, f k)
+
+handlerExecutor' :: Monad m => F.Handler m r a b -> Executor m r x (Which '[]) a b
+handlerExecutor' hdl = Executor $ \_ -> (mempty, hdl)
+
+activatorExecutor :: Monad m => ((DL.DList c -> m (DL.DList x)) -> F.Activator m r) -> Executor m r x c (Which '[]) (Which '[])
+activatorExecutor f = Executor $ \k -> (f k, mempty)
+
+activatorExecutor' :: Monad m => F.Activator m r -> Executor m r x (Which '[]) (Which '[]) (Which '[])
+activatorExecutor' act = Executor $ \_ -> (act, mempty)
+
 -- | Add a handler so that it is piped before the final transformation to @x@
-executeHandler ::
+handleBeforeExecuting ::
     ( R.MonadReactor x m
     )
     => F.Handler m r c d -> Executor m r x c a b -> Executor m r x d a b
-executeHandler (F.Handler hdl) (Executor exec) = Executor $ \k ->
+handleBeforeExecuting (F.Handler hdl) (Executor exec) = Executor $ \k ->
     ( F.Activator $ \env -> (F.runActivator . fst $ exec (k' env k)) env
     , F.Handler $ \env a -> (F.runHandler . snd $ exec (k' env k)) env a
     )

@@ -30,12 +30,12 @@ library
                        Glazier.React.Framework.Archetype
                        Glazier.React.Framework.Builder
                        Glazier.React.Framework.Core
-                       Glazier.React.Framework.Disposer
-                       Glazier.React.Framework.Handler
+                       Glazier.React.Framework.Display
                        Glazier.React.Framework.Executor
+                       Glazier.React.Framework.Finalizer
+                       Glazier.React.Framework.Handler
                        Glazier.React.Framework.Prototype
                        Glazier.React.Framework.Trigger
-                       Glazier.React.Framework.Window
                        Glazier.React.Prototypes
                        Glazier.React.Prototypes.Listing
                        Glazier.React.Prototypes.Listing.Internal

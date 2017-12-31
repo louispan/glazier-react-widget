@@ -1,3 +1,4 @@
+-- | Commands are things usually used in Handlers
 module Glazier.React.Commands
     ( module Glazier.React.Commands.Focus
     , module Glazier.React.Commands.Focus.Exec

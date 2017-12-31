@@ -339,7 +339,7 @@ listingWindow
     -> F.Window m (F.ComponentPlan x m, ss) ()
 listingWindow f (F.Window disp) = F.Window $ \(_, ss) -> do
     let Listing df ds ys xs = ss ^. item' @(Listing m s s)
-        toLi s = R.bh "li"
+        toLi s = R.branch "li"
                  []
                  (f s)
                  (disp s)
@@ -350,7 +350,7 @@ listingWindow f (F.Window disp) = F.Window $ \(_, ss) -> do
                   zs'' <- LM.sortByM ds zs'
                   pure zs''
               ys' -> pure ys'
-    R.bh "ul" [] []
+    R.branch "ul" [] []
         (mconcat $ toLi <$> ys')
 
 listingActivator

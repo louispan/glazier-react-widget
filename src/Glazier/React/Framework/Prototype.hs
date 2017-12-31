@@ -198,7 +198,7 @@ mark n (Prototype (fin, F.Window win, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl
                 let props = view (item' @(DL.DList JE.Property)) ss
                     hs = view (item' @(DL.DList F.Trait)) ss
                     ls = view (item' @(DL.DList R.Listener)) ss
-                in R.bh (JE.toJS' n)
+                in R.branch (JE.toJS' n)
                         (DL.toList ls)
                         (DL.toList (coerce hs <> props))
                         (win (cp, ss))

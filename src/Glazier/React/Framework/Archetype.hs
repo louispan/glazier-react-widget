@@ -55,7 +55,7 @@ toArchetype n (F.Prototype ( F.Disposer dis
              pure (dis' <> (F.finalizer cp) <> (F.disposeOnUpdated cp))
      , F.Window $ \ref -> do
              (cp, _) <- lift $ R.doReadIORef ref
-             R.lf (cp ^. field @"component".to JE.toJS')
+             R.leaf (cp ^. field @"component".to JE.toJS')
                  (JE.justSnds $
                      [ ("updated", cp ^. field @"onUpdated")
                      ]

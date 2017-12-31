@@ -37,7 +37,6 @@ library
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Window
                        Glazier.React.Prototypes
-                       Glazier.React.Prototypes.Div
                        Glazier.React.Prototypes.Listing
                        Glazier.React.Prototypes.Listing.Internal
                        Glazier.React.Prototypes.WithRef

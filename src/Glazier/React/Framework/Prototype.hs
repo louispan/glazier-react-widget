@@ -2,22 +2,28 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Prototype where
 
 import Control.Lens
-import Data.Diverse
-import Data.Semigroup (Semigroup(..))
+import Data.Coerce
+import qualified Data.DList as DL
+import Data.Diverse.Profunctor
+import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Builder as F
 import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Disposer as F
 import qualified Glazier.React.Framework.Window as F
 import qualified Glazier.React.Framework.Executor as F
+import qualified GHCJS.Types as J
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
+import qualified JavaScript.Extras as JE
 
 newtype Prototype m v i s i' s' x c a b = Prototype {
     runPrototype ::
@@ -170,3 +176,38 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' x c a b) where
                    , F.viaInfo l bld
                    , exec
                    )
+
+
+-- | Wrap a prototype inside a provided 'name', and adds @DL.DList JE.Property@ and @DL.DList R.Listener@
+-- to the model.
+enclose ::
+    ( Monad m
+    , HasItem' (DL.DList JE.Property) is
+    , HasItem' (DL.DList JE.Property) ss
+    , HasItem' (DL.DList F.Hardcoded) ss
+    , HasItem' (DL.DList R.Listener) ss
+    ) => J.JSString -> Prototype m v is ss (Many is') (Many ss') x c a b
+    -> Prototype m v is ss
+        (Many ((DL.DList JE.Property) ': is'))
+        (Many ((DL.DList R.Listener) ': (DL.DList F.Hardcoded) ': (DL.DList JE.Property) ': ss'))
+        x c a b
+enclose n (Prototype (fin, F.Window win, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), exec)) =
+    Prototype
+        ( fin
+        , F.Window $ \(cp, ss) ->
+                let props = view (item' @(DL.DList JE.Property)) ss
+                    hs = view (item' @(DL.DList F.Hardcoded)) ss
+                    ls = view (item' @(DL.DList R.Listener)) ss
+                in R.bh (JE.toJS' n)
+                        (DL.toList ls)
+                        (DL.toList (coerce hs <> props))
+                        (win (cp, ss))
+        , F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @(DL.DList JE.Property)) ./ i)
+                        <$> mkInf ss
+                    , F.MkModel $ \is -> (\s -> mempty
+                                             ./ mempty
+                                             ./ (is ^. item' @(DL.DList JE.Property))
+                                             ./ s)
+                        <$> mkMdl is
+                    )
+        , exec)

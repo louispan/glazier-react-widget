@@ -172,6 +172,16 @@ handleWithExecutor (Executor exec1) (Executor exec2) = Executor $ \k ->
        , F.Handler $ \env a -> (F.runHandler . snd $ exec1 (k' env)) env a
        )
 
+-- | Use the executor's own handler for the continuation to @x@
+handleWithOwnExecutor ::
+    ( R.MonadReactor x m
+    )
+    => Executor m r x a a b -> Executor m r x b (Which '[]) (Which '[])
+handleWithOwnExecutor (Executor exec) = Executor $ \k ->
+    let (act, F.Handler hdl) = exec k'
+        k' env cs = fold <$> traverse (hdl env) (DL.toList cs) >>= k
+    in (act, mempty)
+
 -- | Combine two executors, given a mapping function on how to combine handlers
 combineExecutorHandlers ::
     ( R.MonadReactor x m

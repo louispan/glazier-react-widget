@@ -18,8 +18,9 @@ import qualified Glazier.React.Framework as F
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
--- | Use with 'divideContent' for the builder of @@DL.DList R.Listener@
---
+-- | Use with 'mark' for the builder of @@DL.DList R.Listener@
+-- This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an R.EventTarget
+-- in the model
 withRef
     :: ( R.MonadReactor x m
        , HasItem' (DL.DList R.Listener) s

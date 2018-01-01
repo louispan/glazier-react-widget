@@ -160,16 +160,16 @@ diversifyExecutor ::
     => Executor m r x (Which c) a (Which b) -> Executor m r x (Which bc) a (Which bc)
 diversifyExecutor = rmap diversify . mapExecutorCommand diversify
 
--- | Chain executors together by using the left Executor's handler before final transformation to @x@
-handleWithBeforeExecuting ::
+-- | Combine executors together by using the right Executor's handler before final transformation to @x@
+handleWithExecutor ::
     ( R.MonadReactor x m
     )
-    => Executor m r x d c d -> Executor m r x c a b -> Executor m r x d a b
-handleWithBeforeExecuting (Executor exec1) (Executor exec2) = Executor $ \k ->
-    let (act1, F.Handler hdl1) = exec1 k
-        k' env cs = fold <$> traverse (hdl1 env) (DL.toList cs) >>= k
-    in ( act1 <> (F.Activator $ \env -> (F.runActivator . fst $ exec2 (k' env)) env)
-       , F.Handler $ \env a -> (F.runHandler . snd $ exec2 (k' env)) env a
+    => Executor m r x c a b -> Executor m r x d c d -> Executor m r x d a b
+handleWithExecutor (Executor exec1) (Executor exec2) = Executor $ \k ->
+    let (act2, F.Handler hdl2) = exec2 k
+        k' env cs = fold <$> traverse (hdl2 env) (DL.toList cs) >>= k
+    in ( act2 <> (F.Activator $ \env -> (F.runActivator . fst $ exec1 (k' env)) env)
+       , F.Handler $ \env a -> (F.runHandler . snd $ exec1 (k' env)) env a
        )
 
 -- | Combine two executors, given a mapping function on how to combine handlers

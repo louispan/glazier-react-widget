@@ -6,6 +6,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -25,6 +26,7 @@ import Data.Kind
 import Data.Profunctor
 import Data.Semigroup
 import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.Object as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -98,19 +100,31 @@ filterHandlerOutput f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
 type RefHandler m v s a b = Handler m (IORef v, ReifiedLens' v s) a b
+type ObjHandler m v s a b = Handler m (F.Object v s) a b
 
 newtype RefHandlerOnModel m a b v s = RefHandlerOnModel {
-    runHandlerOnModel :: RefHandler m v s a b
+    runRefHandlerOnModel :: RefHandler m v s a b
+    }
+newtype ObjHandlerOnModel m a b v s = ObjHandlerOnModel {
+    runObjHandlerOnModel :: ObjHandler m v s a b
     }
 
 type instance F.OnModel (RefHandlerOnModel m a b v) s = RefHandler m v s a b
+type instance F.OnModel (ObjHandlerOnModel m a b v) s = ObjHandler m v s a b
 
 instance F.ViaModel (RefHandlerOnModel m a b v) where
     viaModel l (Handler hdl) =
         Handler $ \(ref, Lens this) a -> hdl (ref, Lens (this.l)) a
 
+instance F.ViaModel (ObjHandlerOnModel m a b v) where
+    viaModel l (Handler hdl) =
+        Handler $ \obj -> hdl (F.withMember l obj)
+
 refHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> RefHandler m v s a b
-refHandler hdl = Handler $ \(ref, Lens this) a -> hdl ref this a
+refHandler hdl = Handler $ \(ref, Lens this) -> hdl ref this
+
+objHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> ObjHandler m v s a b
+objHandler hdl = Handler $ \F.Object{..} -> hdl ref (runLens this)
 
 -- toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s y a b
 -- toRefHandler (Handler hdl) = Handler $ \(_, ref, Lens this) a -> do

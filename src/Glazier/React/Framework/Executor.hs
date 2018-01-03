@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -32,6 +35,140 @@ import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
+
+-- | A reader with specialized executing environment
+newtype Executor2 m x c a = Executor2 { runExecutor2 :: (DL.DList c -> m (DL.DList x)) -> a }
+    deriving Functor
+
+instance Applicative (Executor2 m x c) where
+    pure r = Executor2 $ const r
+    (Executor2 exec1) <*> (Executor2 exec2) = Executor2 $ \k -> exec1 k (exec2 k)
+
+instance Monad (Executor2 m x c) where
+    (Executor2 exec) >>= f = Executor2 $ \k -> runExecutor2 (f (exec k)) k
+
+suppressExecutor2 :: (c -> Maybe c') -> Executor2 m x c a -> Executor2 m x c' a
+suppressExecutor2 f (Executor2 exec) = Executor2 $ \k -> exec (k . foldMap go)
+  where
+    go c = maybe mempty DL.singleton (f c)
+
+withExecutor2 :: (c -> c') -> Executor2 m x c a -> Executor2 m x c' a
+withExecutor2 f (Executor2 exec) = Executor2 $ \k -> exec (k . fmap f)
+
+-- | Type restricted version of 'pure' where the @c@ is set to @Which '[]@
+simpleExecutor2 :: a -> Executor2 m x (Which '[]) a
+simpleExecutor2 = pure
+
+------------------------------------------------------
+
+-- -- | Change the type of an executor so that the handler output matches the continuation input.
+-- diversifyExHandler ::
+--     ( Diversify c cb
+--     , Diversify b cb
+--     , cb ~ AppendUnique c b
+--     )
+--     => Executor2 m x (Which c) (F.Handler m r a (Which b)) -> Executor2 m x (Which cb) (F.Handler m r a (Which b))
+-- diversifyExHandler = withExecutor2 diversify
+
+-- -- | Combine executors together by using the right Executor's handler before final transformation to @x@
+-- handleWithExecutor ::
+--     ( R.MonadReactor x m
+--     )
+--     -- => Executor m r x c a b -> Executor m r x d c d -> Executor m r x d a b
+--     => Executor m r x c (F.Handler m r a b) -> Executor m r x e (F.Handler m r c d)) -> Executor m r x d a handleWithExecutor (Executor exec1) (Executor exec2) = Executor $ \k ->
+--     let (act2, F.Handler hdl2) = exec2 k
+--         k' env cs = fold <$> traverse (hdl2 env) (DL.toList cs) >>= k
+--     in ( act2 <> (F.Activator $ \env -> (F.runActivator . fst $ exec1 (k' env)) env)
+--        , F.Handler $ \env a -> (F.runHandler . snd $ exec1 (k' env)) env a
+--        )
+
+------------------------------------------------------
+
+newtype PExHandler m r x cab = PExHandler
+    { runPExHandler :: Executor2 m x (P.At0 cab) (F.Handler m r (P.At1 cab) (P.At2 cab))
+    }
+
+type instance P.PNullary (PExHandler m r x) (c, a, b) = Executor2 m x c (F.Handler m r a b)
+
+instance Applicative m => P.PMEmpty (PExHandler m r x) (Which '[], Which '[], Which '[]) where
+    pmempty = Executor2 $ const P.pmempty
+
+-- | A friendlier constraint synonym for 'Executor' 'pmappend'.
+type PmappendExecutor2 c1 c2 c3 =
+    ( Diversify c1 c3
+    , Diversify c2 c3
+    , c3 ~ AppendUnique c1 c2
+    )
+
+-- | Undecidableinstances!
+instance ( Monad m
+         , PmappendExecutor2 c1 c2 c3
+         , ChooseBetween a1 a2 a3 b1 b2 b3) =>
+         P.PSemigroup (PExHandler m r x)
+              (Which c1, Which a1, Which b1)
+              (Which c2, Which a2, Which b2)
+              (Which c3, Which a3, Which b3) where
+    x `pmappend` y = Executor2 $ \k ->
+        let hdl1 = runExecutor2 (withExecutor2 diversify x) k
+            hdl2 = runExecutor2 (withExecutor2 diversify y) k
+        in (hdl1 +||+ hdl2)
+
+------------------------------------------------------
+
+type ExObjHandler m v s x c a b = Executor2 m x c (F.ObjHandler m v s a b)
+
+newtype ExObjHandlerOnModel m v x c a b s = ExObjHandlerOnModel {
+    runExObjHandlerOnModel :: ExObjHandler m v s x c a b
+    }
+
+type instance F.OnModel (ExObjHandlerOnModel m v x c a b) s = ExObjHandler m v s x c a b
+
+instance F.ViaModel (ExObjHandlerOnModel m v x c a b) where
+    viaModel l (Executor2 exec) = Executor2 $ \k ->
+        let hdl = exec k
+        in F.viaModel l hdl
+
+
+------------------------------------------------------
+
+newtype PExActivator m r x c = PExActivator
+    { runPExActivator :: Executor2 m x c (F.Activator m r)
+    }
+
+type instance P.PNullary (PExActivator m r x) c = Executor2 m x c (F.Activator m r)
+
+instance Monad m => P.PMEmpty (PExActivator m r x) (Which '[]) where
+    pmempty = Executor2 $ const mempty
+
+-- | Undecidableinstances!
+instance ( Monad m
+         , PmappendExecutor2 c1 c2 c3) =>
+         P.PSemigroup (PExActivator m r x)
+              (Which c1)
+              (Which c2)
+              (Which c3) where
+    x `pmappend` y = Executor2 $ \k ->
+        let act1 = runExecutor2 (withExecutor2 diversify x) k
+            act2 = runExecutor2 (withExecutor2 diversify y) k
+        in (act1 <> act2)
+
+------------------------------------------------------
+
+type ExObjActivator m v s x c = Executor2 m x c (F.ObjActivator m v s)
+
+newtype ExObjActivatorOnModel m v x c s = ExObjActivatorOnModel {
+    runExObjActivatorOnModel :: ExObjActivator m v s x c
+    }
+
+type instance F.OnModel (ExObjActivatorOnModel m v x c) s = ExObjActivator m v s x c
+
+instance F.ViaModel (ExObjActivatorOnModel m v x c) where
+    viaModel l (Executor2 exec) = Executor2 $ \k ->
+        let act = exec k
+        in F.viaModel l act
+
+------------------------------------------------------
+
 
 -- | Creates both Activator and Handler because
 -- sometimes, you need the Activator to create the Handler.
@@ -172,15 +309,15 @@ handleWithExecutor (Executor exec1) (Executor exec2) = Executor $ \k ->
        , F.Handler $ \env a -> (F.runHandler . snd $ exec1 (k' env)) env a
        )
 
--- | Use the executor's own handler for the continuation to @x@
-handleWithOwnExecutor ::
-    ( R.MonadReactor x m
-    )
-    => Executor m r x a a b -> Executor m r x b (Which '[]) (Which '[])
-handleWithOwnExecutor (Executor exec) = Executor $ \k ->
-    let (act, F.Handler hdl) = exec k'
-        k' env cs = fold <$> traverse (hdl env) (DL.toList cs) >>= k
-    in (act, mempty)
+-- -- | Use the executor's own handler for the continuation to @x@
+-- handleWithOwnExecutor ::
+--     ( R.MonadReactor x m
+--     )
+--     => Executor m r x a a b -> Executor m r x b (Which '[]) (Which '[])
+-- handleWithOwnExecutor (Executor exec) = Executor $ \k ->
+--     let (act, F.Handler hdl) = exec k'
+--         k' env cs = fold <$> traverse (hdl env) (DL.toList cs) >>= k
+--     in (act, mempty)
 
 -- | Combine two executors, given a mapping function on how to combine handlers
 combineExecutorHandlers ::

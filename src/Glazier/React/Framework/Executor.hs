@@ -9,6 +9,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeInType #-}
@@ -61,26 +62,56 @@ simpleExecutor2 = pure
 
 ------------------------------------------------------
 
--- -- | Change the type of an executor so that the handler output matches the continuation input.
--- diversifyExHandler ::
---     ( Diversify c cb
---     , Diversify b cb
---     , cb ~ AppendUnique c b
---     )
---     => Executor2 m x (Which c) (F.Handler m r a (Which b)) -> Executor2 m x (Which cb) (F.Handler m r a (Which b))
--- diversifyExHandler = withExecutor2 diversify
+handleBeforeExecuting :: forall a b c d m x r y.
+    ( Monad m
+    , Injected a c b d
+    )
+    => r
+    -> F.Handler m r (Which a) (Which b)
+    -> Executor2 m x (Which c) y
+    -> Executor2 m x (Which d) y
+handleBeforeExecuting env hdl (Executor2 exec) = Executor2 $ \k ->
+    let F.Handler hdl' = injected @_ @_ @c hdl
+        k' cs = (fold <$> (traverse (hdl' env) (DL.toList cs))) >>= k
+    in exec k'
 
--- -- | Combine executors together by using the right Executor's handler before final transformation to @x@
--- handleWithExecutor ::
---     ( R.MonadReactor x m
---     )
---     -- => Executor m r x c a b -> Executor m r x d c d -> Executor m r x d a b
---     => Executor m r x c (F.Handler m r a b) -> Executor m r x e (F.Handler m r c d)) -> Executor m r x d a handleWithExecutor (Executor exec1) (Executor exec2) = Executor $ \k ->
---     let (act2, F.Handler hdl2) = exec2 k
---         k' env cs = fold <$> traverse (hdl2 env) (DL.toList cs) >>= k
---     in ( act2 <> (F.Activator $ \env -> (F.runActivator . fst $ exec1 (k' env)) env)
---        , F.Handler $ \env a -> (F.runHandler . snd $ exec1 (k' env)) env a
---        )
+-- | Use left executor's handler to tranform the right Executor's environment
+-- Ie. replace the @a1@ in @c2@ with @b1@, this is @b2@, but now we also need @c1@ in the environment.
+handleWithExHandler ::
+    ( R.MonadReactor x m
+    , c3 ~ AppendUnique c1 b2
+    , Injected a1 c2 b1 c3
+    , Diversify c1 c3
+    )
+    => Executor2 m x (Which c1) (F.Handler m r (Which a1) (Which b1)) -- handler
+    -> Executor2 m x (Which c2) (F.Handler m r a b)
+    -> Executor2 m x (Which c3) (F.Handler m r a b)
+handleWithExHandler exec1 exec2 = Executor2 $ \k ->
+    let Executor2 exec1' = withExecutor2 diversify exec1
+        hdl1 = exec1' k
+    in F.Handler $ \env a ->
+        let Executor2 exec2' = handleBeforeExecuting env hdl1 exec2
+            F.Handler hdl2 = exec2' k
+        in hdl2 env a
+
+-- | Use left executor's handler to tranform the right Executor's environment
+-- Ie. replace the @a1@ in @c2@ with @b1@, this is @b2@, but now we also need @c1@ in the environment.
+activateWithExHandler ::
+    ( R.MonadReactor x m
+    , c3 ~ AppendUnique c1 b2
+    , Injected a1 c2 b1 c3
+    , Diversify c1 c3
+    )
+    => Executor2 m x (Which c1) (F.Handler m r (Which a1) (Which b1)) -- handler
+    -> Executor2 m x (Which c2) (F.Activator m r)
+    -> Executor2 m x (Which c3) (F.Activator m r)
+activateWithExHandler exec1 exec2 = Executor2 $ \k ->
+    let Executor2 exec1' = withExecutor2 diversify exec1
+        hdl1 = exec1' k
+    in F.Activator $ \env ->
+        let Executor2 exec2' = handleBeforeExecuting env hdl1 exec2
+            F.Activator act2 = exec2' k
+        in act2 env
 
 ------------------------------------------------------
 

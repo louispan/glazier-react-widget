@@ -75,6 +75,7 @@ instance Monad m => ArrowChoice (Handler m r) where
     right = right'
 
 -- | Ignore certain inputs contravariantly
+-- Ie, pretend to handle more inputs.
 suppressHandlerInput :: Applicative m => (a -> Maybe a') -> Handler m r a' b -> Handler m r a b
 suppressHandlerInput f (Handler hdl) = Handler $ \env a -> case f a of
     Nothing -> pure DL.empty

@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
@@ -10,15 +9,15 @@ module Glazier.React.Prototypes.WithRef where
 
 import Control.Lens
 import Data.Diverse.Lens
-import Data.IORef
 import qualified Data.DList as DL
+import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Event.Internal as R
 import qualified Glazier.React.Framework as F
-import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
+import qualified Parameterized.Data.Monoid as P
 
--- | Use with 'mark' for the builder of @@DL.DList R.Listener@
+-- | Use with 'widget' for the builder of @@DL.DList R.Listener@
 -- This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an R.EventTarget
 -- in the model
 withRef
@@ -33,22 +32,25 @@ withRef
             (Which '[])
             (Which '[])
             (Which '[])
+            (Which '[])
 withRef =
     F.Prototype
         ( mempty
         , mempty
-        , F.hardcodeItem @(R.EventTarget) (R.EventTarget $ JE.JSVar J.nullRef)
-        , F.triggerExecutor [F.Trigger ("ref", pure . DL.singleton . pick . R.EventTarget . JE.JSVar)]
-          `F.handleWithExecutor` F.handlerToExecutor' (lmap obvious rh)
+        , F.hardcodeItem @R.EventTarget (R.EventTarget $ JE.JSVar J.nullRef)
+        , F.simpleExecutor (lmap obvious hdl) `F.handlesExActivator`
+          F.triggerExObjActivator [F.Trigger ("ref", pure . DL.singleton . pickOnly . R.EventTarget . JE.JSVar)]
+        , P.pmempty
         )
   where
-    rh = F.viaModel (alongside id item') (F.refHandler whenSetRef)
+    hdl :: (R.MonadReactor x m, HasItem' R.EventTarget s)
+      => F.ObjHandler m v (F.ComponentPlan x m, s) R.EventTarget (Which '[])
+    hdl = F.viaModel (alongside id item') (F.Handler whenSetRef)
 
     whenSetRef :: (R.MonadReactor x m)
-      => IORef v
-      -> Lens' v (F.ComponentPlan x m, R.EventTarget)
+      => F.Object v (F.ComponentPlan x m, R.EventTarget)
       -> R.EventTarget
       -> m (DL.DList (Which '[]))
-    whenSetRef ref this j = do
-           R.doModifyIORef' ref (set' (this._2) j)
-           pure mempty
+    whenSetRef (F.Object ref (Lens this)) j = do
+            R.doModifyIORef' ref (set' (this._2) j)
+            pure mempty

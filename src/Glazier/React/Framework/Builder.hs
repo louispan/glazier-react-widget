@@ -102,6 +102,12 @@ newtype PBuilder m i s is' = PBuilder
     { runPBuilder :: Builder m i s (P.At0 is') (P.At1 is')
     }
 
+-- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.
+type PmappendBuilder i1 i2 i3 s1 s2 s3 =
+    ( i3 ~ Append i1 i2
+    , s3 ~ Append s1 s2
+    )
+
 type instance P.PNullary (PBuilder m i s) (i', s') = Builder m i s i' s'
 
 -- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
@@ -110,8 +116,7 @@ instance Applicative m => P.PMEmpty (PBuilder m i s) (Many '[], Many '[]) where
 
 -- | UndecidableInstances!
 instance (Applicative m
-         , i3 ~ Append i1 i2
-         , s3 ~ Append s1 s2
+         , PmappendBuilder i1 i2 i3 s1 s2 s3
          ) =>
          P.PSemigroup (PBuilder m i s) (Many i1, Many s1) (Many i2, Many s2) (Many i3, Many s3) where
     (Builder (MkInfo mkInf, MkModel mkMdl)) `pmappend`
@@ -143,8 +148,8 @@ toItemBuilder (Builder (MkInfo mkInf, MkModel mkMdl)) =
 build
     :: forall x m. (Applicative m)
     => Builder m x x x x
-build = Builder ( MkInfo $ pure
-                , MkModel $ pure
+build = Builder ( MkInfo pure
+                , MkModel pure
                 )
 
 -- | Add a type @x@ into the model that is used directly from the info
@@ -153,7 +158,7 @@ build = Builder ( MkInfo $ pure
 buildItem
     :: forall x m i s. (Applicative m, HasItem' x i, HasItem' x s)
     => Builder m i s (Many '[x]) (Many '[x])
-buildItem = toItemBuilder $ build
+buildItem = toItemBuilder build
 
 -- | Add a value @x@ into the model that is not from the info.
 -- @forall@ so that the type can be specified first

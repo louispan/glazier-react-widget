@@ -10,29 +10,26 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Prototypes.Listing.Internal where
 
 import Control.DeepSeq
 import Control.Lens
-import Control.Monad.Trans.Class
 import qualified Control.Monad.ListM as LM
-import qualified Data.DList as DL
+import Control.Monad.Trans.Class
 import Data.Diverse.Profunctor
+import qualified Data.DList as DL
 import Data.Foldable
 import Data.Generics.Product
-import Data.IORef
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Semigroup
-import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework as F
 import qualified Glazier.React.Commands as C
+import qualified Glazier.React.Framework as F
 import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 
@@ -116,62 +113,81 @@ newtype ListingAction m i s = ListingAction {
     deriving (G.Generic, NFData)
 
 -- | This version drops the original item handlers @a -> b@, and only have list handlers.
-listing :: forall m v i s is ss x c a b.
+listing :: forall m v i s is ss x y z a b.
     ( R.MonadReactor x m
     , HasItem' (Listing m s i) is
     , HasItem' (Listing m s s) ss
     )
-  => (s -> [JE.Property]) -> F.Archetype m i s x c a b -> F.Prototype m v is ss
+  => (s -> [JE.Property]) -> F.Archetype m i s x y z a b -> F.Prototype m v is ss
     (Many '[Listing m s i])
     (Many '[Listing m s s])
     x
-    c
+    y
+    y
     (Which '[ListingAction m i s])
     (Which '[C.Rerender])
-listing f (F.Archetype (d@(F.Finalizer fin), dis, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
+listing f (F.Archetype
+            ( d@(F.Finalizer fin)
+            , dis
+            , bld@(F.Builder (_, mkMdl))
+            , F.Executor xact
+            , _
+            )) = F.Prototype
     ( F.Finalizer $ \ss -> fold <$> (traverse fin (ss ^. item' @(Listing m s s).field @"items"))
     , listingDisplay f dis
     , F.toItemBuilder (listingBuilder bld)
     , F.Executor $ \k ->
-            let (act, _) = exec k
-            in ( F.viaModel (alongside id item') (listingActivator act)
-               , F.viaModel (alongside id item') (faceted' (listingRefHandler d mkMdl act))
-               )
+        let act = xact k
+        in F.viaModel (alongside id item') (listingActivator act)
+    , F.Executor $ \k ->
+        let act = xact k
+        in F.viaModel (alongside id item') (faceted' (listingRefHandler d mkMdl act))
     )
 
 -- | Creates a listing with a handler that handles listing actions,
 -- as well as broadcasting original actions to in each item in the listing.
-broadcastListing :: forall m v i s is ss x c as a3 bs b3.
+broadcastListing :: forall m v i s is ss x ys zs as a3 bs b3.
     ( R.MonadReactor x m
     , HasItem' (Listing m s i) is
     , HasItem' (Listing m s s) ss
     , ChooseBetween '[ListingAction m i s] as a3 '[C.Rerender] bs b3
+    , Diversify ys (AppendUnique ys zs)
+    , Diversify zs (AppendUnique ys zs)
     )
-  => (s -> [JE.Property]) -> F.Archetype m i s x c (Which as) (Which bs) -> F.Prototype m v is ss
+  => (s -> [JE.Property])
+  -> F.Archetype m i s x (Which ys) (Which zs) (Which as) (Which bs)
+  -> F.Prototype m v is ss
     (Many '[Listing m s i])
     (Many '[Listing m s s])
     x
-    c
+    (Which ys)
+    (Which (AppendUnique ys zs))
     (Which a3)
     (Which b3)
-broadcastListing f (F.Archetype (d@(F.Finalizer fin), dis, bld@(F.Builder (_, mkMdl)), F.Executor exec)) = F.Prototype
+broadcastListing f (F.Archetype
+        (d@(F.Finalizer fin)
+        , dis, bld@(F.Builder (_, mkMdl))
+        , xact
+        , xhdl
+        )) = F.Prototype
     ( F.Finalizer $ \ss -> fold <$> (traverse fin (ss ^. item' @(Listing m s s).field @"items"))
     , listingDisplay f dis
     , F.toItemBuilder (listingBuilder bld)
     , F.Executor $ \k ->
-            let (act, hdl) = exec k
-            in ( F.viaModel (alongside id item') (listingActivator act)
-               , F.viaModel (alongside id item') (listingBroadcastRefHandler' d mkMdl act hdl)
-               )
+        let act = F.runExecutor xact k
+        in F.viaModel (alongside id item') (listingActivator act)
+    , F.Executor $ \k ->
+        let act = F.runExecutor (F.withExecutor diversify xact) k
+            hdl = F.runExecutor (F.withExecutor diversify xhdl) k
+    in F.viaModel (alongside id item') (listingBroadcastRefHandler' d mkMdl act hdl)
     )
 
 whenListingDeleteItem :: (R.MonadReactor x m)
   => F.Finalizer m s
-  -> IORef v
-  -> Lens' v (F.ComponentPlan x m, Listing m s s)
+  -> F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingDeleteItem
   -> m (DL.DList C.Rerender)
-whenListingDeleteItem (F.Finalizer fin) ref this (ListingDeleteItem k) = do
+whenListingDeleteItem (F.Finalizer fin) (F.Object ref (Lens this)) (ListingDeleteItem k) = do
        R.doModifyIORefM ref $ \obj -> do
             let mi = M.lookup k (obj ^. this._2.field @"items")
             fin' <- fromMaybe (pure mempty) (fin <$> mi)
@@ -182,11 +198,10 @@ whenListingDeleteItem (F.Finalizer fin) ref this (ListingDeleteItem k) = do
 
 -- | Sort the items on the listing given a sorting function
 whenListingSort :: (R.MonadReactor x m)
-  => IORef v
-  -> Lens' v (F.ComponentPlan x m, Listing m s s)
+  => F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingSort m s
   -> m (DL.DList C.Rerender)
-whenListingSort ref this (ListingSort f) = do
+whenListingSort (F.Object ref (Lens this)) (ListingSort f) = do
        R.doModifyIORef' ref $ \obj ->
            let (Listing df _ _ xs) = obj ^. this._2
            in obj & this._2 .~ (Listing df f [] xs)
@@ -194,11 +209,10 @@ whenListingSort ref this (ListingSort f) = do
 
 -- | Filter the items on the listing given a filter function
 whenListingFilter :: forall x m v s. (R.MonadReactor x m)
-  => IORef v
-  -> Lens' v (F.ComponentPlan x m, Listing m s s)
+  => F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingFilter m s
   -> m (DL.DList C.Rerender)
-whenListingFilter ref this (ListingFilter f) = do
+whenListingFilter (F.Object ref (Lens this)) (ListingFilter f) = do
        R.doModifyIORef' ref $ \obj ->
            let (Listing _ ds _ xs) = obj ^. this._2
            in obj & this._2 .~ (Listing f ds [] xs)
@@ -206,11 +220,10 @@ whenListingFilter ref this (ListingFilter f) = do
 
 whenListingInsertItem :: (R.MonadReactor x m)
   => F.Finalizer m s
-  -> IORef v
-  -> Lens' v (F.ComponentPlan x m, Listing m s s)
+  -> F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingInsertItem s
   -> m (DL.DList C.Rerender)
-whenListingInsertItem (F.Finalizer fin) ref this (ListingInsertItem k s) = do
+whenListingInsertItem (F.Finalizer fin) (F.Object ref (Lens this)) (ListingInsertItem k s) = do
        R.doModifyIORefM ref $ \obj -> do
             let mi = M.lookup k (obj ^. this._2.field @"items")
             fin' <- fromMaybe (pure mempty) (fin <$> mi)
@@ -220,11 +233,10 @@ whenListingInsertItem (F.Finalizer fin) ref this (ListingInsertItem k s) = do
        DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 whenListingConsItem :: (R.MonadReactor x m)
-  => IORef v
-  -> Lens' v (F.ComponentPlan x m, Listing m s s)
+  => F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingConsItem s
   -> m (DL.DList C.Rerender)
-whenListingConsItem ref this (ListingConsItem s) = do
+whenListingConsItem (F.Object ref (Lens this)) (ListingConsItem s) = do
        R.doModifyIORef' ref $ \obj ->
             let xs = M.toAscList (obj ^. this._2.field @"items")
             in case xs of
@@ -235,11 +247,10 @@ whenListingConsItem ref this (ListingConsItem s) = do
        DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
 
 whenListingSnocItem :: (R.MonadReactor x m)
-  => IORef v
-  -> Lens' v (F.ComponentPlan x m, Listing m s s)
+  => F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingSnocItem s
   -> m (DL.DList C.Rerender)
-whenListingSnocItem ref this (ListingSnocItem s) = do
+whenListingSnocItem (F.Object ref (Lens this)) (ListingSnocItem s) = do
        R.doModifyIORef' ref $ \obj ->
             let xs = M.toDescList (obj ^. this._2.field @"items")
             in case xs of
@@ -252,26 +263,25 @@ whenListingSnocItem ref this (ListingSnocItem s) = do
 -- | Handler for ListingAction
 listingNewItemRefHandler ::
     forall x m s v. ( R.MonadReactor x m)
-    => F.Finalizer m s -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) (ListingNewItemAction s) C.Rerender
-listingNewItemRefHandler fin = F.Handler $ \(ref, Lens this) (ListingNewItemAction a) ->
+    => F.Finalizer m s -> F.ObjHandler m v (F.ComponentPlan x m, Listing m s s) (ListingNewItemAction s) C.Rerender
+listingNewItemRefHandler fin = F.Handler $ \obj (ListingNewItemAction a) ->
     switch a . cases $
-        (whenListingInsertItem @x @m fin ref this)
-     ./ (whenListingConsItem @x @m ref this)
-     ./ (whenListingSnocItem @x @m ref this)
+        (whenListingInsertItem @x @m fin obj)
+     ./ (whenListingConsItem @x @m obj)
+     ./ (whenListingSnocItem @x @m obj)
      ./ nil
 
 whenListingMakeItem :: forall x m i s v. (R.MonadReactor x m)
   => F.Finalizer m s
   -> F.MkModel m i s
   -> F.Activator m s
-  -> IORef v
-  -> Lens' v (F.ComponentPlan x m, Listing m s s)
+  -> F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingMakeItem i (s -> ListingNewItemAction s)
   -> m (DL.DList C.Rerender)
-whenListingMakeItem fin mkMdl act ref this (ListingMakeItem i f) = do
+whenListingMakeItem fin mkMdl act obj (ListingMakeItem i f) = do
     s <- (F.runMkModel mkMdl) i
     (F.runActivator act) s
-    (F.runHandler (listingNewItemRefHandler fin)) (ref, Lens this) (f s)
+    (F.runHandler (listingNewItemRefHandler fin)) obj (f s)
 
 -- | Handler for ListingAction
 listingRefHandler ::
@@ -280,14 +290,14 @@ listingRefHandler ::
     => F.Finalizer m s
     -> F.MkModel m i s
     -> F.Activator m s
-    -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) (ListingAction m i s) C.Rerender
-listingRefHandler fin mkMdl act = F.Handler $ \v@(ref, Lens this) (ListingAction a) ->
+    -> F.ObjHandler m v (F.ComponentPlan x m, Listing m s s) (ListingAction m i s) C.Rerender
+listingRefHandler fin mkMdl act = F.Handler $ \obj (ListingAction a) ->
     switch a . cases $
-        ((F.runHandler (listingNewItemRefHandler @x @m @s fin)) v)
-     ./ (whenListingMakeItem @x @m @i @s fin mkMdl act ref this)
-     ./ (whenListingDeleteItem @x @m fin ref this)
-     ./ (whenListingSort @x @m ref this)
-     ./ (whenListingFilter @x @m ref this)
+        ((F.runHandler (listingNewItemRefHandler @x @m @s fin)) obj)
+     ./ (whenListingMakeItem @x @m @i @s fin mkMdl act obj)
+     ./ (whenListingDeleteItem @x @m fin obj)
+     ./ (whenListingSort @x @m obj)
+     ./ (whenListingFilter @x @m obj)
      ./ nil
 
 -- | lift a handler for a single widget into a handler of a list of widgets
@@ -297,8 +307,8 @@ listingBroadcastRefHandler
     ( R.MonadReactor x m
     )
     => F.Handler m s a b
-    -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) a b
-listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(ref, Lens this) a -> do
+    -> F.ObjHandler m v (F.ComponentPlan x m, Listing m s s) a b
+listingBroadcastRefHandler (F.Handler hdl) = F.Handler $ \(F.Object ref (Lens this)) a -> do
     obj <- R.doReadIORef ref
     ys <- traverse (\x -> hdl x a) (obj ^. this._2.field @"items")
     pure $ fold ys
@@ -311,14 +321,12 @@ listingBroadcastRefHandler' ::
     -> F.MkModel m i s
     -> F.Activator m s
     -> F.Handler m s (Which a2) (Which b2)
-    -> F.RefHandler m v (F.ComponentPlan x m, Listing m s s) (Which a3) (Which b3)
+    -> F.ObjHandler m v (F.ComponentPlan x m, Listing m s s) (Which a3) (Which b3)
 
 listingBroadcastRefHandler' fin mkMdl act hdl =
     (faceted' (listingRefHandler fin mkMdl act)) `P.pmappend` (listingBroadcastRefHandler hdl)
 
--- -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
--- toListingBuilder
-
+-- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 listingBuilder
     :: (Applicative m)
     => F.Builder m i s i s
@@ -356,7 +364,7 @@ listingDisplay f (F.Display disp) = F.Display $ \(_, ss) -> do
 listingActivator
     :: R.MonadReactor x m
     => F.Activator m s
-    -> F.RefActivator m v (F.ComponentPlan x m, Listing m s s)
-listingActivator (F.Activator act) = F.Activator $ \(ref, Lens this) -> do
+    -> F.ObjActivator m v (F.ComponentPlan x m, Listing m s s)
+listingActivator (F.Activator act) = F.Activator $ \(F.Object ref (Lens this)) -> do
     obj <- R.doReadIORef ref
-    traverse_ (\s -> act s) (obj ^. this._2.field @"items")
+    traverse_ act (obj ^. this._2.field @"items")

@@ -38,8 +38,8 @@ library
                        Glazier.React.Framework.Prototype
                        Glazier.React.Framework.Trigger
                        Glazier.React.Prototypes
-                      --  Glazier.React.Prototypes.Listing
-                      --  Glazier.React.Prototypes.Listing.Internal
+                       Glazier.React.Prototypes.Listing
+                       Glazier.React.Prototypes.Listing.Internal
                        Glazier.React.Prototypes.WithRef
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.2.0

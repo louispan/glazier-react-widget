@@ -1,21 +1,13 @@
--- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TypeApplications #-}
 
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -25,10 +17,10 @@ module Glazier.React.Commands.Rerender where
 import Control.Applicative
 import Control.Lens
 import Control.Lens.Misc
-import Data.IORef
-import Data.Semigroup
 import qualified Data.DList as DL
 import Data.Generics.Product
+import Data.IORef
+import Data.Semigroup
 import qualified Glazier.React as R
 import Glazier.React.Framework.Core as F
 import qualified JavaScript.Extras as JE

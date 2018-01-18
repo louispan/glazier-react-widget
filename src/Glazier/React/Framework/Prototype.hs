@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -12,7 +13,6 @@ module Glazier.React.Framework.Prototype where
 import Control.Lens
 import Data.Coerce
 import Data.Diverse.Profunctor
-import qualified Data.DList as DL
 import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
@@ -134,6 +134,7 @@ mapDisplay f (Prototype (fin, dis, bld, act, hdl)) = Prototype
                    , hdl
                    )
 
+-- FIXME: Need another version that can modify s
 mapBuilder
     :: (F.Builder m i1 s i1' s1' -> F.Builder m i2 s i2' s2')
     -> Prototype m v i1 s i1' s1' x y z a b
@@ -208,37 +209,38 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' x y z a b) where
 
 
 -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
--- @DL.DList JE.Property@ to the info and model, and to build
--- @DL.DList R.Listener@, and @DL.DList F.Trait@ to only the model.
+-- @[JE.Property]@ to the info and model, and to build
+-- @[R.Listener]@, and @DL.DList F.Trait@ to only the model.
 widget ::
     ( Monad m
-    , HasItem' (DL.DList JE.Property) is
-    , HasItem' (DL.DList JE.Property) ss
-    , HasItem' (DL.DList F.Trait) ss
-    , HasItem' (DL.DList R.Listener) ss
+    , HasItem' [JE.Property] i
+    , HasItem' [JE.Property] s
+    , HasItem' [F.Trait] s
+    , HasItem' [R.Listener] s
     )
     => J.JSString
-    -> Prototype m v is ss (Many is') (Many ss') x y z a b
-    -> Prototype m v is ss
-        (Many ((DL.DList JE.Property) ': is'))
-        (Many ((DL.DList R.Listener) ': (DL.DList F.Trait) ': (DL.DList JE.Property) ': ss'))
+    -> [F.Trait]
+    -> Prototype m v i s (Many is') (Many ss') x y z a b
+    -> Prototype m v i s
+        (Many ([JE.Property] ': is'))
+        (Many ([R.Listener] ': [F.Trait] ': [JE.Property] ': ss'))
         x y z a b
-widget n (Prototype (fin, F.Display dis, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), act, hdl)) =
+widget n ts (Prototype (fin, F.Display dis, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), act, hdl)) =
     Prototype
         ( fin
         , F.Display $ \(cp, ss) ->
-                let props = view (item' @(DL.DList JE.Property)) ss
-                    hs = view (item' @(DL.DList F.Trait)) ss
-                    ls = view (item' @(DL.DList R.Listener)) ss
+                let props = view (item' @[JE.Property]) ss
+                    hs = view (item' @[F.Trait]) ss
+                    ls = view (item' @[R.Listener]) ss
                 in R.branch (JE.toJS' n)
-                        (DL.toList ls)
-                        (DL.toList (coerce hs <> props))
+                        ls
+                        (coerce hs <> props)
                         (dis (cp, ss))
-        , F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @(DL.DList JE.Property)) ./ i)
+        , F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
                         <$> mkInf ss
                     , F.MkModel $ \is -> (\s -> mempty
-                                             ./ mempty
-                                             ./ (is ^. item' @(DL.DList JE.Property))
+                                             ./ ts
+                                             ./ (is ^. item' @[JE.Property])
                                              ./ s)
                         <$> mkMdl is
                     )
@@ -246,13 +248,26 @@ widget n (Prototype (fin, F.Display dis, F.Builder (F.MkInfo mkInf, F.MkModel mk
         , hdl
         )
 
-
 -- | Wrap a prototype's info and model as an item inside a Many.
-contains
+enclose
     :: ( Functor m
-       , HasItem' s ss
-       , HasItem' i is
+       , HasItem' s1 s2
+       , HasItem' i1 i2
        )
-    => Prototype m v i s i' s' x y z a b
-    -> Prototype m v is ss (Many '[i']) (Many '[s']) x y z a b
-contains p = mapBuilder (bimap single single) (F.viaModel item' (F.viaInfo item' p))
+    => Prototype m v i1 s1 i' s' x y z a b
+    -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) x y z a b
+enclose p = mapBuilder (bimap single single) (F.viaModel item' (F.viaInfo item' p))
+
+-- -- | Wrap a prototype's info and model as an item inside a Tagged and then a Many.
+-- entagged
+--     :: forall t m v i1 i2 s1 s2 i' s' x y z a b.
+--         ( Functor m
+--         , HasItem' (Tagged t s1) s2
+--         , HasItem' (Tagged t i1) i2
+--         )
+--     => Prototype m v i1 s1 i' s' x y z a b
+--     -> Prototype m v
+--         i2 s2
+--         (Many '[Tagged t i']) (Many '[Tagged t s'])
+--         x y z a b
+-- entagged p = enclose (F.viaModel (from _Wrapped') (mapBuilder (F.dimapInfo unTagged (Tagged @t)) p))

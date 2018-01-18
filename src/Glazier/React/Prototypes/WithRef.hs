@@ -22,7 +22,7 @@ import qualified Parameterized.Data.Monoid as P
 -- in the model
 withRef
     :: ( R.MonadReactor x m
-       , HasItem' (DL.DList R.Listener) s
+       , HasItem' [R.Listener] s
        , HasItem' R.EventTarget s
        )
     => F.Prototype m v p s

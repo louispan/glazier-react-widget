@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -16,6 +17,7 @@ import Control.Lens
 import Data.Biapplicative
 import Data.Coerce
 import Data.Diverse.Lens
+import Data.Tagged
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -186,3 +188,8 @@ dimapModel :: Functor m => (t -> s) -> (s' -> t') -> Builder m i s i' s' -> Buil
 dimapModel f g (Builder (mkInf, mkMdl)) =
     Builder ( coerce (contramap f (MkInfoOnModel mkInf))
             , g <$> mkMdl)
+
+taggedBuilder :: forall t m i s i' s'.
+    Functor m
+    => Builder m i s i' s' -> Builder m (Tagged t i) s (Tagged t i') s'
+taggedBuilder = dimapInfo unTagged Tagged

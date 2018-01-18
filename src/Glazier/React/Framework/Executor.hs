@@ -62,7 +62,7 @@ simpleExecutor = pure
 triggerExObjActivator ::
     ( R.MonadReactor x m
     , NFData a
-    , HasItem' (DL.DList R.Listener) s
+    , HasItem' [R.Listener] s
     )
     => [F.Trigger a]
     -> ExObjActivator m v (F.ComponentPlan x m, s) x a
@@ -74,7 +74,7 @@ triggerExObjActivator triggers = Executor $ \k -> F.Activator $ act k
         let cbs' = fmap snd <$> cbs
             ds = foldMap (fst . snd) cbs
         R.doModifyIORef' ref $ \obj ->
-            obj & this._2.item' %~ (`DL.append` DL.fromList cbs')
+            obj & this._2.item' %~ (cbs' <>)
                 & this._1.field @"finalizer" %~ (<> ds)
 
 -- | Use the given handler to transform the Executor's environment

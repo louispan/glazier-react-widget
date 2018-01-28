@@ -156,25 +156,13 @@ enclose ji ts (Prototype bld dis fin act hdl) = Prototype
     (F.viaModel (alongside id ts) hdl)
 
 -- | Wrap a prototype's info and model as an item inside a Many.
--- enclose
---     :: ( Functor m
---        , HasItem' s1 s2
---        , HasItem' i1 i2
---        )
---     => Prototype m v i1 s1 i' s' x y z a b
---     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) x y z a b
--- enclose p = mapBuilder (bimap single single) (F.viaModel item' (F.viaInfo item' p))
-
--- -- | Wrap a prototype's info and model as an item inside a Tagged and then a Many.
--- entagged
---     :: forall t m v i1 i2 s1 s2 i' s' x y z a b.
---         ( Functor m
---         , HasItem' (Tagged t s1) s2
---         , HasItem' (Tagged t i1) i2
---         )
---     => Prototype m v i1 s1 i' s' x y z a b
---     -> Prototype m v
---         i2 s2
---         (Many '[Tagged t i']) (Many '[Tagged t s'])
---         x y z a b
--- entagged p = enclose (F.viaModel (from _Wrapped') (mapBuilder (F.dimapInfo unTagged (Tagged @t)) p))
+comprise
+    :: ( Functor m
+       , HasItem' s1 s2
+       , HasItem' i1 i2
+       )
+    => Prototype m v i1 s1 i' s' x y z a b
+    -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) x y z a b
+comprise p =
+    let p'@(Prototype bld _ _ _ _) = F.viaModel item' (F.viaInfo item' p)
+    in p' { builder = F.mapBuilder id single id single bld }

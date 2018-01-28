@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -140,6 +141,19 @@ widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) (F.Display 
     fin
     act
     hdl
+
+-- | Apply isomorphisms of Info and Model to the prototype
+enclose :: Functor m
+    => Iso' j i
+    -> Iso' t s
+    -> Prototype m v i s i s x y z a b
+    -> Prototype m v j t j t x y z a b
+enclose ji ts (Prototype bld dis fin act hdl) = Prototype
+    (F.mapBuilder (view ji) (review ji) (view ts) (review ts) bld)
+    (F.viaModel (alongside id ts) dis)
+    (F.viaModel ts fin)
+    (F.viaModel (alongside id ts) act)
+    (F.viaModel (alongside id ts) hdl)
 
 -- | Wrap a prototype's info and model as an item inside a Many.
 -- enclose

@@ -17,7 +17,6 @@ import Control.Lens
 import Data.Biapplicative
 import Data.Coerce
 import Data.Diverse.Lens
-import Data.Tagged
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -171,25 +170,40 @@ hardcodeItem x = Builder ( MkInfo . const $ pure nil
                   , MkModel . const . pure $ single x
                   )
 
--- | More descriptive name for 'second' for Builder
-mapModel :: Functor m => (s' -> t') -> Builder m i s i' s' -> Builder m i s i' t'
-mapModel = second
+-- -- | More descriptive name for 'second' for Builder
+-- mapModel :: Functor m => (s' -> t') -> Builder m i s i' s' -> Builder m i s i' t'
+-- mapModel = second
 
--- | More descriptive name for 'first' for Builder
-mapInfo :: Functor m => (i' -> j') -> Builder m i s i' s' -> Builder m i s j' s'
-mapInfo = first
+-- -- | More descriptive name for 'first' for Builder
+-- mapInfo :: Functor m => (i' -> j') -> Builder m i s i' s' -> Builder m i s j' s'
+-- mapInfo = first
 
-dimapInfo :: Functor m => (j -> i) -> (i' -> j') -> Builder m i s i' s' -> Builder m j s j' s'
-dimapInfo f g (Builder (mkInf, mkMdl)) =
-    Builder ( g <$> mkInf
-            , coerce (contramap f (MkModelOnInfo mkMdl)))
+-- dimapInfo :: Functor m => (j -> i) -> (i' -> j') -> Builder m i s i' s' -> Builder m j s j' s'
+-- dimapInfo ji ij (Builder (mkInf, mkMdl)) =
+--     Builder ( ij <$> mkInf
+--             , coerce (contramap ji (MkModelOnInfo mkMdl)))
 
-dimapModel :: Functor m => (t -> s) -> (s' -> t') -> Builder m i s i' s' -> Builder m i t i' t'
-dimapModel f g (Builder (mkInf, mkMdl)) =
-    Builder ( coerce (contramap f (MkInfoOnModel mkInf))
-            , g <$> mkMdl)
+-- dimapModel :: Functor m => (t -> s) -> (s' -> t') -> Builder m i s i' s' -> Builder m i t i' t'
+-- dimapModel ts st (Builder (mkInf, mkMdl)) =
+--     Builder ( coerce (contramap ts (MkInfoOnModel mkInf))
+--             , st <$> mkMdl)
 
-taggedBuilder :: forall t m i s i' s'.
-    Functor m
-    => Builder m i s i' s' -> Builder m (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s')
-taggedBuilder = dimapModel unTagged Tagged . dimapInfo unTagged Tagged
+mapBuilder :: Functor m
+    => (j -> i) -> (i' -> j')
+    -> (t -> s) -> (s' -> t')
+    -> Builder m i s i' s' -> Builder m j t j' t'
+mapBuilder ji ij ts st (Builder (mkInf, mkMdl)) =
+    Builder
+        ( coerce (contramap ts (MkInfoOnModel (ij <$> mkInf)))
+        , coerce (contramap ji (MkModelOnInfo (st <$> mkMdl))))
+-- taggedBuilder :: forall t m i s i' s'.
+--     Functor m
+--     => Builder m i s i' s' -> Builder m (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s')
+-- taggedBuilder = dimapModel unTagged Tagged . dimapInfo unTagged Tagged
+
+
+-- wack :: Functor m => Iso' t s -> Builder m i s i' s -> Builder m i t i' t
+-- wack l = dimapModel (view l) (review l)
+
+-- wock :: Iso' t s -> Lens' t s
+-- wock a = a

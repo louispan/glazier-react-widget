@@ -45,7 +45,7 @@ data ComponentPlan x m = ComponentPlan
     { component :: R.ReactComponent
     , key :: R.ReactKey
     , frameNum :: Int
-    , finalizer :: CD.Disposable -- things to dispose when this widget is removed
+    , disposeOnRemoved :: CD.Disposable -- things to dispose when this widget is removed
     , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
     , doOnUpdated :: m (DL.DList x) -- additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
@@ -54,3 +54,14 @@ data ComponentPlan x m = ComponentPlan
 
 -- | Property that is only available in model, not plan
 newtype Trait = Trait JE.Property
+
+mkPlan :: R.MonadReactor x m => J.JSString -> m (ComponentPlan x m)
+mkPlan n = ComponentPlan
+    <$> R.getComponent
+    <*> R.mkReactKey n
+    <*> pure 0
+    <*> pure mempty -- ^ disposeOnRemoved
+    <*> pure mempty -- ^ disposeOnUpdated
+    <*> pure (pure mempty) -- ^ doOnUpdated
+    <*> pure Nothing -- ^ callback
+    <*> pure Nothing -- ^ render

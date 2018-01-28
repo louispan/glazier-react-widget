@@ -35,13 +35,12 @@ withRef
             (Which '[])
 withRef =
     F.Prototype
-        ( mempty
-        , mempty
-        , F.hardcodeItem @R.EventTarget (R.EventTarget $ JE.JSVar J.nullRef)
-        , F.simpleExecutor (lmap obvious hdl) `F.handlesExActivator`
-          F.triggerExObjActivator [F.Trigger ("ref", pure . DL.singleton . pickOnly . R.EventTarget . JE.JSVar)]
-        , P.pmempty
-        )
+        (F.hardcodeItem @R.EventTarget (R.EventTarget $ JE.JSVar J.nullRef))
+        mempty
+        mempty
+        (F.simpleExecutor (lmap obvious hdl) `F.handlesExActivator`
+          F.triggerExObjActivator [F.Trigger ("ref", pure . DL.singleton . pickOnly . R.EventTarget . JE.JSVar)])
+        P.pmempty
   where
     hdl :: (R.MonadReactor x m, HasItem' R.EventTarget s)
       => F.ObjHandler m v (F.ComponentPlan x m, s) R.EventTarget (Which '[])

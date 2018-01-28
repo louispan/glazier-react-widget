@@ -191,5 +191,5 @@ dimapModel f g (Builder (mkInf, mkMdl)) =
 
 taggedBuilder :: forall t m i s i' s'.
     Functor m
-    => Builder m i s i' s' -> Builder m (Tagged t i) s (Tagged t i') s'
-taggedBuilder = dimapInfo unTagged Tagged
+    => Builder m i s i' s' -> Builder m (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s')
+taggedBuilder = dimapModel unTagged Tagged . dimapInfo unTagged Tagged

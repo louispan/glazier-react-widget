@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -14,6 +16,7 @@ import Control.Lens
 import Data.Coerce
 import Data.Diverse.Profunctor
 import Data.Semigroup
+import qualified GHC.Generics as G
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Builder as F
@@ -25,15 +28,13 @@ import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
-newtype Prototype m v i s i' s' x y z a b = Prototype {
-    runPrototype ::
-           ( F.Finalizer m s
-           , F.Display m (F.ComponentPlan x m, s) ()
-           , F.Builder m i s i' s'
-           , F.ExObjActivator m v (F.ComponentPlan x m, s) x y
-           , F.ExObjHandler m v (F.ComponentPlan x m, s) x z a b
-           )
-    }
+data Prototype m v i s i' s' x y z a b = Prototype
+    { builder :: F.Builder m i s i' s'
+    , display :: F.Display m (F.ComponentPlan x m, s) ()
+    , finalizer :: F.Finalizer m s
+    , activator :: F.ExObjActivator m v (F.ComponentPlan x m, s) x y
+    , handler :: F.ExObjHandler m v (F.ComponentPlan x m, s) x z a b
+    } deriving (G.Generic)
 
 ------------------------------------------
 
@@ -45,12 +46,11 @@ type instance P.PNullary (PPrototype m v i s x) (i', s', y, z, a, b) = Prototype
 
 instance R.MonadReactor x m => P.PMEmpty (PPrototype m i s v x) (Many '[], Many '[], Which '[], Which '[], Which '[], Which '[]) where
     pmempty = Prototype
-        ( mempty
-        , mempty
-        , P.pmempty
-        , P.pmempty
-        , P.pmempty
-        )
+        P.pmempty
+        mempty
+        mempty
+        P.pmempty
+        P.pmempty
 
 instance ( R.MonadReactor x m
          , i3 ~ Append i1 i2
@@ -62,116 +62,13 @@ instance ( R.MonadReactor x m
              (Many i1, Many s1, Which y1, Which z1, Which a1, Which b1)
              (Many i2, Many s2, Which y2, Which z2, Which a2, Which b2)
              (Many i3, Many s3, Which y3, Which z3, Which a3, Which b3) where
-    (Prototype (fin1, dis1, bld1, act1, hdl1)) `pmappend` (Prototype (fin2, dis2, bld2, act2, hdl2)) =
+    (Prototype bld1 dis1 fin1 act1 hdl1) `pmappend` (Prototype bld2 dis2 fin2 act2 hdl2) =
         Prototype
-        ( fin1 <> fin2
-        , dis1 <> dis2
-        , bld1 `P.pmappend` bld2
-        , act1 `P.pmappend` act2
-        , hdl1 `P.pmappend` hdl2
-        )
-
-------------------------------------------
-
-displaying
-    :: Monad m
-    => F.Display m (F.ComponentPlan x m, s) ()
-    -> Prototype m v i s (Many '[]) (Many '[]) x (Which '[]) (Which '[]) (Which '[]) (Which '[])
-displaying w = Prototype
-        ( mempty
-        , w
-        , P.pmempty
-        , P.pmempty
-        , P.pmempty
-        )
-
-building
-    :: Monad m
-    => F.Builder m i s i' s'
-    -> Prototype m v i s i' s' x (Which '[]) (Which '[]) (Which '[]) (Which '[])
-building bld = Prototype
-        ( mempty
-        , mempty
-        , bld
-        , P.pmempty
-        , P.pmempty
-        )
-
-exObjActivating
-    :: Monad m
-    => F.ExObjActivator m v (F.ComponentPlan x m, s) x y
-    -> Prototype m v i s (Many '[]) (Many '[]) x y (Which '[]) (Which '[]) (Which '[])
-exObjActivating act = Prototype
-        ( mempty
-        , mempty
-        , P.pmempty
-        , act
-        , P.pmempty
-        )
-
-exObjHandling
-    :: Monad m
-    => F.ExObjHandler m v (F.ComponentPlan x m, s) x z a b
-    -> Prototype m v i s (Many '[]) (Many '[]) x (Which '[]) z a b
-exObjHandling hdl = Prototype
-        ( mempty
-        , mempty
-        , P.pmempty
-        , P.pmempty
-        , hdl
-        )
-------------------------------------------
-
-mapDisplay
-    :: (F.Display m (F.ComponentPlan x m, s) () -> F.Display m (F.ComponentPlan x m, s) ())
-    -> Prototype m v i s i' s' x y z a b
-    -> Prototype m v i s i' s' x y z a b
-mapDisplay f (Prototype (fin, dis, bld, act, hdl)) = Prototype
-                   ( fin
-                   , f dis
-                   , bld
-                   , act
-                   , hdl
-                   )
-
--- FIXME: Need another version that can modify s
-mapBuilder
-    :: (F.Builder m i1 s i1' s1' -> F.Builder m i2 s i2' s2')
-    -> Prototype m v i1 s i1' s1' x y z a b
-    -> Prototype m v i2 s i2' s2' x y z a b
-mapBuilder f (Prototype (fin, dis, bld, act, hdl)) = Prototype
-                   ( fin
-                   , dis
-                   , f bld
-                   , act
-                   , hdl
-                   )
-
-mapExObjActivator
-    :: (   F.ExObjActivator m v (F.ComponentPlan x m, s) x y1
-        -> F.ExObjActivator m v (F.ComponentPlan x m, s) x y2)
-    -> Prototype m v i s i' s' x y1 z a b
-    -> Prototype m v i s i' s' x y2 z a b
-mapExObjActivator f (Prototype (fin, dis, bld, act, hdl)) = Prototype
-                   ( fin
-                   , dis
-                   , bld
-                   , f act
-                   , hdl
-                   )
-
-mapExObjHandler
-    :: (   F.ExObjHandler m v (F.ComponentPlan x m, s) x z1 a1 b1
-        -> F.ExObjHandler m v (F.ComponentPlan x m, s) x z2 a2 b2)
-    -> Prototype m v i s i' s' x y z1 a1 b1
-    -> Prototype m v i s i' s' x y z2 a2 b2
-mapExObjHandler f (Prototype (fin, dis, bld, act, hdl)) = Prototype
-                   ( fin
-                   , dis
-                   , bld
-                   , act
-                   , f hdl
-                   )
+        (bld1 `P.pmappend` bld2)
+        (dis1 <> dis2)
+        (fin1 <> fin2)
+        (act1 `P.pmappend` act2)
+        (hdl1 `P.pmappend` hdl2)
 
 ------------------------------------------
 
@@ -182,13 +79,12 @@ newtype PrototypeOnModel m v i i' s' x y z a b s = PrototypeOnModel
 type instance F.OnModel (PrototypeOnModel m v i i' s' x y z a b) s = Prototype m v i s i' s' x y z a b
 
 instance F.ViaModel (PrototypeOnModel m v i i' s' x y z a b) where
-    viaModel l (Prototype (fin, dis, bld, act, hdl)) = Prototype
-                   ( F.viaModel l fin
-                   , F.viaModel (alongside id l) dis
-                   , F.viaModel l bld
-                   , F.viaModel (alongside id l) act
-                   , F.viaModel (alongside id l) hdl
-                   )
+    viaModel l (Prototype bld dis fin act hdl) = Prototype
+        (F.viaModel l bld)
+        (F.viaModel (alongside id l) dis)
+        (F.viaModel l fin)
+        (F.viaModel (alongside id l) act)
+        (F.viaModel (alongside id l) hdl)
 
 ------------------------------------------
 
@@ -199,13 +95,12 @@ newtype PrototypeOnInfo m v s i' s' a b x y z i = PrototypeOnInfo
 type instance F.OnInfo (PrototypeOnInfo m v s i' s' a b x y z) i = Prototype m v i s i' s' x y z a b
 
 instance F.ViaInfo (PrototypeOnInfo m v s i' s' x y z a b) where
-    viaInfo l (Prototype (fin, dis, bld, act, hdl)) = Prototype
-                   ( fin
-                   , dis
-                   , F.viaInfo l bld
-                   , act
-                   , hdl
-                   )
+    viaInfo l (Prototype bld dis fin act hdl) = Prototype
+        (F.viaInfo l bld)
+        dis
+        fin
+        act
+        hdl
 
 
 -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
@@ -225,38 +120,36 @@ widget ::
         (Many ([JE.Property] ': is'))
         (Many ([R.Listener] ': [F.Trait] ': [JE.Property] ': ss'))
         x y z a b
-widget n ts (Prototype (fin, F.Display dis, F.Builder (F.MkInfo mkInf, F.MkModel mkMdl), act, hdl)) =
+widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) (F.Display dis) fin act hdl) =
     Prototype
-        ( fin
-        , F.Display $ \(cp, ss) ->
-                let props = view (item' @[JE.Property]) ss
-                    hs = view (item' @[F.Trait]) ss
-                    ls = view (item' @[R.Listener]) ss
-                in R.branch (JE.toJS' n)
-                        ls
-                        (coerce hs <> props)
-                        (dis (cp, ss))
-        , F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
-                        <$> mkInf ss
-                    , F.MkModel $ \is -> (\s -> mempty
-                                             ./ ts
-                                             ./ (is ^. item' @[JE.Property])
-                                             ./ s)
-                        <$> mkMdl is
-                    )
-        , act
-        , hdl
-        )
+    (F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
+                    <$> mkInf ss
+                , F.MkModel $ \is -> (\s -> mempty
+                                            ./ ts
+                                            ./ (is ^. item' @[JE.Property])
+                                            ./ s)
+                    <$> mkMdl is))
+    (F.Display $ \(cp, ss) ->
+            let props = view (item' @[JE.Property]) ss
+                hs = view (item' @[F.Trait]) ss
+                ls = view (item' @[R.Listener]) ss
+            in R.branch (JE.toJS' n)
+                    ls
+                    (coerce hs <> props)
+                    (dis (cp, ss)))
+    fin
+    act
+    hdl
 
 -- | Wrap a prototype's info and model as an item inside a Many.
-enclose
-    :: ( Functor m
-       , HasItem' s1 s2
-       , HasItem' i1 i2
-       )
-    => Prototype m v i1 s1 i' s' x y z a b
-    -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) x y z a b
-enclose p = mapBuilder (bimap single single) (F.viaModel item' (F.viaInfo item' p))
+-- enclose
+--     :: ( Functor m
+--        , HasItem' s1 s2
+--        , HasItem' i1 i2
+--        )
+--     => Prototype m v i1 s1 i' s' x y z a b
+--     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) x y z a b
+-- enclose p = mapBuilder (bimap single single) (F.viaModel item' (F.viaInfo item' p))
 
 -- -- | Wrap a prototype's info and model as an item inside a Tagged and then a Many.
 -- entagged

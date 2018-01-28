@@ -75,7 +75,7 @@ triggerExObjActivator triggers = Executor $ \k -> F.Activator $ act k
             ds = foldMap (fst . snd) cbs
         R.doModifyIORef' ref $ \obj ->
             obj & this._2.item' %~ (cbs' <>)
-                & this._1.field @"finalizer" %~ (<> ds)
+                & this._1.field @"disposeOnRemoved" %~ (<> ds)
 
 -- | Use the given handler to transform the Executor's environment
 handleBeforeExecuting :: forall a b c d m x r y.

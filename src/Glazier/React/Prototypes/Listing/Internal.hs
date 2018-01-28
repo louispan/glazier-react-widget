@@ -126,22 +126,21 @@ listing :: forall m v i s is ss x y z a b.
     (Which '[ListingAction m i s])
     (Which '[C.Rerender])
 listing f (F.Archetype
-            ( d@(F.Finalizer fin)
-            , dis
-            , bld@(F.Builder (_, mkMdl))
-            , F.Executor xact
-            , _
-            )) = F.Prototype
-    ( F.Finalizer $ \ss -> fold <$> traverse fin (ss ^. item' @(Listing m s s).field @"items")
-    , listingDisplay f dis
-    , F.toItemBuilder (listingBuilder bld)
-    , F.Executor $ \k ->
+    (bld@(F.Builder (_, mkMdl)))
+        dis
+        (d@(F.Finalizer fin))
+        (F.Executor xact)
+        _)
+    = F.Prototype
+    (F.toItemBuilder (listingBuilder bld))
+    (listingDisplay f dis)
+    (F.Finalizer $ \ss -> fold <$> traverse fin (ss ^. item' @(Listing m s s).field @"items"))
+    (F.Executor $ \k ->
         let act = xact k
-        in F.viaModel (alongside id item') (listingActivator act)
-    , F.Executor $ \k ->
+        in F.viaModel (alongside id item') (listingActivator act))
+    (F.Executor $ \k ->
         let act = xact k
-        in F.viaModel (alongside id item') (faceted' (listingRefHandler d mkMdl act))
-    )
+        in F.viaModel (alongside id item') (faceted' (listingRefHandler d mkMdl act)))
 
 -- | Creates a listing with a handler that handles listing actions,
 -- as well as broadcasting original actions to in each item in the listing.
@@ -164,22 +163,22 @@ broadcastListing :: forall m v i s is ss x ys zs as a3 bs b3.
     (Which a3)
     (Which b3)
 broadcastListing f (F.Archetype
-        (d@(F.Finalizer fin)
-        , dis, bld@(F.Builder (_, mkMdl))
-        , xact
-        , xhdl
-        )) = F.Prototype
-    ( F.Finalizer $ \ss -> fold <$> traverse fin (ss ^. item' @(Listing m s s).field @"items")
-    , listingDisplay f dis
-    , F.toItemBuilder (listingBuilder bld)
-    , F.Executor $ \k ->
+        (bld@(F.Builder (_, mkMdl)))
+        dis
+        (d@(F.Finalizer fin))
+        xact
+        xhdl)
+    = F.Prototype
+    (F.toItemBuilder (listingBuilder bld))
+    (listingDisplay f dis)
+    (F.Finalizer $ \ss -> fold <$> traverse fin (ss ^. item' @(Listing m s s).field @"items"))
+    (F.Executor $ \k ->
         let act = F.runExecutor xact k
-        in F.viaModel (alongside id item') (listingActivator act)
-    , F.Executor $ \k ->
+        in F.viaModel (alongside id item') (listingActivator act))
+    (F.Executor $ \k ->
         let act = F.runExecutor (F.withExecutor diversify xact) k
             hdl = F.runExecutor (F.withExecutor diversify xhdl) k
-    in F.viaModel (alongside id item') (listingBroadcastRefHandler' d mkMdl act hdl)
-    )
+    in F.viaModel (alongside id item') (listingBroadcastRefHandler' d mkMdl act hdl))
 
 whenListingDeleteItem :: (R.MonadReactor x m)
   => F.Finalizer m s

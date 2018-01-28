@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -18,6 +19,7 @@ import Control.Lens
 import Data.Coerce
 import Data.Diverse.Profunctor
 import Data.Semigroup
+import Data.Tagged
 import qualified GHC.Generics as G
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
@@ -150,17 +152,30 @@ widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) (F.Display 
 -- | Apply isomorphisms of Info and Model to the prototype
 enclose :: Functor m
     => Iso' j i
+    -> (i' -> j')
     -> Iso' t s
-    -> Prototype m v i s i s x y z a b
-    -> Prototype m v j t j t x y z a b
-enclose ji ts (Prototype bld dis fin act hdl) = Prototype
-    (F.mapBuilder (view ji) (review ji) (view ts) (review ts) bld)
+    -> (s' -> t')
+    -> Prototype m v i s i' s' x y z a b
+    -> Prototype m v j t j' t' x y z a b
+enclose ji ij ts st (Prototype bld dis fin act hdl) = Prototype
+    (F.mapBuilder (view ji) ij (view ts) st bld)
     (F.viaModel (alongside id ts) dis)
     (F.viaModel ts fin)
     (F.viaModel (alongside id ts) act)
     (F.viaModel (alongside id ts) hdl)
 
--- | Wrap a prototype's info and model as an item inside a Many.
+encloseTagged :: forall t m v i s i' s' x y z a b.
+    Functor m
+    => Prototype m v i s i' s' x y z a b
+    -> Prototype m v (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s') x y z a b
+encloseTagged p =
+    let ts :: Iso' (Tagged t s) s
+        ts = iso unTagged Tagged
+        ji :: Iso' (Tagged t i) i
+        ji = iso unTagged Tagged
+    in enclose ji (Tagged @t) ts (Tagged @t) p
+
+-- | Wrap a prototype's info and model as an item inside a Manysans.
 comprise
     :: ( Functor m
        , HasItem' s1 s2

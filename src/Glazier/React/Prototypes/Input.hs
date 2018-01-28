@@ -26,16 +26,13 @@ import qualified Parameterized.Data.Monoid as P
 
 input ::
     ( HasItem' R.EventTarget s
-    , HasItem' [F.Trait] s
-    , HasItem' [JE.Property] s
-    , HasItem' [JE.Property] i
-    , HasItem' [R.Listener] s
+    , F.IsWidget i s
     , R.MonadReactor x m
     )
     => [F.Trait]
     -> F.Prototype m v i s
-        (Many '[ [JE.Property] ])
-        (Many '[ [R.Listener], [F.Trait], [JE.Property], R.EventTarget])
+        (F.WidgetInfo '[])
+        (F.WidgetModel '[R.EventTarget])
         x
         (Which '[]) (Which '[])
         (Which '[]) (Which '[])

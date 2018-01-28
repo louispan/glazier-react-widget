@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
@@ -103,31 +104,35 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' x y z a b) where
         act
         hdl
 
+type WidgetInfo is = Many ([JE.Property] ': is)
+type WidgetModel ss = Many ([JE.Property] ': [R.Listener] ': [F.Trait] ': ss)
+type WidgetModel' ss = Many ([R.Listener] ': [F.Trait] ': ss)
+type IsWidget i s =
+    ( HasItem' [JE.Property] i
+    , HasItem' [JE.Property] s
+    , HasItem' [F.Trait] s
+    , HasItem' [R.Listener] s)
 
 -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
 -- @[JE.Property]@ to the info and model, and to build
 -- @[R.Listener]@, and @DL.DList F.Trait@ to only the model.
 widget ::
     ( Monad m
-    , HasItem' [JE.Property] i
-    , HasItem' [JE.Property] s
-    , HasItem' [F.Trait] s
-    , HasItem' [R.Listener] s
-    )
+    , IsWidget i s)
     => J.JSString
     -> [F.Trait]
     -> Prototype m v i s (Many is') (Many ss') x y z a b
     -> Prototype m v i s
         (Many ([JE.Property] ': is'))
-        (Many ([R.Listener] ': [F.Trait] ': [JE.Property] ': ss'))
+        (Many ([JE.Property] ': [R.Listener] ': [F.Trait] ': ss'))
         x y z a b
 widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) (F.Display dis) fin act hdl) =
     Prototype
     (F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
                     <$> mkInf ss
-                , F.MkModel $ \is -> (\s -> mempty
+                , F.MkModel $ \is -> (\s -> (is ^. item' @[JE.Property])
+                                            ./ mempty
                                             ./ ts
-                                            ./ (is ^. item' @[JE.Property])
                                             ./ s)
                     <$> mkMdl is))
     (F.Display $ \(cp, ss) ->

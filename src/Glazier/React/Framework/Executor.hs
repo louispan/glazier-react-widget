@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -59,10 +60,11 @@ simpleExecutor = pure
 ------------------------------------------------------
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
-triggerExObjActivator ::
+-- Using @AllowAmbiguousTypes@ instead of @Proxy@
+triggerExObjActivator :: forall t m v s x a.
     ( R.MonadReactor x m
     , NFData a
-    , HasItem' [R.Listener] s
+    , HasItemTag' t [R.Listener] s
     )
     => [F.Trigger a]
     -> ExObjActivator m v (F.ComponentPlan x m, s) x a
@@ -74,7 +76,7 @@ triggerExObjActivator triggers = Executor $ \k -> F.Activator $ act k
         let cbs' = fmap snd <$> cbs
             ds = foldMap (fst . snd) cbs
         R.doModifyIORef' ref $ \obj ->
-            obj & this._2.item' %~ (cbs' <>)
+            obj & this._2.itemTag' @t %~ (cbs' <>)
                 & this._1.field @"disposeOnRemoved" %~ (<> ds)
 
 -- | Use the given handler to transform the Executor's environment

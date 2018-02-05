@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Prototypes.Input where
@@ -16,6 +17,7 @@ import qualified Control.Monad.Trans.Maybe.Extras as Ex
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.JSString as J
+import Data.Tagged
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Actions as A
@@ -24,19 +26,19 @@ import qualified Glazier.React.Prototypes.WithRef as W
 import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 
-input ::
-    ( HasItem' R.EventTarget s
-    , F.IsWidget i s
+input :: forall t m v i s x.
+    ( HasItemTag' t R.EventTarget s
+    , HasItemTag' t [R.Listener] s
     , R.MonadReactor x m
     )
-    => [F.Trait]
+    => (s -> [JE.Property])
     -> F.Prototype m v i s
-        (F.WidgetInfo '[])
-        (F.WidgetModel '[R.EventTarget])
+        (Many '[])
+        (Many '[Tagged t [R.Listener], Tagged t R.EventTarget])
         x
         (Which '[]) (Which '[])
         (Which '[]) (Which '[])
-input ts = F.widget "input" ts W.withRef
+input f = F.widget @t "input" f W.withRef
 
 -- data SubmitInput = SubmitInput R.EventTarget J.JSString
 --     deriving (G.Generic, NFData)

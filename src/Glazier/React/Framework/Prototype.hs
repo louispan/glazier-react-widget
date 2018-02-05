@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
+-- {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -16,7 +16,7 @@
 module Glazier.React.Framework.Prototype where
 
 import Control.Lens
-import Data.Coerce
+-- import Data.Coerce
 import Data.Diverse.Profunctor
 import Data.Semigroup
 import Data.Tagged
@@ -106,48 +106,76 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' x y z a b) where
         act
         hdl
 
-type WidgetInfo is = Many ([JE.Property] ': is)
-type WidgetModel ss = Many ([JE.Property] ': [R.Listener] ': [F.Trait] ': ss)
-type WidgetModel' ss = Many ([R.Listener] ': [F.Trait] ': ss)
-type IsWidget i s =
-    ( HasItem' [JE.Property] i
-    , HasItem' [JE.Property] s
-    , HasItem' [F.Trait] s
-    , HasItem' [R.Listener] s)
+-- type WidgetInfo is = Many ([JE.Property] ': is)
+-- type WidgetModel ss = Many ([JE.Property] ': [R.Listener] ': [F.Trait] ': ss)
+-- type WidgetModel t ss = Many (Tagged t [R.Listener] ': ss)
+-- type WidgetModel' ss = Many ([R.Listener] ': [F.Trait] ': ss)
+-- type IsWidget i s =
+--     ( HasItem' [R.Listener] s)
 
 -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
--- @[JE.Property]@ to the info and model, and to build
--- @[R.Listener]@, and @DL.DList F.Trait@ to only the model.
+-- @[R.Listener]@ to the model.
 widget ::
+    forall t m v i s i' ss' x y z a b.
     ( Monad m
-    , IsWidget i s)
+    , HasItemTag' t [R.Listener] s)
     => J.JSString
-    -> [F.Trait]
-    -> Prototype m v i s (Many is') (Many ss') x y z a b
+    -> (s -> [JE.Property])
+    -> Prototype m v i s i' (Many ss') x y z a b
     -> Prototype m v i s
-        (Many ([JE.Property] ': is'))
-        (Many ([JE.Property] ': [R.Listener] ': [F.Trait] ': ss'))
+        i'
+        (Many (Tagged t [R.Listener] ': ss'))
         x y z a b
-widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) (F.Display dis) fin act hdl) =
+widget n f (Prototype (F.Builder (mkInf, F.MkModel mkMdl)) (F.Display dis) fin act hdl) =
     Prototype
-    (F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
-                    <$> mkInf ss
-                , F.MkModel $ \is -> (\s -> (is ^. item' @[JE.Property])
-                                            ./ mempty
-                                            ./ ts
-                                            ./ s)
+    (F.Builder ( mkInf
+                , F.MkModel $ \is -> (\s -> (is ^. mempty
+                                            ./ s))
                     <$> mkMdl is))
     (F.Display $ \(cp, ss) ->
-            let props = view (item' @[JE.Property]) ss
-                hs = view (item' @[F.Trait]) ss
-                ls = view (item' @[R.Listener]) ss
+            let props = f ss
+                ls = view (itemTag' @t @[R.Listener]) ss
             in R.branch (JE.toJS' n)
                     ls
-                    (coerce hs <> props)
+                    props
                     (dis (cp, ss)))
     fin
     act
     hdl
+
+-- -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
+-- -- @[JE.Property]@ to the info and model, and to build
+-- -- @[R.Listener]@, and @DL.DList F.Trait@ to only the model.
+-- widget ::
+--     ( Monad m
+--     , IsWidget i s)
+--     => J.JSString
+--     -> (Many ss' -> [F.Trait])
+--     -> Prototype m v i s i' (Many ss') x y z a b
+--     -> Prototype m v i s
+--         i'
+--         (Many ([R.Listener] ': ss'))
+--         x y z a b
+-- widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) (F.Display dis) fin act hdl) =
+--     Prototype
+--     (F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
+--                     <$> mkInf ss
+--                 , F.MkModel $ \is -> (\s -> (is ^. item' @[JE.Property])
+--                                             ./ mempty
+--                                             ./ ts
+--                                             ./ s)
+--                     <$> mkMdl is))
+--     (F.Display $ \(cp, ss) ->
+--             let props = view (item' @[JE.Property]) ss
+--                 hs = view (item' @[F.Trait]) ss
+--                 ls = view (item' @[R.Listener]) ss
+--             in R.branch (JE.toJS' n)
+--                     ls
+--                     (coerce hs <> props)
+--                     (dis (cp, ss)))
+--     fin
+--     act
+--     hdl
 
 -- | Apply isomorphisms of Info and Model to the prototype
 enclose :: Functor m

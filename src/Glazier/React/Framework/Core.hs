@@ -19,7 +19,7 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified JavaScript.Extras as JE
+-- import qualified JavaScript.Extras as JE
 
 ----------------------------------------------------------
 
@@ -53,7 +53,7 @@ data ComponentPlan x m = ComponentPlan
     } deriving (G.Generic)
 
 -- | Property that is only available in model, not plan
-newtype Trait = Trait JE.Property
+-- newtype Trait = Trait JE.Property
 
 mkPlan :: R.MonadReactor x m => J.JSString -> m (ComponentPlan x m)
 mkPlan n = ComponentPlan

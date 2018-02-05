@@ -17,6 +17,7 @@ import Control.Lens
 import Data.Biapplicative
 import Data.Coerce
 import Data.Diverse.Lens
+import Data.Tagged
 import qualified Glazier.React.Framework.Core as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
@@ -168,6 +169,16 @@ hardcodeItem
     => x -> Builder m i s (Many '[]) (Many '[x])
 hardcodeItem x = Builder ( MkInfo . const $ pure nil
                   , MkModel . const . pure $ single x
+                  )
+
+-- | Add a value @x@ into the model that is not from the info.
+-- @forall@ so that the type can be specified first
+-- Using @AllowAmbiguousTypes@ instead of @Proxy@
+hardcodeItemTag
+    :: forall t x m i s. Applicative m
+    => x -> Builder m i s (Many '[]) (Many '[Tagged t x])
+hardcodeItemTag x = Builder ( MkInfo . const $ pure nil
+                  , MkModel . const . pure . single $ Tagged x
                   )
 
 -- -- | More descriptive name for 'second' for Builder

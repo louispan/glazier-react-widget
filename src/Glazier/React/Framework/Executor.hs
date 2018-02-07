@@ -61,13 +61,13 @@ execute = pure
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 -- Using @AllowAmbiguousTypes@ instead of @Proxy@
-triggers :: forall t m v s x a.
+triggers :: forall t m v s x c.
     ( R.MonadReactor x m
-    , NFData a
+    , NFData c
     , HasItemTag' t [R.Listener] s
     )
-    => [F.Trigger a]
-    -> ExObjActivator m v (F.ComponentPlan x m, s) x a
+    => [F.Trigger c]
+    -> ExObjActivator m v (F.ComponentPlan x m, s) x c
 triggers ts = Executor $ \k -> F.Activator $ act k
   where
     act k (F.Object ref (Lens this)) = do
@@ -114,6 +114,20 @@ controls exec1 exec2 = Executor $ \k ->
             Executor exec2'' = withExecutor diversify exec2'
             y = exec2'' k
         in (F.toReader y) env
+
+controlled :: forall t m v s x c1 c2 c3 c4 a1 b1.
+    ( R.MonadReactor x m
+    , NFData (Which c2)
+    , HasItemTag' t [R.Listener] s
+    , c4 ~ AppendUnique c1 c3
+    , Injected a1 c2 b1 c3
+    , Diversify c1 c4
+    , Diversify c3 c4
+    )
+    => [F.Trigger (Which c2)]
+    -> Executor m x (Which c1) (F.ObjHandler m v (F.ComponentPlan x m, s) (Which a1) (Which b1))
+    -> Executor m x (Which c4) (F.ObjActivator m v (F.ComponentPlan x m, s))
+controlled ts hdl = hdl `controls` triggers @t ts
 
 ------------------------------------------------------
 

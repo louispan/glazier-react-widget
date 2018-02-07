@@ -101,19 +101,19 @@ controls ::
     , Injected a1 c2 b1 c3
     , Diversify c1 c4
     , Diversify c3 c4
-    , F.IsReader r exec
+    , F.IsReader r y
     )
     => Executor m x (Which c1) (F.Handler m r (Which a1) (Which b1)) -- handler
-    -> Executor m x (Which c2) exec
-    -> Executor m x (Which c4) exec
+    -> Executor m x (Which c2) y
+    -> Executor m x (Which c4) y
 controls exec1 exec2 = Executor $ \k ->
     let Executor exec1' = withExecutor diversify exec1
         hdl1 = exec1' k
     in F.fromReader $ \env ->
         let exec2' = handleBeforeExecuting env hdl1 exec2
             Executor exec2'' = withExecutor diversify exec2'
-            exec3 = exec2'' k
-        in (F.toReader exec3) env
+            y = exec2'' k
+        in (F.toReader y) env
 
 ------------------------------------------------------
 

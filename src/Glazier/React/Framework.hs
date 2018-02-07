@@ -8,6 +8,7 @@ module Glazier.React.Framework
     , module Glazier.React.Framework.Executor
     , module Glazier.React.Framework.Finalizer
     , module Glazier.React.Framework.Handler
+    , module Glazier.React.Framework.IsReader
     , module Glazier.React.Framework.Object
     , module Glazier.React.Framework.Prototype
     , module Glazier.React.Framework.Trigger
@@ -21,6 +22,7 @@ import Glazier.React.Framework.Display
 import Glazier.React.Framework.Executor
 import Glazier.React.Framework.Finalizer
 import Glazier.React.Framework.Handler
+import Glazier.React.Framework.IsReader
 import Glazier.React.Framework.Object
 import Glazier.React.Framework.Prototype
 import Glazier.React.Framework.Trigger

@@ -9,8 +9,10 @@
 module Glazier.React.Framework.Activator where
 
 import Control.Lens
+-- import Data.Functor.Contravariant
 import Data.Semigroup
 import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.IsReader as F
 import qualified Glazier.React.Framework.Object as F
 
 ------------------------------------------
@@ -20,12 +22,17 @@ newtype Activator m r = Activator
                    -> m () -- return the monadic action to commit the activation
     }
 
-instance Monad m => Semigroup (Activator m r) where
+instance F.IsReader r (Activator m r) where
+    type ReaderResult r (Activator m r) = m ()
+    fromReader = Activator
+    toReader = runActivator
+
+instance Applicative m => Semigroup (Activator m r) where
     (Activator f) <> (Activator g) = Activator $ \env ->
-        f env >>
+        f env *>
         g env
 
-instance Monad m => Monoid (Activator m r) where
+instance Applicative m => Monoid (Activator m r) where
     mempty = Activator $ \_ -> pure ()
     mappend = (<>)
 
@@ -43,4 +50,4 @@ type instance F.OnModel (ObjActivatorOnModel m v) s = ObjActivator m v s
 
 instance F.ViaModel (ObjActivatorOnModel m v) where
     viaModel l (Activator f) = Activator $ \obj ->
-        f (F.withMember l obj)
+        f (F.nest l obj)

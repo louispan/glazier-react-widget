@@ -19,21 +19,25 @@ import Control.Lens
 import Data.Diverse.Profunctor
 import qualified Data.DList as DL
 import Data.Foldable
-import Data.Kind
 import Data.Profunctor
 import Data.Semigroup
 import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.IsReader as F
 import qualified Glazier.React.Framework.Object as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
-newtype Handler (m :: Type -> Type) r a b = Handler
+newtype Handler m r a b = Handler
     { runHandler :: r -> a -> m (DL.DList b)
     }
 
+instance F.IsReader r (Handler m r a b) where
+    type ReaderResult r (Handler m r a b) = a -> m (DL.DList b)
+    fromReader = Handler
+    toReader = runHandler
+
 instance Applicative m => Semigroup (Handler m r a b) where
     Handler f <> Handler g = Handler $ \env a -> liftA2 (<>) (f env a) (g env a)
-
 instance Applicative m => Monoid (Handler m r a b) where
     mempty = Handler $ \_ _ -> pure mempty
     mappend = (<>)
@@ -107,7 +111,7 @@ type instance F.OnModel (ObjHandlerOnModel m a b v) s = ObjHandler m v s a b
 
 instance F.ViaModel (ObjHandlerOnModel m a b v) where
     viaModel l (Handler hdl) =
-        Handler $ \obj -> hdl (F.withMember l obj)
+        Handler $ \obj -> hdl (F.nest l obj)
 
 -- objHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> ObjHandler m v s a b
 -- objHandler hdl = Handler $ \(F.Object ref (Lens this)) -> hdl ref this

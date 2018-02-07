@@ -7,7 +7,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -29,6 +28,7 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Handler as F
+import qualified Glazier.React.Framework.IsReader as F
 import qualified Glazier.React.Framework.Object as F
 import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
@@ -54,25 +54,25 @@ withExecutor :: (c -> c') -> Executor m x c a -> Executor m x c' a
 withExecutor f (Executor exec) = Executor $ \k -> exec (k . fmap f)
 
 -- | Type restricted version of 'pure' where the @c@ is set to @Which '[]@
-simpleExecutor :: a -> Executor m x (Which '[]) a
-simpleExecutor = pure
+execute :: a -> Executor m x (Which '[]) a
+execute = pure
 
 ------------------------------------------------------
 
 -- | Create callbacks from triggers and add it to this state's dlist of listeners.
 -- Using @AllowAmbiguousTypes@ instead of @Proxy@
-triggerExObjActivator :: forall t m v s x a.
+triggers :: forall t m v s x a.
     ( R.MonadReactor x m
     , NFData a
     , HasItemTag' t [R.Listener] s
     )
     => [F.Trigger a]
     -> ExObjActivator m v (F.ComponentPlan x m, s) x a
-triggerExObjActivator triggers = Executor $ \k -> F.Activator $ act k
+triggers ts = Executor $ \k -> F.Activator $ act k
   where
     act k (F.Object ref (Lens this)) = do
         cbs <- traverse {- list of triggers traverse -}
-                  (traverse {- tuple traverse -} (`R.mkCallback` k) . F.runTrigger) triggers
+                  (traverse {- tuple traverse -} (`R.mkCallback` k) . F.runTrigger) ts
         let cbs' = fmap snd <$> cbs
             ds = foldMap (fst . snd) cbs
         R.doModifyIORef' ref $ \obj ->
@@ -95,45 +95,25 @@ handleBeforeExecuting env hdl (Executor exec) = Executor $ \k ->
 
 -- | Use left executor's handler to tranform the right Executor's environment
 -- Ie. replace the @a1@ in @c2@ with @b1@ (this is @c3@), but now we also need @c1@ in the environment.
-handlesExHandler ::
+controls ::
     ( R.MonadReactor x m
     , c4 ~ AppendUnique c1 c3
     , Injected a1 c2 b1 c3
     , Diversify c1 c4
     , Diversify c3 c4
+    , F.IsReader r exec
     )
     => Executor m x (Which c1) (F.Handler m r (Which a1) (Which b1)) -- handler
-    -> Executor m x (Which c2) (F.Handler m r a b)
-    -> Executor m x (Which c4) (F.Handler m r a b)
-handlesExHandler exec1 exec2 = Executor $ \k ->
+    -> Executor m x (Which c2) exec
+    -> Executor m x (Which c4) exec
+controls exec1 exec2 = Executor $ \k ->
     let Executor exec1' = withExecutor diversify exec1
         hdl1 = exec1' k
-    in F.Handler $ \env a ->
+    in F.fromReader $ \env ->
         let exec2' = handleBeforeExecuting env hdl1 exec2
             Executor exec2'' = withExecutor diversify exec2'
-            F.Handler hdl2 = exec2'' k
-        in hdl2 env a
-
--- | Use left executor's handler to tranform the right Executor's environment
--- Ie. replace the @a1@ in @c2@ with @b1@ (this is @c3@), but now we also need @c1@ in the environment.
-handlesExActivator ::
-    ( R.MonadReactor x m
-    , c ~ AppendUnique c1 c3
-    , Injected a1 c2 b1 c3
-    , Diversify c1 c4
-    , Diversify c3 c4
-    )
-    => Executor m x (Which c1) (F.Handler m r (Which a1) (Which b1)) -- handler
-    -> Executor m x (Which c2) (F.Activator m r)
-    -> Executor m x (Which c4) (F.Activator m r)
-handlesExActivator exec1 exec2 = Executor $ \k ->
-    let Executor exec1' = withExecutor diversify exec1
-        hdl1 = exec1' k
-    in F.Activator $ \env ->
-        let exec2' = handleBeforeExecuting env hdl1 exec2
-            Executor exec2'' = withExecutor diversify exec2'
-            F.Activator act2 = exec2'' k
-        in act2 env
+            exec3 = exec2'' k
+        in (F.toReader exec3) env
 
 ------------------------------------------------------
 

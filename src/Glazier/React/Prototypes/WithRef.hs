@@ -43,17 +43,17 @@ withRef =
         (F.hardcodeItemTag @t (R.EventTarget $ JE.JSVar J.nullRef))
         mempty
         mempty
-        (F.simpleExecutor (lmap obvious hdl) `F.handlesExActivator`
-          F.triggerExObjActivator @t [F.Trigger ("ref", pure . DL.singleton . pickOnly . R.EventTarget . JE.JSVar)])
+        (F.execute hdlRef `F.controls`
+          F.triggers @t [F.Trigger ("ref", pure . DL.singleton . pickOnly . R.EventTarget . JE.JSVar)])
         P.pmempty
   where
-    hdl :: F.ObjHandler m v (F.ComponentPlan x m, s) R.EventTarget (Which '[])
-    hdl = F.viaModel (alongside id (itemTag' @t)) (F.Handler whenSetRef)
+    hdlRef :: F.ObjHandler m v (F.ComponentPlan x m, s) (Which '[R.EventTarget]) (Which '[])
+    hdlRef = F.viaModel (alongside id (itemTag' @t)) (F.Handler whenRef)
 
-    whenSetRef ::
+    whenRef ::
       F.Object v (F.ComponentPlan x m, R.EventTarget)
-      -> R.EventTarget
+      -> Which '[R.EventTarget]
       -> m (DL.DList (Which '[]))
-    whenSetRef (F.Object ref (Lens this)) j = do
-            R.doModifyIORef' ref (set' (this._2) j)
+    whenRef (F.Object ref (Lens this)) j = do
+            R.doModifyIORef' ref (set' (this._2) (obvious j))
             pure mempty

@@ -43,8 +43,9 @@ withRef =
         (F.hardcodeItemTag @t (R.EventTarget $ JE.JSVar J.nullRef))
         mempty
         mempty
-        (F.controlledTriggers' @t
-          [F.Trigger ("ref", pure . DL.singleton . R.EventTarget . JE.JSVar)]
+        (F.controlledTrigger' @t
+          "ref"
+          (pure . DL.singleton . R.EventTarget . JE.JSVar)
           (F.delegate (F.Handler whenRef)))
         P.pmempty
   where

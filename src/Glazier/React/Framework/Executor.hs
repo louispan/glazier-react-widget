@@ -31,7 +31,6 @@ import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.IsReader as F
 import qualified Glazier.React.Framework.Object as F
-import qualified Glazier.React.Framework.Trigger as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -64,27 +63,7 @@ delegate :: F.Handler m r a b -> ExHandler m r x b a b
 delegate = pure
 ------------------------------------------------------
 
--- | Create callbacks from triggers and add it to this state's dlist of listeners.
--- Using @AllowAmbiguousTypes@ instead of @Proxy@
-triggers :: forall t m v s x c.
-    ( R.MonadReactor x m
-    , NFData c
-    , HasItemTag' t [R.Listener] s
-    )
-    => [F.Trigger c]
-    -> ProtoActivator m v s x c
-triggers ts = Executor $ \k -> F.Activator $ act k
-  where
-    act k (F.Object ref (Lens this)) = do
-        cbs <- traverse {- list of triggers traverse -}
-                  (traverse {- tuple traverse -} (`R.mkCallback` k) . F.runTrigger) ts
-        let cbs' = fmap snd <$> cbs
-            ds = foldMap (fst . snd) cbs
-        R.doModifyIORef' ref $ \obj ->
-            obj & this._2.itemTag' @t %~ (cbs' <>)
-                & this._1.field @"disposeOnRemoved" %~ (<> ds)
-
--- | Create callbacks from triggers and add it to this state's dlist of listeners.
+-- | Create callbacks and add it to this state's dlist of listeners.
 -- Using @AllowAmbiguousTypes@ instead of @Proxy@
 trigger :: forall t m v s x c.
     ( R.MonadReactor x m
@@ -179,20 +158,21 @@ controls exec1 exec2 =
 -- | Convenience function to create an activator
 -- given triggers and a handler.
 -- Simple version using 'controls''
-controlledTriggers' :: forall t m v s x a b.
+controlledTrigger' :: forall t m v s x a b.
     ( R.MonadReactor x m
     , NFData a
     , HasItemTag' t [R.Listener] s
     )
-    => [F.Trigger a]
+    => J.JSString
+    -> (J.JSVal -> IO (DL.DList a))
     -> ProtoHandler m v s x b a b
     -> ProtoActivator m v s x b
-controlledTriggers' ts hdl = hdl `controls'` triggers @t ts
+controlledTrigger' n f hdl = hdl `controls'` trigger @t n f
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
 -- Complex version using 'controls'
-controlledTriggers :: forall t m v s x c1 c2 c3 c4 a b.
+controlledTrigger :: forall t m v s x c1 c2 c3 c4 a b.
     ( R.MonadReactor x m
     , NFData (Which c2)
     , HasItemTag' t [R.Listener] s
@@ -201,10 +181,11 @@ controlledTriggers :: forall t m v s x c1 c2 c3 c4 a b.
     , Diversify c1 c4
     , Diversify c3 c4
     )
-    => [F.Trigger (Which c2)]
+    => J.JSString
+    -> (J.JSVal -> IO (DL.DList (Which c2)))
     -> ProtoHandler m v s x (Which c1) (Which a) (Which b)
     -> ProtoActivator m v s x (Which c4)
-controlledTriggers ts hdl = hdl `controls` triggers @t ts
+controlledTrigger n f hdl = hdl `controls` trigger @t n f
 
 ------------------------------------------------------
 
@@ -241,7 +222,7 @@ instance ( Monad m
 
 type ExHandler m r x z a b = Executor m x z (F.Handler m r a b)
 type ExObjHandler m v s x z a b = Executor m x z (F.ObjHandler m v s a b)
-type ProtoHandler m v s x z a b = Executor m x z (F.ObjHandler m v (F.ComponentPlan x m, s) a b)
+type ProtoHandler m v s x z a b = ExObjHandler m v (F.ComponentPlan x m, s) x z a b
 
 newtype ExObjHandlerOnModel m v x z a b s = ExObjHandlerOnModel {
     runExObjHandlerOnModel :: ExObjHandler m v s x z a b
@@ -282,7 +263,7 @@ instance ( Monad m
 
 type ExActivator m r x y = Executor m x y (F.Activator m r)
 type ExObjActivator m v s x y = Executor m x y (F.ObjActivator m v s)
-type ProtoActivator m v s x y = Executor m x y (F.ObjActivator m v (F.ComponentPlan x m, s))
+type ProtoActivator m v s x y = ExObjActivator m v (F.ComponentPlan x m, s) x y
 
 newtype ExObjActivatorOnModel m v x y s = ExObjActivatorOnModel {
     runExObjActivatorOnModel :: ExObjActivator m v s x y

@@ -37,7 +37,6 @@ library
                        Glazier.React.Framework.IsReader
                        Glazier.React.Framework.Object
                        Glazier.React.Framework.Prototype
-                       Glazier.React.Framework.Trigger
                        Glazier.React.Prototypes
                        Glazier.React.Prototypes.Input
                        Glazier.React.Prototypes.Listing

@@ -192,7 +192,7 @@ whenListingDeleteItem (F.Finalizer fin) (F.Object ref (Lens this)) (ListingDelet
         pure $ obj & (this._2.field @"items" %~ M.delete k)
             . (this._1.field @"disposeOnUpdated" %~ (<> fin'))
             . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
-    DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
+    C.mkRerender' ref this
 
 -- | Sort the items on the listing given a sorting function
 whenListingSort :: (R.MonadReactor x m)
@@ -203,7 +203,7 @@ whenListingSort (F.Object ref (Lens this)) (ListingSort f) = do
     R.doModifyIORef' ref $ \obj ->
         obj & (this._2.field @"displaySort" .~ f)
             . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
-    DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
+    C.mkRerender' ref this
 
 -- | Filter the items on the listing given a filter function
 whenListingFilter :: forall x m v s. (R.MonadReactor x m)
@@ -214,7 +214,7 @@ whenListingFilter (F.Object ref (Lens this)) (ListingFilter f) = do
     R.doModifyIORef' ref $ \obj ->
         obj & (this._2.field @"displayFilter" .~ f)
             . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
-    DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
+    C.mkRerender' ref this
 
 whenListingInsertItem :: (R.MonadReactor x m)
   => F.Finalizer m s
@@ -228,7 +228,7 @@ whenListingInsertItem (F.Finalizer fin) (F.Object ref (Lens this)) (ListingInser
         pure $ obj & (this._2.field @"items" %~ M.insert k s)
             . (this._1.field @"disposeOnUpdated" %~ (<> fin'))
             . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
-    DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
+    C.mkRerender' ref this
 
 whenListingConsItem :: (R.MonadReactor x m)
   => F.Object v (F.ComponentPlan x m, Listing m s s)
@@ -242,21 +242,21 @@ whenListingConsItem (F.Object ref (Lens this)) (ListingConsItem s) = do
                 . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
             ((k, _) : _) -> obj & (this._2.field @"items" %~ M.insert (smallerIdx k) s)
                 . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
-    DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
+    C.mkRerender' ref this
 
 whenListingSnocItem :: (R.MonadReactor x m)
   => F.Object v (F.ComponentPlan x m, Listing m s s)
   -> ListingSnocItem s
   -> m (DL.DList C.Rerender)
 whenListingSnocItem (F.Object ref (Lens this)) (ListingSnocItem s) = do
-       R.doModifyIORef' ref $ \obj ->
+        R.doModifyIORef' ref $ \obj ->
             let xs = M.toDescList (obj ^. this._2.field @"items")
             in case xs of
                 [] -> obj & (this._2.field @"items" .~ M.singleton (0 NE.:| []) s)
                     . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
                 ((k, _) : _) -> obj & (this._2.field @"items" %~ M.insert (largerIdx k) s)
                     . (this._2.field @"displayList" .~ []) -- this tells render to update displayItems
-       DL.singleton <$> C.mkRerender ref (this._1) (pure mempty)
+        C.mkRerender' ref this
 
 -- | Handler for ListingAction
 listingNewItemRefHandler ::

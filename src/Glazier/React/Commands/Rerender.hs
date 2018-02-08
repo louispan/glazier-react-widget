@@ -17,7 +17,6 @@ module Glazier.React.Commands.Rerender where
 import Control.Applicative
 import Control.Lens
 import Control.Lens.Misc
-import Data.Diverse
 import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
@@ -37,9 +36,8 @@ mkRerender ref this f = do
     pure $ Rerender (obj ^. (this . field @"component")) [("frameNum", JE.toJS' i)]
 
 mkRerender' ::
-    ( R.MonadReactor x m
-    , UniqueMember Rerender a)
+    ( R.MonadReactor x m)
     => IORef v
     -> Lens' v (ComponentPlan x m, s)
-    -> m (DL.DList (Which a))
-mkRerender' ref this = (DL.singleton . pick) <$> mkRerender ref (this._1) (pure mempty)
+    -> m (DL.DList Rerender)
+mkRerender' ref this = DL.singleton <$> mkRerender ref (this._1) (pure mempty)

@@ -16,6 +16,8 @@ newtype Display m s r = Display
     { runDisplay :: s -> R.ReactMlT m r
     } deriving (Functor)
 
+type ProtoDisplay m x s = Display m (F.ComponentPlan x m, s) ()
+
 instance Monad m => Applicative (Display m s) where
     pure = Display . const . pure
     Display f <*> Display g = Display $ \s -> f s <*> g s

@@ -43,15 +43,15 @@ withRef =
         (F.hardcodeItemTag @t (R.EventTarget $ JE.JSVar J.nullRef))
         mempty
         mempty
-        (F.controlled @t
-          [F.Trigger ("ref", pure . DL.singleton . pickOnly . R.EventTarget . JE.JSVar)]
-          (F.execute (F.Handler whenRef)))
+        (F.controlledTriggers' @t
+          [F.Trigger ("ref", pure . DL.singleton . R.EventTarget . JE.JSVar)]
+          (F.delegate (F.Handler whenRef)))
         P.pmempty
   where
     whenRef ::
       F.Object v (F.ComponentPlan x m, s)
-      -> Which '[R.EventTarget]
+      -> R.EventTarget
       -> m (DL.DList (Which '[]))
     whenRef (F.Object ref (Lens this)) j = do
-            R.doModifyIORef' ref (set' (this._2.itemTag' @t) (obvious j))
+            R.doModifyIORef' ref (set' (this._2.itemTag' @t) j)
             pure mempty

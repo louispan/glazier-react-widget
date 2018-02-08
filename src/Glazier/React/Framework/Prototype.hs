@@ -34,10 +34,10 @@ import qualified Parameterized.TypeLevel as P
 
 data Prototype m v i s i' s' x y z a b = Prototype
     { builder :: F.Builder m i s i' s'
-    , display :: F.Display m (F.ComponentPlan x m, s) ()
+    , display :: F.ProtoDisplay m x s
     , finalizer :: F.Finalizer m s
-    , activator :: F.ExObjActivator m v (F.ComponentPlan x m, s) x y
-    , handler :: F.ExObjHandler m v (F.ComponentPlan x m, s) x z a b
+    , activator :: F.ProtoActivator m v s x y
+    , handler :: F.ProtoHandler m v s x z a b
     } deriving (G.Generic)
 
 ------------------------------------------

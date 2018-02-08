@@ -102,6 +102,7 @@ filterHandlerOutput f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
 type ObjHandler m v s a b = Handler m (F.Object v s) a b
+type ComHandler x m v s a b = Handler m (F.ComObject x m v s) a b
 
 newtype ObjHandlerOnModel m a b v s = ObjHandlerOnModel {
     runObjHandlerOnModel :: ObjHandler m v s a b

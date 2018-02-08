@@ -35,22 +35,22 @@ import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
 -- | A reader with specialized executing environment
-newtype Executor m x c a = Executor { runExecutor :: (DL.DList c -> m (DL.DList x)) -> a }
+newtype Executor x m c a = Executor { runExecutor :: (DL.DList c -> m (DL.DList x)) -> a }
     deriving Functor
 
-instance Applicative (Executor m x c) where
+instance Applicative (Executor x m c) where
     pure r = Executor $ const r
     (Executor exec1) <*> (Executor exec2) = Executor $ \k -> exec1 k (exec2 k)
 
-instance Monad (Executor m x c) where
+instance Monad (Executor x m c) where
     (Executor exec) >>= f = Executor $ \k -> runExecutor (f (exec k)) k
 
-suppressExecutor :: (c -> Maybe c') -> Executor m x c a -> Executor m x c' a
+suppressExecutor :: (c -> Maybe c') -> Executor x m c a -> Executor x m c' a
 suppressExecutor f (Executor exec) = Executor $ \k -> exec (k . foldMap go)
   where
     go c = maybe mempty DL.singleton (f c)
 
-withExecutor :: (c -> c') -> Executor m x c a -> Executor m x c' a
+withExecutor :: (c -> c') -> Executor x m c a -> Executor x m c' a
 withExecutor f (Executor exec) = Executor $ \k -> exec (k . fmap f)
 
 -- -- | Type restricted version of 'pure' where the executor environment @c@ is set to @Which '[]@
@@ -59,20 +59,20 @@ withExecutor f (Executor exec) = Executor $ \k -> exec (k . fmap f)
 
 -- | Lift a handler into an Executor where the executor environment @c@ is set to the output of then handler @b@
 -- Although, the executor environment is not used, this is handy for creating a handler to be used in `controls'`
-delegate :: F.Handler m r a b -> ExHandler m r x b a b
+delegate :: F.Handler m r a b -> ExHandler x m r b a b
 delegate = pure
 ------------------------------------------------------
 
 -- | Create callbacks and add it to this state's dlist of listeners.
 -- Using @AllowAmbiguousTypes@ instead of @Proxy@
-trigger :: forall t m v s x c.
+trigger :: forall t x m v s c.
     ( R.MonadReactor x m
     , NFData c
     , HasItemTag' t [R.Listener] s
     )
     => J.JSString
     -> (J.JSVal -> IO (DL.DList c))
-    -> ProtoActivator m v s x c
+    -> ProtoActivator x m v s c
 trigger n f = Executor $ \k -> F.Activator $ act k
   where
     act k (F.Object ref (Lens this)) = do
@@ -87,8 +87,8 @@ handleBeforeExecuting' ::
     (Monad m)
     => r
     -> F.Handler m r a b
-    -> Executor m x a y
-    -> Executor m x b y
+    -> Executor x m a y
+    -> Executor x m b y
 handleBeforeExecuting' env (F.Handler hdl) (Executor exec) = Executor $ \k ->
     let k' cs = (fold <$> traverse (hdl env) (DL.toList cs)) >>= k
     in exec k'
@@ -102,8 +102,8 @@ handleBeforeExecuting :: forall a b c d m x r y.
     )
     => r
     -> F.Handler m r (Which a) (Which b)
-    -> Executor m x (Which c) y
-    -> Executor m x (Which d) y
+    -> Executor x m (Which c) y
+    -> Executor x m (Which d) y
 handleBeforeExecuting env hdl exec =
         -- hdl' :: F.Handler m r (Which c) (Which d)
     let hdl' = injected @_ @_ @c hdl
@@ -117,9 +117,9 @@ controls' ::
     ( Monad m
     , F.IsReader r y
     )
-    => ExHandler m r x b a b -- handler
-    -> Executor m x a y
-    -> Executor m x b y
+    => ExHandler x m r b a b -- handler
+    -> Executor x m a y
+    -> Executor x m b y
 controls' (Executor exec1) exec2 = Executor $ \k ->
     let hdl1 = exec1 k
     in F.fromReader $ \env ->
@@ -135,7 +135,7 @@ controls' (Executor exec1) exec2 = Executor $ \k ->
 -- but instead just need to be a 'Injected' subset.
 -- Ie. replace the @a@ in @c2@ with @b@ (this is @c3@), but now we also need @c1@ in the environment @c4@
 -- so @c4@ = @c1@ + @c3@.
-controls :: forall m r x c1 c2 c3 c4 a b y.
+controls :: forall x m r c1 c2 c3 c4 a b y.
     ( Monad m
     , c4 ~ AppendUnique c1 c3
     , Injected a c2 b c3
@@ -143,36 +143,36 @@ controls :: forall m r x c1 c2 c3 c4 a b y.
     , Diversify c3 c4
     , F.IsReader r y
     )
-    => ExHandler m r x (Which c1) (Which a) (Which b) -- handler
-    -> Executor m x (Which c2) y
-    -> Executor m x (Which c4) y
+    => ExHandler x m r (Which c1) (Which a) (Which b) -- handler
+    -> Executor x m (Which c2) y
+    -> Executor x m (Which c4) y
 controls exec1 exec2 =
-    let exec1' :: Executor m x (Which c4) (F.Handler m r (Which a) (Which b))
+    let exec1' :: ExHandler x m r (Which c4) (Which a) (Which b)
         exec1' = withExecutor diversify exec1
-        exec1'' :: Executor m x (Which c4) (F.Handler m r (Which c2) (Which c3))
+        exec1'' :: ExHandler x m r (Which c4) (Which c2) (Which c3)
         exec1'' = injected @_ @_ @c2 <$> exec1'
-        exec1''' :: Executor m x (Which c4) (F.Handler m r (Which c2) (Which c4))
+        exec1''' :: ExHandler x m r (Which c4) (Which c2) (Which c4)
         exec1''' = rmap diversify <$> exec1''
     in controls' exec1''' exec2
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
 -- Simple version using 'controls''
-controlledTrigger' :: forall t m v s x a b.
+controlledTrigger' :: forall t x m v s a b.
     ( R.MonadReactor x m
     , NFData a
     , HasItemTag' t [R.Listener] s
     )
     => J.JSString
     -> (J.JSVal -> IO (DL.DList a))
-    -> ProtoHandler m v s x b a b
-    -> ProtoActivator m v s x b
+    -> ProtoHandler x m v s b a b
+    -> ProtoActivator x m v s b
 controlledTrigger' n f hdl = hdl `controls'` trigger @t n f
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
 -- Complex version using 'controls'
-controlledTrigger :: forall t m v s x c1 c2 c3 c4 a b.
+controlledTrigger :: forall t x m v s c1 c2 c3 c4 a b.
     ( R.MonadReactor x m
     , NFData (Which c2)
     , HasItemTag' t [R.Listener] s
@@ -183,19 +183,19 @@ controlledTrigger :: forall t m v s x c1 c2 c3 c4 a b.
     )
     => J.JSString
     -> (J.JSVal -> IO (DL.DList (Which c2)))
-    -> ProtoHandler m v s x (Which c1) (Which a) (Which b)
-    -> ProtoActivator m v s x (Which c4)
+    -> ProtoHandler x m v s (Which c1) (Which a) (Which b)
+    -> ProtoActivator x m v s (Which c4)
 controlledTrigger n f hdl = hdl `controls` trigger @t n f
 
 ------------------------------------------------------
 
-newtype PExHandler m r x zab = PExHandler
-    { runPExHandler :: Executor m x (P.At0 zab) (F.Handler m r (P.At1 zab) (P.At2 zab))
+newtype PExHandler x m r zab = PExHandler
+    { runPExHandler :: Executor x m (P.At0 zab) (F.Handler m r (P.At1 zab) (P.At2 zab))
     }
 
-type instance P.PNullary (PExHandler m r x) (z, a, b) = Executor m x z (F.Handler m r a b)
+type instance P.PNullary (PExHandler x m r) (z, a, b) = Executor x m z (F.Handler m r a b)
 
-instance Applicative m => P.PMEmpty (PExHandler m r x) (Which '[], Which '[], Which '[]) where
+instance Applicative m => P.PMEmpty (PExHandler x m r) (Which '[], Which '[], Which '[]) where
     pmempty = Executor $ const P.pmempty
 
 -- | A friendlier constraint synonym for 'Executor' 'pmappend'.
@@ -209,7 +209,7 @@ type PmappendExecutor z1 z2 z3 =
 instance ( Monad m
          , PmappendExecutor z1 z2 z3
          , ChooseBetween a1 a2 a3 b1 b2 b3) =>
-         P.PSemigroup (PExHandler m r x)
+         P.PSemigroup (PExHandler x m r)
               (Which z1, Which a1, Which b1)
               (Which z2, Which a2, Which b2)
               (Which z3, Which a3, Which b3) where
@@ -220,17 +220,17 @@ instance ( Monad m
 
 ------------------------------------------------------
 
-type ExHandler m r x z a b = Executor m x z (F.Handler m r a b)
-type ExObjHandler m v s x z a b = Executor m x z (F.ObjHandler m v s a b)
-type ProtoHandler m v s x z a b = ExObjHandler m v (F.ComponentPlan x m, s) x z a b
+type ExHandler x m r z a b = Executor x m z (F.Handler m r a b)
+type ExObjHandler x m v s z a b = Executor x m z (F.ObjHandler m v s a b)
+type ProtoHandler x m v s z a b = Executor x m z (F.ComHandler x m v s a b)
 
-newtype ExObjHandlerOnModel m v x z a b s = ExObjHandlerOnModel {
-    runExObjHandlerOnModel :: ExObjHandler m v s x z a b
+newtype ExObjHandlerOnModel x m v z a b s = ExObjHandlerOnModel {
+    runExObjHandlerOnModel :: ExObjHandler x m v s z a b
     }
 
-type instance F.OnModel (ExObjHandlerOnModel m v x z a b) s = ExObjHandler m v s x z a b
+type instance F.OnModel (ExObjHandlerOnModel x m v z a b) s = ExObjHandler x m v s z a b
 
-instance F.ViaModel (ExObjHandlerOnModel m v x z a b) where
+instance F.ViaModel (ExObjHandlerOnModel x m v z a b) where
     viaModel l (Executor exec) = Executor $ \k ->
         let hdl = exec k
         in F.viaModel l hdl
@@ -238,19 +238,19 @@ instance F.ViaModel (ExObjHandlerOnModel m v x z a b) where
 
 ------------------------------------------------------
 
-newtype PExActivator m r x y = PExActivator
-    { runPExActivator :: Executor m x y (F.Activator m r)
+newtype PExActivator x m r y = PExActivator
+    { runPExActivator :: Executor x m y (F.Activator m r)
     }
 
-type instance P.PNullary (PExActivator m r x) y = Executor m x y (F.Activator m r)
+type instance P.PNullary (PExActivator x m r) y = Executor x m y (F.Activator m r)
 
-instance Monad m => P.PMEmpty (PExActivator m r x) (Which '[]) where
+instance Monad m => P.PMEmpty (PExActivator x m r) (Which '[]) where
     pmempty = Executor $ const mempty
 
 -- | Undecidableinstances!
 instance ( Monad m
          , PmappendExecutor y1 y2 y3) =>
-         P.PSemigroup (PExActivator m r x)
+         P.PSemigroup (PExActivator x m r)
               (Which y1)
               (Which y2)
               (Which y3) where
@@ -261,17 +261,17 @@ instance ( Monad m
 
 ------------------------------------------------------
 
-type ExActivator m r x y = Executor m x y (F.Activator m r)
-type ExObjActivator m v s x y = Executor m x y (F.ObjActivator m v s)
-type ProtoActivator m v s x y = ExObjActivator m v (F.ComponentPlan x m, s) x y
+type ExActivator x m r y = Executor x m y (F.Activator m r)
+type ExObjActivator x m v s y = Executor x m y (F.ObjActivator m v s)
+type ProtoActivator x m v s y = Executor x m y (F.ComActivator x m v s)
 
-newtype ExObjActivatorOnModel m v x y s = ExObjActivatorOnModel {
-    runExObjActivatorOnModel :: ExObjActivator m v s x y
+newtype ExObjActivatorOnModel x m v y s = ExObjActivatorOnModel {
+    runExObjActivatorOnModel :: ExObjActivator x m v s y
     }
 
-type instance F.OnModel (ExObjActivatorOnModel m v x y) s = ExObjActivator m v s x y
+type instance F.OnModel (ExObjActivatorOnModel x m v y) s = ExObjActivator x m v s y
 
-instance F.ViaModel (ExObjActivatorOnModel m v x y) where
+instance F.ViaModel (ExObjActivatorOnModel x m v y) where
     viaModel l (Executor exec) = Executor $ \k ->
         let act = exec k
         in F.viaModel l act

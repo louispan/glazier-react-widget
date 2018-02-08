@@ -43,6 +43,7 @@ instance Contravariant (Activator m) where
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
 type ObjActivator m v s = Activator m (F.Object v s)
+type ComActivator x m v s = Activator m (F.ComObject x m v s)
 
 newtype ObjActivatorOnModel m v s = ObjActivatorOnModel { runObjActivatorOnModel :: ObjActivator m v s}
 

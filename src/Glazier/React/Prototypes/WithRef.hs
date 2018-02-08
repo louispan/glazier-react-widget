@@ -25,15 +25,14 @@ import qualified Parameterized.Data.Monoid as P
 -- in the model
 -- Using @AllowAmbiguousTypes@ instead of @Proxy@
 withRef
-    :: forall t m v i s x.
+    :: forall t x m v i s.
         ( R.MonadReactor x m
         , HasItemTag' t [R.Listener] s
         , HasItemTag' t R.EventTarget s
         )
-    => F.Prototype m v i s
+    => F.Prototype x m v i s
             (Many '[])
             (Many '[Tagged t R.EventTarget])
-            x
             (Which '[])
             (Which '[])
             (Which '[])

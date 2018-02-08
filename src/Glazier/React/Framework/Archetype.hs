@@ -34,18 +34,18 @@ import qualified Glazier.React.Framework.Object as F
 import qualified Glazier.React.Framework.Prototype as F
 import qualified JavaScript.Extras as JE
 
-data Archetype m i s x y z a b = Archetype
+data Archetype x m i s y z a b = Archetype
     { builder :: F.Builder m i s i s
     , display :: F.Display m s ()
     , finalizer :: F.Finalizer m s
-    , activator :: F.ExActivator m s x y
-    , handler :: F.ExHandler m s x z a b
+    , activator :: F.ExActivator x m s y
+    , handler :: F.ExHandler x m s z a b
     } deriving (G.Generic)
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: (R.MonadReactor x m, AsFacet CD.Disposable x)
-    => J.JSString -> F.Prototype m (F.ComponentPlan x m, s) i s i s x y z a b
-    -> Archetype m i (IORef (F.ComponentPlan x m, s)) x y z a b
+    => J.JSString -> F.Prototype x m (F.ComponentPlan x m, s) i s i s y z a b
+    -> Archetype x m i (IORef (F.ComponentPlan x m, s)) y z a b
 toArchetype n (F.Prototype
     (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl))
     (F.Display dis)
@@ -117,8 +117,8 @@ toArchetype n (F.Prototype
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor x m
-    => Archetype m i s x y z a b
-    -> F.Prototype m v i s i s x y z a b
+    => Archetype x m i s y z a b
+    -> F.Prototype x m v i s i s y z a b
 fromArchetype (Archetype
     bld
     (F.Display dis)

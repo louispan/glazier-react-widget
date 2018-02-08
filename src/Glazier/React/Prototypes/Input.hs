@@ -26,16 +26,15 @@ import qualified Glazier.React.Prototypes.WithRef as W
 import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 
-input :: forall t m v i s x.
+input :: forall t x m v i s.
     ( HasItemTag' t R.EventTarget s
     , HasItemTag' t [R.Listener] s
     , R.MonadReactor x m
     )
     => (s -> [JE.Property])
-    -> F.Prototype m v i s
+    -> F.Prototype x m v i s
         (Many '[])
         (Many '[Tagged t [R.Listener], Tagged t R.EventTarget])
-        x
         (Which '[]) (Which '[])
         (Which '[]) (Which '[])
 input f = F.widget @t "input" f W.withRef

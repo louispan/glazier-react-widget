@@ -144,7 +144,7 @@ listing flt srt f (F.Archetype
         in F.viaModel (alongside id (item' @(Listing s flt srt))) (listingActivator act))
     (F.Executor $ \k ->
         let act = xact k
-        in F.viaModel (alongside id item') (rmap (impossible' @(Which '[])) (faceted' (listingHandler d mkMdl act))))
+        in F.viaModel (alongside id item') (absurdlyFaceted (listingHandler d mkMdl act)))
 
 -- | Creates a listing with a handler that handles listing actions,
 -- as well as broadcasting original actions to in each item in the listing.
@@ -332,7 +332,7 @@ listingBroadcastHandler' ::
     -> F.Handler m s (Which a2) (Which b2)
     -> F.SceneHandler x m v (Listing s flt srt) (Which a3) (Which b3)
 listingBroadcastHandler' fin mkMdl act hdl =
-    (rmap (impossible' @(Which '[])) (faceted' (listingHandler fin mkMdl act))) `P.pmappend` listingBroadcastHandler hdl
+    (absurdlyFaceted (listingHandler fin mkMdl act)) `P.pmappend` listingBroadcastHandler hdl
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 listingBuilder ::

@@ -11,21 +11,20 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Core where
+module Glazier.React.Framework.Model where
 
 -- import Control.Applicative
 import qualified Control.Disposable as CD
 import Control.Lens
 import qualified Data.DList as DL
 import Data.Generics.Product
-import Data.IORef
 import Data.Kind
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Obj as F
 import qualified JavaScript.Extras as JE
-
 ----------------------------------------------------------
 
 type family OnModel (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
@@ -57,6 +56,8 @@ data Plan x m = Plan
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
+type Scene x m v s = F.Obj v (Plan x m, s)
+
 mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan x m)
 mkPlan n = Plan
     <$> R.getComponent
@@ -68,13 +69,13 @@ mkPlan n = Plan
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
 
-data Model x m s = Model
-    { plan :: Plan x m
-    , model :: s
-    } deriving (G.Generic)
+-- data Model x m s = Model
+--     { plan :: Plan x m
+--     , model :: s
+--     } deriving (G.Generic)
 
-rerender :: R.MonadReactor x m => IORef v -> Lens' v (Plan x m, s) -> m ()
-rerender ref this = do
+rerender :: R.MonadReactor x m => Scene x m v s -> m ()
+rerender (F.Obj ref (Lens this)) = do
     obj <- R.doReadIORef ref
     let (i, obj') = obj & (this._1.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'

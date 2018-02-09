@@ -1,17 +1,24 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Framework.Finalizer where
 
 import Control.Applicative
-import Data.Functor.Contravariant
 import Control.Disposable as CD
 import Control.Lens
 import Data.Semigroup
-import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.IsReader as F
+import qualified Glazier.React.Framework.Model as F
 
 newtype Finalizer m s = Finalizer
     { runFinalizer :: s -> m CD.Disposable
     }
+
+instance F.IsReader s (Finalizer m s) where
+    type ReaderResult s (Finalizer m s) = m CD.Disposable
+    fromReader = Finalizer
+    toReader = runFinalizer
 
 instance Contravariant (Finalizer m) where
     contramap f (Finalizer g) = Finalizer (g . f)

@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Prototypes.WithRef where
+module Glazier.React.Widget.Prototypes.WithRef where
 
 import Control.Lens
 import Data.Diverse.Lens
@@ -49,9 +49,9 @@ withRef =
         P.pmempty
   where
     whenRef ::
-      F.Object v (F.Plan x m, s)
+      F.Scene x m v s
       -> R.EventTarget
       -> m (DL.DList (Which '[]))
-    whenRef (F.Object ref (Lens this)) j = do
+    whenRef (F.Obj ref (Lens this)) j = do
             R.doModifyIORef' ref (set' (this._2.itemTag' @t) j)
             pure mempty

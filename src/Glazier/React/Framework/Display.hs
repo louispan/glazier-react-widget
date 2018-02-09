@@ -10,8 +10,8 @@ module Glazier.React.Framework.Display where
 import Control.Lens
 import Data.Semigroup
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.IsReader as F
+import qualified Glazier.React.Framework.Model as F
 
 newtype Display m s r = Display
     { runDisplay :: s -> R.ReactMlT m r
@@ -22,7 +22,7 @@ instance F.IsReader s (Display m s r) where
     fromReader = Display
     toReader = runDisplay
 
-type ComDisplay x m s r = Display m (F.Plan x m, s) r
+type PlanDisplay x m s r = Display m (F.Plan x m, s) r
 
 instance Monad m => Applicative (Display m s) where
     pure = Display . const . pure

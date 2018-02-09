@@ -24,17 +24,17 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Builder as F
-import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Finalizer as F
+import qualified Glazier.React.Framework.Model as F
 import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
 data Prototype x m v i s i' s' y z a b = Prototype
     { builder :: F.Builder m i s i' s'
-    , display :: F.ComDisplay x m s ()
+    , display :: F.PlanDisplay x m s ()
     , finalizer :: F.Finalizer m s
     , activator :: F.ProtoActivator x m v s y
     , handler :: F.ProtoHandler x m v s z a b

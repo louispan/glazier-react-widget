@@ -27,10 +27,10 @@ import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
-import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Handler as F
 import qualified Glazier.React.Framework.IsReader as F
-import qualified Glazier.React.Framework.Object as F
+import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Obj as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -80,7 +80,7 @@ trigger :: forall t x m v s c.
     -> ProtoActivator x m v s c
 trigger n f = Executor $ \k -> F.Activator $ act k
   where
-    act k (F.Object ref (Lens this)) = do
+    act k (F.Obj ref (Lens this)) = do
         (ds, cb) <- R.mkCallback f k
         R.doModifyIORef' ref $ \obj ->
             obj & this._2.itemTag' @t %~ ((n, cb) :)
@@ -227,7 +227,7 @@ instance ( Monad m
 
 type ExHandler x m r z a b = Executor x m z (F.Handler m r a b)
 type ExObjHandler x m v s z a b = Executor x m z (F.ObjHandler m v s a b)
-type ProtoHandler x m v s z a b = Executor x m z (F.ComHandler x m v s a b)
+type ProtoHandler x m v s z a b = Executor x m z (F.SceneHandler x m v s a b)
 
 newtype ExObjHandlerOnModel x m v z a b s = ExObjHandlerOnModel {
     runExObjHandlerOnModel :: ExObjHandler x m v s z a b
@@ -268,7 +268,7 @@ instance ( Monad m
 
 type ExActivator x m r y = Executor x m y (F.Activator m r)
 type ExObjActivator x m v s y = Executor x m y (F.ObjActivator m v s)
-type ProtoActivator x m v s y = Executor x m y (F.ComActivator x m v s)
+type ProtoActivator x m v s y = Executor x m y (F.SceneActivator x m v s)
 
 newtype ExObjActivatorOnModel x m v y s = ExObjActivatorOnModel {
     runExObjActivatorOnModel :: ExObjActivator x m v s y

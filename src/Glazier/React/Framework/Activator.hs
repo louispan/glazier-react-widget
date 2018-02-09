@@ -11,9 +11,9 @@ module Glazier.React.Framework.Activator where
 import Control.Lens
 -- import Data.Functor.Contravariant
 import Data.Semigroup
-import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.IsReader as F
-import qualified Glazier.React.Framework.Object as F
+import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Obj as F
 
 ------------------------------------------
 
@@ -42,8 +42,8 @@ instance Contravariant (Activator m) where
 ------------------------------------------
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
-type ObjActivator m v s = Activator m (F.Object v s)
-type ComActivator x m v s = Activator m (F.ComObject x m v s)
+type ObjActivator m v s = Activator m (F.Obj v s)
+type SceneActivator x m v s = Activator m (F.Scene x m v s)
 
 newtype ObjActivatorOnModel m v s = ObjActivatorOnModel { runObjActivatorOnModel :: ObjActivator m v s}
 
@@ -51,4 +51,4 @@ type instance F.OnModel (ObjActivatorOnModel m v) s = ObjActivator m v s
 
 instance F.ViaModel (ObjActivatorOnModel m v) where
     viaModel l (Activator f) = Activator $ \obj ->
-        f (F.nest l obj)
+        f (F.edit l obj)

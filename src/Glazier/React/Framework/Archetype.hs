@@ -22,12 +22,12 @@ import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Activator as F
 import qualified Glazier.React.Framework.Builder as F
-import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.Display as F
 import qualified Glazier.React.Framework.Executor as F
 import qualified Glazier.React.Framework.Finalizer as F
 import qualified Glazier.React.Framework.Handler as F
-import qualified Glazier.React.Framework.Object as F
+import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Obj as F
 import qualified Glazier.React.Framework.Prototype as F
 import qualified JavaScript.Extras as JE
 
@@ -76,7 +76,7 @@ toArchetype n (F.Prototype
     (F.Executor $ \k ->
         let F.Activator act = xact k
         in F.Activator $ \ref -> do
-            act (F.Object ref (Lens id))
+            act (F.Obj ref (Lens id))
             (cp, _) <- R.doReadIORef ref
             -- now replace the render and componentUpdated in the model if not already activated
             rnd <- case F.onRender cp of
@@ -108,7 +108,7 @@ toArchetype n (F.Prototype
                 Nothing -> pure ()
                 Just g -> R.doModifyIORef' ref (first g))
     (F.Executor $ \k -> let F.Handler hdl = xhdl k
-                        in F.Handler $ \ref a -> hdl (F.Object ref (Lens id)) a)
+                        in F.Handler $ \ref a -> hdl (F.Obj ref (Lens id)) a)
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor x m
@@ -125,10 +125,10 @@ fromArchetype (Archetype
     (F.Display $ \(_, s) -> dis s)
     fin
     (F.Executor $ \k -> let F.Activator act = xact k
-                        in F.Activator $ \(F.Object ref (Lens this)) -> do
+                        in F.Activator $ \(F.Obj ref (Lens this)) -> do
                                 obj <- R.doReadIORef ref
                                 act (obj ^. this._2))
     (F.Executor $ \k -> let F.Handler hdl = xhdl k
-                        in F.Handler $ \(F.Object ref (Lens this)) a -> do
+                        in F.Handler $ \(F.Obj ref (Lens this)) a -> do
                                 obj <- R.doReadIORef ref
                                 hdl (obj ^. this._2) a)

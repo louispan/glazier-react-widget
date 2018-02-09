@@ -21,9 +21,9 @@ import qualified Data.DList as DL
 import Data.Foldable
 import Data.Profunctor
 import Data.Semigroup
-import qualified Glazier.React.Framework.Core as F
 import qualified Glazier.React.Framework.IsReader as F
-import qualified Glazier.React.Framework.Object as F
+import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Obj as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -101,8 +101,8 @@ filterHandlerOutput f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env
 -----------------------------------------------
 
 -- | Uses ReifiedLens' to avoid impredicative polymorphism
-type ObjHandler m v s a b = Handler m (F.Object v s) a b
-type ComHandler x m v s a b = Handler m (F.ComObject x m v s) a b
+type ObjHandler m v s a b = Handler m (F.Obj v s) a b
+type SceneHandler x m v s a b = Handler m (F.Scene x m v s) a b
 
 newtype ObjHandlerOnModel m a b v s = ObjHandlerOnModel {
     runObjHandlerOnModel :: ObjHandler m v s a b
@@ -112,7 +112,7 @@ type instance F.OnModel (ObjHandlerOnModel m a b v) s = ObjHandler m v s a b
 
 instance F.ViaModel (ObjHandlerOnModel m a b v) where
     viaModel l (Handler hdl) =
-        Handler $ \obj -> hdl (F.nest l obj)
+        Handler $ \obj -> hdl (F.edit l obj)
 
 -- objHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> ObjHandler m v s a b
 -- objHandler hdl = Handler $ \(F.Object ref (Lens this)) -> hdl ref this

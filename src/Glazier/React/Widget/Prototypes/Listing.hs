@@ -1,4 +1,4 @@
-module Glazier.React.Prototypes.Listing
+module Glazier.React.Widget.Prototypes.Listing
     ( betweenIdx
     , largerIdx
     , smallerIdx
@@ -17,4 +17,4 @@ module Glazier.React.Prototypes.Listing
     )
     where
 
-import Glazier.React.Prototypes.Listing.Internal
+import Glazier.React.Widget.Prototypes.Listing.Internal

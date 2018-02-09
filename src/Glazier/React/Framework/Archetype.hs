@@ -11,12 +11,9 @@
 module Glazier.React.Framework.Archetype where
 
 import Control.Arrow
-import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
-import Data.Diverse.Lens
-import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
 import qualified Data.JSString as J
@@ -43,9 +40,9 @@ data Archetype x m i s y z a b = Archetype
     } deriving (G.Generic)
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: (R.MonadReactor x m, AsFacet CD.Disposable x)
-    => J.JSString -> F.Prototype x m (F.ComponentPlan x m, s) i s i s y z a b
-    -> Archetype x m i (IORef (F.ComponentPlan x m, s)) y z a b
+toArchetype :: (R.MonadReactor x m)
+    => J.JSString -> F.Prototype x m (F.Plan x m, s) i s i s y z a b
+    -> Archetype x m i (IORef (F.Plan x m, s)) y z a b
 toArchetype n (F.Prototype
     (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl))
     (F.Display dis)
@@ -91,14 +88,12 @@ toArchetype n (F.Prototype
                         Just _ -> pure Nothing
                         Nothing -> fmap Just . R.mkCallback (const $ pure ()) . const $ do
                             (cp', _) <- R.doReadIORef ref
-                            let d = F.disposeOnUpdated cp'
-                                d' = DL.singleton $ review facet d
-                                x = F.doOnUpdated cp'
                             R.doModifyIORef' ref $ \(cp'', s') ->
                                 (cp'' & field @"doOnUpdated" `set'` pure mempty
                                         & field @"disposeOnUpdated" .~ mempty
                                 , s')
-                            (<> d') <$> x
+                            R.dispose (F.disposeOnUpdated cp')
+                            F.doOnUpdated cp'
             let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ Just cb
                                             & field @"disposeOnRemoved" %~ (<> d)
                         ) <$> rnd

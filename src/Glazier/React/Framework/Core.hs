@@ -3,23 +3,28 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Core where
 
+-- import Control.Applicative
 import qualified Control.Disposable as CD
 import Control.Lens
 import qualified Data.DList as DL
+import Data.Generics.Product
+import Data.IORef
 import Data.Kind
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
--- import qualified JavaScript.Extras as JE
+import qualified JavaScript.Extras as JE
 
 ----------------------------------------------------------
 
@@ -41,7 +46,7 @@ class ViaInfo (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaInfo :: Lens' j i -> OnInfo w i -> OnInfo w j
 
-data ComponentPlan x m = ComponentPlan
+data Plan x m = Plan
     { component :: R.ReactComponent
     , key :: R.ReactKey
     , frameNum :: Int
@@ -52,11 +57,8 @@ data ComponentPlan x m = ComponentPlan
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
--- | Property that is only available in model, not plan
--- newtype Trait = Trait JE.Property
-
-mkPlan :: R.MonadReactor x m => J.JSString -> m (ComponentPlan x m)
-mkPlan n = ComponentPlan
+mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan x m)
+mkPlan n = Plan
     <$> R.getComponent
     <*> R.mkReactKey n
     <*> pure 0
@@ -65,3 +67,27 @@ mkPlan n = ComponentPlan
     <*> pure (pure mempty) -- ^ doOnUpdated
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
+
+data Model x m s = Model
+    { plan :: Plan x m
+    , model :: s
+    } deriving (G.Generic)
+
+rerender :: R.MonadReactor x m => IORef v -> Lens' v (Plan x m, s) -> m ()
+rerender ref this = do
+    obj <- R.doReadIORef ref
+    let (i, obj') = obj & (this._1.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
+    R.doWriteIORef ref obj'
+    R.setComponentState
+        (JE.fromProperties [("frameNum", JE.toJS' i)])
+        (obj ^. (this._1.field @"component"))
+
+-- -- | If a new item was added, then we need to delay focusing until after the next render
+-- focus :: (R.MonadReactor x m)
+--     => IORef v
+--     -> Lens' v (Plan x m, s)
+--     -> R.EventTarget
+--     -> m ()
+-- focus ref this j = do
+--     R.doModifyIORef' ref (this._1.field @"doOnUpdated" %~ (\g -> liftA2 const g (R.focus j)))
+--     rerender ref this

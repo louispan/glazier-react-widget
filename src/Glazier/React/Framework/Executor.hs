@@ -38,6 +38,11 @@ import qualified Parameterized.TypeLevel as P
 newtype Executor x m c a = Executor { runExecutor :: (DL.DList c -> m (DL.DList x)) -> a }
     deriving Functor
 
+instance F.IsReader (DL.DList c -> m (DL.DList x)) (Executor x m c a) where
+    type ReaderResult (DL.DList c -> m (DL.DList x)) (Executor x m c a) = a
+    fromReader = Executor
+    toReader = runExecutor
+
 instance Applicative (Executor x m c) where
     pure r = Executor $ const r
     (Executor exec1) <*> (Executor exec2) = Executor $ \k -> exec1 k (exec2 k)

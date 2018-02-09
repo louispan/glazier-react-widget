@@ -49,7 +49,7 @@ withRef =
         P.pmempty
   where
     whenRef ::
-      F.Object v (F.ComponentPlan x m, s)
+      F.Object v (F.Plan x m, s)
       -> R.EventTarget
       -> m (DL.DList (Which '[]))
     whenRef (F.Object ref (Lens this)) j = do

@@ -11,12 +11,18 @@ import Control.Lens
 import Data.Semigroup
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.IsReader as F
 
 newtype Display m s r = Display
     { runDisplay :: s -> R.ReactMlT m r
     } deriving (Functor)
 
-type ComDisplay x m s r = Display m (F.ComponentPlan x m, s) r
+instance F.IsReader s (Display m s r) where
+    type ReaderResult s (Display m s r) = R.ReactMlT m r
+    fromReader = Display
+    toReader = runDisplay
+
+type ComDisplay x m s r = Display m (F.Plan x m, s) r
 
 instance Monad m => Applicative (Display m s) where
     pure = Display . const . pure

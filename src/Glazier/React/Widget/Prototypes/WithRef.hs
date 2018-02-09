@@ -52,6 +52,6 @@ withRef =
       F.Scene x m v s
       -> R.EventTarget
       -> m (DL.DList (Which '[]))
-    whenRef (F.Obj ref (Lens this)) j = do
-            R.doModifyIORef' ref (set' (this._2.itemTag' @t) j)
+    whenRef (F.Obj ref (Lens its)) j = do
+            R.doModifyIORef' ref (set' (its._2.itemTag' @t) j)
             pure mempty

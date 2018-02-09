@@ -80,11 +80,11 @@ trigger :: forall t x m v s c.
     -> ProtoActivator x m v s c
 trigger n f = Executor $ \k -> F.Activator $ act k
   where
-    act k (F.Obj ref (Lens this)) = do
+    act k (F.Obj ref (Lens its)) = do
         (ds, cb) <- R.mkCallback f k
         R.doModifyIORef' ref $ \obj ->
-            obj & this._2.itemTag' @t %~ ((n, cb) :)
-                & this._1.field @"disposeOnRemoved" %~ (<> ds)
+            obj & its._2.itemTag' @t %~ ((n, cb) :)
+                & its._1.field @"disposeOnRemoved" %~ (<> ds)
 
 -- | Use the given handler to transform the Executor's environment
 -- Simple version where the handler input type must match the Executor environment type.

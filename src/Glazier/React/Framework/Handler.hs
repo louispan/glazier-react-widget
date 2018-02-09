@@ -115,12 +115,12 @@ instance F.ViaModel (ObjHandlerOnModel m a b v) where
         Handler $ \obj -> hdl (F.edit l obj)
 
 -- objHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> ObjHandler m v s a b
--- objHandler hdl = Handler $ \(F.Object ref (Lens this)) -> hdl ref this
+-- objHandler hdl = Handler $ \(F.Object ref (Lens its)) -> hdl ref its
 
 -- toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s y a b
--- toRefHandler (Handler hdl) = Handler $ \(_, ref, Lens this) a -> do
+-- toRefHandler (Handler hdl) = Handler $ \(_, ref, Lens its) a -> do
 --     obj <- R.doReadIORef ref
---     hdl (obj ^. this) a
+--     hdl (obj ^. its) a
 
 -- -- | expand the types a handler handles, by '+||+' with an id handler for the extra types.
 -- -- AllowAmbiguousTypes: Use TypeApplications to specify x instead of proxy.

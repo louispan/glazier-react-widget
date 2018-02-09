@@ -75,13 +75,13 @@ mkPlan n = Plan
 --     } deriving (G.Generic)
 
 rerender :: R.MonadReactor x m => Scene x m v s -> m ()
-rerender (F.Obj ref (Lens this)) = do
+rerender (F.Obj ref (Lens its)) = do
     obj <- R.doReadIORef ref
-    let (i, obj') = obj & (this._1.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
+    let (i, obj') = obj & (its._1.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'
     R.setComponentState
         (JE.fromProperties [("frameNum", JE.toJS' i)])
-        (obj ^. (this._1.field @"component"))
+        (obj ^. (its._1.field @"component"))
 
 -- -- | If a new item was added, then we need to delay focusing until after the next render
 -- focus :: (R.MonadReactor x m)
@@ -89,6 +89,6 @@ rerender (F.Obj ref (Lens this)) = do
 --     -> Lens' v (Plan x m, s)
 --     -> R.EventTarget
 --     -> m ()
--- focus ref this j = do
---     R.doModifyIORef' ref (this._1.field @"doOnUpdated" %~ (\g -> liftA2 const g (R.focus j)))
---     rerender ref this
+-- focus ref its j = do
+--     R.doModifyIORef' ref (its._1.field @"doOnUpdated" %~ (\g -> liftA2 const g (R.focus j)))
+--     rerender ref its

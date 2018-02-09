@@ -125,10 +125,10 @@ fromArchetype (Archetype
     (F.Display $ \(_, s) -> dis s)
     fin
     (F.Executor $ \k -> let F.Activator act = xact k
-                        in F.Activator $ \(F.Obj ref (Lens this)) -> do
+                        in F.Activator $ \(F.Obj ref (Lens its)) -> do
                                 obj <- R.doReadIORef ref
-                                act (obj ^. this._2))
+                                act (obj ^. its._2))
     (F.Executor $ \k -> let F.Handler hdl = xhdl k
-                        in F.Handler $ \(F.Obj ref (Lens this)) a -> do
+                        in F.Handler $ \(F.Obj ref (Lens its)) a -> do
                                 obj <- R.doReadIORef ref
-                                hdl (obj ^. this._2) a)
+                                hdl (obj ^. its._2) a)

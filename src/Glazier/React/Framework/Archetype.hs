@@ -41,8 +41,9 @@ data Archetype x m i s y z a b = Archetype
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: (R.MonadReactor x m)
-    => J.JSString -> F.Prototype x m (F.Plan x m, s) i s i s y z a b
-    -> Archetype x m i (IORef (F.Plan x m, s)) y z a b
+    => J.JSString
+    -> F.Prototype x m (F.Frame x m s) i s i s y z a b
+    -> Archetype x m i (IORef (F.Frame x m s)) y z a b
 toArchetype n (F.Prototype
     (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc))
     dis

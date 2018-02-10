@@ -11,6 +11,7 @@ import Data.Semigroup
 import qualified Glazier.React.Framework.IsReader as F
 import qualified Glazier.React.Framework.Model as F
 
+-- | Need a newtype for the custome Monoid & Semigroup instances
 newtype Finalizer m s = Finalizer
     { runFinalizer :: s -> m CD.Disposable
     }

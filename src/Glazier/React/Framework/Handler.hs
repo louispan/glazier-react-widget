@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -82,10 +83,6 @@ suppressHandlerInput f (Handler hdl) = Handler $ \env a -> case f a of
     Nothing -> pure DL.empty
     Just a' -> hdl env a'
 
--- -- | More descriptive name for 'lmap'
--- contramapHandlerInput :: Functor m => (a -> a') -> Handler m r a' b -> Handler m r a b
--- contramapHandlerInput = lmap
-
 -- | Ignore certain outputs
 filterHandlerOutput :: Applicative m => (b -> Maybe b') -> Handler m r a b -> Handler m r a b'
 filterHandlerOutput f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env a
@@ -94,13 +91,12 @@ filterHandlerOutput f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env
         Nothing -> DL.empty
         Just b' -> DL.singleton b'
 
--- -- | More descriptive name for 'rmap' for Handler
--- mapHandlerOutput :: Functor m => (b -> b') -> Handler m r a b -> Handler m r a b'
--- mapHandlerOutput = rmap
+-- | map the whole output
+mapHandlerOutputList :: Functor m => (DL.DList b -> DL.DList b') -> Handler m r a b -> Handler m r a b'
+mapHandlerOutputList f (Handler hdl) = Handler $ \env a -> f <$> hdl env a
 
 -----------------------------------------------
 
--- | Uses ReifiedLens' to avoid impredicative polymorphism
 type ObjHandler m v s a b = Handler m (F.Obj v s) a b
 type SceneHandler x m v s a b = Handler m (F.Scene x m v s) a b
 
@@ -114,28 +110,20 @@ instance F.ViaSpec (ObjHandlerOnSpec m a b v) where
     viaSpec l (Handler hdl) =
         Handler $ \obj -> hdl (F.edit l obj)
 
--- objHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> ObjHandler m v s a b
--- objHandler hdl = Handler $ \(F.Obj' ref its) -> hdl ref its
-
--- toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s y a b
--- toRefHandler (Handler hdl) = Handler $ \(_, ref, Lens its) a -> do
---     obj <- R.doReadIORef ref
---     hdl (obj ^. its) a
-
--- -- | expand the types a handler handles, by '+||+' with an id handler for the extra types.
--- -- AllowAmbiguousTypes: Use TypeApplications to specify x instead of proxy.
--- bypass :: forall x a' b' m r y a b.
---     ( Monad m
---     , a' ~ Append a x
---     , b' ~ AppendUnique b x
---     , a ~ Complement a' x
---     , Reinterpret x a'
---     , Diversify b b'
---     , Diversify x b'
---     )
---     => Handler m r y (Which a) (Which b) -> Handler m r y (Which a') (Which b')
--- bypass hdl = let cid = C.id :: Handler m r y (Which x) (Which x)
---              in hdl +||+ cid
+-- | expand the types a handler handles, by '+||+' with an id handler for the extra types.
+-- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @x@
+bypass :: forall x a' b' m r a b.
+    ( Monad m
+    , a' ~ Append a x
+    , b' ~ AppendUnique b x
+    , a ~ Complement a' x
+    , Reinterpret x a'
+    , Diversify b b'
+    , Diversify x b'
+    )
+    => Handler m r (Which a) (Which b) -> Handler m r (Which a') (Which b')
+bypass hdl = let cid = C.id :: Handler m r (Which x) (Which x)
+             in hdl +||+ cid
 
 -------------------------------------
 
@@ -149,6 +137,10 @@ type instance P.PNullary (PHandler m r) (a, b) = Handler m r a b
 instance Applicative m => P.PMEmpty (PHandler m r) (Which '[], Which '[]) where
     pmempty = Handler $ \_ _ -> pure DL.empty
 
+-- | type restricted version of 'P.pmempty' for 'Handler'
+nilHandler :: Applicative m => Handler m r (Which '[]) (Which '[])
+nilHandler = P.pmempty
+
 -- | Undecidableinstances!
 instance (Monad m
          , ChooseBetween a1 a2 a3 b1 b2 b3
@@ -159,8 +151,13 @@ instance (Monad m
               (Which a3, Which b3) where
     x `pmappend` y = x +||+ y
 
-------------------------------------------------------
-
--- -- | Like unix @cat@, forward input to output.
--- idHandler :: Monad m => Handler m v s a a
--- idHandler = C.id
+-- | type restricted version of 'P.pmappend' for 'Handler'
+andHandler ::
+    (Monad m
+    , ChooseBetween a1 a2 a3 b1 b2 b3
+    )
+    => Handler m r (Which a1) (Which b1)
+    -> Handler m r (Which a2) (Which b2)
+    -> Handler m r (Which a3) (Which b3)
+andHandler = P.pmappend
+infixr 6 `andHandler` -- like mappend

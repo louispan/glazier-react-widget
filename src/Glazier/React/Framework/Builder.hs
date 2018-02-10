@@ -116,6 +116,10 @@ type instance P.PNullary (PBuilder m i s) (i', s') = Builder m i s i' s'
 instance Applicative m => P.PMEmpty (PBuilder m i s) (Many '[], Many '[]) where
     pmempty = bipure nil nil
 
+-- | type restricted version of 'P.pmempty' for 'Builder'
+nilBuilder :: Applicative m => Builder m i s (Many '[]) (Many '[])
+nilBuilder = P.pmempty
+
 -- | UndecidableInstances!
 instance (Applicative m
          , PmappendBuilder i1 i2 i3 s1 s2 s3
@@ -126,6 +130,17 @@ instance (Applicative m
             Builder
                 ( MkInfo $ \s -> (/./) <$> mkInf s <*> mkInf' s
                 , MkSpec $ \i -> (/./) <$> mkSpc i <*> mkSpc' i)
+
+-- | type restricted version of 'P.pmappend' for 'Builder'
+andBuilder ::
+    ( Applicative m
+    , PmappendBuilder i1 i2 i3 s1 s2 s3
+    )
+    => Builder m i s (Many i1) (Many s1)
+    -> Builder m i s (Many i2) (Many s2)
+    -> Builder m i s (Many i3) (Many s3)
+andBuilder = P.pmappend
+infixr 6 `andBuilder` -- like mappend
 
 ------------------------------------------------
 
@@ -173,7 +188,7 @@ hardcodeItem x = Builder ( MkInfo . const $ pure nil
 
 -- | Add a value @x@ into the model that is not from the info.
 -- @forall@ so that the type can be specified first
--- Using @AllowAmbiguousTypes@ instead of @Proxy@
+-- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 hardcodeItemTag
     :: forall t x m i s. Applicative m
     => x -> Builder m i s (Many '[]) (Many '[Tagged t x])
@@ -199,14 +214,33 @@ hardcodeItemTag x = Builder ( MkInfo . const $ pure nil
 --     Builder ( coerce (contramap ts (MkInfoOnSpec mkInf))
 --             , st <$> mkSpc)
 
-mapBuilder :: Functor m
-    => (j -> i) -> (i' -> j')
-    -> (t -> s) -> (s' -> t')
-    -> Builder m i s i' s' -> Builder m j t j' t'
-mapBuilder ji ij ts st (Builder (mkInf, mkSpc)) =
+-- transformBuilder :: Functor m
+--     => (j -> i) -> (i' -> j')
+--     -> (t -> s) -> (s' -> t')
+--     -> Builder m i s i' s' -> Builder m j t j' t'
+-- transformBuilder ji ij ts st (Builder (mkInf, mkSpc)) =
+--     Builder
+--         ( coerce (contramap ts (MkInfoOnSpec (ij <$> mkInf)))
+--         , coerce (contramap ji (MkSpecOnInfo (st <$> mkSpc))))
+
+contramapBuilder ::
+    (j -> i)
+    -> (t -> s)
+    -> Builder m i s i' s' -> Builder m j t i' s'
+contramapBuilder ji ts (Builder (mkInf, mkSpc)) =
     Builder
-        ( coerce (contramap ts (MkInfoOnSpec (ij <$> mkInf)))
-        , coerce (contramap ji (MkSpecOnInfo (st <$> mkSpc))))
+        ( coerce (contramap ts (MkInfoOnSpec mkInf))
+        , coerce (contramap ji (MkSpecOnInfo mkSpc)))
+
+mapBuilder :: Functor m
+    => (i' -> j')
+    -> (s' -> t')
+    -> Builder m i s i' s' -> Builder m i s j' t'
+mapBuilder ij st (Builder (mkInf, mkSpc)) =
+    Builder
+        ( coerce (MkInfoOnSpec (ij <$> mkInf))
+        , coerce (MkSpecOnInfo (st <$> mkSpc)))
+
 -- taggedBuilder :: forall t m i s i' s'.
 --     Functor m
 --     => Builder m i s i' s' -> Builder m (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s')

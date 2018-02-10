@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
+-- {-# LANGUAGE DeriveAnyClass #-}
+-- {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -8,30 +8,30 @@
 
 module Glazier.React.Widget.Prototypes.Input where
 
-import Control.Applicative
-import Control.DeepSeq
-import Control.Lens
-import Control.Monad
-import Control.Monad.Trans.Maybe
-import qualified Control.Monad.Trans.Maybe.Extras as Ex
+-- import Control.Applicative
+-- import Control.DeepSeq
+-- import Control.Lens
+-- import Control.Monad
+-- import Control.Monad.Trans.Maybe
+-- import qualified Control.Monad.Trans.Maybe.Extras as Ex
 import Data.Diverse.Lens
-import qualified Data.DList as DL
-import qualified Data.JSString as J
+-- import qualified Data.DList as DL
+-- import qualified Data.JSString as J
 import Data.Tagged
-import qualified GHC.Generics as G
+-- import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
-import qualified Glazier.React.Widget.Actions as A
+-- import qualified Glazier.React.Widget.Actions as A
 import qualified Glazier.React.Widget.Prototypes.WithRef as W
 import qualified JavaScript.Extras as JE
-import qualified Parameterized.Data.Monoid as P
+-- import qualified Parameterized.Data.Monoid as P
 
 input :: forall t x m v i s.
     ( HasItemTag' t R.EventTarget s
     , HasItemTag' t [R.Listener] s
     , R.MonadReactor x m
     )
-    => (s -> [JE.Property])
+    => (F.Frame x m s -> [JE.Property])
     -> F.Prototype x m v i s
         (Many '[])
         (Many '[Tagged t [R.Listener], Tagged t R.EventTarget])

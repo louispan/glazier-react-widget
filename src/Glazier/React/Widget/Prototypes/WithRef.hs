@@ -23,35 +23,31 @@ import qualified Parameterized.Data.Monoid as P
 -- | Use with 'widget' for the builder of @@DL.DList R.Listener@
 -- This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an R.EventTarget
 -- in the model
--- Using @AllowAmbiguousTypes@ instead of @Proxy@
-withRef
-    :: forall t x m v i s.
-        ( R.MonadReactor x m
-        , HasItemTag' t [R.Listener] s
-        , HasItemTag' t R.EventTarget s
-        )
+-- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
+withRef :: forall t x m v i s.
+    ( R.MonadReactor x m
+    , HasItemTag' t [R.Listener] s
+    , HasItemTag' t R.EventTarget s
+    )
     => F.Prototype x m v i s
-            (Many '[])
-            (Many '[Tagged t R.EventTarget])
-            (Which '[])
-            (Which '[])
-            (Which '[])
-            (Which '[])
+        (Many '[])
+        (Many '[Tagged t R.EventTarget])
+        (Which '[])
+        (Which '[])
+        (Which '[])
+        (Which '[])
 withRef =
     F.Prototype
         (F.hardcodeItemTag @t (R.EventTarget $ JE.JSVar J.nullRef))
         mempty
         mempty
         (F.controlledTrigger' @t
-          "ref"
-          (pure . DL.singleton . R.EventTarget . JE.JSVar)
-          (F.delegate (F.Handler whenRef)))
+            "ref"
+            (pure . DL.singleton . R.EventTarget . JE.JSVar)
+            (F.delegate hdlRef))
         P.pmempty
   where
-    whenRef ::
-      F.Scene x m v s
-      -> R.EventTarget
-      -> m (DL.DList (Which '[]))
-    whenRef (F.Obj ref its) j = do
-            R.doModifyIORef' ref (set' (its.F.model.itemTag' @t) j)
-            pure mempty
+    hdlRef :: F.SceneHandler x m v s (R.EventTarget) (Which '[])
+    hdlRef = F.Handler $ \(F.Obj ref its) j -> do
+        R.doModifyIORef' ref (set' (its.F.model.itemTag' @t) j)
+        pure mempty

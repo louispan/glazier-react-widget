@@ -41,7 +41,6 @@ instance Contravariant (Activator m) where
 
 ------------------------------------------
 
--- | Uses ReifiedLens' to avoid impredicative polymorphism
 type ObjActivator m v s = Activator m (F.Obj v s)
 type SceneActivator x m v s = Activator m (F.Scene x m v s)
 

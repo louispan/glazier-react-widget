@@ -1,4 +1,3 @@
--- {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -50,29 +49,54 @@ type instance P.PNullary (PPrototype x m v i s) (i', s', y, z, a, b) = Prototype
 
 instance R.MonadReactor x m => P.PMEmpty (PPrototype x m i s v) (Many '[], Many '[], Which '[], Which '[], Which '[], Which '[]) where
     pmempty = Prototype
-        P.pmempty
+        F.nilBuilder
         mempty
         mempty
-        P.pmempty
-        P.pmempty
+        F.nilExActivator
+        F.nilExHandler
+
+-- | type restricted version of 'P.pmempty' for 'Prototype'
+nilPrototype :: R.MonadReactor x m => Prototype x m v i s
+    (Many '[])
+    (Many '[])
+    (Which '[])
+    (Which '[])
+    (Which '[])
+    (Which '[])
+nilPrototype = P.pmempty
+
+-- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.
+type PmappendPrototype i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1 b2 b3 =
+    ( F.PmappendBuilder i1 i2 i3 s1 s2 s3
+    , ChooseBetween a1 a2 a3 b1 b2 b3
+    , F.PmappendExecutor y1 y2 y3
+    , F.PmappendExecutor z1 z2 z3
+    )
 
 instance ( R.MonadReactor x m
-         , i3 ~ Append i1 i2
-         , s3 ~ Append s1 s2
-         , ChooseBetween a1 a2 a3 b1 b2 b3
-         , F.PmappendExecutor y1 y2 y3
-         , F.PmappendExecutor z1 z2 z3
+         , PmappendPrototype i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1 b2 b3
          ) => P.PSemigroup (PPrototype x m v i s)
              (Many i1, Many s1, Which y1, Which z1, Which a1, Which b1)
              (Many i2, Many s2, Which y2, Which z2, Which a2, Which b2)
              (Many i3, Many s3, Which y3, Which z3, Which a3, Which b3) where
     (Prototype bld1 dis1 fin1 act1 hdl1) `pmappend` (Prototype bld2 dis2 fin2 act2 hdl2) =
         Prototype
-        (bld1 `P.pmappend` bld2)
+        (bld1 `F.andBuilder` bld2)
         (dis1 <> dis2)
         (fin1 <> fin2)
-        (act1 `P.pmappend` act2)
-        (hdl1 `P.pmappend` hdl2)
+        (act1 `F.andExActivator` act2)
+        (hdl1 `F.andExHandler` hdl2)
+
+-- | type restricted version of 'P.pmappend' for 'Prototype'
+andPrototype :: forall x m v i s i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1 b2 b3.
+    ( R.MonadReactor x m
+    , PmappendPrototype i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1 b2 b3
+    )
+    => Prototype x m v i s (Many i1) (Many s1) (Which y1) (Which z1) (Which a1) (Which b1)
+    -> Prototype x m v i s (Many i2) (Many s2) (Which y2) (Which z2) (Which a2) (Which b2)
+    -> Prototype x m v i s (Many i3) (Many s3) (Which y3) (Which z3) (Which a3) (Which b3)
+andPrototype = P.pmappend
+infixr 6 `andPrototype` -- like mappend
 
 ------------------------------------------
 
@@ -115,12 +139,13 @@ instance F.ViaInfo (PrototypeOnInfo x m v s i' s' y z a b) where
 
 -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
 -- @[R.Listener]@ to the model.
+-- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 widget ::
     forall t x m v i s i' ss' y z a b.
     ( Monad m
     , HasItemTag' t [R.Listener] s)
     => J.JSString
-    -> (s -> [JE.Property])
+    -> (F.Frame x m s -> [JE.Property])
     -> Prototype x m v i s i' (Many ss') y z a b
     -> Prototype x m v i s
         i'
@@ -132,16 +157,17 @@ widget n f (Prototype (F.Builder (mkInf, F.MkSpec mkSpc)) dis fin act hdl) =
                 , F.MkSpec $ \is -> (\s -> (is ^. mempty
                                             ./ s))
                     <$> mkSpc is))
-    (\(cp, ss) ->
-            let props = f ss
-                ls = view (itemTag' @t @[R.Listener]) ss
+    (\s ->
+            let props = f s
+                ls = s ^. F.model.itemTag' @t @[R.Listener]
             in R.branch (JE.toJS' n)
                     ls
                     props
-                    (dis (cp, ss)))
+                    (dis s))
     fin
     act
     hdl
+
 
 -- -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
 -- -- @[JE.Property]@ to the info and model, and to build
@@ -185,12 +211,9 @@ enclose :: Functor m
     -> (s' -> t')
     -> Prototype x m v i s i' s' y z a b
     -> Prototype x m v j t j' t' y z a b
-enclose ji ij ts st (Prototype bld dis fin act hdl) = Prototype
-    (F.mapBuilder (view ji) ij (view ts) st bld)
-    (F.viaSpec (alongside id ts) dis)
-    (F.viaSpec ts fin)
-    (F.viaSpec (alongside id ts) act)
-    (F.viaSpec (alongside id ts) hdl)
+enclose ji ij ts st p =
+    let p'@(Prototype bld _ _ _ _) = F.viaSpec ts (F.viaInfo ji p)
+    in p' { builder = F.mapBuilder ij st bld }
 
 encloseTagged :: forall t x m v i s i' s' y z a b.
     Functor m
@@ -203,7 +226,7 @@ encloseTagged p =
         ji = iso unTagged Tagged
     in enclose ji (Tagged @t) ts (Tagged @t) p
 
--- | Wrap a prototype's info and model as an item inside a Manysans.
+-- | Wrap a prototype's info and model as an item inside a Many.
 comprise
     :: ( Functor m
        , HasItem' s1 s2
@@ -213,4 +236,4 @@ comprise
     -> Prototype x m v i2 s2 (Many '[i']) (Many '[s']) y z a b
 comprise p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec item' (F.viaInfo item' p)
-    in p' { builder = F.mapBuilder id single id single bld }
+    in p' { builder = F.mapBuilder single single bld }

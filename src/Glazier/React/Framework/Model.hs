@@ -68,17 +68,6 @@ data Plan x m = Plan
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
-type Frame x m s = (Plan x m, s)
-
-plan :: Lens' (Frame x m s) (Plan x m)
-plan = _1
-
-model :: Lens' (Frame x m s) s
-model = _2
-
--- | Mutable
-type Scene x m v s = F.Obj v (Frame x m s)
-
 mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan x m)
 mkPlan n = Plan
     <$> R.getComponent
@@ -89,6 +78,19 @@ mkPlan n = Plan
     <*> pure (pure mempty) -- ^ doOnUpdated
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
+
+-- Read-only
+-- Using type synonym to a tuple for usages of 'alongside'.
+type Frame x m s = (Plan x m, s)
+
+plan :: Lens' (Frame x m s) (Plan x m)
+plan = _1
+
+model :: Lens' (Frame x m s) s
+model = _2
+
+-- | Mutable
+type Scene x m v s = F.Obj v (Frame x m s)
 
 rerender :: R.MonadReactor x m => Scene x m v s -> m ()
 rerender (F.Obj ref its) = do
@@ -102,7 +104,7 @@ rerender (F.Obj ref its) = do
 -- -- | If a new item was added, then we need to delay focusing until after the next render
 -- focus :: (R.MonadReactor x m)
 --     => IORef v
---     -> Lens' v (Plan x m, s)
+--     -> Lens' v (Frame x m s)
 --     -> R.EventTarget
 --     -> m ()
 -- focus ref its j = do

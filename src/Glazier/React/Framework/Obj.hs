@@ -18,6 +18,8 @@ data Obj v s = Obj
 edit :: Lens' s a -> Obj v s -> Obj v a
 edit l (Obj v i) = Obj v (i.l)
 
+-- Polymorphic @Lens'@ prevents a auto derivied Generic instance
+-- THe custom Generic instance uses 'ReifiedLens''
 instance Generic (Obj v s) where
     from (Obj v s)
         = M1 (M1 (M1 (K1 v) :*: M1 (K1 (Lens s))))

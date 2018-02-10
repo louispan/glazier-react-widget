@@ -69,7 +69,7 @@ delegate = pure
 ------------------------------------------------------
 
 -- | Create callbacks and add it to this state's dlist of listeners.
--- Using @AllowAmbiguousTypes@ instead of @Proxy@
+-- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 trigger :: forall t x m v s c.
     ( R.MonadReactor x m
     , NFData c
@@ -131,6 +131,7 @@ controls' (Executor exec1) exec2 = Executor $ \k ->
         let Executor exec2' = handleBeforeExecuting' env hdl1 exec2
             y = exec2' k
         in (F.toReader y) env
+infixl 4 `controls'` -- like fmap
 
 -- | Use left executor's handler to tranform the right Executor's environment.
 -- Complex version where:
@@ -159,6 +160,7 @@ controls exec1 exec2 =
         exec1''' :: ExHandler x m r (Which c4) (Which c2) (Which c4)
         exec1''' = rmap diversify <$> exec1''
     in controls' exec1''' exec2
+infixl 4 `controls` -- like fmap
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
@@ -210,6 +212,10 @@ type PmappendExecutor z1 z2 z3 =
     , z3 ~ AppendUnique z1 z2
     )
 
+-- | type restricted version of 'P.pmempty' for 'ExHandler'
+nilExHandler :: Applicative m => ExHandler x m r (Which '[]) (Which '[]) (Which '[])
+nilExHandler = P.pmempty
+
 -- | Undecidableinstances!
 instance ( Monad m
          , PmappendExecutor z1 z2 z3
@@ -222,6 +228,18 @@ instance ( Monad m
         let hdl1 = runExecutor (withExecutor diversify x) k
             hdl2 = runExecutor (withExecutor diversify y) k
         in (hdl1 +||+ hdl2)
+
+-- | type restricted version of 'P.pmappend' for 'ExHandler'
+andExHandler ::
+    ( Monad m
+    , PmappendExecutor z1 z2 z3
+    , ChooseBetween a1 a2 a3 b1 b2 b3
+    )
+    => ExHandler x m r (Which z1) (Which a1) (Which b1)
+    -> ExHandler x m r (Which z2) (Which a2) (Which b2)
+    -> ExHandler x m r (Which z3) (Which a3) (Which b3)
+andExHandler = P.pmappend
+infixr 6 `andExHandler` -- like mappend
 
 ------------------------------------------------------
 
@@ -252,6 +270,10 @@ type instance P.PNullary (PExActivator x m r) y = Executor x m y (F.Activator m 
 instance Monad m => P.PMEmpty (PExActivator x m r) (Which '[]) where
     pmempty = Executor $ const mempty
 
+-- | type restricted version of 'P.pmempty' for 'ExActivator'
+nilExActivator :: Monad m => ExActivator x m r (Which '[])
+nilExActivator = P.pmempty
+
 -- | Undecidableinstances!
 instance ( Monad m
          , PmappendExecutor y1 y2 y3) =>
@@ -264,6 +286,16 @@ instance ( Monad m
             act2 = runExecutor (withExecutor diversify y) k
         in (act1 <> act2)
 
+-- | type restricted version of 'P.pmappend' for 'ExActivator'
+andExActivator ::
+    ( Monad m
+    , PmappendExecutor y1 y2 y3
+    )
+    => ExActivator x m r (Which y1)
+    -> ExActivator x m r (Which y2)
+    -> ExActivator x m r (Which y3)
+andExActivator = P.pmappend
+infixr 6 `andExActivator` -- like mappend
 ------------------------------------------------------
 
 type ExActivator x m r y = Executor x m y (F.Activator m r)

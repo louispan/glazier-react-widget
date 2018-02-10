@@ -354,12 +354,12 @@ listingDisplay :: forall flt srt x m s ss.
     -> (s -> [JE.Property])
     -> F.Display m s ()
     -> F.FrameDisplay x m ss ()
-listingDisplay flt srt f (F.Display disp) = F.Display $ \(_, ss) -> do
+listingDisplay flt srt f dis (_, ss) = do
     let Listing df ds ys xs = ss ^. item' @(Listing s flt srt)
         toLi s = R.branch "li"
             []
             (f s)
-            (disp s)
+            (dis s)
         df' = flt df
         ds' = srt ds
     ys' <- lift $ case ys of

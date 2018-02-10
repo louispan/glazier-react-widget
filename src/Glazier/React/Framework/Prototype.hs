@@ -126,13 +126,13 @@ widget ::
         i'
         (Many (Tagged t [R.Listener] ': ss'))
         y z a b
-widget n f (Prototype (F.Builder (mkInf, F.MkSpec mkSpc)) (F.Display dis) fin act hdl) =
+widget n f (Prototype (F.Builder (mkInf, F.MkSpec mkSpc)) dis fin act hdl) =
     Prototype
     (F.Builder ( mkInf
                 , F.MkSpec $ \is -> (\s -> (is ^. mempty
                                             ./ s))
                     <$> mkSpc is))
-    (F.Display $ \(cp, ss) ->
+    (\(cp, ss) ->
             let props = f ss
                 ls = view (itemTag' @t @[R.Listener]) ss
             in R.branch (JE.toJS' n)

@@ -45,7 +45,7 @@ toArchetype :: (R.MonadReactor x m)
     -> Archetype x m i (IORef (F.Plan x m, s)) y z a b
 toArchetype n (F.Prototype
     (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc))
-    (F.Display dis)
+    dis
     (F.Finalizer fin)
     (F.Executor xact)
     (F.Executor xhdl))
@@ -58,7 +58,7 @@ toArchetype n (F.Prototype
             s <- mkSpc i
             cp <- F.mkPlan n
             R.doNewIORef (cp, s)))
-    (F.Display $ \ref -> do
+    (\ref -> do
             (cp, _) <- lift $ R.doReadIORef ref
             R.leaf (cp ^. field @"component".to JE.toJS')
                 (JE.justSnds
@@ -116,13 +116,13 @@ fromArchetype :: R.MonadReactor x m
     -> F.Prototype x m v i s i s y z a b
 fromArchetype (Archetype
     bld
-    (F.Display dis)
+    dis
     fin
     (F.Executor xact)
     (F.Executor xhdl))
     = F.Prototype
     bld
-    (F.Display $ \(_, s) -> dis s)
+    (\(_, s) -> dis s)
     fin
     (F.Executor $ \k -> let F.Activator act = xact k
                         in F.Activator $ \(F.Obj ref its) -> do

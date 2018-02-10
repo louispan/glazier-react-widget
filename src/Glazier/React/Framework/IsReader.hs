@@ -1,10 +1,16 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Framework.IsReader where
 
-class IsReader r a | a -> r where
-    type ReaderResult r a
-    fromReader :: (r -> ReaderResult r a) -> a
-    toReader :: a -> (r -> ReaderResult r a)
+class IsReader r n | n -> r where
+    type ReaderResult r n
+    fromReader :: (r -> ReaderResult r n) -> n
+    toReader :: n -> (r -> ReaderResult r n)
+
+instance IsReader s (s -> a) where
+    type ReaderResult s (s -> a) = a
+    fromReader = id
+    toReader = id

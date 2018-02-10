@@ -17,6 +17,7 @@ module Glazier.React.Framework.Model where
 import qualified Control.Disposable as CD
 import Control.Lens
 import qualified Data.DList as DL
+import Data.Functor.Contravariant
 import Data.Generics.Product
 import Data.Kind
 import qualified GHC.Generics as G
@@ -36,6 +37,11 @@ class ViaSpec (w :: Type -> Type) where
     -- to something that knows how to manipulate a @t@.
     viaSpec :: Lens' t s -> OnSpec w s -> OnSpec w t
 
+type instance OnSpec (Op a) s = s -> a
+
+instance ViaSpec (Op a) where
+    viaSpec l f = f . view l
+
 type family OnInfo (w :: Type -> Type) (i :: Type) = (r :: Type) | r -> w i
 
 -- | Something that knows how to get and set (but not make) a plan
@@ -44,6 +50,11 @@ class ViaInfo (w :: Type -> Type) where
     -- change something that knows how to manipulate an @p@
     -- to something that knows how to manipulate a @q@.
     viaInfo :: Lens' j i -> OnInfo w i -> OnInfo w j
+
+type instance OnInfo (Op a) s = s -> a
+
+instance ViaInfo (Op a) where
+    viaInfo l f = f . view l
 
 -- | One for every archetype, may be shared for many prototypes
 data Plan x m = Plan

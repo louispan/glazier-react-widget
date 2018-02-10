@@ -53,5 +53,5 @@ withRef =
       -> R.EventTarget
       -> m (DL.DList (Which '[]))
     whenRef (F.Obj ref its) j = do
-            R.doModifyIORef' ref (set' (its._2.itemTag' @t) j)
+            R.doModifyIORef' ref (set' (its.F.model.itemTag' @t) j)
             pure mempty

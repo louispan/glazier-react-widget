@@ -32,7 +32,7 @@ instance (Applicative m) => Monoid (Finalizer m s) where
 
 -----------------------------------------
 
-type instance F.OnModel (Finalizer m) s = Finalizer m s
+type instance F.OnSpec (Finalizer m) s = Finalizer m s
 
-instance F.ViaModel (Finalizer m) where
-    viaModel l (Finalizer f) = Finalizer $ f . view l
+instance F.ViaSpec (Finalizer m) where
+    viaSpec l (Finalizer f) = Finalizer $ f . view l

@@ -44,7 +44,7 @@ toArchetype :: (R.MonadReactor x m)
     => J.JSString -> F.Prototype x m (F.Plan x m, s) i s i s y z a b
     -> Archetype x m i (IORef (F.Plan x m, s)) y z a b
 toArchetype n (F.Prototype
-    (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl))
+    (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc))
     (F.Display dis)
     (F.Finalizer fin)
     (F.Executor xact)
@@ -52,10 +52,10 @@ toArchetype n (F.Prototype
     = Archetype
     (F.Builder
         ( F.MkInfo (R.doReadIORef >=> (mkInf . snd))
-        , F.MkModel $ \i -> do
+        , F.MkSpec $ \i -> do
             -- tuple the original state with a ComponentPlan
             -- and wrap inside a IORef
-            s <- mkMdl i
+            s <- mkSpc i
             cp <- F.mkPlan n
             R.doNewIORef (cp, s)))
     (F.Display $ \ref -> do
@@ -127,8 +127,8 @@ fromArchetype (Archetype
     (F.Executor $ \k -> let F.Activator act = xact k
                         in F.Activator $ \(F.Obj ref its) -> do
                                 obj <- R.doReadIORef ref
-                                act (obj ^. its._2))
+                                act (obj ^. its.F.model))
     (F.Executor $ \k -> let F.Handler hdl = xhdl k
                         in F.Handler $ \(F.Obj ref its) a -> do
                                 obj <- R.doReadIORef ref
-                                hdl (obj ^. its._2) a)
+                                hdl (obj ^. its.F.model) a)

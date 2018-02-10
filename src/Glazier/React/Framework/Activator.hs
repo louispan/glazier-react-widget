@@ -45,10 +45,10 @@ instance Contravariant (Activator m) where
 type ObjActivator m v s = Activator m (F.Obj v s)
 type SceneActivator x m v s = Activator m (F.Scene x m v s)
 
-newtype ObjActivatorOnModel m v s = ObjActivatorOnModel { runObjActivatorOnModel :: ObjActivator m v s}
+newtype ObjActivatorOnSpec m v s = ObjActivatorOnSpec { runObjActivatorOnSpec :: ObjActivator m v s}
 
-type instance F.OnModel (ObjActivatorOnModel m v) s = ObjActivator m v s
+type instance F.OnSpec (ObjActivatorOnSpec m v) s = ObjActivator m v s
 
-instance F.ViaModel (ObjActivatorOnModel m v) where
-    viaModel l (Activator f) = Activator $ \obj ->
+instance F.ViaSpec (ObjActivatorOnSpec m v) where
+    viaSpec l (Activator f) = Activator $ \obj ->
         f (F.edit l obj)

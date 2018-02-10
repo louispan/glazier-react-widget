@@ -83,8 +83,8 @@ trigger n f = Executor $ \k -> F.Activator $ act k
     act k (F.Obj ref its) = do
         (ds, cb) <- R.mkCallback f k
         R.doModifyIORef' ref $ \obj ->
-            obj & its._2.itemTag' @t %~ ((n, cb) :)
-                & its._1.field @"disposeOnRemoved" %~ (<> ds)
+            obj & its.F.model.itemTag' @t %~ ((n, cb) :)
+                & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)
 
 -- | Use the given handler to transform the Executor's environment
 -- Simple version where the handler input type must match the Executor environment type.
@@ -229,16 +229,16 @@ type ExHandler x m r z a b = Executor x m z (F.Handler m r a b)
 type ExObjHandler x m v s z a b = Executor x m z (F.ObjHandler m v s a b)
 type ProtoHandler x m v s z a b = Executor x m z (F.SceneHandler x m v s a b)
 
-newtype ExObjHandlerOnModel x m v z a b s = ExObjHandlerOnModel {
-    runExObjHandlerOnModel :: ExObjHandler x m v s z a b
+newtype ExObjHandlerOnSpec x m v z a b s = ExObjHandlerOnSpec {
+    runExObjHandlerOnSpec :: ExObjHandler x m v s z a b
     }
 
-type instance F.OnModel (ExObjHandlerOnModel x m v z a b) s = ExObjHandler x m v s z a b
+type instance F.OnSpec (ExObjHandlerOnSpec x m v z a b) s = ExObjHandler x m v s z a b
 
-instance F.ViaModel (ExObjHandlerOnModel x m v z a b) where
-    viaModel l (Executor exec) = Executor $ \k ->
+instance F.ViaSpec (ExObjHandlerOnSpec x m v z a b) where
+    viaSpec l (Executor exec) = Executor $ \k ->
         let hdl = exec k
-        in F.viaModel l hdl
+        in F.viaSpec l hdl
 
 
 ------------------------------------------------------
@@ -270,13 +270,13 @@ type ExActivator x m r y = Executor x m y (F.Activator m r)
 type ExObjActivator x m v s y = Executor x m y (F.ObjActivator m v s)
 type ProtoActivator x m v s y = Executor x m y (F.SceneActivator x m v s)
 
-newtype ExObjActivatorOnModel x m v y s = ExObjActivatorOnModel {
-    runExObjActivatorOnModel :: ExObjActivator x m v s y
+newtype ExObjActivatorOnSpec x m v y s = ExObjActivatorOnSpec {
+    runExObjActivatorOnSpec :: ExObjActivator x m v s y
     }
 
-type instance F.OnModel (ExObjActivatorOnModel x m v y) s = ExObjActivator x m v s y
+type instance F.OnSpec (ExObjActivatorOnSpec x m v y) s = ExObjActivator x m v s y
 
-instance F.ViaModel (ExObjActivatorOnModel x m v y) where
-    viaModel l (Executor exec) = Executor $ \k ->
+instance F.ViaSpec (ExObjActivatorOnSpec x m v y) where
+    viaSpec l (Executor exec) = Executor $ \k ->
         let act = exec k
-        in F.viaModel l act
+        in F.viaSpec l act

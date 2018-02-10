@@ -104,14 +104,14 @@ filterHandlerOutput f (Handler hdl) = Handler $ \env a -> foldMap go <$> hdl env
 type ObjHandler m v s a b = Handler m (F.Obj v s) a b
 type SceneHandler x m v s a b = Handler m (F.Scene x m v s) a b
 
-newtype ObjHandlerOnModel m a b v s = ObjHandlerOnModel {
-    runObjHandlerOnModel :: ObjHandler m v s a b
+newtype ObjHandlerOnSpec m a b v s = ObjHandlerOnSpec {
+    runObjHandlerOnSpec :: ObjHandler m v s a b
     }
 
-type instance F.OnModel (ObjHandlerOnModel m a b v) s = ObjHandler m v s a b
+type instance F.OnSpec (ObjHandlerOnSpec m a b v) s = ObjHandler m v s a b
 
-instance F.ViaModel (ObjHandlerOnModel m a b v) where
-    viaModel l (Handler hdl) =
+instance F.ViaSpec (ObjHandlerOnSpec m a b v) where
+    viaSpec l (Handler hdl) =
         Handler $ \obj -> hdl (F.edit l obj)
 
 -- objHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> ObjHandler m v s a b

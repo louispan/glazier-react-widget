@@ -27,14 +27,14 @@ import qualified Glazier.React.Framework.Obj as F
 import qualified JavaScript.Extras as JE
 ----------------------------------------------------------
 
-type family OnModel (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
+type family OnSpec (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
 
--- | Something that knows how to get and set (but not make) a model
-class ViaModel (w :: Type -> Type) where
+-- | Something that knows how to get and set (but not make) a spec
+class ViaSpec (w :: Type -> Type) where
     -- | given a lens from @t@ to @s@,
     -- change something that knows how to manipulate an @s@
     -- to something that knows how to manipulate a @t@.
-    viaModel :: Lens' t s -> OnModel w s -> OnModel w t
+    viaSpec :: Lens' t s -> OnSpec w s -> OnSpec w t
 
 type family OnInfo (w :: Type -> Type) (i :: Type) = (r :: Type) | r -> w i
 
@@ -45,6 +45,7 @@ class ViaInfo (w :: Type -> Type) where
     -- to something that knows how to manipulate a @q@.
     viaInfo :: Lens' j i -> OnInfo w i -> OnInfo w j
 
+-- | One for every archetype, may be shared for many prototypes
 data Plan x m = Plan
     { component :: R.ReactComponent
     , key :: R.ReactKey
@@ -56,7 +57,16 @@ data Plan x m = Plan
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
-type Scene x m v s = F.Obj v (Plan x m, s)
+type Frame x m s = (Plan x m, s)
+
+plan :: Lens' (Frame x m s) (Plan x m)
+plan = _1
+
+model :: Lens' (Frame x m s) s
+model = _2
+
+-- | Mutable
+type Scene x m v s = F.Obj v (Frame x m s)
 
 mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan x m)
 mkPlan n = Plan
@@ -69,19 +79,14 @@ mkPlan n = Plan
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
 
--- data Model x m s = Model
---     { plan :: Plan x m
---     , model :: s
---     } deriving (G.Generic)
-
 rerender :: R.MonadReactor x m => Scene x m v s -> m ()
 rerender (F.Obj ref its) = do
     obj <- R.doReadIORef ref
-    let (i, obj') = obj & (its._1.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
+    let (i, obj') = obj & (its.plan.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'
     R.setComponentState
         (JE.fromProperties [("frameNum", JE.toJS' i)])
-        (obj ^. (its._1.field @"component"))
+        (obj ^. (its.plan.field @"component"))
 
 -- -- | If a new item was added, then we need to delay focusing until after the next render
 -- focus :: (R.MonadReactor x m)
@@ -90,5 +95,5 @@ rerender (F.Obj ref its) = do
 --     -> R.EventTarget
 --     -> m ()
 -- focus ref its j = do
---     R.doModifyIORef' ref (its._1.field @"doOnUpdated" %~ (\g -> liftA2 const g (R.focus j)))
+--     R.doModifyIORef' ref (its.plan.field @"doOnUpdated" %~ (\g -> liftA2 const g (R.focus j)))
 --     rerender ref its

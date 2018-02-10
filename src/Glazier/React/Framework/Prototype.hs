@@ -34,7 +34,7 @@ import qualified Parameterized.TypeLevel as P
 
 data Prototype x m v i s i' s' y z a b = Prototype
     { builder :: F.Builder m i s i' s'
-    , display :: F.PlanDisplay x m s ()
+    , display :: F.FrameDisplay x m s ()
     , finalizer :: F.Finalizer m s
     , activator :: F.ProtoActivator x m v s y
     , handler :: F.ProtoHandler x m v s z a b
@@ -76,19 +76,19 @@ instance ( R.MonadReactor x m
 
 ------------------------------------------
 
-newtype PrototypeOnModel x m v i i' s' y z a b s = PrototypeOnModel
-    { runPrototypeOnModel :: Prototype x m v i s i' s' y z a b
+newtype PrototypeOnSpec x m v i i' s' y z a b s = PrototypeOnSpec
+    { runPrototypeOnSpec :: Prototype x m v i s i' s' y z a b
     }
 
-type instance F.OnModel (PrototypeOnModel x m v i i' s' y z a b) s = Prototype x m v i s i' s' y z a b
+type instance F.OnSpec (PrototypeOnSpec x m v i i' s' y z a b) s = Prototype x m v i s i' s' y z a b
 
-instance F.ViaModel (PrototypeOnModel x m v i i' s' y z a b) where
-    viaModel l (Prototype bld dis fin act hdl) = Prototype
-        (F.viaModel l bld)
-        (F.viaModel (alongside id l) dis)
-        (F.viaModel l fin)
-        (F.viaModel (alongside id l) act)
-        (F.viaModel (alongside id l) hdl)
+instance F.ViaSpec (PrototypeOnSpec x m v i i' s' y z a b) where
+    viaSpec l (Prototype bld dis fin act hdl) = Prototype
+        (F.viaSpec l bld)
+        (F.viaSpec (alongside id l) dis)
+        (F.viaSpec l fin)
+        (F.viaSpec (alongside id l) act)
+        (F.viaSpec (alongside id l) hdl)
 
 ------------------------------------------
 
@@ -126,12 +126,12 @@ widget ::
         i'
         (Many (Tagged t [R.Listener] ': ss'))
         y z a b
-widget n f (Prototype (F.Builder (mkInf, F.MkModel mkMdl)) (F.Display dis) fin act hdl) =
+widget n f (Prototype (F.Builder (mkInf, F.MkSpec mkSpc)) (F.Display dis) fin act hdl) =
     Prototype
     (F.Builder ( mkInf
-                , F.MkModel $ \is -> (\s -> (is ^. mempty
+                , F.MkSpec $ \is -> (\s -> (is ^. mempty
                                             ./ s))
-                    <$> mkMdl is))
+                    <$> mkSpc is))
     (F.Display $ \(cp, ss) ->
             let props = f ss
                 ls = view (itemTag' @t @[R.Listener]) ss
@@ -156,15 +156,15 @@ widget n f (Prototype (F.Builder (mkInf, F.MkModel mkMdl)) (F.Display dis) fin a
 --         i'
 --         (Many ([R.Listener] ': ss'))
 --         x y z a b
--- widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkModel mkMdl)) (F.Display dis) fin act hdl) =
+-- widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc)) (F.Display dis) fin act hdl) =
 --     Prototype
 --     (F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
 --                     <$> mkInf ss
---                 , F.MkModel $ \is -> (\s -> (is ^. item' @[JE.Property])
+--                 , F.MkSpec $ \is -> (\s -> (is ^. item' @[JE.Property])
 --                                             ./ mempty
 --                                             ./ ts
 --                                             ./ s)
---                     <$> mkMdl is))
+--                     <$> mkSpc is))
 --     (F.Display $ \(cp, ss) ->
 --             let props = view (item' @[JE.Property]) ss
 --                 hs = view (item' @[F.Trait]) ss
@@ -187,10 +187,10 @@ enclose :: Functor m
     -> Prototype x m v j t j' t' y z a b
 enclose ji ij ts st (Prototype bld dis fin act hdl) = Prototype
     (F.mapBuilder (view ji) ij (view ts) st bld)
-    (F.viaModel (alongside id ts) dis)
-    (F.viaModel ts fin)
-    (F.viaModel (alongside id ts) act)
-    (F.viaModel (alongside id ts) hdl)
+    (F.viaSpec (alongside id ts) dis)
+    (F.viaSpec ts fin)
+    (F.viaSpec (alongside id ts) act)
+    (F.viaSpec (alongside id ts) hdl)
 
 encloseTagged :: forall t x m v i s i' s' y z a b.
     Functor m
@@ -212,5 +212,5 @@ comprise
     => Prototype x m v i1 s1 i' s' y z a b
     -> Prototype x m v i2 s2 (Many '[i']) (Many '[s']) y z a b
 comprise p =
-    let p'@(Prototype bld _ _ _ _) = F.viaModel item' (F.viaInfo item' p)
+    let p'@(Prototype bld _ _ _ _) = F.viaSpec item' (F.viaInfo item' p)
     in p' { builder = F.mapBuilder id single id single bld }

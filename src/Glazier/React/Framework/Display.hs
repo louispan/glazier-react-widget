@@ -22,7 +22,7 @@ instance F.IsReader s (Display m s r) where
     fromReader = Display
     toReader = runDisplay
 
-type PlanDisplay x m s r = Display m (F.Plan x m, s) r
+type FrameDisplay x m s r = Display m (F.Frame x m s) r
 
 instance Monad m => Applicative (Display m s) where
     pure = Display . const . pure
@@ -42,9 +42,9 @@ instance (Monoid r, Monad m) => Monoid (Display m s r) where
 
 -----------------------------------------
 
-newtype DisplayOnModel m r s = DisplayOnModel { runDisplayOnModel :: Display m s r }
+newtype DisplayOnSpec m r s = DisplayOnSpec { runDisplayOnSpec :: Display m s r }
 
-type instance F.OnModel (DisplayOnModel m r) s = Display m s r
+type instance F.OnSpec (DisplayOnSpec m r) s = Display m s r
 
-instance F.ViaModel (DisplayOnModel m r) where
-    viaModel l (Display f) = Display $ f . view l
+instance F.ViaSpec (DisplayOnSpec m r) where
+    viaSpec l (Display f) = Display $ f . view l

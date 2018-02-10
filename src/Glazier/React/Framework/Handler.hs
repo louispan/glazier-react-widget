@@ -115,7 +115,7 @@ instance F.ViaModel (ObjHandlerOnModel m a b v) where
         Handler $ \obj -> hdl (F.edit l obj)
 
 -- objHandler :: (IORef v -> Lens' v s -> a -> m (DL.DList b)) -> ObjHandler m v s a b
--- objHandler hdl = Handler $ \(F.Object ref (Lens its)) -> hdl ref its
+-- objHandler hdl = Handler $ \(F.Obj' ref its) -> hdl ref its
 
 -- toRefHandler :: R.MonadReactor m => Handler m s a b -> RefHandler m v s y a b
 -- toRefHandler (Handler hdl) = Handler $ \(_, ref, Lens its) a -> do

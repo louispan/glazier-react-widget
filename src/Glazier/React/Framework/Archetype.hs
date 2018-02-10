@@ -76,7 +76,7 @@ toArchetype n (F.Prototype
     (F.Executor $ \k ->
         let F.Activator act = xact k
         in F.Activator $ \ref -> do
-            act (F.Obj ref (Lens id))
+            act (F.Obj ref id)
             (cp, _) <- R.doReadIORef ref
             -- now replace the render and componentUpdated in the model if not already activated
             rnd <- case F.onRender cp of
@@ -108,7 +108,7 @@ toArchetype n (F.Prototype
                 Nothing -> pure ()
                 Just g -> R.doModifyIORef' ref (first g))
     (F.Executor $ \k -> let F.Handler hdl = xhdl k
-                        in F.Handler $ \ref a -> hdl (F.Obj ref (Lens id)) a)
+                        in F.Handler $ \ref a -> hdl (F.Obj ref id) a)
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor x m
@@ -125,10 +125,10 @@ fromArchetype (Archetype
     (F.Display $ \(_, s) -> dis s)
     fin
     (F.Executor $ \k -> let F.Activator act = xact k
-                        in F.Activator $ \(F.Obj ref (Lens its)) -> do
+                        in F.Activator $ \(F.Obj ref its) -> do
                                 obj <- R.doReadIORef ref
                                 act (obj ^. its._2))
     (F.Executor $ \k -> let F.Handler hdl = xhdl k
-                        in F.Handler $ \(F.Obj ref (Lens its)) a -> do
+                        in F.Handler $ \(F.Obj ref its) a -> do
                                 obj <- R.doReadIORef ref
                                 hdl (obj ^. its._2) a)

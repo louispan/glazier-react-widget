@@ -75,7 +75,7 @@ mkPlan n = Plan
 --     } deriving (G.Generic)
 
 rerender :: R.MonadReactor x m => Scene x m v s -> m ()
-rerender (F.Obj ref (Lens its)) = do
+rerender (F.Obj ref its) = do
     obj <- R.doReadIORef ref
     let (i, obj') = obj & (its._1.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'

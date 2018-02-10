@@ -80,7 +80,7 @@ trigger :: forall t x m v s c.
     -> ProtoActivator x m v s c
 trigger n f = Executor $ \k -> F.Activator $ act k
   where
-    act k (F.Obj ref (Lens its)) = do
+    act k (F.Obj ref its) = do
         (ds, cb) <- R.mkCallback f k
         R.doModifyIORef' ref $ \obj ->
             obj & its._2.itemTag' @t %~ ((n, cb) :)

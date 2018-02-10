@@ -11,8 +11,6 @@ import Data.Semigroup
 import qualified Glazier.React.Framework.IsReader as F
 import qualified Glazier.React.Framework.Model as F
 
--- type Finalizer m s = (s -> m CD.Disposable)
-
 newtype Finalizer m s = Finalizer
     { runFinalizer :: s -> m CD.Disposable
     }

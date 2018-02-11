@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
@@ -39,6 +41,7 @@ instance F.IsReader r (Handler m r a b) where
 
 instance Applicative m => Semigroup (Handler m r a b) where
     Handler f <> Handler g = Handler $ \env a -> liftA2 (<>) (f env a) (g env a)
+
 instance Applicative m => Monoid (Handler m r a b) where
     mempty = Handler $ \_ _ -> pure mempty
     mappend = (<>)
@@ -114,16 +117,26 @@ instance F.ViaSpec (ObjHandlerOnSpec m a b v) where
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @x@
 bypass :: forall x a' b' m r a b.
     ( Monad m
-    , a' ~ Append a x
-    , b' ~ AppendUnique b x
-    , a ~ Complement a' x
-    , Reinterpret x a'
-    , Diversify b b'
-    , Diversify x b'
+    , ChooseBetween a x a' b x b'
     )
     => Handler m r (Which a) (Which b) -> Handler m r (Which a') (Which b')
 bypass hdl = let cid = C.id :: Handler m r (Which x) (Which x)
              in hdl +||+ cid
+
+-- | Fanout the same input to two handlers and combine then results
+-- RedundantConstraint: @b3 ~ AppendUnique b1 b2@
+chooseBoth :: forall m r a b1 b2 b3.
+    ( Applicative m
+    , Diversify b1 b3
+    , Diversify b2 b3
+    , b3 ~ AppendUnique b1 b2)
+    => Handler m r (Which a) (Which b1)
+    -> Handler m r (Which a) (Which b2)
+    -> Handler m r (Which a) (Which b3)
+chooseBoth x y =
+    (rmap diversify x)
+    <>
+    (rmap diversify y)
 
 -------------------------------------
 

@@ -82,19 +82,19 @@ toArchetype n (F.Prototype
             -- now replace the render and componentUpdated in the model if not already activated
             rnd <- case F.onRender cp of
                         Just _ -> pure Nothing
-                        Nothing -> fmap Just . R.mkRenderer $ do
+                        Nothing -> fmap Just . R.doMkRenderer $ do
                             s <- lift $ R.doReadIORef ref
                             dis s
             upd <- case F.onUpdated cp of
                         Just _ -> pure Nothing
-                        Nothing -> fmap Just . R.mkCallback (const $ pure ()) . const $ do
+                        Nothing -> fmap Just . R.doMkCallback (const $ pure ()) . const $ do
                             (cp', _) <- R.doReadIORef ref
                             R.doModifyIORef' ref $ \(cp'', s') ->
-                                (cp'' & field @"doOnUpdated" `set'` pure mempty
+                                (cp'' & field @"afterOnUpdated" `set'` pure mempty
                                         & field @"disposeOnUpdated" .~ mempty
                                 , s')
-                            R.dispose (F.disposeOnUpdated cp')
-                            F.doOnUpdated cp'
+                            R.doDispose (F.disposeOnUpdated cp')
+                            F.afterOnUpdated cp'
             let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ Just cb
                                             & field @"disposeOnRemoved" %~ (<> d)
                         ) <$> rnd

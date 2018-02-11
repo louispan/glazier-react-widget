@@ -63,15 +63,15 @@ data Plan x m = Plan
     , frameNum :: Int
     , disposeOnRemoved :: CD.Disposable -- things to dispose when this widget is removed
     , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
-    , doOnUpdated :: m (DL.DList x) -- additional monadic action to take after a rerender
+    , afterOnUpdated :: m (DL.DList x) -- additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
 mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan x m)
 mkPlan n = Plan
-    <$> R.getComponent
-    <*> R.mkReactKey n
+    <$> R.doGetComponent
+    <*> R.doMkReactKey n
     <*> pure 0
     <*> pure mempty -- ^ disposeOnRemoved
     <*> pure mempty -- ^ disposeOnUpdated
@@ -97,7 +97,7 @@ rerender (F.Obj ref its) = do
     obj <- R.doReadIORef ref
     let (i, obj') = obj & (its.plan.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'
-    R.setComponentState
+    R.doSetComponentState
         (JE.fromProperties [("frameNum", JE.toJS' i)])
         (obj ^. (its.plan.field @"component"))
 

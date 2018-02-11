@@ -81,7 +81,7 @@ trigger :: forall t x m v s c.
 trigger n f = Executor $ \k -> F.Activator $ act k
   where
     act k (F.Obj ref its) = do
-        (ds, cb) <- R.mkCallback f k
+        (ds, cb) <- R.doMkCallback f k
         R.doModifyIORef' ref $ \obj ->
             obj & its.F.model.itemTag' @t %~ ((n, cb) :)
                 & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)

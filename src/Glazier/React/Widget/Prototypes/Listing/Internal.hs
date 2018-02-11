@@ -26,7 +26,6 @@ import Data.Generics.Product
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Semigroup
-import Data.Void
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as F
@@ -144,7 +143,7 @@ listing flt srt f (F.Archetype
         in F.viaSpec (alongside id (item' @(Listing s flt srt))) (listingActivator act))
     (F.Executor $ \k ->
         let act = xact k
-        in F.viaSpec (alongside id item') (absurdlyFaceted (listingHandler d mkSpc act)))
+        in F.viaSpec (alongside id item') (lmap obvious (listingHandler d mkSpc act)))
 
 -- | Creates a listing with a handler that handles listing actions,
 -- as well as broadcasting original actions to in each item in the listing.
@@ -189,7 +188,7 @@ whenListingDeleteItem :: (R.MonadReactor x m)
     => F.Finalizer m s
     -> F.Scene x m v (Listing s flt srt)
     -> ListingDeleteItem
-    -> m (DL.DList Void)
+    -> m (DL.DList (Which '[]))
 whenListingDeleteItem (F.Finalizer fin) this@(F.Obj ref its) (ListingDeleteItem k) = do
     R.doModifyIORefM ref $ \obj -> do
         let mi = M.lookup k (obj ^. its.F.model.field @"items")
@@ -198,38 +197,38 @@ whenListingDeleteItem (F.Finalizer fin) this@(F.Obj ref its) (ListingDeleteItem 
             . (its.F.plan.field @"disposeOnUpdated" %~ (<> fin'))
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure mempty
+    pure impossibles
 
 -- | Sort the items on the listing given a sorting function
 whenListingSort :: (R.MonadReactor x m)
   => F.Scene x m v (Listing s flt srt)
   -> ListingSort srt
-  -> m (DL.DList Void)
+  -> m (DL.DList (Which '[]))
 whenListingSort this@(F.Obj ref its) (ListingSort f) = do
     R.doModifyIORef' ref $ \obj ->
         obj & (its.F.model.field @"displaySort" .~ f)
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure mempty
+    pure impossibles
 
 -- | Filter the items on the listing given a filter function
 whenListingFilter :: forall x m v s flt srt.
     (R.MonadReactor x m)
     => F.Scene x m v (Listing s flt srt)
     -> ListingFilter flt
-    -> m (DL.DList Void)
+    -> m (DL.DList (Which '[]))
 whenListingFilter this@(F.Obj ref its) (ListingFilter f) = do
     R.doModifyIORef' ref $ \obj ->
         obj & (its.F.model.field @"displayFilter" .~ f)
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure mempty
+    pure impossibles
 
 whenListingInsertItem :: (R.MonadReactor x m)
     => F.Finalizer m s
     -> F.Scene x m v (Listing s flt srt)
     -> ListingInsertItem s
-    -> m (DL.DList Void)
+    -> m (DL.DList (Which '[]))
 whenListingInsertItem (F.Finalizer fin) this@(F.Obj ref its) (ListingInsertItem k s) = do
     R.doModifyIORefM ref $ \obj -> do
         let mi = M.lookup k (obj ^. its.F.model.field @"items")
@@ -238,12 +237,12 @@ whenListingInsertItem (F.Finalizer fin) this@(F.Obj ref its) (ListingInsertItem 
             . (its.F.plan.field @"disposeOnUpdated" %~ (<> fin'))
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure mempty
+    pure impossibles
 
 whenListingConsItem :: (R.MonadReactor x m)
     => F.Scene x m v (Listing s flt srt)
     -> ListingConsItem s
-    -> m (DL.DList Void)
+    -> m (DL.DList (Which '[]))
 whenListingConsItem this@(F.Obj ref its) (ListingConsItem s) = do
     R.doModifyIORef' ref $ \obj ->
         let xs = M.toAscList (obj ^. its.F.model.field @"items")
@@ -253,12 +252,12 @@ whenListingConsItem this@(F.Obj ref its) (ListingConsItem s) = do
             ((k, _) : _) -> obj & (its.F.model.field @"items" %~ M.insert (smallerIdx k) s)
                 . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure mempty
+    pure impossibles
 
 whenListingSnocItem :: (R.MonadReactor x m)
     => F.Scene x m v (Listing s flt srt)
     -> ListingSnocItem s
-    -> m (DL.DList Void)
+    -> m (DL.DList (Which '[]))
 whenListingSnocItem this@(F.Obj ref its) (ListingSnocItem s) = do
     R.doModifyIORef' ref $ \obj ->
         let xs = M.toDescList (obj ^. its.F.model.field @"items")
@@ -268,12 +267,12 @@ whenListingSnocItem this@(F.Obj ref its) (ListingSnocItem s) = do
             ((k, _) : _) -> obj & (its.F.model.field @"items" %~ M.insert (largerIdx k) s)
                 . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure mempty
+    pure impossibles
 
 -- | Handler for ListingAction
 listingNewItemHandler ::
     forall x m v s flt srt. ( R.MonadReactor x m)
-    => F.Finalizer m s -> F.SceneHandler x m v (Listing s flt srt) (ListingNewItemAction s) Void
+    => F.Finalizer m s -> F.SceneHandler x m v (Listing s flt srt) (ListingNewItemAction s) (Which '[])
 listingNewItemHandler fin = F.Handler $ \obj (ListingNewItemAction a) ->
     switch a . cases $
         whenListingInsertItem @x @m fin obj
@@ -287,7 +286,7 @@ whenListingMakeItem :: forall x m v i s flt srt. (R.MonadReactor x m)
     -> F.Activator m s
     -> F.Scene x m v (Listing s flt srt)
     -> ListingMakeItem i (s -> ListingNewItemAction s)
-    -> m (DL.DList Void)
+    -> m (DL.DList (Which '[]))
 whenListingMakeItem fin mkSpc act obj (ListingMakeItem i f) = do
     s <- F.runMkSpec mkSpc i
     F.runActivator act s
@@ -300,7 +299,7 @@ listingHandler ::
     => F.Finalizer m s
     -> F.MkSpec m i s
     -> F.Activator m s
-    -> F.SceneHandler x m v (Listing s flt srt) (ListingAction flt srt i s) Void
+    -> F.SceneHandler x m v (Listing s flt srt) (ListingAction flt srt i s) (Which '[])
 listingHandler fin mkSpc act = F.Handler $ \obj (ListingAction a) ->
     switch a . cases $
         F.runHandler (listingNewItemHandler @x @m @_ @s fin) obj
@@ -332,7 +331,7 @@ listingBroadcastHandler' ::
     -> F.Handler m s (Which a2) (Which b2)
     -> F.SceneHandler x m v (Listing s flt srt) (Which a3) (Which b3)
 listingBroadcastHandler' fin mkSpc act hdl =
-    (absurdlyFaceted (listingHandler fin mkSpc act)) `P.pmappend` listingBroadcastHandler hdl
+    (lmap obvious (listingHandler fin mkSpc act)) `P.pmappend` listingBroadcastHandler hdl
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
 listingBuilder ::

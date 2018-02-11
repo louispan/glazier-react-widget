@@ -197,7 +197,7 @@ whenListingDeleteItem (F.Finalizer fin) this@(F.Obj ref its) (ListingDeleteItem 
             . (its.F.plan.field @"disposeOnUpdated" %~ (<> fin'))
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure impossibles
+    pure zilch
 
 -- | Sort the items on the listing given a sorting function
 whenListingSort :: (R.MonadReactor x m)
@@ -209,7 +209,7 @@ whenListingSort this@(F.Obj ref its) (ListingSort f) = do
         obj & (its.F.model.field @"displaySort" .~ f)
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure impossibles
+    pure zilch
 
 -- | Filter the items on the listing given a filter function
 whenListingFilter :: forall x m v s flt srt.
@@ -222,7 +222,7 @@ whenListingFilter this@(F.Obj ref its) (ListingFilter f) = do
         obj & (its.F.model.field @"displayFilter" .~ f)
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure impossibles
+    pure zilch
 
 whenListingInsertItem :: (R.MonadReactor x m)
     => F.Finalizer m s
@@ -237,7 +237,7 @@ whenListingInsertItem (F.Finalizer fin) this@(F.Obj ref its) (ListingInsertItem 
             . (its.F.plan.field @"disposeOnUpdated" %~ (<> fin'))
             . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure impossibles
+    pure zilch
 
 whenListingConsItem :: (R.MonadReactor x m)
     => F.Scene x m v (Listing s flt srt)
@@ -252,7 +252,7 @@ whenListingConsItem this@(F.Obj ref its) (ListingConsItem s) = do
             ((k, _) : _) -> obj & (its.F.model.field @"items" %~ M.insert (smallerIdx k) s)
                 . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure impossibles
+    pure zilch
 
 whenListingSnocItem :: (R.MonadReactor x m)
     => F.Scene x m v (Listing s flt srt)
@@ -267,7 +267,7 @@ whenListingSnocItem this@(F.Obj ref its) (ListingSnocItem s) = do
             ((k, _) : _) -> obj & (its.F.model.field @"items" %~ M.insert (largerIdx k) s)
                 . (its.F.model.field @"displayList" .~ []) -- this tells render to update displayItems
     F.rerender this
-    pure impossibles
+    pure zilch
 
 -- | Handler for ListingAction
 listingNewItemHandler ::

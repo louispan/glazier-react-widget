@@ -50,4 +50,4 @@ withRef =
     hdlRef :: F.SceneHandler x m v s (R.EventTarget) (Which '[])
     hdlRef = F.Handler $ \(F.Obj ref its) j -> do
         R.doModifyIORef' ref (set' (its.F.model.itemTag' @t) j)
-        pure mempty
+        pure zilch

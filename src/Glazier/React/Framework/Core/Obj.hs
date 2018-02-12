@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Glazier.React.Framework.Obj where
+module Glazier.React.Framework.Core.Obj where
 
 import Control.Lens
 import Data.IORef

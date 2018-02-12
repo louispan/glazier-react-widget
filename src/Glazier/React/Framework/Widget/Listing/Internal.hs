@@ -13,7 +13,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Widget.Prototypes.Listing.Internal where
+module Glazier.React.Framework.Widget.Listing.Internal where
 
 import Control.DeepSeq
 import Control.Lens
@@ -28,7 +28,8 @@ import qualified Data.Map.Strict as M
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework as F
+import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.Effect as F
 import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 

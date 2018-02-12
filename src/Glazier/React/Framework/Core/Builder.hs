@@ -11,14 +11,14 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Builder where
+module Glazier.React.Framework.Core.Builder where
 
 import Control.Lens
 import Data.Biapplicative
 import Data.Coerce
 import Data.Diverse.Lens
 import Data.Tagged
-import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Core.Model as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 

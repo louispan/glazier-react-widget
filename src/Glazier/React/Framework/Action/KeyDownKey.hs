@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Glazier.React.Widget.Actions.KeyDownKey where
+module Glazier.React.Framework.Action.KeyDownKey where
 
 import Control.DeepSeq
 import Control.Monad.Trans

@@ -13,7 +13,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Handler where
+module Glazier.React.Framework.Core.Handler where
 
 import Control.Applicative
 import Control.Arrow
@@ -24,9 +24,9 @@ import qualified Data.DList as DL
 import Data.Foldable
 import Data.Profunctor
 import Data.Semigroup
-import qualified Glazier.React.Framework.IsReader as F
-import qualified Glazier.React.Framework.Model as F
-import qualified Glazier.React.Framework.Obj as F
+import qualified Glazier.React.Framework.Core.IsReader as F
+import qualified Glazier.React.Framework.Core.Model as F
+import qualified Glazier.React.Framework.Core.Obj as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 

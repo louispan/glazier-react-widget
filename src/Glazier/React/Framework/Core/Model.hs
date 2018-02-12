@@ -11,21 +11,22 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Model where
+module Glazier.React.Framework.Core.Model where
 
--- import Control.Applicative
+import Control.Applicative
 import qualified Control.Disposable as CD
 import Control.Lens
 import qualified Data.DList as DL
 import Data.Functor.Contravariant
 import Data.Generics.Product
 import Data.Kind
+import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Obj as F
-import qualified JavaScript.Extras as JE
+import qualified Glazier.React.Framework.Core.Obj as F
+
 ----------------------------------------------------------
 
 type family OnSpec (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
@@ -59,7 +60,7 @@ instance ViaInfo (Op a) where
 -- | One for every archetype, may be shared for many prototypes
 data Plan x m = Plan
     { component :: R.ReactComponent
-    , key :: R.ReactKey
+    , reactKey :: R.ReactKey
     , frameNum :: Int
     , disposeOnRemoved :: CD.Disposable -- things to dispose when this widget is removed
     , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
@@ -79,6 +80,9 @@ mkPlan n = Plan
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
 
+scheduleAfterOnUpdated :: Applicative m => m (DL.DList x) -> Plan x m -> Plan x m
+scheduleAfterOnUpdated x = field @"afterOnUpdated" %~ (flip (liftA2 (<>)) x)
+
 -- Read-only
 -- Using type synonym to a tuple for usages of 'alongside'.
 type Frame x m s = (Plan x m, s)
@@ -91,15 +95,6 @@ model = _2
 
 -- | Mutable
 type Scene x m v s = F.Obj v (Frame x m s)
-
-rerender :: R.MonadReactor x m => Scene x m v s -> m ()
-rerender (F.Obj ref its) = do
-    obj <- R.doReadIORef ref
-    let (i, obj') = obj & (its.plan.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
-    R.doWriteIORef ref obj'
-    R.doSetComponentState
-        (JE.fromProperties [("frameNum", JE.toJS' i)])
-        (obj ^. (its.plan.field @"component"))
 
 -- -- | If a new item was added, then we need to delay focusing until after the next render
 -- focus :: (R.MonadReactor x m)

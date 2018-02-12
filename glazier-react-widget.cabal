@@ -17,25 +17,26 @@ library
   hs-source-dirs:      src
   exposed-modules:
                        Glazier.React.Framework
-                       Glazier.React.Framework.Activator
-                       Glazier.React.Framework.Archetype
-                       Glazier.React.Framework.Builder
-                       Glazier.React.Framework.Display
-                       Glazier.React.Framework.Executor
-                       Glazier.React.Framework.Finalizer
-                       Glazier.React.Framework.Handler
-                       Glazier.React.Framework.IsReader
-                       Glazier.React.Framework.Model
-                       Glazier.React.Framework.Obj
-                       Glazier.React.Framework.Prototype
-                       Glazier.React.Widget
-                       Glazier.React.Widget.Actions
-                       Glazier.React.Widget.Actions.KeyDownKey
-                       Glazier.React.Widget.Prototypes
-                       Glazier.React.Widget.Prototypes.Input
-                       Glazier.React.Widget.Prototypes.Listing
-                       Glazier.React.Widget.Prototypes.Listing.Internal
-                       Glazier.React.Widget.Prototypes.WithRef
+                       Glazier.React.Framework.Action
+                       Glazier.React.Framework.Action.KeyDownKey
+                       Glazier.React.Framework.Core
+                       Glazier.React.Framework.Core.Activator
+                       Glazier.React.Framework.Core.Archetype
+                       Glazier.React.Framework.Core.Builder
+                       Glazier.React.Framework.Core.Display
+                       Glazier.React.Framework.Core.Executor
+                       Glazier.React.Framework.Core.Finalizer
+                       Glazier.React.Framework.Core.Handler
+                       Glazier.React.Framework.Core.IsReader
+                       Glazier.React.Framework.Core.Model
+                       Glazier.React.Framework.Core.Obj
+                       Glazier.React.Framework.Core.Prototype
+                       Glazier.React.Framework.Effect
+                       Glazier.React.Framework.Widget
+                       Glazier.React.Framework.Widget.Input
+                       Glazier.React.Framework.Widget.Listing
+                       Glazier.React.Framework.Widget.Listing.Internal
+                       Glazier.React.Framework.Widget.WithRef
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.2.0
                      , bifunctors >= 5.4.1

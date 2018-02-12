@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.TypeLevel.Internal where
+module Glazier.React.Framework.Core.TypeLevel.Internal where
 
 import Data.Kind
 import GHC.TypeLits

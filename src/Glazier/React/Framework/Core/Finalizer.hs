@@ -2,14 +2,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Finalizer where
+module Glazier.React.Framework.Core.Finalizer where
 
 import Control.Applicative
 import Control.Disposable as CD
 import Control.Lens
 import Data.Semigroup
-import qualified Glazier.React.Framework.IsReader as F
-import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Core.IsReader as F
+import qualified Glazier.React.Framework.Core.Model as F
 
 -- | Need a newtype for the custome Monoid & Semigroup instances
 newtype Finalizer m s = Finalizer

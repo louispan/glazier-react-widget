@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.IsReader where
+module Glazier.React.Framework.Core.IsReader where
 
 class IsReader r n | n -> r where
     type ReaderResult r n

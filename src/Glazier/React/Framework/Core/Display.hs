@@ -5,11 +5,11 @@
 -- {-# LANGUAGE MultiParamTypeClasses #-}
 -- {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Display where
+module Glazier.React.Framework.Core.Display where
 
 -- import Control.Lens
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Core.Model as F
 
 type Display m s r = (s -> R.ReactMlT m r)
 

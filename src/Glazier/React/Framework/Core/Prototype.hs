@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Prototype where
+module Glazier.React.Framework.Core.Prototype where
 
 import Control.Lens
 -- import Data.Coerce
@@ -22,11 +22,11 @@ import Data.Tagged
 import qualified GHC.Generics as G
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Builder as F
-import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Executor as F
-import qualified Glazier.React.Framework.Finalizer as F
-import qualified Glazier.React.Framework.Model as F
+import qualified Glazier.React.Framework.Core.Builder as F
+import qualified Glazier.React.Framework.Core.Display as F
+import qualified Glazier.React.Framework.Core.Executor as F
+import qualified Glazier.React.Framework.Core.Finalizer as F
+import qualified Glazier.React.Framework.Core.Model as F
 import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P

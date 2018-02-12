@@ -15,7 +15,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Executor where
+module Glazier.React.Framework.Core.Executor where
 
 import Control.DeepSeq
 import Control.Lens
@@ -26,11 +26,11 @@ import Data.Generics.Product
 import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Activator as F
-import qualified Glazier.React.Framework.Handler as F
-import qualified Glazier.React.Framework.IsReader as F
-import qualified Glazier.React.Framework.Model as F
-import qualified Glazier.React.Framework.Obj as F
+import qualified Glazier.React.Framework.Core.Activator as F
+import qualified Glazier.React.Framework.Core.Handler as F
+import qualified Glazier.React.Framework.Core.IsReader as F
+import qualified Glazier.React.Framework.Core.Model as F
+import qualified Glazier.React.Framework.Core.Obj as F
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 

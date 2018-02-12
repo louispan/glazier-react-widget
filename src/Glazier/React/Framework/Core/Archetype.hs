@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Archetype where
+module Glazier.React.Framework.Core.Archetype where
 
 import Control.Arrow
 import Control.Lens
@@ -20,15 +20,15 @@ import qualified Data.JSString as J
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Activator as F
-import qualified Glazier.React.Framework.Builder as F
-import qualified Glazier.React.Framework.Display as F
-import qualified Glazier.React.Framework.Executor as F
-import qualified Glazier.React.Framework.Finalizer as F
-import qualified Glazier.React.Framework.Handler as F
-import qualified Glazier.React.Framework.Model as F
-import qualified Glazier.React.Framework.Obj as F
-import qualified Glazier.React.Framework.Prototype as F
+import qualified Glazier.React.Framework.Core.Activator as F
+import qualified Glazier.React.Framework.Core.Builder as F
+import qualified Glazier.React.Framework.Core.Display as F
+import qualified Glazier.React.Framework.Core.Executor as F
+import qualified Glazier.React.Framework.Core.Finalizer as F
+import qualified Glazier.React.Framework.Core.Handler as F
+import qualified Glazier.React.Framework.Core.Model as F
+import qualified Glazier.React.Framework.Core.Obj as F
+import qualified Glazier.React.Framework.Core.Prototype as F
 import qualified JavaScript.Extras as JE
 
 data Archetype x m i s y z a b = Archetype
@@ -67,7 +67,7 @@ toArchetype n (F.Prototype
                     ]
                 )
                 (JE.justSnds
-                    [ ("key", Just . JE.toJS' $ cp ^. field @"key")
+                    [ ("key", Just . JE.toJS' $ cp ^. field @"reactKey")
                     , ("render", JE.toJS' <$> cp ^. field @"onRender")
                     ]))
     (F.Finalizer $ \ref -> do
@@ -90,6 +90,7 @@ toArchetype n (F.Prototype
                         Nothing -> fmap Just . R.doMkCallback (const $ pure ()) . const $ do
                             (cp', _) <- R.doReadIORef ref
                             R.doModifyIORef' ref $ \(cp'', s') ->
+                                -- can't use '.~' with afterOnUpdated - causes type inference errors
                                 (cp'' & field @"afterOnUpdated" `set'` pure mempty
                                         & field @"disposeOnUpdated" .~ mempty
                                 , s')

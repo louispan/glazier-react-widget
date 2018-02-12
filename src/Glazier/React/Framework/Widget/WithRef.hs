@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Widget.Prototypes.WithRef where
+module Glazier.React.Framework.Widget.WithRef where
 
 import Control.Lens
 import Data.Diverse.Lens
@@ -16,7 +16,7 @@ import Data.Tagged
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Event.Internal as R
-import qualified Glazier.React.Framework as F
+import qualified Glazier.React.Framework.Core as F
 import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 

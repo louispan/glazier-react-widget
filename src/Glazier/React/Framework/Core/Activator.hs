@@ -6,14 +6,14 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Activator where
+module Glazier.React.Framework.Core.Activator where
 
 import Control.Lens
 -- import Data.Functor.Contravariant
 import Data.Semigroup
-import qualified Glazier.React.Framework.IsReader as F
-import qualified Glazier.React.Framework.Model as F
-import qualified Glazier.React.Framework.Obj as F
+import qualified Glazier.React.Framework.Core.IsReader as F
+import qualified Glazier.React.Framework.Core.Model as F
+import qualified Glazier.React.Framework.Core.Obj as F
 
 ------------------------------------------
 

@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Widget.Prototypes.Input where
+module Glazier.React.Framework.Widget.Input where
 
 -- import Control.Applicative
 -- import Control.DeepSeq
@@ -20,9 +20,9 @@ import Data.Diverse.Lens
 import Data.Tagged
 -- import qualified GHC.Generics as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework as F
+import qualified Glazier.React.Framework.Core as F
 -- import qualified Glazier.React.Widget.Actions as A
-import qualified Glazier.React.Widget.Prototypes.WithRef as W
+import qualified Glazier.React.Framework.Widget.WithRef as W
 import qualified JavaScript.Extras as JE
 -- import qualified Parameterized.Data.Monoid as P
 

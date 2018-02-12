@@ -31,23 +31,23 @@ import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
-data Prototype x m v i s i' s' y z a b = Prototype
+data Prototype m v i s i' s' y z a b = Prototype
     { builder :: F.Builder m i s i' s'
-    , display :: F.FrameDisplay x m s ()
+    , display :: F.FrameDisplay m s ()
     , finalizer :: F.Finalizer m s
-    , activator :: F.ProtoActivator x m v s y
-    , handler :: F.ProtoHandler x m v s z a b
+    , activator :: F.ProtoActivator m v s y
+    , handler :: F.ProtoHandler m v s z a b
     } deriving (G.Generic)
 
 ------------------------------------------
 
-newtype PPrototype x m v i s isyzab = PPrototype {
-    runPPrototype :: Prototype x m v i s (P.At0 isyzab) (P.At1 isyzab) (P.At2 isyzab) (P.At3 isyzab) (P.At4 isyzab) (P.At5 isyzab)
+newtype PPrototype m v i s isyzab = PPrototype {
+    runPPrototype :: Prototype m v i s (P.At0 isyzab) (P.At1 isyzab) (P.At2 isyzab) (P.At3 isyzab) (P.At4 isyzab) (P.At5 isyzab)
     }
 
-type instance P.PNullary (PPrototype x m v i s) (i', s', y, z, a, b) = Prototype x m v i s i' s' y z a b
+type instance P.PNullary (PPrototype m v i s) (i', s', y, z, a, b) = Prototype m v i s i' s' y z a b
 
-instance R.MonadReactor x m => P.PMEmpty (PPrototype x m i s v) (Many '[], Many '[], Which '[], Which '[], Which '[], Which '[]) where
+instance R.MonadReactor x m => P.PMEmpty (PPrototype m i s v) (Many '[], Many '[], Which '[], Which '[], Which '[], Which '[]) where
     pmempty = Prototype
         F.nilBuilder
         mempty
@@ -56,7 +56,7 @@ instance R.MonadReactor x m => P.PMEmpty (PPrototype x m i s v) (Many '[], Many 
         F.nilExHandler
 
 -- | type restricted version of 'P.pmempty' for 'Prototype'
-nilPrototype :: R.MonadReactor x m => Prototype x m v i s
+nilPrototype :: R.MonadReactor x m => Prototype m v i s
     (Many '[])
     (Many '[])
     (Which '[])
@@ -75,7 +75,7 @@ type PmappendPrototype i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1 b2 b3 =
 
 instance ( R.MonadReactor x m
          , PmappendPrototype i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1 b2 b3
-         ) => P.PSemigroup (PPrototype x m v i s)
+         ) => P.PSemigroup (PPrototype m v i s)
              (Many i1, Many s1, Which y1, Which z1, Which a1, Which b1)
              (Many i2, Many s2, Which y2, Which z2, Which a2, Which b2)
              (Many i3, Many s3, Which y3, Which z3, Which a3, Which b3) where
@@ -92,21 +92,21 @@ andPrototype :: forall x m v i s i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1
     ( R.MonadReactor x m
     , PmappendPrototype i1 i2 i3 s1 s2 s3 y1 y2 y3 z1 z2 z3 a1 a2 a3 b1 b2 b3
     )
-    => Prototype x m v i s (Many i1) (Many s1) (Which y1) (Which z1) (Which a1) (Which b1)
-    -> Prototype x m v i s (Many i2) (Many s2) (Which y2) (Which z2) (Which a2) (Which b2)
-    -> Prototype x m v i s (Many i3) (Many s3) (Which y3) (Which z3) (Which a3) (Which b3)
+    => Prototype m v i s (Many i1) (Many s1) (Which y1) (Which z1) (Which a1) (Which b1)
+    -> Prototype m v i s (Many i2) (Many s2) (Which y2) (Which z2) (Which a2) (Which b2)
+    -> Prototype m v i s (Many i3) (Many s3) (Which y3) (Which z3) (Which a3) (Which b3)
 andPrototype = P.pmappend
 infixr 6 `andPrototype` -- like mappend
 
 ------------------------------------------
 
-newtype PrototypeOnSpec x m v i i' s' y z a b s = PrototypeOnSpec
-    { runPrototypeOnSpec :: Prototype x m v i s i' s' y z a b
+newtype PrototypeOnSpec m v i i' s' y z a b s = PrototypeOnSpec
+    { runPrototypeOnSpec :: Prototype m v i s i' s' y z a b
     }
 
-type instance F.OnSpec (PrototypeOnSpec x m v i i' s' y z a b) s = Prototype x m v i s i' s' y z a b
+type instance F.OnSpec (PrototypeOnSpec m v i i' s' y z a b) s = Prototype m v i s i' s' y z a b
 
-instance F.ViaSpec (PrototypeOnSpec x m v i i' s' y z a b) where
+instance F.ViaSpec (PrototypeOnSpec m v i i' s' y z a b) where
     viaSpec l (Prototype bld dis fin act hdl) = Prototype
         (F.viaSpec l bld)
         (F.viaSpec (alongside id l) dis)
@@ -116,13 +116,13 @@ instance F.ViaSpec (PrototypeOnSpec x m v i i' s' y z a b) where
 
 ------------------------------------------
 
-newtype PrototypeOnInfo x m v s i' s' a b y z i = PrototypeOnInfo
-    { runPrototypeOnInfo :: Prototype x m v i s i' s' y z a b
+newtype PrototypeOnInfo m v s i' s' a b y z i = PrototypeOnInfo
+    { runPrototypeOnInfo :: Prototype m v i s i' s' y z a b
     }
 
-type instance F.OnInfo (PrototypeOnInfo x m v s i' s' a b y z) i = Prototype x m v i s i' s' y z a b
+type instance F.OnInfo (PrototypeOnInfo m v s i' s' a b y z) i = Prototype m v i s i' s' y z a b
 
-instance F.ViaInfo (PrototypeOnInfo x m v s i' s' y z a b) where
+instance F.ViaInfo (PrototypeOnInfo m v s i' s' y z a b) where
     viaInfo l (Prototype bld dis fin act hdl) = Prototype
         (F.viaInfo l bld)
         dis
@@ -141,13 +141,13 @@ instance F.ViaInfo (PrototypeOnInfo x m v s i' s' y z a b) where
 -- @[R.Listener]@ to the model.
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 widget ::
-    forall t x m v i s i' ss' y z a b.
+    forall t m v i s i' ss' y z a b.
     ( Monad m
     , HasItemTag' t [R.Listener] s)
     => J.JSString
-    -> (F.Frame x m s -> [JE.Property])
-    -> Prototype x m v i s i' (Many ss') y z a b
-    -> Prototype x m v i s
+    -> (F.Frame m s -> [JE.Property])
+    -> Prototype m v i s i' (Many ss') y z a b
+    -> Prototype m v i s
         i'
         (Many (Tagged t [R.Listener] ': ss'))
         y z a b
@@ -209,16 +209,16 @@ enclose :: Functor m
     -> (i' -> j')
     -> Iso' t s
     -> (s' -> t')
-    -> Prototype x m v i s i' s' y z a b
-    -> Prototype x m v j t j' t' y z a b
+    -> Prototype m v i s i' s' y z a b
+    -> Prototype m v j t j' t' y z a b
 enclose ji ij ts st p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec ts (F.viaInfo ji p)
     in p' { builder = F.mapBuilder ij st bld }
 
-encloseTagged :: forall t x m v i s i' s' y z a b.
+encloseTagged :: forall t m v i s i' s' y z a b.
     Functor m
-    => Prototype x m v i s i' s' y z a b
-    -> Prototype x m v (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s') y z a b
+    => Prototype m v i s i' s' y z a b
+    -> Prototype m v (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s') y z a b
 encloseTagged p =
     let ts :: Iso' (Tagged t s) s
         ts = iso unTagged Tagged
@@ -232,8 +232,8 @@ comprise
        , HasItem' s1 s2
        , HasItem' i1 i2
        )
-    => Prototype x m v i1 s1 i' s' y z a b
-    -> Prototype x m v i2 s2 (Many '[i']) (Many '[s']) y z a b
+    => Prototype m v i1 s1 i' s' y z a b
+    -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) y z a b
 comprise p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec item' (F.viaInfo item' p)
     in p' { builder = F.mapBuilder single single bld }

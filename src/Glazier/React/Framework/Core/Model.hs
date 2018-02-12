@@ -13,14 +13,11 @@
 
 module Glazier.React.Framework.Core.Model where
 
-import Control.Applicative
 import qualified Control.Disposable as CD
 import Control.Lens
-import qualified Data.DList as DL
 import Data.Functor.Contravariant
 import Data.Generics.Product
 import Data.Kind
-import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -58,18 +55,18 @@ instance ViaInfo (Op a) where
     viaInfo l f = f . view l
 
 -- | One for every archetype, may be shared for many prototypes
-data Plan x m = Plan
+data Plan m = Plan
     { component :: R.ReactComponent
     , reactKey :: R.ReactKey
     , frameNum :: Int
     , disposeOnRemoved :: CD.Disposable -- things to dispose when this widget is removed
     , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
-    , afterOnUpdated :: m (DL.DList x) -- additional monadic action to take after a rerender
+    , afterOnUpdated :: m () -- additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
-mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan x m)
+mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan m)
 mkPlan n = Plan
     <$> R.doGetComponent
     <*> R.doMkReactKey n
@@ -80,21 +77,21 @@ mkPlan n = Plan
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
 
-scheduleAfterOnUpdated :: Applicative m => m (DL.DList x) -> Plan x m -> Plan x m
-scheduleAfterOnUpdated x = field @"afterOnUpdated" %~ (flip (liftA2 (<>)) x)
+scheduleAfterOnUpdated :: Applicative m => m () -> Plan m -> Plan m
+scheduleAfterOnUpdated x = field @"afterOnUpdated" %~ (*> x)
 
 -- Read-only
 -- Using type synonym to a tuple for usages of 'alongside'.
-type Frame x m s = (Plan x m, s)
+type Frame m s = (Plan m, s)
 
-plan :: Lens' (Frame x m s) (Plan x m)
+plan :: Lens' (Frame m s) (Plan m)
 plan = _1
 
-model :: Lens' (Frame x m s) s
+model :: Lens' (Frame m s) s
 model = _2
 
 -- | Mutable
-type Scene x m v s = F.Obj v (Frame x m s)
+type Scene m v s = F.Obj v (Frame m s)
 
 -- -- | If a new item was added, then we need to delay focusing until after the next render
 -- focus :: (R.MonadReactor x m)

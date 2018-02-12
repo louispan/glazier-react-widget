@@ -42,7 +42,7 @@ instance Contravariant (Activator m) where
 ------------------------------------------
 
 type ObjActivator m v s = Activator m (F.Obj v s)
-type SceneActivator x m v s = Activator m (F.Scene x m v s)
+type SceneActivator m v s = Activator m (F.Scene m v s)
 
 newtype ObjActivatorOnSpec m v s = ObjActivatorOnSpec { runObjActivatorOnSpec :: ObjActivator m v s}
 

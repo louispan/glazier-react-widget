@@ -101,7 +101,7 @@ mapHandlerOutputList f (Handler hdl) = Handler $ \env a -> f <$> hdl env a
 -----------------------------------------------
 
 type ObjHandler m v s a b = Handler m (F.Obj v s) a b
-type SceneHandler x m v s a b = Handler m (F.Scene x m v s) a b
+type SceneHandler m v s a b = Handler m (F.Scene m v s) a b
 
 newtype ObjHandlerOnSpec m a b v s = ObjHandlerOnSpec {
     runObjHandlerOnSpec :: ObjHandler m v s a b

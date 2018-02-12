@@ -13,7 +13,7 @@ import qualified Glazier.React.Framework.Core.Model as F
 
 type Display m s r = (s -> R.ReactMlT m r)
 
-type FrameDisplay x m s r = Display m (F.Frame x m s) r
+type FrameDisplay m s r = Display m (F.Frame m s) r
 
 -- newtype DisplayOnSpec m r s = DisplayOnSpec { runDisplayOnSpec :: Display m s r }
 

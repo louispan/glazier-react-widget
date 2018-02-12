@@ -31,8 +31,8 @@ input :: forall t x m v i s.
     , HasItemTag' t [R.Listener] s
     , R.MonadReactor x m
     )
-    => (F.Frame x m s -> [JE.Property])
-    -> F.Prototype x m v i s
+    => (F.Frame m s -> [JE.Property])
+    -> F.Prototype m v i s
         (Many '[])
         (Many '[Tagged t [R.Listener], Tagged t R.EventTarget])
         (Which '[]) (Which '[])

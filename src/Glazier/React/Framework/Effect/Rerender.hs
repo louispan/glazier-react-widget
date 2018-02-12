@@ -12,7 +12,7 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 import qualified JavaScript.Extras as JE
 
-rerender :: R.MonadReactor x m => F.Scene x m v s -> m ()
+rerender :: R.MonadReactor x m => F.Scene m v s -> m ()
 rerender (F.Obj ref its) = do
     obj <- R.doReadIORef ref
     let (i, obj') = obj & (its.F.plan.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))

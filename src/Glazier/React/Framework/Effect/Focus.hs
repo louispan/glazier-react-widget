@@ -19,7 +19,7 @@ newtype Focus = Focus R.EventTarget
 focusRef :: forall t x m v s.
     ( R.MonadReactor x m
     , HasItemTag' t R.EventTarget s)
-    => F.Scene x m v s -> m (DL.DList (Which '[Focus]))
+    => F.Scene m v s -> m (DL.DList (Which '[Focus]))
 focusRef (F.Obj ref its) = do
     obj <- R.doReadIORef ref
     pure . DL.singleton . pickOnly . Focus $ obj ^. its.F.model.itemTag' @t @R.EventTarget

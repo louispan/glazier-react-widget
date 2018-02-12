@@ -16,7 +16,6 @@ module Glazier.React.Framework.Core.Model where
 import qualified Control.Disposable as CD
 import Control.Lens
 import Data.Functor.Contravariant
-import Data.Generics.Product
 import Data.Kind
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
@@ -66,19 +65,16 @@ data Plan m = Plan
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
-mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan m)
+mkPlan :: R.MonadReactor m => J.JSString -> m (Plan m)
 mkPlan n = Plan
     <$> R.doGetComponent
     <*> R.doMkReactKey n
-    <*> pure 0
+    <*> pure 0 -- ^ frameNum
     <*> pure mempty -- ^ disposeOnRemoved
     <*> pure mempty -- ^ disposeOnUpdated
-    <*> pure (pure mempty) -- ^ doOnUpdated
+    <*> pure (pure mempty) -- ^ afterOnUpdated
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
-
-scheduleAfterOnUpdated :: Applicative m => m () -> Plan m -> Plan m
-scheduleAfterOnUpdated x = field @"afterOnUpdated" %~ (*> x)
 
 -- Read-only
 -- Using type synonym to a tuple for usages of 'alongside'.

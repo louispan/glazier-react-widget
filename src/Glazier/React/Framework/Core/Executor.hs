@@ -70,8 +70,8 @@ delegate = pure
 
 -- | Create callbacks and add it to this state's dlist of listeners.
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-trigger :: forall t x m v s c.
-    ( R.MonadReactor x m
+trigger :: forall t m v s c.
+    ( R.MonadReactor m
     , NFData c
     , HasItemTag' t [R.Listener] s
     )
@@ -165,8 +165,8 @@ infixl 4 `controls` -- like fmap
 -- | Convenience function to create an activator
 -- given triggers and a handler.
 -- Simple version using 'controls''
-controlledTrigger' :: forall t x m v s a b.
-    ( R.MonadReactor x m
+controlledTrigger' :: forall t m v s a b.
+    ( R.MonadReactor m
     , NFData a
     , HasItemTag' t [R.Listener] s
     )
@@ -179,8 +179,8 @@ controlledTrigger' n f hdl = hdl `controls'` trigger @t n f
 -- | Convenience function to create an activator
 -- given triggers and a handler.
 -- Complex version using 'controls'
-controlledTrigger :: forall t x m v s c1 c2 c3 c4 a b.
-    ( R.MonadReactor x m
+controlledTrigger :: forall t m v s c1 c2 c3 c4 a b.
+    ( R.MonadReactor m
     , NFData (Which c2)
     , HasItemTag' t [R.Listener] s
     , c4 ~ AppendUnique c1 c3

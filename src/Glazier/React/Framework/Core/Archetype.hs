@@ -40,7 +40,7 @@ data Archetype m i s y z a b = Archetype
     } deriving (G.Generic)
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: (R.MonadReactor x m)
+toArchetype :: R.MonadReactor m
     => J.JSString
     -> F.Prototype m (F.Frame m s) i s i s y z a b
     -> Archetype m i (IORef (F.Frame m s)) y z a b
@@ -89,11 +89,10 @@ toArchetype n (F.Prototype
                         Just _ -> pure Nothing
                         Nothing -> fmap Just . R.doMkCallback (const $ pure ()) . const $ do
                             (cp', _) <- R.doReadIORef ref
-                            R.doModifyIORef' ref $ \(cp'', s') ->
+                            R.doModifyIORef' ref $ \s -> s
                                 -- can't use '.~' with afterOnUpdated - causes type inference errors
-                                (cp'' & field @"afterOnUpdated" `set'` pure mempty
-                                        & field @"disposeOnUpdated" .~ mempty
-                                , s')
+                                    & (F.plan.field @"afterOnUpdated") `set'` pure mempty
+                                    & F.plan.field @"disposeOnUpdated" .~ mempty
                             R.doDispose (F.disposeOnUpdated cp')
                             F.afterOnUpdated cp'
             let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ Just cb
@@ -113,7 +112,7 @@ toArchetype n (F.Prototype
                         in F.Handler $ \ref a -> hdl (F.Obj ref id) a)
 
 -- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor x m
+fromArchetype :: R.MonadReactor m
     => Archetype m i s y z a b
     -> F.Prototype m v i s i s y z a b
 fromArchetype (Archetype

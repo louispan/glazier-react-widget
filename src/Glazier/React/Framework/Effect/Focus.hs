@@ -16,8 +16,8 @@ import qualified Glazier.React.Framework.Core as F
 newtype Focus = Focus R.EventTarget
 
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-focusRef :: forall t x m v s.
-    ( R.MonadReactor x m
+focusRef :: forall t m v s.
+    ( R.MonadReactor m
     , HasItemTag' t R.EventTarget s)
     => F.Scene m v s -> m (DL.DList (Which '[Focus]))
 focusRef (F.Obj ref its) = do

@@ -32,6 +32,13 @@ library
                        Glazier.React.Framework.Core.Obj
                        Glazier.React.Framework.Core.Prototype
                        Glazier.React.Framework.Effect
+                       Glazier.React.Framework.Effect.Focus
+                       Glazier.React.Framework.Effect.Focus.Exec
+                       Glazier.React.Framework.Effect.GetProperty
+                       Glazier.React.Framework.Effect.GetProperty.Exec
+                       Glazier.React.Framework.Effect.Rerender
+                       Glazier.React.Framework.Effect.SetProperty
+                       Glazier.React.Framework.Effect.SetProperty.Exec
                        Glazier.React.Framework.Widget
                        Glazier.React.Framework.Widget.Input
                        Glazier.React.Framework.Widget.Listing

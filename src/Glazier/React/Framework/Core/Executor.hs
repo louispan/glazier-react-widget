@@ -35,11 +35,11 @@ import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
 -- | A reader with specialized executing environment
-newtype Executor m c a = Executor { runExecutor :: (DL.DList c -> m ()) -> a }
+newtype Executor m c a = Executor { runExecutor :: (c -> m ()) -> a }
     deriving Functor
 
-instance F.IsReader (DL.DList c -> m ()) (Executor m c a) where
-    type ReaderResult (DL.DList c -> m ()) (Executor m c a) = a
+instance F.IsReader (c -> m ()) (Executor m c a) where
+    type ReaderResult (c -> m ()) (Executor m c a) = a
     fromReader = Executor
     toReader = runExecutor
 
@@ -50,13 +50,8 @@ instance Applicative (Executor m c) where
 instance Monad (Executor m c) where
     (Executor exec) >>= f = Executor $ \k -> runExecutor (f (exec k)) k
 
-suppressExecutor :: (c -> Maybe c') -> Executor m c a -> Executor m c' a
-suppressExecutor f (Executor exec) = Executor $ \k -> exec (k . foldMap go)
-  where
-    go c = maybe mempty DL.singleton (f c)
-
 withExecutor :: (c -> c') -> Executor m c a -> Executor m c' a
-withExecutor f (Executor exec) = Executor $ \k -> exec (k . fmap f)
+withExecutor f (Executor exec) = Executor $ \k -> exec (k . f)
 
 -- -- | Type restricted version of 'pure' where the executor environment @c@ is set to @Which '[]@
 -- execute :: a -> Executor m x (Which '[]) a
@@ -80,8 +75,9 @@ trigger :: forall t m v s c.
     -> ProtoActivator m v s c
 trigger n f = Executor $ \k -> F.Activator $ act k
   where
+    -- wack = undefined
     act k (F.Obj ref its) = do
-        (ds, cb) <- R.doMkCallback f k
+        (ds, cb) <- R.doMkCallback f (traverse_ k)
         R.doModifyIORef' ref $ \obj ->
             obj & its.F.model.itemTag' @t %~ ((n, cb) :)
                 & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)
@@ -95,7 +91,7 @@ handleBeforeExecuting' ::
     -> Executor m a y
     -> Executor m b y
 handleBeforeExecuting' env (F.Handler hdl) (Executor exec) = Executor $ \k ->
-    let k' cs = (fold <$> traverse (hdl env) (DL.toList cs)) >>= k
+    let k' a = (hdl env) a >>= (traverse_ k)
     in exec k'
 
 -- | Use the given handler to transform the Executor's environment

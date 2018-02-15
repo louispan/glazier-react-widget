@@ -6,34 +6,13 @@ module Glazier.React.Framework.Core.Finalizer where
 
 import Control.Applicative
 import Control.Disposable as CD
-import Control.Lens
 import Data.Semigroup
-import qualified Glazier.React.Framework.Core.IsReader as F
-import qualified Glazier.React.Framework.Core.Model as F
 
--- | Need a newtype for the custome Monoid & Semigroup instances
-newtype Finalizer m s = Finalizer
-    { runFinalizer :: s -> m CD.Disposable
-    }
+type Finalizer m s = s -> m CD.Disposable
 
-instance F.IsReader s (Finalizer m s) where
-    type ReaderResult s (Finalizer m s) = m CD.Disposable
-    fromReader = Finalizer
-    toReader = runFinalizer
+nulFinalizer :: Applicative m => Finalizer m s
+nulFinalizer _ = pure mempty
 
-instance Contravariant (Finalizer m) where
-    contramap f (Finalizer g) = Finalizer (g . f)
-
-instance (Applicative m) => Semigroup (Finalizer m s) where
-    Finalizer a <> Finalizer b = Finalizer $ liftA2 (liftA2 (<>)) a b
-
-instance (Applicative m) => Monoid (Finalizer m s) where
-    mempty =  Finalizer . pure $ pure mempty
-    mappend = (<>)
-
------------------------------------------
-
-type instance F.OnSpec (Finalizer m) s = Finalizer m s
-
-instance F.ViaSpec (Finalizer m) where
-    viaSpec l (Finalizer f) = Finalizer $ f . view l
+plusFinalizer :: Applicative m => Finalizer m s -> Finalizer m s -> Finalizer m s
+plusFinalizer f g s = liftA2 (<>) (f s) (g s)
+infixr 6 `plusFinalizer` -- like mappend

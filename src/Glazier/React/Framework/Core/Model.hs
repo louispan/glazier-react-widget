@@ -1,7 +1,9 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
@@ -22,36 +24,6 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Obj as F
-
-----------------------------------------------------------
-
-type family OnSpec (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
-
--- | Something that knows how to get and set (but not make) a spec
-class ViaSpec (w :: Type -> Type) where
-    -- | given a lens from @t@ to @s@,
-    -- change something that knows how to manipulate an @s@
-    -- to something that knows how to manipulate a @t@.
-    viaSpec :: Lens' t s -> OnSpec w s -> OnSpec w t
-
-type instance OnSpec (Op a) s = s -> a
-
-instance ViaSpec (Op a) where
-    viaSpec l f = f . view l
-
-type family OnInfo (w :: Type -> Type) (i :: Type) = (r :: Type) | r -> w i
-
--- | Something that knows how to get and set (but not make) a plan
-class ViaInfo (w :: Type -> Type) where
-    -- | given lens from @q@ to @p@,
-    -- change something that knows how to manipulate an @p@
-    -- to something that knows how to manipulate a @q@.
-    viaInfo :: Lens' j i -> OnInfo w i -> OnInfo w j
-
-type instance OnInfo (Op a) s = s -> a
-
-instance ViaInfo (Op a) where
-    viaInfo l f = f . view l
 
 -- | One for every archetype, may be shared for many prototypes
 data Plan m = Plan
@@ -98,3 +70,46 @@ type Scene m v s = F.Obj v (Frame m s)
 -- focus ref its j = do
 --     R.doModifyIORef' ref (its.plan.field @"doOnUpdated" %~ (\g -> liftA2 const g (R.focus j)))
 --     rerender ref its
+
+----------------------------------------------------------
+
+-- | Something that knows how to get and set (but not make) a spec
+class ViaSpec (w :: Type -> Type) where
+    type OnSpec (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
+    -- | given a lens from @t@ to @s@,
+    -- change something that knows how to manipulate an @s@
+    -- to something that knows how to manipulate a @t@.
+    viaSpec :: Lens' t s -> OnSpec w s -> OnSpec w t
+
+instance ViaSpec (Op a) where
+    type OnSpec (Op a) s = s -> a
+    viaSpec l f = f . view l
+
+-- | Something that knows how to get and set (but not make) a Obj
+class ViaObj (w :: Type -> Type) where
+    type OnObj (w :: Type -> Type) (s :: Type) = (r :: Type) | r -> w s
+    -- | given a lens from @s@ to @a@,
+    -- change something that knows how to manipulate an @a@
+    -- to something that knows how to manipulate a @s@.
+    -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
+    viaObj :: Lens' s a -> OnObj w a -> OnObj w s
+
+newtype ObjOp a v s = ObjOp { runObjOp :: F.Obj v s -> a }
+
+instance ViaObj (ObjOp a v) where
+    type OnObj (ObjOp a v) s = F.Obj v s -> a
+    viaObj l f obj = f (F.edit l obj)
+
+----------------------------------------------------------
+
+-- | Something that knows how to get and set (but not make) a plan
+class ViaInfo (w :: Type -> Type) where
+    type OnInfo (w :: Type -> Type) (i :: Type) = (r :: Type) | r -> w i
+    -- | given lens from @q@ to @p@,
+    -- change something that knows how to manipulate an @p@
+    -- to something that knows how to manipulate a @q@.
+    viaInfo :: Lens' j i -> OnInfo w i -> OnInfo w j
+
+instance ViaInfo (Op a) where
+    type OnInfo (Op a) s = s -> a
+    viaInfo l f = f . view l

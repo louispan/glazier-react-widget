@@ -33,9 +33,8 @@ newtype MkSpec m i s = MkSpec {
 
 newtype MkSpecOnInfo m s i = MkSpecOnInfo { runMkSpecOnInfo :: MkSpec m i s }
 
-type instance F.OnInfo (MkSpecOnInfo m s) i = MkSpec m i s
-
 instance F.ViaInfo (MkSpecOnInfo m s) where
+    type OnInfo (MkSpecOnInfo m s) i = MkSpec m i s
     viaInfo l (MkSpec mkSpc) = MkSpec $ mkSpc . view l
 
 instance Contravariant (MkSpecOnInfo m s) where
@@ -52,9 +51,8 @@ newtype MkInfo m s i = MkInfo {
 
 newtype MkInfoOnSpec m i s = MkInfoOnSpec { runMkInfoOnSpec :: MkInfo m s i }
 
-type instance F.OnSpec (MkInfoOnSpec m i) s = MkInfo m s i
-
 instance F.ViaSpec (MkInfoOnSpec m i) where
+    type OnSpec (MkInfoOnSpec m i) s = MkInfo m s i
     viaSpec l (MkInfo mkInf) = MkInfo $ mkInf . view l
 
 instance Contravariant (MkInfoOnSpec m s) where
@@ -83,9 +81,8 @@ instance Applicative m => Biapplicative (Builder m i s) where
 
 newtype BuilderOnInfo m s i' s' i = BuilderOnInfo { runBuilderOnInfo :: Builder m i s i' s' }
 
-type instance F.OnInfo (BuilderOnInfo m s i' s') i = Builder m i s i' s'
-
 instance F.ViaInfo (BuilderOnInfo m s i' s') where
+    type OnInfo (BuilderOnInfo m s i' s') i = Builder m i s i' s'
     viaInfo l (Builder (mkInf, mkSpc)) =
         Builder (mkInf, F.viaInfo l mkSpc)
 
@@ -93,9 +90,8 @@ instance F.ViaInfo (BuilderOnInfo m s i' s') where
 
 newtype BuilderOnSpec m i i' s' s = BuilderOnSpec { runBuilderOnSpec :: Builder m i s i' s' }
 
-type instance F.OnSpec (BuilderOnSpec m i i' s') s = Builder m i s i' s'
-
 instance F.ViaSpec (BuilderOnSpec m i i' s') where
+    type OnSpec (BuilderOnSpec m i i' s') s = Builder m i s i' s'
     viaSpec l (Builder (mkInf, mkSpc)) =
         Builder (F.viaSpec l mkInf, mkSpc)
 
@@ -117,8 +113,8 @@ instance Applicative m => P.PMEmpty (PBuilder m i s) (Many '[], Many '[]) where
     pmempty = bipure nil nil
 
 -- | type restricted version of 'P.pmempty' for 'Builder'
-nilBuilder :: Applicative m => Builder m i s (Many '[]) (Many '[])
-nilBuilder = P.pmempty
+nulBuilder :: Applicative m => Builder m i s (Many '[]) (Many '[])
+nulBuilder = P.pmempty
 
 -- | UndecidableInstances!
 instance (Applicative m
@@ -132,15 +128,15 @@ instance (Applicative m
                 , MkSpec $ \i -> (/./) <$> mkSpc i <*> mkSpc' i)
 
 -- | type restricted version of 'P.pmappend' for 'Builder'
-andBuilder ::
+plusBuilder ::
     ( Applicative m
     , PmappendBuilder i1 i2 i3 s1 s2 s3
     )
     => Builder m i s (Many i1) (Many s1)
     -> Builder m i s (Many i2) (Many s2)
     -> Builder m i s (Many i3) (Many s3)
-andBuilder = P.pmappend
-infixr 6 `andBuilder` -- like mappend
+plusBuilder = P.pmappend
+infixr 6 `plusBuilder` -- like mappend
 
 ------------------------------------------------
 

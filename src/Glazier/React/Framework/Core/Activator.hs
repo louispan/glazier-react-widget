@@ -1,53 +1,48 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Core.Activator where
 
-import Control.Lens
--- import Data.Functor.Contravariant
+import Control.Applicative
+import Data.Diverse.Profunctor
+import Data.Profunctor
 import Data.Semigroup
-import qualified Glazier.React.Framework.Core.IsReader as F
-import qualified Glazier.React.Framework.Core.Model as F
-import qualified Glazier.React.Framework.Core.Obj as F
+import qualified Glazier.React.Framework.Core.Gate as F
+import qualified Glazier.React.Framework.Core.Handler as F
+import qualified Glazier.React.Framework.Core.Topic as F
 
 ------------------------------------------
 
-newtype Activator m r = Activator
-    { runActivator :: r -- Handler env
-                   -> m () -- return the monadic action to commit the activation
-    }
+type Activator m r b = F.Handler m r () b
 
-instance F.IsReader r (Activator m r) where
-    type ReaderResult r (Activator m r) = m ()
-    fromReader = Activator
-    toReader = runActivator
+type ObjActivator m v s b = F.ObjHandler m v s () b
+type ProtoActivator m v s b = F.ProtoHandler m v s () b
 
-instance Applicative m => Semigroup (Activator m r) where
-    (Activator f) <> (Activator g) = Activator $ \env ->
-        f env *>
-        g env
+-- | A friendlier constraint synonym for 'Executor' 'pmappend'.
+type PmappendOutput b1 b2 b3 =
+    ( Diversify b1 b3
+    , Diversify b2 b3
+    , b3 ~ AppendUnique b1 b2 -- ^ Redundant constraint: but narrows down @b3@
+    )
 
-instance Applicative m => Monoid (Activator m r) where
-    mempty = Activator $ \_ -> pure ()
-    mappend = (<>)
+nulActivator :: Applicative m => Activator m r (Which '[])
+nulActivator = F.Topic . const $ F.pinned (pure ())
 
-instance Contravariant (Activator m) where
-    contramap f (Activator act) = Activator $ act . f
-
-------------------------------------------
-
-type ObjActivator m v s = Activator m (F.Obj v s)
-type SceneActivator m v s = Activator m (F.Scene m v s)
-
-newtype ObjActivatorOnSpec m v s = ObjActivatorOnSpec { runObjActivatorOnSpec :: ObjActivator m v s}
-
-type instance F.OnSpec (ObjActivatorOnSpec m v) s = ObjActivator m v s
-
-instance F.ViaSpec (ObjActivatorOnSpec m v) where
-    viaSpec l (Activator f) = Activator $ \obj ->
-        f (F.edit l obj)
+plusActivator ::
+    ( Applicative m
+    , PmappendOutput b1 b2 b3
+    )
+    => Activator m r (Which b1)
+    -> Activator m r (Which b2)
+    -> Activator m r (Which b3)
+plusActivator (F.Topic x) (F.Topic y) = F.Topic $ \r -> F.meld (liftA2 (<>))
+    (rmap diversify (x r))
+    (rmap diversify (y r))
+infixr 6 `plusActivator` -- like mappend

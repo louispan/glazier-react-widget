@@ -49,8 +49,8 @@ toArchetype n (F.Prototype
     (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc))
     dis
     fin
-    (F.Topic act)
-    (F.Topic hdl)
+    (F.Topic gact)
+    (F.Topic ghdl)
     )
     = Archetype
     (F.Builder
@@ -77,9 +77,9 @@ toArchetype n (F.Prototype
             fin' <- fin s
             pure (fin' <> F.disposeOnRemoved cp <> F.disposeOnUpdated cp))
     (F.Topic $ \ref -> F.Gate $ \k _ -> do
-            let F.Gate act' = act (F.Obj ref id)
+            let F.Gate act = gact (F.Obj ref id)
             -- Run the Prototype's activator
-            act' k ()
+            act k ()
             -- Now add our own Archetype activation
             (cp, _) <- R.doReadIORef ref
             -- now replace the render and componentUpdated in the model if not already activated
@@ -111,7 +111,7 @@ toArchetype n (F.Prototype
             case mf of
                 Nothing -> pure ()
                 Just g -> R.doModifyIORef' ref (first g))
-    (F.Topic $ \ref -> hdl (F.Obj ref id))
+    (F.Topic $ \ref -> ghdl (F.Obj ref id))
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor m
@@ -121,17 +121,17 @@ fromArchetype (Archetype
     bld
     dis
     fin
-    (F.Topic act)
-    (F.Topic hdl))
+    (F.Topic gact)
+    (F.Topic ghdl))
     = F.Prototype
     bld
     (\(_, s) -> dis s)
     fin
     (F.Topic $ \(F.Obj ref its) -> F.Gate $ \k _ -> do
         obj <- R.doReadIORef ref
-        let F.Gate act' = act (obj ^. its.F.model)
-        act' k ())
+        let F.Gate act = gact (obj ^. its.F.model)
+        act k ())
     (F.Topic $ \(F.Obj ref its) -> F.Gate $ \k a -> do
         obj <- R.doReadIORef ref
-        let F.Gate hdl' = hdl (obj ^. its.F.model)
-        hdl' k a)
+        let F.Gate hdl = ghdl (obj ^. its.F.model)
+        hdl k a)

@@ -126,64 +126,63 @@ listing :: forall m v i s is ss y z a b flt srt.
         (Many '[Listing i flt srt])
         (Many '[Listing s flt srt])
         y
-        y
         (Which '[ListingAction flt srt i s])
         (Which '[])
 listing flt srt f (F.Archetype
     (bld@(F.Builder (_, mkSpc)))
         dis
-        (d@(F.Finalizer fin))
-        (F.Executor xact)
+        fin
+        (F.Executor gact)
         _)
     = F.Prototype
     (F.toItemBuilder (listingBuilder bld))
     (listingDisplay flt srt f dis)
-    (F.Finalizer $ \ss -> fold <$> traverse fin (ss ^. item' @(Listing s flt srt).field @"items"))
+    (\s -> fold <$> traverse fin (s ^. item' @(Listing s flt srt).field @"items"))
     (F.Executor $ \k ->
-        let act = xact k
+        let act = gact k
         in F.viaSpec (alongside id (item' @(Listing s flt srt))) (listingActivator act))
     (F.Executor $ \k ->
-        let act = xact k
-        in F.viaSpec (alongside id item') (lmap obvious (listingHandler d mkSpc act)))
+        let act = gact k
+        in F.viaSpec (alongside id item') (lmap obvious (listingHandler fin mkSpc act)))
 
--- | Creates a listing with a handler that handles listing actions,
--- as well as broadcasting original actions to in each item in the listing.
-broadcastListing :: forall m v i s is ss ys zs as a3 bs b3 flt srt.
-    ( R.MonadReactor m
-    , HasItem' (Listing i flt srt) is
-    , HasItem' (Listing s flt srt) ss
-    , ChooseBetween '[ListingAction flt srt i s] as a3 '[] bs b3
-    , Diversify ys (AppendUnique ys zs)
-    , Diversify zs (AppendUnique ys zs)
-    )
-    => (flt -> s -> m Bool)
-    -> (srt -> s -> s -> m Ordering)
-    -> (s -> [JE.Property])
-    -> F.Archetype m i s (Which ys) (Which zs) (Which as) (Which bs)
-    -> F.Prototype m v is ss
-        (Many '[Listing i flt srt])
-        (Many '[Listing s flt srt])
-        (Which ys)
-        (Which (AppendUnique ys zs))
-        (Which a3)
-        (Which b3)
-broadcastListing flt srt f (F.Archetype
-        (bld@(F.Builder (_, mkSpc)))
-        dis
-        (d@(F.Finalizer fin))
-        xact
-        xhdl)
-    = F.Prototype
-    (F.toItemBuilder (listingBuilder bld))
-    (listingDisplay flt srt f dis)
-    (F.Finalizer $ \ss -> fold <$> traverse fin (ss ^. item' @(Listing s flt srt).field @"items"))
-    (F.Executor $ \k ->
-        let act = F.runExecutor xact k
-        in F.viaSpec (alongside id (item' @(Listing s flt srt))) (listingActivator act))
-    (F.Executor $ \k ->
-        let act = F.runExecutor (F.withExecutor diversify xact) k
-            hdl = F.runExecutor (F.withExecutor diversify xhdl) k
-    in F.viaSpec (alongside id item') (listingBroadcastHandler' d mkSpc act hdl))
+-- -- | Creates a listing with a handler that handles listing actions,
+-- -- as well as broadcasting original actions to in each item in the listing.
+-- broadcastListing :: forall m v i s is ss ys zs as a3 bs b3 flt srt.
+--     ( R.MonadReactor m
+--     , HasItem' (Listing i flt srt) is
+--     , HasItem' (Listing s flt srt) ss
+--     , ChooseBetween '[ListingAction flt srt i s] as a3 '[] bs b3
+--     , Diversify ys (AppendUnique ys zs)
+--     , Diversify zs (AppendUnique ys zs)
+--     )
+--     => (flt -> s -> m Bool)
+--     -> (srt -> s -> s -> m Ordering)
+--     -> (s -> [JE.Property])
+--     -> F.Archetype m i s (Which ys) (Which zs) (Which as) (Which bs)
+--     -> F.Prototype m v is ss
+--         (Many '[Listing i flt srt])
+--         (Many '[Listing s flt srt])
+--         (Which ys)
+--         (Which (AppendUnique ys zs))
+--         (Which a3)
+--         (Which b3)
+-- broadcastListing flt srt f (F.Archetype
+--         (bld@(F.Builder (_, mkSpc)))
+--         dis
+--         (d@(F.Finalizer fin))
+--         xact
+--         xhdl)
+--     = F.Prototype
+--     (F.toItemBuilder (listingBuilder bld))
+--     (listingDisplay flt srt f dis)
+--     (F.Finalizer $ \ss -> fold <$> traverse fin (ss ^. item' @(Listing s flt srt).field @"items"))
+--     (F.Executor $ \k ->
+--         let act = F.runExecutor xact k
+--         in F.viaSpec (alongside id (item' @(Listing s flt srt))) (listingActivator act))
+--     (F.Executor $ \k ->
+--         let act = F.runExecutor (F.withExecutor diversify xact) k
+--             hdl = F.runExecutor (F.withExecutor diversify xhdl) k
+--     in F.viaSpec (alongside id item') (listingBroadcastHandler' d mkSpc act hdl))
 
 whenListingDeleteItem :: forall m v s flt srt.
     (R.MonadReactor m)

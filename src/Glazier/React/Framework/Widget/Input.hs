@@ -35,7 +35,7 @@ input :: forall t m v i s.
     -> F.Prototype m v i s
         (Many '[])
         (Many '[Tagged t [R.Listener], Tagged t R.EventTarget])
-        (Which '[]) (Which '[])
+        (Which '[])
         (Which '[]) (Which '[])
 input f = F.widget @t "input" f W.withRef
 

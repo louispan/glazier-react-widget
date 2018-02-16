@@ -128,15 +128,15 @@ instance (Applicative m
                 , MkSpec $ \i -> (/./) <$> mkSpc i <*> mkSpc' i)
 
 -- | type restricted version of 'P.pmappend' for 'Builder'
-plusBuilder ::
+andBuilder ::
     ( Applicative m
     , PmappendBuilder i1 i2 i3 s1 s2 s3
     )
     => Builder m i s (Many i1) (Many s1)
     -> Builder m i s (Many i2) (Many s2)
     -> Builder m i s (Many i3) (Many s3)
-plusBuilder = P.pmappend
-infixr 6 `plusBuilder` -- like mappend
+andBuilder = P.pmappend
+infixr 6 `andBuilder` -- like mappend
 
 ------------------------------------------------
 

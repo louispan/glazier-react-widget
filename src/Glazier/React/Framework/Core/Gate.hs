@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -132,14 +133,25 @@ instance (ChooseBetween a1 a2 a3 b1 b2 b3
     x `pmappend` y = x +||+ y
 
 -- | type restricted version of 'P.pmappend' for 'Gate'
-plusGate ::
+orGate ::
     (ChooseBetween a1 a2 a3 b1 b2 b3
     )
     => Gate r (Which a1) (Which b1)
     -> Gate r (Which a2) (Which b2)
     -> Gate r (Which a3) (Which b3)
-plusGate = P.pmappend
-infixr 6 `plusGate` -- like mappend
+orGate = P.pmappend
+infixr 2 `orGate` -- like +++
+
+-- | type restricted version of 'P.pmappend' for 'Gate'
+andGate ::
+    ( ChooseBoth b1 b2 b3
+    )
+    => (r -> r -> r)
+    -> Gate r a (Which b1)
+    -> Gate r a (Which b2)
+    -> Gate r a (Which b3)
+andGate f x y = meld f (rmap diversify x) (rmap diversify y)
+infixr 2 `andGate` -- like +++
 
 -- -- | Use the given handler to transform the Executor's environment
 -- -- Simple version where the handler input type must match the Executor environment type.

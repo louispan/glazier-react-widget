@@ -13,6 +13,6 @@ type Finalizer m s = s -> m CD.Disposable
 nulFinalizer :: Applicative m => Finalizer m s
 nulFinalizer _ = pure mempty
 
-plusFinalizer :: Applicative m => Finalizer m s -> Finalizer m s -> Finalizer m s
-plusFinalizer f g s = liftA2 (<>) (f s) (g s)
-infixr 6 `plusFinalizer` -- like mappend
+andFinalizer :: Applicative m => Finalizer m s -> Finalizer m s -> Finalizer m s
+andFinalizer f g s = liftA2 (<>) (f s) (g s)
+infixr 6 `andFinalizer` -- like mappend

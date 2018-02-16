@@ -79,11 +79,11 @@ instance ( R.MonadReactor m
              (Many i3, Many s3, Which a3, Which x3, Which y3) where
     (Prototype bld1 dis1 fin1 act1 hdl1) `pmappend` (Prototype bld2 dis2 fin2 act2 hdl2) =
         Prototype
-        (bld1 `F.plusBuilder` bld2)
+        (bld1 `F.andBuilder` bld2)
         (dis1 <> dis2)
-        (fin1 `F.plusFinalizer` fin2)
-        (act1 `F.plusActivator` act2)
-        (hdl1 `F.plusHandler` hdl2)
+        (fin1 `F.andFinalizer` fin2)
+        (act1 `F.andActivator` act2)
+        (hdl1 `F.orHandler` hdl2)
 
 -- | type restricted version of 'P.pmappend' for 'Prototype'
 andPrototype :: forall m v i s i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3.

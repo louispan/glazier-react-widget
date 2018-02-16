@@ -27,6 +27,8 @@ newtype Topic r p a b = Topic
     { runTopic :: r -> p a b
     } deriving (Functor, Semigroup, Monoid)
 
+-- | Connect in parallel. Input is feed to both gates and the output of
+-- both gates are '<>' together.
 instance Applicative (p a) => Applicative (Topic r p a) where
     pure b = Topic $ pure (pure b)
     -- (ReaderArrow f) <*> (ReaderArrow a) = ReaderArrow $ \r -> (f r <*> a r)

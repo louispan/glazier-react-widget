@@ -10,45 +10,44 @@
 
 module Glazier.React.Framework.Core.Activator where
 
-import Control.Applicative
 import Data.Diverse.Profunctor
 import Data.Profunctor
 import Data.Semigroup
+import qualified Data.Semigroup.Applicative as S
 import qualified Glazier.React.Framework.Core.Gate as F
-import qualified Glazier.React.Framework.Core.Handler as F
+import qualified Glazier.React.Framework.Core.Model as F
+import qualified Glazier.React.Framework.Core.Obj as F
 import qualified Glazier.React.Framework.Core.Topic as F
 
-------------------------------------------
+type Activator' m r = r -> m ()
+type ObjActivator' m v s = F.Obj v s -> m ()
+type SceneActivator' m v s = F.Scene m v s -> m ()
 
-type Activator m r b = F.Handler m r () b
+type Activator m r b = r -> (b -> m ()) -> m ()
+type ObjActivator m v s b = F.Obj v s -> (b -> m ()) -> m ()
+type SceneActivator m v s b = F.Scene m v s -> (b -> m ()) -> m ()
 
-type ObjActivator m v s b = F.ObjHandler m v s () b
-type ProtoActivator m v s b = F.ProtoHandler m v s () b
+toTopicActivator :: (r -> (b -> m ()) -> m ()) -> F.Topic r (F.Gate (S.Ap m ())) () b
+toTopicActivator f = F.Topic ((\g -> F.Gate $ \k _ -> S.Ap (g (S.getAp . k))) <$> f)
 
-toActivator :: (r -> (b -> x) -> x) -> F.Topic r (F.Gate x) () b
-toActivator f = F.Topic ((\g -> F.Gate $ \k _ -> g k) <$> f)
+fromTopicActivator :: F.Topic r (F.Gate (S.Ap m ())) () b -> r -> (b -> m ()) -> m ()
+fromTopicActivator (F.Topic f) = (\(F.Gate g) -> \k -> S.getAp (g (S.Ap . k) ())) <$> f
 
-fromActivator :: F.Topic r (F.Gate x)  ()b -> r -> (b -> x) -> x
-fromActivator (F.Topic f) = (\(F.Gate g) -> \k -> g k ()) <$> f
+nulActivator' :: Applicative m => Activator' m r
+nulActivator' _ = pure ()
 
--- | A friendlier constraint synonym for 'Executor' 'pmappend'.
-type PmappendOutput b1 b2 b3 =
-    ( Diversify b1 b3
-    , Diversify b2 b3
-    , b3 ~ AppendUnique b1 b2 -- ^ Redundant constraint: but narrows down @b3@
-    )
+andActivator' :: Applicative m => Activator' m r -> Activator' m r -> Activator' m r
+andActivator' x y r = x r *> y r
 
 nulActivator :: Applicative m => Activator m r (Which '[])
-nulActivator = F.Topic . const $ F.pinned (pure ())
+nulActivator _ _ =  pure ()
 
 andActivator ::
     ( Applicative m
-    , PmappendOutput b1 b2 b3
+    , ChooseBoth b1 b2 b3
     )
     => Activator m r (Which b1)
     -> Activator m r (Which b2)
     -> Activator m r (Which b3)
-andActivator (F.Topic x) (F.Topic y) = F.Topic $ \r -> F.meld (liftA2 (<>))
-    (rmap diversify (x r))
-    (rmap diversify (y r))
+andActivator x y = fromTopicActivator $ (rmap diversify (toTopicActivator x)) <> (rmap diversify (toTopicActivator y))
 infixr 6 `andActivator` -- like mappend

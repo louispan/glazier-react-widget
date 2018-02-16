@@ -40,3 +40,9 @@ andHandler :: (Applicative m, ChooseBoth b1 b2 b3)
 andHandler (F.Topic f) (F.Topic g) = F.Topic $ \r -> F.andGate (liftA2 (<>)) (f r) (g r)
 infixr 6 `andHandler` -- like mappend
 
+
+
+-- wack :: s ->                     m () -- activator (and with *>)
+-- wack :: s ->                a -> m () -- handler (and with choosefrom with Op (contravariant) ?)
+-- wack :: s -> (b -> m ()) -> () -> m () -- ex activator
+-- wack :: s -> (b -> m ()) ->  a -> m () -- ex handler

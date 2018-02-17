@@ -9,7 +9,6 @@ module Glazier.React.Framework.Effect.Focus where
 
 import Control.Lens
 import Data.Diverse.Lens
-import qualified Data.DList as DL
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 
@@ -19,7 +18,7 @@ newtype Focus = Focus R.EventTarget
 focusRef :: forall t m v s.
     ( R.MonadReactor m
     , HasItemTag' t R.EventTarget s)
-    => F.Scene m v s -> m (DL.DList (Which '[Focus]))
+    => F.Scene m v s -> m Focus
 focusRef (F.Obj ref its) = do
     obj <- R.doReadIORef ref
-    pure . DL.singleton . pickOnly . Focus $ obj ^. its.F.model.itemTag' @t @R.EventTarget
+    pure . Focus $ obj ^. its.F.model.itemTag' @t @R.EventTarget

@@ -10,38 +10,41 @@
 
 module Glazier.React.Framework.Core.Trigger where
 
-import Control.Arrow
+import Control.Applicative
 import Control.DeepSeq
 import Control.Lens
+import Control.Monad.Trans.Cont
 import Data.Diverse.Profunctor
 import Data.Generics.Product
 import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Activator as F
-import qualified Glazier.React.Framework.Core.Gate as F
 import qualified Glazier.React.Framework.Core.Handler as F
 import qualified Glazier.React.Framework.Core.Model as F
 import qualified Glazier.React.Framework.Core.Obj as F
-import qualified Glazier.React.Framework.Core.Topic as F
 
 ------------------------------------------------------
 
 -- | Create callbacks and add it to this state's dlist of listeners.
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-trigger :: forall t m v s c.
+trigger :: forall t m v s a.
     ( R.MonadReactor m
-    , NFData c
+    , NFData a
     , HasItemTag' t [R.Listener] s
     )
     => J.JSString
-    -> (J.JSVal -> IO c)
-    -> F.ProtoActivator m v s c
-trigger n f = F.Topic $ \(F.Obj ref its) -> F.Gate $ \k _ -> do
+    -> (J.JSVal -> IO a)
+    -> F.SceneActivator m v s a
+trigger n f = \(F.Obj ref its) -> ContT $ \k -> do
     (ds, cb) <- R.doMkCallback f k
     R.doModifyIORef' ref $ \obj ->
         obj & its.F.model.itemTag' @t %~ ((n, cb) :)
             & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)
+
+controls :: F.Activator m s a -> F.Handler m s a b -> F.Activator m s b
+controls act hdl = liftA2 (>>=) act hdl
+infixl 1 `controls` -- like >>=
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
@@ -52,9 +55,9 @@ controlledTrigger :: forall t m v s a b.
     )
     => J.JSString
     -> (J.JSVal -> IO a)
-    -> F.ProtoHandler m v s a b
-    -> F.ProtoActivator m v s b
-controlledTrigger n f hdl = (trigger @t n f) >>> hdl
+    -> F.SceneHandler m v s a b
+    -> F.SceneActivator m v s b
+controlledTrigger n f hdl = (trigger @t n f) `controls` hdl
 
 -- -- | Convenience function to create an activator
 -- -- given triggers and a handler.

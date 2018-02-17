@@ -10,6 +10,7 @@
 module Glazier.React.Framework.Widget.WithRef where
 
 import Control.Lens
+import Control.Monad.Trans.Class
 import Data.Diverse.Lens
 import Data.Tagged
 import qualified GHCJS.Types as J
@@ -44,6 +45,6 @@ withRef =
             hdlRef)
         F.nulHandler
   where
-    hdlRef :: F.ProtoHandler m v s (R.EventTarget) (Which '[])
-    hdlRef = F.Topic $ \(F.Obj ref its) -> F.Gate $ \_ j ->
+    hdlRef :: F.SceneHandler m v s (R.EventTarget) (Which '[])
+    hdlRef (F.Obj ref its) j = F.terminate . lift $
         R.doModifyIORef' ref (set' (its.F.model.itemTag' @t) j)

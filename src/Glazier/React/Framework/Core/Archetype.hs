@@ -24,12 +24,10 @@ import qualified Glazier.React.Framework.Core.Activator as F
 import qualified Glazier.React.Framework.Core.Builder as F
 import qualified Glazier.React.Framework.Core.Display as F
 import qualified Glazier.React.Framework.Core.Finalizer as F
-import qualified Glazier.React.Framework.Core.Gate as F
 import qualified Glazier.React.Framework.Core.Handler as F
 import qualified Glazier.React.Framework.Core.Model as F
 import qualified Glazier.React.Framework.Core.Obj as F
 import qualified Glazier.React.Framework.Core.Prototype as F
-import qualified Glazier.React.Framework.Core.Topic as F
 import qualified JavaScript.Extras as JE
 
 data Archetype m i s a x y = Archetype
@@ -49,8 +47,8 @@ toArchetype n (F.Prototype
     (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc))
     dis
     fin
-    (F.Topic gact)
-    (F.Topic ghdl)
+    act
+    hdl
     )
     = Archetype
     (F.Builder
@@ -76,42 +74,44 @@ toArchetype n (F.Prototype
             (cp, s) <- R.doReadIORef ref
             fin' <- fin s
             pure (fin' <> F.disposeOnRemoved cp <> F.disposeOnUpdated cp))
-    (F.Topic $ \ref -> F.Gate $ \k _ -> do
-            let F.Gate act = gact (F.Obj ref id)
-            -- Run the Prototype's activator
-            act k ()
-            -- Now add our own Archetype activation
-            (cp, _) <- R.doReadIORef ref
-            -- now replace the render and componentUpdated in the model if not already activated
-            rnd <- case F.onRender cp of
-                        Just _ -> pure Nothing
-                        Nothing -> fmap Just . R.doMkRenderer $ do
-                            s <- lift $ R.doReadIORef ref
-                            dis s
-            upd <- case F.onUpdated cp of
-                        Just _ -> pure Nothing
-                        Nothing -> fmap Just . R.doMkCallback (const $ pure ()) . const $ do
-                            (cp', _) <- R.doReadIORef ref
-                            R.doModifyIORef' ref $ \s -> s
-                                -- can't use '.~' with afterOnUpdated - causes type inference errors
-                                & (F.plan.field @"afterOnUpdated") `set'` pure mempty
-                                & F.plan.field @"disposeOnUpdated" .~ mempty
-                            R.doDispose (F.disposeOnUpdated cp')
-                            F.afterOnUpdated cp'
-            let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ Just cb
-                                            & field @"disposeOnRemoved" %~ (<> d)
-                        ) <$> rnd
-                upd' = (\(d, cb) cp' -> cp' & field @"onUpdated" .~ Just cb
-                                            & field @"disposeOnRemoved" %~ (<> d)
-                        ) <$> upd
-                mf = case (rnd', upd') of
-                        (Nothing, x) -> x
-                        (x, Nothing) -> x
-                        (Just x, Just y) -> Just (y . x)
-            case mf of
-                Nothing -> pure ()
-                Just g -> R.doModifyIORef' ref (first g))
-    (F.Topic $ \ref -> ghdl (F.Obj ref id))
+    (\ref -> do
+            let act' = act (F.Obj ref id)
+            -- Run the Prototype's activator, saving the continuation result
+            a <- act'
+            -- Now activate this archetype, passing the output
+            fmap (const a) . lift $ do
+                -- Now add our own Archetype activation
+                (cp, _) <- R.doReadIORef ref
+                -- now replace the render and componentUpdated in the model if not already activated
+                rnd <- case F.onRender cp of
+                            Just _ -> pure Nothing
+                            Nothing -> fmap Just . R.doMkRenderer $ do
+                                s <- lift $ R.doReadIORef ref
+                                dis s
+                upd <- case F.onUpdated cp of
+                            Just _ -> pure Nothing
+                            Nothing -> fmap Just . R.doMkCallback (const $ pure ()) . const $ do
+                                (cp', _) <- R.doReadIORef ref
+                                R.doModifyIORef' ref $ \s -> s
+                                    -- can't use '.~' with afterOnUpdated - causes type inference errors
+                                    & (F.plan.field @"afterOnUpdated") `set'` pure mempty
+                                    & F.plan.field @"disposeOnUpdated" .~ mempty
+                                R.doDispose (F.disposeOnUpdated cp')
+                                F.afterOnUpdated cp'
+                let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ Just cb
+                                                & field @"disposeOnRemoved" %~ (<> d)
+                            ) <$> rnd
+                    upd' = (\(d, cb) cp' -> cp' & field @"onUpdated" .~ Just cb
+                                                & field @"disposeOnRemoved" %~ (<> d)
+                            ) <$> upd
+                    mf = case (rnd', upd') of
+                            (Nothing, x) -> x
+                            (x, Nothing) -> x
+                            (Just x, Just y) -> Just (y . x)
+                case mf of
+                    Nothing -> pure ()
+                    Just g -> R.doModifyIORef' ref (first g))
+    (\ref -> hdl (F.Obj ref id))
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor m
@@ -121,17 +121,16 @@ fromArchetype (Archetype
     bld
     dis
     fin
-    (F.Topic gact)
-    (F.Topic ghdl))
+    act
+    hdl
+    )
     = F.Prototype
     bld
     (\(_, s) -> dis s)
     fin
-    (F.Topic $ \(F.Obj ref its) -> F.Gate $ \k _ -> do
-        obj <- R.doReadIORef ref
-        let F.Gate act = gact (obj ^. its.F.model)
-        act k ())
-    (F.Topic $ \(F.Obj ref its) -> F.Gate $ \k a -> do
-        obj <- R.doReadIORef ref
-        let F.Gate hdl = ghdl (obj ^. its.F.model)
-        hdl k a)
+    (\(F.Obj ref its) -> do
+        obj <- lift $ R.doReadIORef ref
+        act (obj ^. its.F.model))
+    (\(F.Obj ref its) a -> do
+        obj <- lift $ R.doReadIORef ref
+        hdl (obj ^. its.F.model) a)

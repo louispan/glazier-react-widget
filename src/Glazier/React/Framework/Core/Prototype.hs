@@ -35,8 +35,8 @@ data Prototype m v i s i' s' a x y = Prototype
     { builder :: F.Builder m i s i' s'
     , display :: F.FrameDisplay m s ()
     , finalizer :: F.Finalizer m s
-    , activator :: F.ProtoActivator m v s a
-    , handler :: F.ProtoHandler m v s x y
+    , activator :: F.SceneActivator m v s a
+    , handler :: F.SceneHandler m v s x y
     } deriving (G.Generic)
 
 ------------------------------------------
@@ -65,14 +65,14 @@ nulPrototype :: R.MonadReactor m => Prototype m v i s
 nulPrototype = P.pmempty
 
 -- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.
-type PmappendPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3 =
-    ( F.PmappendBuilder i1 i2 i3 s1 s2 s3
-    , F.PmappendOutput a1 a2 a3
+type AndPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3 =
+    ( F.AndBuilder i1 i2 i3 s1 s2 s3
+    , ChooseBoth a1 a2 a3
     , ChooseBetween x1 x2 x3 y1 y2 y3
     )
 
 instance ( R.MonadReactor m
-         , PmappendPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3
+         , AndPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3
          ) => P.PSemigroup (PPrototype m v i s)
              (Many i1, Many s1, Which a1, Which x1, Which y1)
              (Many i2, Many s2, Which a2, Which x2, Which y2)
@@ -88,7 +88,7 @@ instance ( R.MonadReactor m
 -- | type restricted version of 'P.pmappend' for 'Prototype'
 andPrototype :: forall m v i s i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3.
     ( R.MonadReactor m
-    , PmappendPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3
+    , AndPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3
     )
     => Prototype m v i s (Many i1) (Many s1) (Which a1) (Which x1) (Which y1)
     -> Prototype m v i s (Many i2) (Many s2) (Which a2) (Which x2) (Which y2)

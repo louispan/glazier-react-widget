@@ -101,7 +101,7 @@ newtype PBuilder m i s is' = PBuilder
     }
 
 -- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.
-type PmappendBuilder i1 i2 i3 s1 s2 s3 =
+type AndBuilder i1 i2 i3 s1 s2 s3 =
     ( i3 ~ Append i1 i2
     , s3 ~ Append s1 s2
     )
@@ -118,7 +118,7 @@ nulBuilder = P.pmempty
 
 -- | UndecidableInstances!
 instance (Applicative m
-         , PmappendBuilder i1 i2 i3 s1 s2 s3
+         , AndBuilder i1 i2 i3 s1 s2 s3
          ) =>
          P.PSemigroup (PBuilder m i s) (Many i1, Many s1) (Many i2, Many s2) (Many i3, Many s3) where
     (Builder (MkInfo mkInf, MkSpec mkSpc)) `pmappend`
@@ -130,7 +130,7 @@ instance (Applicative m
 -- | type restricted version of 'P.pmappend' for 'Builder'
 andBuilder ::
     ( Applicative m
-    , PmappendBuilder i1 i2 i3 s1 s2 s3
+    , AndBuilder i1 i2 i3 s1 s2 s3
     )
     => Builder m i s (Many i1) (Many s1)
     -> Builder m i s (Many i2) (Many s2)

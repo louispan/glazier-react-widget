@@ -25,12 +25,10 @@ library
                        Glazier.React.Framework.Core.Builder
                        Glazier.React.Framework.Core.Display
                        Glazier.React.Framework.Core.Finalizer
-                       Glazier.React.Framework.Core.Gate
                        Glazier.React.Framework.Core.Handler
                        Glazier.React.Framework.Core.Model
                        Glazier.React.Framework.Core.Obj
                        Glazier.React.Framework.Core.Prototype
-                       Glazier.React.Framework.Core.Topic
                        Glazier.React.Framework.Core.Trigger
                        Glazier.React.Framework.Effect
                        Glazier.React.Framework.Effect.Focus
@@ -46,16 +44,16 @@ library
                        Glazier.React.Framework.Widget.Listing.Internal
                        Glazier.React.Framework.Widget.WithRef
   build-depends:       base >= 4.7 && < 5
-                     , alternators >= 0.1.2.0
+                     , alternators >= 0.1.3.0
                      , bifunctors >= 5.4.1
                      , containers >= 0.5
                      , contravariant >= 1.4
-                     , monadplus >= 1.4
+                    --  , monadplus >= 1.4
                      , data-diverse >= 2.0.2.0
                      , data-diverse-lens >= 2.2.0.0
                      , deepseq >= 1.4
                      , disposable >= 0.3.0.0
-                     , dlist >= 0.8
+                    --  , dlist >= 0.8
                      , generic-lens >= 0.5.1.0
                      , glazier-react >= 0.7
                      , javascript-extras >= 0.3.3.0
@@ -66,7 +64,7 @@ library
                      , mtl >= 2
                      , parameterized >= 0.5.0.0
                      , profunctors >= 5.2
-                     , reducers >= 3.12.1
+                    --  , reducers >= 3.12.1
                      , tagged >= 0.8.5
                      , transformers >= 0.4
   default-language:    Haskell2010

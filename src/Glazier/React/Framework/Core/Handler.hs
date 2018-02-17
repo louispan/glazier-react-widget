@@ -14,7 +14,10 @@ import Data.Diverse.Profunctor
 import qualified Glazier.React.Framework.Core.Model as F
 import qualified Glazier.React.Framework.Core.Obj as F
 
+-- | Completely handle an input @a@
 type Handler' m s a = s -> a -> m ()
+
+-- | Handle a input @a@ and fire a event @b@
 type Handler m s a b = s -> a -> ContT () m b
 
 type ObjHandler' m v s a = Handler' m (F.Obj v s) a

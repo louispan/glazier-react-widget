@@ -16,7 +16,11 @@ import Data.Diverse.Profunctor
 import qualified Glazier.React.Framework.Core.Model as F
 import qualified Glazier.React.Framework.Core.Obj as F
 
+-- | Activates (installs event listeners, etc) a widget
+-- where the event are completely handled.
 type Activator' m s = s -> m ()
+
+-- | Activates something that fires an event @b@
 type Activator m s b = s -> ContT () m b
 
 type ObjActivator' m v s = Activator' m (F.Obj v s)

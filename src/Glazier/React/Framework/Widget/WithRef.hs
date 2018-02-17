@@ -46,5 +46,5 @@ withRef =
         F.nulHandler
   where
     hdlRef :: F.SceneHandler m v s (R.EventTarget) (Which '[])
-    hdlRef (F.Obj ref its) j = F.terminate . lift $
+    hdlRef (F.Obj ref its) j = F.terminate' . lift $
         R.doModifyIORef' ref (set' (its.F.model.itemTag' @t) j)

@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
--- {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -26,11 +26,14 @@ type SceneHandler m v s a b = Handler m (F.Scene m v s) a b
 -- | Convert the original ContT to a ContT that
 -- doens't call it's continuation, by 'const'ing the original contination
 -- to 'pure'.
--- This function also and also fixes the result  from @()@ to a @(Which '[])@,
--- so this ContT can be run with  'Data.Diverse.Which.impossible'.
--- @ContT r m (Which '[])@ is equivanlent to  @m r@
-terminate :: Applicative m => ContT () m () -> ContT () m (Which '[])
+terminate :: forall b m . Applicative m => ContT () m () -> ContT () m b
 terminate = withContT (const $ pure)
+
+-- A variation of 'terminate' which  also fixes the result a @(Which '[])@,
+-- so this ContT can be run with  'Data.Diverse.Which.impossible'.
+-- @ContT r m (Which '[])@ is equivanlent to @m r@
+terminate' :: Applicative m => ContT () m () -> ContT () m (Which '[])
+terminate' = terminate @(Which '[])
 
 nulHandler :: Applicative m => Handler m r (Which '[]) (Which '[])
 nulHandler _ _ = ContT $ \_ -> pure ()

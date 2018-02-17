@@ -30,19 +30,19 @@ import qualified Glazier.React.Framework.Core.Obj as F
 import qualified Glazier.React.Framework.Core.Prototype as F
 import qualified JavaScript.Extras as JE
 
-data Archetype m i s a x y = Archetype
+data Archetype m i s c a b = Archetype
     { builder :: F.Builder m i s i s
     , display :: F.Display m s ()
     , finalizer :: F.Finalizer m s
-    , activator :: F.Activator m s a
-    , handler :: F.Handler m s x y
+    , activator :: F.Activator m s c
+    , handler :: F.Handler m s a b
     } deriving (G.Generic)
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: R.MonadReactor m
     => J.JSString
-    -> F.Prototype m (F.Frame m s) i s i s a x y
-    -> Archetype m i (IORef (F.Frame m s)) a x y
+    -> F.Prototype m (F.Frame m s) i s i s c a b
+    -> Archetype m i (IORef (F.Frame m s)) c a b
 toArchetype n (F.Prototype
     (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc))
     dis
@@ -115,8 +115,8 @@ toArchetype n (F.Prototype
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor m
-    => Archetype m i s a x y
-    -> F.Prototype m v i s i s a x y
+    => Archetype m i s c a b
+    -> F.Prototype m v i s i s c a b
 fromArchetype (Archetype
     bld
     dis

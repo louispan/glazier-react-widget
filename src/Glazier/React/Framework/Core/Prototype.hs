@@ -1,7 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -31,21 +30,21 @@ import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
-data Prototype m v i s i' s' a x y = Prototype
-    { builder :: F.Builder m i s i' s'
-    , display :: F.FrameDisplay m s ()
-    , finalizer :: F.Finalizer m s
-    , activator :: F.SceneActivator m v s a
-    , handler :: F.SceneHandler m v s x y
+data Prototype m v i s i' s' c a b = Prototype
+    { builder' :: F.Builder m i s i' s'
+    , display' :: F.FrameDisplay m s ()
+    , finalizer' :: F.Finalizer m s
+    , activator' :: F.SceneActivator m v s c
+    , handler' :: F.SceneHandler m v s a b
     } deriving (G.Generic)
 
 ------------------------------------------
 
-newtype PPrototype m v i s isaxy = PPrototype {
-    runPPrototype :: Prototype m v i s (P.At0 isaxy) (P.At1 isaxy) (P.At2 isaxy) (P.At3 isaxy) (P.At4 isaxy)
+newtype PPrototype m v i s iscab = PPrototype {
+    runPPrototype :: Prototype m v i s (P.At0 iscab) (P.At1 iscab) (P.At2 iscab) (P.At3 iscab) (P.At4 iscab)
     }
 
-type instance P.PNullary (PPrototype m v i s) (i', s', a, x, y) = Prototype m v i s i' s' a x y
+type instance P.PNullary (PPrototype m v i s) (i', s', c, a, b) = Prototype m v i s i' s' c a b
 
 instance R.MonadReactor m => P.PMEmpty (PPrototype m i s v) (Many '[], Many '[], Which '[], Which '[], Which '[]) where
     pmempty = Prototype
@@ -65,18 +64,18 @@ nulPrototype :: R.MonadReactor m => Prototype m v i s
 nulPrototype = P.pmempty
 
 -- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.
-type AndPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3 =
+type AndPrototype i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3 =
     ( F.AndBuilder i1 i2 i3 s1 s2 s3
-    , ChooseBoth a1 a2 a3
-    , ChooseBetween x1 x2 x3 y1 y2 y3
+    , ChooseBoth c1 c2 c3
+    , ChooseBetween a1 a2 a3 b1 b2 b3
     )
 
 instance ( R.MonadReactor m
-         , AndPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3
+         , AndPrototype i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3
          ) => P.PSemigroup (PPrototype m v i s)
-             (Many i1, Many s1, Which a1, Which x1, Which y1)
-             (Many i2, Many s2, Which a2, Which x2, Which y2)
-             (Many i3, Many s3, Which a3, Which x3, Which y3) where
+             (Many i1, Many s1, Which c1, Which a1, Which b1)
+             (Many i2, Many s2, Which c2, Which a2, Which b2)
+             (Many i3, Many s3, Which c3, Which a3, Which b3) where
     (Prototype bld1 dis1 fin1 act1 hdl1) `pmappend` (Prototype bld2 dis2 fin2 act2 hdl2) =
         Prototype
         (bld1 `F.andBuilder` bld2)
@@ -86,24 +85,24 @@ instance ( R.MonadReactor m
         (hdl1 `F.orHandler` hdl2)
 
 -- | type restricted version of 'P.pmappend' for 'Prototype'
-andPrototype :: forall m v i s i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3.
+andPrototype :: forall m v i s i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3.
     ( R.MonadReactor m
-    , AndPrototype i1 i2 i3 s1 s2 s3 a1 a2 a3 x1 x2 x3 y1 y2 y3
+    , AndPrototype i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3
     )
-    => Prototype m v i s (Many i1) (Many s1) (Which a1) (Which x1) (Which y1)
-    -> Prototype m v i s (Many i2) (Many s2) (Which a2) (Which x2) (Which y2)
-    -> Prototype m v i s (Many i3) (Many s3) (Which a3) (Which x3) (Which y3)
+    => Prototype m v i s (Many i1) (Many s1) (Which c1) (Which a1) (Which b1)
+    -> Prototype m v i s (Many i2) (Many s2) (Which c2) (Which a2) (Which b2)
+    -> Prototype m v i s (Many i3) (Many s3) (Which c3) (Which a3) (Which b3)
 andPrototype = P.pmappend
 infixr 6 `andPrototype` -- like mappend
 
 ------------------------------------------
 
-newtype PrototypeOnSpec m v i i' s' a x y s = PrototypeOnSpec
-    { runPrototypeOnSpec :: Prototype m v i s i' s' a x y
+newtype PrototypeOnSpec m v i i' s' c a b s = PrototypeOnSpec
+    { runPrototypeOnSpec :: Prototype m v i s i' s' c a b
     }
 
-instance F.ViaSpec (PrototypeOnSpec m v i i' s' a x y) where
-    type OnSpec (PrototypeOnSpec m v i i' s' a x y) s = Prototype m v i s i' s' a x y
+instance F.ViaSpec (PrototypeOnSpec m v i i' s' c a b) where
+    type OnSpec (PrototypeOnSpec m v i i' s' c a b) s = Prototype m v i s i' s' c a b
     viaSpec l (Prototype bld dis fin act hdl) = Prototype
         (F.viaSpec l bld)
         (F.viaSpec (alongside id l) dis)
@@ -113,12 +112,12 @@ instance F.ViaSpec (PrototypeOnSpec m v i i' s' a x y) where
 
 ------------------------------------------
 
-newtype PrototypeOnInfo m v s i' s' a x y i = PrototypeOnInfo
-    { runPrototypeOnInfo :: Prototype m v i s i' s' a x y
+newtype PrototypeOnInfo m v s i' s' c a b i = PrototypeOnInfo
+    { runPrototypeOnInfo :: Prototype m v i s i' s' c a b
     }
 
-instance F.ViaInfo (PrototypeOnInfo m v s i' s' a x y) where
-    type OnInfo (PrototypeOnInfo m v s i' s' a x y) i = Prototype m v i s i' s' a x y
+instance F.ViaInfo (PrototypeOnInfo m v s i' s' c a b) where
+    type OnInfo (PrototypeOnInfo m v s i' s' c a b) i = Prototype m v i s i' s' c a b
     viaInfo l (Prototype bld dis fin act hdl) = Prototype
         (F.viaInfo l bld)
         dis
@@ -137,16 +136,16 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' a x y) where
 -- @[R.Listener]@ to the model.
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 widget ::
-    forall t m v i s i' ss' a x y.
+    forall t m v i s i' ss' c a b.
     ( Monad m
     , HasItemTag' t [R.Listener] s)
     => J.JSString
     -> (F.Frame m s -> [JE.Property])
-    -> Prototype m v i s i' (Many ss') a x y
+    -> Prototype m v i s i' (Many ss') c a b
     -> Prototype m v i s
         i'
         (Many (Tagged t [R.Listener] ': ss'))
-        a x y
+        c a b
 widget n f (Prototype (F.Builder (mkInf, F.MkSpec mkSpc)) dis fin act hdl) =
     Prototype
     (F.Builder ( mkInf
@@ -209,7 +208,7 @@ enclose :: Functor m
     -> Prototype m v j t j' t' a x y
 enclose ji ij ts st p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec ts (F.viaInfo ji p)
-    in p' { builder = F.mapBuilder ij st bld }
+    in p' { builder' = F.mapBuilder ij st bld }
 
 encloseTagged :: forall t m v i s i' s' a x y.
     Functor m
@@ -232,4 +231,4 @@ comprise
     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) a x y
 comprise p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec item' (F.viaInfo item' p)
-    in p' { builder = F.mapBuilder single single bld }
+    in p' { builder' = F.mapBuilder single single bld }

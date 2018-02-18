@@ -18,27 +18,33 @@ import qualified Glazier.React.Framework.Core.Obj as F
 
 -- | Activates (installs event listeners, etc) a widget
 -- where the event are completely handled.
-type Activator' m s = s -> m ()
+-- type Activator' m s = s -> ConT () m ()
 
--- | Activates something that fires an event @b@
-type Activator m s b = s -> ContT () m b
+-- | Activates something that fires an event @c@
+type Activator m s c = s -> ContT () m c
 
-type ObjActivator' m v s = Activator' m (F.Obj v s)
-type ObjActivator m v s b = Activator m (F.Obj v s) b
+-- type ObjActivator' m v s = Activator' m (F.Obj v s)
+type ObjActivator m v s c = Activator m (F.Obj v s) c
 
-type SceneActivator' m v s = Activator' m (F.Scene m v s)
-type SceneActivator m v s b = Activator m (F.Scene m v s) b
+-- type SceneActivator' m v s = Activator' m (F.Scene m v s)
+type SceneActivator m v s c = Activator m (F.Scene m v s) c
 
-nulActivator' :: Applicative m => Activator' m r
+-- The identity for 'andActivator''
+nulActivator' :: Activator m r ()
 nulActivator' _ = pure ()
 
-andActivator' :: Applicative m => Activator' m r -> Activator' m r -> Activator' m r
+-- Activate left after the right.
+-- The binary associative function for 'nulActivator''.
+andActivator' :: Activator m r () -> Activator m r () -> Activator m r ()
 andActivator' x y s = x s *> y s
+infixr 6 `andActivator'` -- like mappend
 
+-- The identity for 'andActivator'
 nulActivator :: Applicative m => Activator m r (Which '[])
 nulActivator _ =  ContT $ \_ -> pure ()
 
--- run left after the right.
+-- Activate left after the right.
+-- The binary associative function for 'nulActivator'.
 andActivator ::
     ( Applicative m
     , ChooseBoth b1 b2 b3

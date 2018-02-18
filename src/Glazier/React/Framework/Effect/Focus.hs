@@ -11,14 +11,17 @@ import Control.Lens
 import Data.Diverse.Lens
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.Effect.DoEffect as F
 
 newtype Focus = Focus R.EventTarget
 
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 focusRef :: forall t x m v s.
     ( R.MonadReactor x m
-    , HasItemTag' t R.EventTarget s)
-    => F.Scene m v s -> m Focus
+    , AsFacet Focus x
+    , HasItemTag' t R.EventTarget s
+    )
+    => F.Scene m v s -> m ()
 focusRef (F.Obj ref its) = do
     obj <- R.doReadIORef ref
-    pure . Focus $ obj ^. its.F.model.itemTag' @t @R.EventTarget
+    F.doEffect' . Focus $ obj ^. its.F.model.itemTag' @t @R.EventTarget

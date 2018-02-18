@@ -31,11 +31,11 @@ library
                        Glazier.React.Framework.Core.Prototype
                        Glazier.React.Framework.Core.Trigger
                        Glazier.React.Framework.Effect
+                       Glazier.React.Framework.Effect.DoEffect
                        Glazier.React.Framework.Effect.Focus
                        Glazier.React.Framework.Effect.Focus.Exec
                        Glazier.React.Framework.Effect.GetProperty
                        Glazier.React.Framework.Effect.GetProperty.Exec
-                       Glazier.React.Framework.Effect.Reactor
                        Glazier.React.Framework.Effect.Rerender
                        Glazier.React.Framework.Effect.SetProperty
                        Glazier.React.Framework.Effect.SetProperty.Exec

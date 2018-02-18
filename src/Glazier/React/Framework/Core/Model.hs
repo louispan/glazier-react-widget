@@ -30,9 +30,12 @@ data Plan m = Plan
     { component :: R.ReactComponent
     , reactKey :: R.ReactKey
     , frameNum :: Int
-    , disposeOnRemoved :: CD.Disposable -- things to dispose when this widget is removed
-    , disposeOnUpdated :: CD.Disposable -- things to dispose on updated
-    , afterOnUpdated :: m () -- additional monadic action to take after a rerender
+    , -- things to dispose when this widget is removed
+      -- cannot be hidden inside afterOnUpdated, as this needs to be used
+      -- when finalizing
+      disposeOnRemoved :: CD.Disposable
+    , disposeOnUpdated :: CD.Disposable -- ^ things to dispose on updated
+    , afterOnUpdated :: m () -- ^ additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)

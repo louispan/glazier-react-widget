@@ -9,7 +9,7 @@ module Glazier.React.Framework.Core.Handler where
 
 import Control.Arrow
 import Control.Monad.Trans.Cont
-import Control.Monad.Trans.Cont.Extras as E
+import Control.Monad.Trans.Cont.Extras as TE
 import Data.Diverse.Profunctor
 import qualified Glazier.React.Framework.Core.Model as F
 import qualified Glazier.React.Framework.Core.Obj as F
@@ -50,7 +50,7 @@ andHandler' :: (Applicative m)
     => Handler m s a ()
     -> Handler m s a ()
     -> Handler m s a ()
-andHandler' f g s a = (f s a) `E.seqContT` (g s a)
+andHandler' f g s a = (f s a) `TE.seqContT` (g s a)
 infixr 6 `andHandler'` -- like mappend
 
 -- | Run one or the other.
@@ -85,5 +85,5 @@ andHandler :: (Applicative m, ChooseBoth b1 b2 b3)
     => Handler m s a (Which b1)
     -> Handler m s a (Which b2)
     -> Handler m s a (Which b3)
-andHandler f g s a = (diversify <$> f s a) `E.seqContT` (diversify <$> g s a)
+andHandler f g s a = (diversify <$> f s a) `TE.seqContT` (diversify <$> g s a)
 infixr 6 `andHandler` -- like mappend

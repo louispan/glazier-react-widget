@@ -11,7 +11,7 @@
 module Glazier.React.Framework.Core.Activator where
 
 import Control.Monad.Trans.Cont
-import Control.Monad.Trans.Cont.Extras as E
+import Control.Monad.Trans.Cont.Extras as TE
 import Data.Diverse.Profunctor
 import qualified Glazier.React.Framework.Core.Model as F
 import qualified Glazier.React.Framework.Core.Obj as F
@@ -52,5 +52,5 @@ andActivator ::
     => Activator m r (Which b1)
     -> Activator m r (Which b2)
     -> Activator m r (Which b3)
-andActivator x y s = (diversify <$> x s) `E.seqContT` (diversify <$> y s)
+andActivator x y s = (diversify <$> x s) `TE.seqContT` (diversify <$> y s)
 infixr 6 `andActivator` -- like mappend

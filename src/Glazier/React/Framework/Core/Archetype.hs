@@ -39,7 +39,7 @@ data Archetype m i s c a b = Archetype
     } deriving (G.Generic)
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: R.MonadReactor m
+toArchetype :: R.MonadReactor x m
     => J.JSString
     -> F.Prototype m (F.Frame m s) i s i s c a b
     -> Archetype m i (IORef (F.Frame m s)) c a b
@@ -114,7 +114,7 @@ toArchetype n (F.Prototype
     (\ref -> hdl (F.Obj ref id))
 
 -- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor m
+fromArchetype :: R.MonadReactor x m
     => Archetype m i s c a b
     -> F.Prototype m v i s i s c a b
 fromArchetype (Archetype

@@ -28,8 +28,8 @@ import qualified Glazier.React.Framework.Core.Obj as F
 
 -- | Create callbacks and add it to this state's dlist of listeners.
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-trigger :: forall t m v s a.
-    ( R.MonadReactor m
+trigger :: forall t x m v s a.
+    ( R.MonadReactor x m
     , NFData a
     , HasItemTag' t [R.Listener] s
     )
@@ -48,8 +48,8 @@ infixl 1 `controls` -- like >>=
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
-controlledTrigger :: forall t m v s a b.
-    ( R.MonadReactor m
+controlledTrigger :: forall t x m v s a b.
+    ( R.MonadReactor x m
     , NFData a
     , HasItemTag' t [R.Listener] s
     )

@@ -87,3 +87,8 @@ andHandler :: (Applicative m, ChooseBoth b1 b2 b3)
     -> Handler m s a (Which b3)
 andHandler f g s a = (diversify <$> f s a) `TE.seqContT` (diversify <$> g s a)
 infixr 6 `andHandler` -- like mappend
+
+maybeHandle :: Applicative m => Handler m s a b -> Handler m s (Maybe a) b
+maybeHandle hdl s ma = case ma of
+    Nothing -> ContT $ \_ -> pure ()
+    Just a -> hdl s a

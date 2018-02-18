@@ -35,6 +35,7 @@ library
                        Glazier.React.Framework.Effect.Focus.Exec
                        Glazier.React.Framework.Effect.GetProperty
                        Glazier.React.Framework.Effect.GetProperty.Exec
+                       Glazier.React.Framework.Effect.Reactor
                        Glazier.React.Framework.Effect.Rerender
                        Glazier.React.Framework.Effect.SetProperty
                        Glazier.React.Framework.Effect.SetProperty.Exec

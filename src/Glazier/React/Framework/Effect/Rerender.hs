@@ -12,7 +12,7 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 import qualified JavaScript.Extras as JE
 
-rerender :: R.MonadReactor m => F.Scene m v s -> m () -> m ()
+rerender :: R.MonadReactor x m => F.Scene m v s -> m () -> m ()
 rerender (F.Obj ref its) k = do
     obj <- R.doReadIORef ref
     let (i, obj') = obj & its.F.plan.field @"afterOnUpdated" %~ (*> k)
@@ -22,5 +22,5 @@ rerender (F.Obj ref its) k = do
         (JE.fromProperties [("frameNum", JE.toJS' i)])
         (obj ^. (its.F.plan.field @"component"))
 
-rerender' :: R.MonadReactor m => F.Scene m v s -> m ()
+rerender' :: R.MonadReactor x m => F.Scene m v s -> m ()
 rerender' this = rerender this (pure ())

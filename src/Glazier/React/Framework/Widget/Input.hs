@@ -26,10 +26,10 @@ import qualified Glazier.React.Framework.Widget.WithRef as W
 import qualified JavaScript.Extras as JE
 -- import qualified Parameterized.Data.Monoid as P
 
-input :: forall t m v i s.
+input :: forall t x m v i s.
     ( HasItemTag' t R.EventTarget s
     , HasItemTag' t [R.Listener] s
-    , R.MonadReactor m
+    , R.MonadReactor x m
     )
     => (F.Frame m s -> [JE.Property])
     -> F.Prototype m v i s

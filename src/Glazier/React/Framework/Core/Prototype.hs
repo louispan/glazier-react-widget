@@ -46,7 +46,7 @@ newtype PPrototype m v i s iscab = PPrototype {
 
 type instance P.PNullary (PPrototype m v i s) (i', s', c, a, b) = Prototype m v i s i' s' c a b
 
-instance R.MonadReactor m => P.PMEmpty (PPrototype m i s v) (Many '[], Many '[], Which '[], Which '[], Which '[]) where
+instance R.MonadReactor x m => P.PMEmpty (PPrototype m i s v) (Many '[], Many '[], Which '[], Which '[], Which '[]) where
     pmempty = Prototype
         F.nulBuilder
         mempty
@@ -55,7 +55,7 @@ instance R.MonadReactor m => P.PMEmpty (PPrototype m i s v) (Many '[], Many '[],
         F.nulHandler
 
 -- | type restricted version of 'P.pmempty' for 'Prototype'
-nulPrototype :: R.MonadReactor m => Prototype m v i s
+nulPrototype :: R.MonadReactor x m => Prototype m v i s
     (Many '[])
     (Many '[])
     (Which '[])
@@ -70,7 +70,7 @@ type AndPrototype i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3 =
     , ChooseBetween a1 a2 a3 b1 b2 b3
     )
 
-instance ( R.MonadReactor m
+instance ( R.MonadReactor x m
          , AndPrototype i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3
          ) => P.PSemigroup (PPrototype m v i s)
              (Many i1, Many s1, Which c1, Which a1, Which b1)
@@ -85,8 +85,8 @@ instance ( R.MonadReactor m
         (hdl1 `F.orHandler` hdl2)
 
 -- | type restricted version of 'P.pmappend' for 'Prototype'
-andPrototype :: forall m v i s i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3.
-    ( R.MonadReactor m
+andPrototype ::
+    ( R.MonadReactor x m
     , AndPrototype i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3
     )
     => Prototype m v i s (Many i1) (Many s1) (Which c1) (Which a1) (Which b1)

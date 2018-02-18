@@ -37,7 +37,7 @@ data Plan m = Plan
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
-mkPlan :: R.MonadReactor m => J.JSString -> m (Plan m)
+mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan m)
 mkPlan n = Plan
     <$> R.doGetComponent
     <*> R.doMkReactKey n

@@ -40,7 +40,7 @@ data Plan m = Plan
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     } deriving (G.Generic)
 
-mkPlan :: R.MonadReactor x m => J.JSString -> m (Plan m)
+mkPlan :: R.MonadReactor m => J.JSString -> m (Plan m)
 mkPlan n = Plan
     <$> R.doGetComponent
     <*> R.doMkReactKey n
@@ -65,7 +65,7 @@ model = _2
 type Scene m v s = F.Obj v (Frame m s)
 
 -- -- | If a new item was added, then we need to delay focusing until after the next render
--- focus :: (R.MonadReactor x m)
+-- focus :: (R.MonadReactor m)
 --     => IORef v
 --     -> Lens' v (Frame x m s)
 --     -> R.EventTarget

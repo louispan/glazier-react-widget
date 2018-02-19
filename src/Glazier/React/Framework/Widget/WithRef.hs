@@ -23,8 +23,8 @@ import qualified JavaScript.Extras as JE
 -- This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an R.EventTarget
 -- in the model
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-withRef :: forall t x m v i s.
-    ( R.MonadReactor x m
+withRef :: forall t m v i s.
+    ( R.MonadReactor m
     , HasItemTag' t [R.Listener] s
     , HasItemTag' t R.EventTarget s
     )

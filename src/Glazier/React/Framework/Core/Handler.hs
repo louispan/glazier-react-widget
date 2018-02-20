@@ -91,7 +91,21 @@ andHandler :: (Applicative m, ChooseBoth b1 b2 b3)
 andHandler f g s a = (diversify <$> f s a) `TE.seqContT` (diversify <$> g s a)
 infixr 6 `andHandler` -- like mappend
 
-maybeHandle :: Applicative m => Handler m s a b -> Handler m s (Maybe a) b
+thenHandler :: Applicative m
+    => Handler m s a b
+    -> Handler m s b c
+    -> Handler m s a c
+thenHandler f g s a = f s a >>= g s
+
+thenHandler' :: (Pretend a2 b1 b2 b3, Applicative m)
+    => Handler m s a (Which b1)
+    -> Handler m s (Which a2) (Which b2)
+    -> Handler m s a (Which b3)
+thenHandler' f g = thenHandler f (pretend g)
+
+maybeHandle :: Applicative m
+    => Handler m s a b
+    -> Handler m s (Maybe a) b
 maybeHandle hdl s ma = case ma of
     Nothing -> ContT $ \_ -> pure ()
     Just a -> hdl s a
@@ -104,7 +118,7 @@ type Pretend a2 a3 b2 b3 =
     , Diversify (Complement a3 a2) b3
     )
 
--- | The the types the handler can handle by passing any extra
+-- | Change the types the handler can handle by passing any extra
 -- input directly to the output.
 -- @a2@ contains the input type to convert into
 -- AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @a3@

@@ -242,9 +242,3 @@ mapBuilder ij st (Builder (mkInf, mkSpc)) =
 --     => Builder m i s i' s' -> Builder m (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s')
 -- taggedBuilder = dimapModel unTagged Tagged . dimapInfo unTagged Tagged
 
-
--- wack :: Functor m => Iso' t s -> Builder m i s i' s -> Builder m i t i' t
--- wack l = dimapModel (view l) (review l)
-
--- wock :: Iso' t s -> Lens' t s
--- wock a = a

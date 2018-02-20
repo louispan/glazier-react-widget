@@ -149,16 +149,14 @@ widget ::
 widget n f (Prototype (F.Builder (mkInf, F.MkSpec mkSpc)) dis fin act hdl) =
     Prototype
     (F.Builder ( mkInf
-                , F.MkSpec $ \is -> (\s -> (is ^. mempty
-                                            ./ s))
-                    <$> mkSpc is))
+                , F.MkSpec $ \is -> (\s -> (is ^. mempty ./ s)) <$> mkSpc is))
     (\s ->
-            let props = f s
-                ls = s ^. F.model.itemTag' @t @[R.Listener]
-            in R.branch (JE.toJS' n)
-                    ls
-                    props
-                    (dis s))
+        let props = f s
+            ls = s ^. F.model.itemTag' @t @[R.Listener]
+        in R.branch (JE.toJS' n)
+                ls
+                props
+                (dis s))
     fin
     act
     hdl

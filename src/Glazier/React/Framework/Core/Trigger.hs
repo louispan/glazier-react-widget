@@ -47,14 +47,22 @@ trigger i n f = \(F.Obj ref its) -> ContT $ \fire -> do
         obj & its.F.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) : (fromMaybe [] ls))
             & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)
 
-activates :: F.Activator m s a -> F.Handler m s a b -> F.Activator m s b
+-- | feed the result from an activator into a handler, from left to right.
+-- A simply way to think of the types is:
+-- @
+-- activates :: F.Activator m s a -> F.Handler m s a b -> F.Activator m s b
+-- @
+activates :: (Applicative f, Monad m) => f (m a) -> f (a -> m b) -> f (m b)
 activates act hdl = liftA2 (>>=) act hdl
 infixl 1 `activates` -- like >>=
 
+-- | feed the result from an activator into a handler, from right to left.
 handles :: F.Handler m s a b -> F.Activator m s a -> F.Activator m s b
 handles = flip activates
 infixr 1 `handles` -- like =<<
 
+-- | feed as much of the result from an activator into a handler,
+-- from left to right.
 activates' :: forall m s a1 a2 b2 b3.
     (F.Pretend a2 a1 b2 b3)
     => F.Activator m s (Which a1)
@@ -63,7 +71,9 @@ activates' :: forall m s a1 a2 b2 b3.
 activates' act hdl = act `activates` (F.pretend @a1 hdl)
 infixl 1 `activates'` -- like >>=
 
-handles' :: forall m s a1 a2 b2 b3.
+-- | feed as much of the result from an activator into a handler,
+-- from right to left.
+handles' ::
     (F.Pretend a2 a1 b2 b3)
     => F.Handler m s (Which a2) (Which b2)
     -> F.Activator m s (Which a1)
@@ -73,7 +83,7 @@ infixr 1 `handles'` -- like =<<
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
-handledTrigger :: forall m v s a b.
+handledTrigger ::
     ( R.MonadReactor m
     , NFData a
     )

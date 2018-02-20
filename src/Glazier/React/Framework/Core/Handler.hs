@@ -104,14 +104,14 @@ type Pretend a2 a3 b2 b3 =
     , Diversify (Complement a3 a2) b3
     )
 
--- | The the types the handler can handle by pasing any extra
+-- | The the types the handler can handle by passing any extra
 -- input directly to the output.
 -- @a2@ contains the input type to convert into
 -- AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @a3@
 pretend :: forall a3 m s a2 b2 b3.
     (Pretend a2 a3 b2 b3)
-    => Handler m s (Which a2) (Which b2) -> Handler m s (Which a3) (Which b3)
-    -- => f (Which a2 -> m (Which b2)) -> f (Which a3 -> m (Which b3))
+    => Handler m s (Which a2) (Which b2)
+    -> Handler m s (Which a3) (Which b3)
 pretend hdl = go <$> hdl
   where
     go k a = case reinterpret a of

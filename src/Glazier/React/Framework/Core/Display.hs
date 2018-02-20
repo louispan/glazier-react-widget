@@ -24,13 +24,13 @@ type FrameDisplay m s r = Display m (F.Frame m s) r
 -- | Create an intteractive DOM element
 -- by wrapping the provided display of inside a provided 'name',
 -- and attaching listeners from the plan.
-widget :: (Monad m)
-    => F.WidgetId
+gadget :: (Monad m)
+    => F.GadgetId
     -> J.JSString
     -> (F.Frame m s -> [JE.Property])
     -> FrameDisplay m s r
     -> FrameDisplay m s r
-widget i n f disp s =
+gadget i n f disp s =
     let props = f s
         ls = fromMaybe [] (s ^. F.plan.field @"listeners".at i)
     in R.branch (JE.toJS' n)

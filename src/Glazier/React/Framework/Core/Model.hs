@@ -26,7 +26,7 @@ import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Obj as F
 
-newtype WidgetId = WidgetId { unWidgetId :: J.JSString }
+newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
 
 -- | One for every archetype, may be shared for many prototypes
@@ -42,8 +42,8 @@ data Plan m = Plan
     , afterOnUpdated :: m () -- ^ additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
-    , listeners :: M.Map WidgetId [R.Listener]
-    , refs :: M.Map WidgetId R.EventTarget
+    , listeners :: M.Map GadgetId [R.Listener]
+    , refs :: M.Map GadgetId R.EventTarget
     } deriving (G.Generic)
 
 mkPlan :: R.MonadReactor m => J.JSString -> m (Plan m)

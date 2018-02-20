@@ -37,7 +37,7 @@ trigger :: forall m v s a.
     ( R.MonadReactor m
     , NFData a
     )
-    => F.WidgetId
+    => F.GadgetId
     -> J.JSString
     -> (J.JSVal -> IO a)
     -> F.SceneActivator m v s a
@@ -47,51 +47,51 @@ trigger i n f = \(F.Obj ref its) -> ContT $ \fire -> do
         obj & its.F.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) : (fromMaybe [] ls))
             & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)
 
-drives :: F.Activator m s a -> F.Handler m s a b -> F.Activator m s b
-drives act hdl = liftA2 (>>=) act hdl
-infixl 1 `drives` -- like >>=
+activates :: F.Activator m s a -> F.Handler m s a b -> F.Activator m s b
+activates act hdl = liftA2 (>>=) act hdl
+infixl 1 `activates` -- like >>=
 
-controls :: F.Handler m s a b -> F.Activator m s a -> F.Activator m s b
-controls = flip drives
-infixr 1 `controls` -- like =<<
+handles :: F.Handler m s a b -> F.Activator m s a -> F.Activator m s b
+handles = flip activates
+infixr 1 `handles` -- like =<<
 
-drives' :: forall m s a1 a2 b2 b3.
+activates' :: forall m s a1 a2 b2 b3.
     (F.Pretend a2 a1 b2 b3)
     => F.Activator m s (Which a1)
     -> F.Handler m s (Which a2) (Which b2)
     -> F.Activator m s (Which b3)
-drives' act hdl = act `drives` (F.pretend @a1 hdl)
-infixl 1 `drives'` -- like >>=
+activates' act hdl = act `activates` (F.pretend @a1 hdl)
+infixl 1 `activates'` -- like >>=
 
-controls' :: forall m s a1 a2 b2 b3.
+handles' :: forall m s a1 a2 b2 b3.
     (F.Pretend a2 a1 b2 b3)
     => F.Handler m s (Which a2) (Which b2)
     -> F.Activator m s (Which a1)
     -> F.Activator m s (Which b3)
-controls' = flip drives'
-infixr 1 `controls'` -- like =<<
+handles' = flip activates'
+infixr 1 `handles'` -- like =<<
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
-controlledTrigger :: forall m v s a b.
+handledTrigger :: forall m v s a b.
     ( R.MonadReactor m
     , NFData a
     )
-    => F.WidgetId
+    => F.GadgetId
     -> J.JSString
     -> (J.JSVal -> IO a)
     -> F.SceneHandler m v s a b
     -> F.SceneActivator m v s b
-controlledTrigger i n f hdl = (trigger i n f) `drives` hdl
+handledTrigger i n f hdl = (trigger i n f) `activates` hdl
 
 -- | This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an R.EventTarget
 -- in the plan
 withRef ::
     ( R.MonadReactor m
     )
-    => F.WidgetId
+    => F.GadgetId
     -> F.SceneActivator m v s (Which '[])
-withRef i = controlledTrigger i "ref"
+withRef i = handledTrigger i "ref"
     (pure. R.EventTarget . JE.JSVar) -- requires Internal
     hdlRef
   where

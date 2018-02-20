@@ -26,7 +26,7 @@ import qualified JavaScript.Extras as JE
 
 input :: ( R.MonadReactor m
     )
-    => F.WidgetId
+    => F.GadgetId
     -> (F.Frame m s -> [JE.Property])
     -> F.Prototype m v i s
         (Many '[])
@@ -35,7 +35,7 @@ input :: ( R.MonadReactor m
         (Which '[])
         (Which '[])
 input i f = F.nulPrototype
-    { F.display' = F.widget i "input" f mempty
+    { F.display' = F.gadget i "input" f mempty
     , F.activator' = F.withRef i }
 
 -- data SubmitInput = SubmitInput R.EventTarget J.JSString

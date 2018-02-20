@@ -111,6 +111,9 @@ type Pretend a2 a3 b2 b3 =
 pretend :: forall a3 m s a2 b2 b3.
     (Pretend a2 a3 b2 b3)
     => Handler m s (Which a2) (Which b2) -> Handler m s (Which a3) (Which b3)
-pretend hdl s a = case reinterpret a of
-    Left a' -> pure $ diversify a'
-    Right a' -> diversify <$> hdl s a'
+    -- => f (Which a2 -> m (Which b2)) -> f (Which a3 -> m (Which b3))
+pretend hdl = go <$> hdl
+  where
+    go k a = case reinterpret a of
+        Left a' -> pure $ diversify a'
+        Right a' -> diversify <$> k a'

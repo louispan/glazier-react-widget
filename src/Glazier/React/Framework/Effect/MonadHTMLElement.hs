@@ -8,9 +8,7 @@ module Glazier.React.Framework.Effect.MonadHTMLElement where
 
 import Control.Lens
 import Control.Monad.IO.Class
-import Data.Diverse.Lens
 import Data.Generics.Product
-import Data.Maybe
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 
@@ -29,7 +27,7 @@ focusRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m
     )
-    => F.WidgetId -> F.Scene m v s -> m ()
+    => F.GadgetId -> F.Scene m v s -> m ()
 focusRef i (F.Obj ref its) = do
     obj <- R.doReadIORef ref
     let j = obj ^. its.F.plan.field @"refs".at i
@@ -40,7 +38,7 @@ blurRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m
     )
-    => F.WidgetId -> F.Scene m v s -> m ()
+    => F.GadgetId -> F.Scene m v s -> m ()
 blurRef i (F.Obj ref its) = do
     obj <- R.doReadIORef ref
     let j = obj ^. its.F.plan.field @"refs".at i

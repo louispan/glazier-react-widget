@@ -7,6 +7,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Framework.Core.Trigger where
 
@@ -42,9 +43,29 @@ trigger n f = \(F.Obj ref its) -> ContT $ \k -> do
         obj & its.F.model.itemTag' @t %~ ((n, cb) :)
             & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)
 
-controls :: F.Activator m s a -> F.Handler m s a b -> F.Activator m s b
-controls act hdl = liftA2 (>>=) act hdl
-infixl 1 `controls` -- like >>=
+drives :: F.Activator m s a -> F.Handler m s a b -> F.Activator m s b
+drives act hdl = liftA2 (>>=) act hdl
+infixl 1 `drives` -- like >>=
+
+controls :: F.Handler m s a b -> F.Activator m s a -> F.Activator m s b
+controls = flip drives
+infixr 1 `controls` -- like =<<
+
+drives' :: forall m s a1 a2 b2 b3.
+    (F.Pretend a2 a1 b2 b3)
+    => F.Activator m s (Which a1)
+    -> F.Handler m s (Which a2) (Which b2)
+    -> F.Activator m s (Which b3)
+drives' act hdl = act `drives` (F.pretend @a1 hdl)
+infixl 1 `drives'` -- like >>=
+
+controls' :: forall m s a1 a2 b2 b3.
+    (F.Pretend a2 a1 b2 b3)
+    => F.Handler m s (Which a2) (Which b2)
+    -> F.Activator m s (Which a1)
+    -> F.Activator m s (Which b3)
+controls' = flip drives'
+infixr 1 `controls'` -- like =<<
 
 -- | Convenience function to create an activator
 -- given triggers and a handler.
@@ -57,7 +78,7 @@ controlledTrigger :: forall t m v s a b.
     -> (J.JSVal -> IO a)
     -> F.SceneHandler m v s a b
     -> F.SceneActivator m v s b
-controlledTrigger n f hdl = (trigger @t n f) `controls` hdl
+controlledTrigger n f hdl = (trigger @t n f) `drives` hdl
 
 -- -- | Convenience function to create an activator
 -- -- given triggers and a handler.

@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
@@ -92,3 +95,22 @@ maybeHandle :: Applicative m => Handler m s a b -> Handler m s (Maybe a) b
 maybeHandle hdl s ma = case ma of
     Nothing -> ContT $ \_ -> pure ()
     Just a -> hdl s a
+
+-- | A friendlier constraint synonym for 'pretend'.
+type Pretend a2 a3 b2 b3 =
+    ( Reinterpret a2 a3
+    , b3 ~ Append (Complement a3 a2) b2 -- ^ redundant constraint: but limits the output type
+    , Diversify b2 b3
+    , Diversify (Complement a3 a2) b3
+    )
+
+-- | The the types the handler can handle by pasing any extra
+-- input directly to the output.
+-- @a2@ contains the input type to convert into
+-- AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @a3@
+pretend :: forall a3 m s a2 b2 b3.
+    (Pretend a2 a3 b2 b3)
+    => Handler m s (Which a2) (Which b2) -> Handler m s (Which a3) (Which b3)
+pretend hdl s a = case reinterpret a of
+    Left a' -> pure $ diversify a'
+    Right a' -> diversify <$> hdl s a'

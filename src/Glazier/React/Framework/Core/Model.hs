@@ -19,11 +19,15 @@ import qualified Control.Disposable as CD
 import Control.Lens
 import Data.Functor.Contravariant
 import Data.Kind
+import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Obj as F
+
+newtype WidgetId = WidgetId { unWidgetId :: J.JSString }
+    deriving (G.Generic, Ord, Eq)
 
 -- | One for every archetype, may be shared for many prototypes
 data Plan m = Plan
@@ -38,6 +42,8 @@ data Plan m = Plan
     , afterOnUpdated :: m () -- ^ additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
+    , listeners :: M.Map WidgetId [R.Listener]
+    , refs :: M.Map WidgetId R.EventTarget
     } deriving (G.Generic)
 
 mkPlan :: R.MonadReactor m => J.JSString -> m (Plan m)
@@ -50,6 +56,8 @@ mkPlan n = Plan
     <*> pure (pure mempty) -- ^ afterOnUpdated
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render
+    <*> pure M.empty
+    <*> pure M.empty
 
 -- Read-only
 -- Using type synonym to a tuple for usages of 'alongside'.
@@ -97,7 +105,7 @@ class ViaObj (w :: Type -> Type) where
     -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
     viaObj :: Lens' s a -> OnObj w a -> OnObj w s
 
-newtype ObjOp a v s = ObjOp { runObjOp :: F.Obj v s -> a }
+newtype ObjOp a v s = ObjOp { unObjOp :: F.Obj v s -> a }
 
 instance ViaObj (ObjOp a v) where
     type OnObj (ObjOp a v) s = F.Obj v s -> a

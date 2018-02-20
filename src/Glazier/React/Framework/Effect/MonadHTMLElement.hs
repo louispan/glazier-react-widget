@@ -1,9 +1,7 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Framework.Effect.MonadHTMLElement where
@@ -11,6 +9,8 @@ module Glazier.React.Framework.Effect.MonadHTMLElement where
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.Diverse.Lens
+import Data.Generics.Product
+import Data.Maybe
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 
@@ -25,26 +25,26 @@ instance MonadHTMLElement R.IOReactor where
 
 
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-focusRef :: forall t m v s.
+focusRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m
-    , HasItemTag' t R.EventTarget s
     )
-    => F.Scene m v s -> m ()
-focusRef (F.Obj ref its) = do
+    => F.WidgetId -> F.Scene m v s -> m ()
+focusRef i (F.Obj ref its) = do
     obj <- R.doReadIORef ref
-    doFocus $ obj ^. its.F.model.itemTag' @t @R.EventTarget
+    let j = obj ^. its.F.plan.field @"refs".at i
+    maybe (pure ()) doFocus j
 
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-blurRef :: forall t m v s.
+blurRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m
-    , HasItemTag' t R.EventTarget s
     )
-    => F.Scene m v s -> m ()
-blurRef (F.Obj ref its) = do
+    => F.WidgetId -> F.Scene m v s -> m ()
+blurRef i (F.Obj ref its) = do
     obj <- R.doReadIORef ref
-    doBlur $ obj ^. its.F.model.itemTag' @t @R.EventTarget
+    let j = obj ^. its.F.plan.field @"refs".at i
+    maybe (pure ()) doBlur j
 
 #ifdef __GHCJS__
 

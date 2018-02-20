@@ -3,8 +3,6 @@
 -- {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Framework.Widget.Input where
 
@@ -17,27 +15,28 @@ module Glazier.React.Framework.Widget.Input where
 import Data.Diverse.Lens
 -- import qualified Data.DList as DL
 -- import qualified Data.JSString as J
-import Data.Tagged
+-- import Data.Tagged
 -- import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as F
 -- import qualified Glazier.React.Widget.Actions as A
-import qualified Glazier.React.Framework.Widget.WithRef as W
+-- import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 -- import qualified Parameterized.Data.Monoid as P
 
-input :: forall t m v i s.
-    ( HasItemTag' t R.EventTarget s
-    , HasItemTag' t [R.Listener] s
-    , R.MonadReactor m
+input :: ( R.MonadReactor m
     )
-    => (F.Frame m s -> [JE.Property])
+    => F.WidgetId
+    -> (F.Frame m s -> [JE.Property])
     -> F.Prototype m v i s
         (Many '[])
-        (Many '[Tagged t [R.Listener], Tagged t R.EventTarget])
+        (Many '[])
         (Which '[])
-        (Which '[]) (Which '[])
-input f = F.widget @t "input" f W.withRef
+        (Which '[])
+        (Which '[])
+input i f = F.nulPrototype
+    { F.display' = F.widget i "input" f mempty
+    , F.activator' = F.withRef i }
 
 -- data SubmitInput = SubmitInput R.EventTarget J.JSString
 --     deriving (G.Generic, NFData)

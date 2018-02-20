@@ -18,7 +18,6 @@ import Data.Diverse.Profunctor
 import Data.Semigroup
 import Data.Tagged
 import qualified GHC.Generics as G
-import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Activator as F
 import qualified Glazier.React.Framework.Core.Builder as F
@@ -26,7 +25,6 @@ import qualified Glazier.React.Framework.Core.Display as F
 import qualified Glazier.React.Framework.Core.Finalizer as F
 import qualified Glazier.React.Framework.Core.Handler as F
 import qualified Glazier.React.Framework.Core.Model as F
-import qualified JavaScript.Extras as JE
 import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
@@ -98,7 +96,7 @@ infixr 6 `andPrototype` -- like mappend
 ------------------------------------------
 
 newtype PrototypeOnSpec m v i i' s' c a b s = PrototypeOnSpec
-    { runPrototypeOnSpec :: Prototype m v i s i' s' c a b
+    { unPrototypeOnSpec :: Prototype m v i s i' s' c a b
     }
 
 instance F.ViaSpec (PrototypeOnSpec m v i i' s' c a b) where
@@ -113,7 +111,7 @@ instance F.ViaSpec (PrototypeOnSpec m v i i' s' c a b) where
 ------------------------------------------
 
 newtype PrototypeOnInfo m v s i' s' c a b i = PrototypeOnInfo
-    { runPrototypeOnInfo :: Prototype m v i s i' s' c a b
+    { unPrototypeOnInfo :: Prototype m v i s i' s' c a b
     }
 
 instance F.ViaInfo (PrototypeOnInfo m v s i' s' c a b) where
@@ -131,36 +129,6 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' c a b) where
 -- type WidgetModel' ss = Many ([R.Listener] ': [F.Trait] ': ss)
 -- type IsWidget i s =
 --     ( HasItem' [R.Listener] s)
-
--- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
--- @[R.Listener]@ to the model.
--- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-widget ::
-    forall t m v i s i' ss' c a b.
-    ( Monad m
-    , HasItemTag' t [R.Listener] s)
-    => J.JSString
-    -> (F.Frame m s -> [JE.Property])
-    -> Prototype m v i s i' (Many ss') c a b
-    -> Prototype m v i s
-        i'
-        (Many (Tagged t [R.Listener] ': ss'))
-        c a b
-widget n f (Prototype (F.Builder (mkInf, F.MkSpec mkSpc)) dis fin act hdl) =
-    Prototype
-    (F.Builder ( mkInf
-                , F.MkSpec $ \is -> (\s -> (is ^. mempty ./ s)) <$> mkSpc is))
-    (\s ->
-        let props = f s
-            ls = s ^. F.model.itemTag' @t @[R.Listener]
-        in R.branch (JE.toJS' n)
-                ls
-                props
-                (dis s))
-    fin
-    act
-    hdl
-
 
 -- -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
 -- -- @[JE.Property]@ to the info and model, and to build

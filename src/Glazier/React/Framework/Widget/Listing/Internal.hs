@@ -94,14 +94,14 @@ newtype ListingFilter flt = ListingFilter flt
     deriving (G.Generic, NFData)
 
 newtype ListingNewItemAction s = ListingNewItemAction {
-    runListingNewItemAction :: Which '[ ListingInsertItem s
+    unListingNewItemAction :: Which '[ ListingInsertItem s
                                       , ListingConsItem s
                                       , ListingSnocItem s
                                       ] }
     deriving (G.Generic, NFData)
 
 newtype ListingAction flt srt i s = ListingAction {
-    runListingAction :: Which '[ ListingNewItemAction s
+    unListingAction :: Which '[ ListingNewItemAction s
                                , ListingMakeItem i (s -> ListingNewItemAction s)
                                , ListingDeleteItem
                                , ListingFilter flt
@@ -261,7 +261,7 @@ hdlListingMakeItem :: forall m v i s c flt srt.
     -> F.SceneHandler m v (Listing s flt srt)
         (ListingMakeItem i (s -> ListingNewItemAction s)) c
 hdlListingMakeItem fin mkSpc act obj (ListingMakeItem i f) = do
-    s <- lift $ F.runMkSpec mkSpc i
+    s <- lift $ F.unMkSpec mkSpc i
     c <- act s
     hdlListingNewItem fin obj (f s)
     pure c

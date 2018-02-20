@@ -26,12 +26,12 @@ import qualified Parameterized.TypeLevel as P
 
 -- | Make inactive model, monadic as it may need to create IORefs
 newtype MkSpec m i s = MkSpec {
-            runMkSpec :: i -> m s
+            unMkSpec :: i -> m s
             } deriving Functor
 
 ------------------------------------------------
 
-newtype MkSpecOnInfo m s i = MkSpecOnInfo { runMkSpecOnInfo :: MkSpec m i s }
+newtype MkSpecOnInfo m s i = MkSpecOnInfo { unMkSpecOnInfo :: MkSpec m i s }
 
 instance F.ViaInfo (MkSpecOnInfo m s) where
     type OnInfo (MkSpecOnInfo m s) i = MkSpec m i s
@@ -44,12 +44,12 @@ instance Contravariant (MkSpecOnInfo m s) where
 
 -- | Monadic because we may need to 'R.doReadIORef' to get the data to make the info.
 newtype MkInfo m s i = MkInfo {
-            runMkInfo :: s -> m i
+            unMkInfo :: s -> m i
             } deriving Functor
 
 ------------------------------------------------
 
-newtype MkInfoOnSpec m i s = MkInfoOnSpec { runMkInfoOnSpec :: MkInfo m s i }
+newtype MkInfoOnSpec m i s = MkInfoOnSpec { unMkInfoOnSpec :: MkInfo m s i }
 
 instance F.ViaSpec (MkInfoOnSpec m i) where
     type OnSpec (MkInfoOnSpec m i) s = MkInfo m s i
@@ -79,7 +79,7 @@ instance Applicative m => Biapplicative (Builder m i s) where
 
 ------------------------------------------------
 
-newtype BuilderOnInfo m s i' s' i = BuilderOnInfo { runBuilderOnInfo :: Builder m i s i' s' }
+newtype BuilderOnInfo m s i' s' i = BuilderOnInfo { unBuilderOnInfo :: Builder m i s i' s' }
 
 instance F.ViaInfo (BuilderOnInfo m s i' s') where
     type OnInfo (BuilderOnInfo m s i' s') i = Builder m i s i' s'
@@ -88,7 +88,7 @@ instance F.ViaInfo (BuilderOnInfo m s i' s') where
 
 ------------------------------------------------
 
-newtype BuilderOnSpec m i i' s' s = BuilderOnSpec { runBuilderOnSpec :: Builder m i s i' s' }
+newtype BuilderOnSpec m i i' s' s = BuilderOnSpec { unBuilderOnSpec :: Builder m i s i' s' }
 
 instance F.ViaSpec (BuilderOnSpec m i i' s') where
     type OnSpec (BuilderOnSpec m i i' s') s = Builder m i s i' s'
@@ -97,7 +97,7 @@ instance F.ViaSpec (BuilderOnSpec m i i' s') where
 
 ------------------------------------------------
 newtype PBuilder m i s is' = PBuilder
-    { runPBuilder :: Builder m i s (P.At0 is') (P.At1 is')
+    { unPBuilder :: Builder m i s (P.At0 is') (P.At1 is')
     }
 
 -- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.

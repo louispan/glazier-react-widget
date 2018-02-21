@@ -123,69 +123,28 @@ instance F.ViaInfo (PrototypeOnInfo m v s i' s' c a b) where
         act
         hdl
 
--- type WidgetInfo is = Many ([JE.Property] ': is)
--- type WidgetModel ss = Many ([JE.Property] ': [R.Listener] ': [F.Trait] ': ss)
--- type WidgetModel t ss = Many (Tagged t [R.Listener] ': ss)
--- type WidgetModel' ss = Many ([R.Listener] ': [F.Trait] ': ss)
--- type IsWidget i s =
---     ( HasItem' [R.Listener] s)
+-- -- | Apply isomorphisms of Info and Model to the prototype
+-- enclose :: Functor m
+--     => Iso' j i
+--     -> (i' -> j')
+--     -> Iso' t s
+--     -> (s' -> t')
+--     -> Prototype m v i s i' s' a x y
+--     -> Prototype m v j t j' t' a x y
+-- enclose ji ij ts st p =
+--     let p'@(Prototype bld _ _ _ _) = F.viaSpec ts (F.viaInfo ji p)
+--     in p' { builder' = F.mapBuilder ij st bld }
 
--- -- | Wrap the display of prototype inside a provided 'name', and adds the ability to build
--- -- @[JE.Property]@ to the info and model, and to build
--- -- @[R.Listener]@, and @DL.DList F.Trait@ to only the model.
--- widget ::
---     ( Monad m
---     , IsWidget i s)
---     => J.JSString
---     -> (Many ss' -> [F.Trait])
---     -> Prototype m v i s i' (Many ss') x y z a b
---     -> Prototype m v i s
---         i'
---         (Many ([R.Listener] ': ss'))
---         x y z a b
--- widget n ts (Prototype (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc)) (F.Display dis) fin act hdl) =
---     Prototype
---     (F.Builder ( F.MkInfo $ \ss -> (\i -> (ss ^. item' @[JE.Property]) ./ i)
---                     <$> mkInf ss
---                 , F.MkSpec $ \is -> (\s -> (is ^. item' @[JE.Property])
---                                             ./ mempty
---                                             ./ ts
---                                             ./ s)
---                     <$> mkSpc is))
---     (F.Display $ \(cp, ss) ->
---             let props = view (item' @[JE.Property]) ss
---                 hs = view (item' @[F.Trait]) ss
---                 ls = view (item' @[R.Listener]) ss
---             in R.branch (JE.toJS' n)
---                     ls
---                     (coerce hs <> props)
---                     (dis (cp, ss)))
---     fin
---     act
---     hdl
-
--- | Apply isomorphisms of Info and Model to the prototype
-enclose :: Functor m
-    => Iso' j i
-    -> (i' -> j')
-    -> Iso' t s
-    -> (s' -> t')
-    -> Prototype m v i s i' s' a x y
-    -> Prototype m v j t j' t' a x y
-enclose ji ij ts st p =
-    let p'@(Prototype bld _ _ _ _) = F.viaSpec ts (F.viaInfo ji p)
-    in p' { builder' = F.mapBuilder ij st bld }
-
-toTaggedPrototype :: forall t m v i s i' s' a x y.
-    Functor m
-    => Prototype m v i s i' s' a x y
-    -> Prototype m v (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s') a x y
-toTaggedPrototype p =
-    let ts :: Iso' (Tagged t s) s
-        ts = iso unTagged Tagged
-        ji :: Iso' (Tagged t i) i
-        ji = iso unTagged Tagged
-    in enclose ji (Tagged @t) ts (Tagged @t) p
+-- toTaggedPrototype :: forall t m v i s i' s' a x y.
+--     Functor m
+--     => Prototype m v i s i' s' a x y
+--     -> Prototype m v (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s') a x y
+-- toTaggedPrototype p =
+--     let ts :: Iso' (Tagged t s) s
+--         ts = iso unTagged Tagged
+--         ji :: Iso' (Tagged t i) i
+--         ji = iso unTagged Tagged
+--     in enclose ji (Tagged @t) ts (Tagged @t) p
 
 -- | Wrap a prototype's info and model as an item inside a Many.
 toItemPrototype

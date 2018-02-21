@@ -18,15 +18,10 @@ import qualified Glazier.React.Framework.Core.Obj as F
 
 -- | Activates (installs event listeners, etc) a widget
 -- where the event are completely handled.
--- type Activator' m s = s -> ConT () m ()
 
 -- | Activates something that fires an event @c@
 type Activator m s c = s -> ContT () m c
-
--- type ObjActivator' m v s = Activator' m (F.Obj v s)
 type ObjActivator m v s c = Activator m (F.Obj v s) c
-
--- type SceneActivator' m v s = Activator' m (F.Scene m v s)
 type SceneActivator m v s c = Activator m (F.Scene m v s) c
 
 -- The identity for 'andActivator''

@@ -81,19 +81,6 @@ handles' ::
 handles' = flip activates'
 infixr 1 `handles'` -- like =<<
 
--- | Convenience function to create an activator
--- given triggers and a handler.
-handledTrigger ::
-    ( R.MonadReactor m
-    , NFData a
-    )
-    => F.GadgetId
-    -> J.JSString
-    -> (J.JSVal -> IO a)
-    -> F.SceneHandler m v s a b
-    -> F.SceneActivator m v s b
-handledTrigger i n f hdl = (trigger i n f) `activates` hdl
-
 -- | This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an R.EventTarget
 -- in the plan
 withRef ::
@@ -101,29 +88,24 @@ withRef ::
     )
     => F.GadgetId
     -> F.SceneActivator m v s (Which '[])
-withRef i = handledTrigger i "ref"
-    (pure. R.EventTarget . JE.JSVar) -- requires Internal
-    hdlRef
+withRef i = trigger i "ref" (pure. R.EventTarget . JE.JSVar) -- requires Internal
+    `activates` hdlRef
   where
     -- hdlRef :: F.SceneHandler m v s (R.EventTarget) (Which '[])
-    hdlRef (F.Obj ref its) j = F.terminate' . lift $
+    hdlRef (F.Obj ref its) j = terminate' . lift $
         R.doModifyIORef' ref (its.F.plan.field @"refs".at i .~ Just j)
 
--- -- | Convenience function to create an activator
--- -- given triggers and a handler.
--- -- Complex version using 'controls'
--- controlledTrigger :: forall t m v s c1 c2 c3 c4 a b.
---     ( R.MonadReactor m
---     , NFData (Which c2)
---     , HasItemTag' t [R.Listener] s
---     , c4 ~ AppendUnique c1 c3
---     , Injected a c2 b c3
---     , Diversify c1 c4
---     , Diversify c3 c4
---     )
---     => J.JSString
---     -> (J.JSVal -> IO (DL.DList (Which c2)))
---     -> ProtoHandler m v s (Which c1) (Which a) (Which b)
---     -> ProtoActivator m v s (Which c4)
--- controlledTrigger n f hdl = hdl `controls` trigger @t n f
+-- | Convert the original ContT to a ContT that
+-- doens't call it's continuation, by 'const'ing the original contination
+-- to 'pure'.
+terminate :: forall b m . Applicative m => ContT () m () -> ContT () m b
+terminate = withContT (const $ pure)
+
+-- A variation of 'terminate' which  also fixes the result a @(Which '[])@.
+-- This is useful for converting a @Handler m s a ()@ to a @Handler m s a (Which '[])@
+-- for combining using 'orHandler'.
+-- This ContT can be run with  'Data.Diverse.Which.impossible'.
+-- @ContT r m (Which '[])@ is effectively equivanlent to @m r@
+terminate' :: Applicative m => ContT () m () -> ContT () m (Which '[])
+terminate' = terminate @(Which '[])
 

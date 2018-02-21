@@ -17,31 +17,10 @@ import Data.Diverse.Profunctor
 import qualified Glazier.React.Framework.Core.Model as F
 import qualified Glazier.React.Framework.Core.Obj as F
 
--- | Completely handle an input @a@
--- type Handler' m s a = s -> a -> ContT () m ()
-
 -- | Handle a input @a@ and fire a event @b@
 type Handler m s a b = s -> a -> ContT () m b
-
--- type ObjHandler' m v s a = Handler' m (F.Obj v s) a
 type ObjHandler m v s a b = Handler m (F.Obj v s) a b
-
--- type SceneHandler' m v s a = Handler' m (F.Scene m v s) a
 type SceneHandler m v s a b = Handler m (F.Scene m v s) a b
-
--- | Convert the original ContT to a ContT that
--- doens't call it's continuation, by 'const'ing the original contination
--- to 'pure'.
-terminate :: forall b m . Applicative m => ContT () m () -> ContT () m b
-terminate = withContT (const $ pure)
-
--- A variation of 'terminate' which  also fixes the result a @(Which '[])@.
--- This is useful for converting a @Handler m s a ()@ to a @Handler m s a (Which '[])@
--- for combining using 'orHandler'.
--- This ContT can be run with  'Data.Diverse.Which.impossible'.
--- @ContT r m (Which '[])@ is effectively equivanlent to @m r@
-terminate' :: Applicative m => ContT () m () -> ContT () m (Which '[])
-terminate' = terminate @(Which '[])
 
 -- | Identify for 'orHandler'' or 'andHandler''
 nulHandler' :: Applicative m => Handler m r (Which '[]) ()

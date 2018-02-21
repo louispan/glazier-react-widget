@@ -16,7 +16,6 @@ module Glazier.React.Framework.Core.Prototype where
 import Control.Lens
 import Data.Diverse.Profunctor
 import Data.Semigroup
-import Data.Tagged
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Activator as F

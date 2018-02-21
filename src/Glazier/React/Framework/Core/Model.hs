@@ -18,8 +18,10 @@ module Glazier.React.Framework.Core.Model where
 import qualified Control.Disposable as CD
 import Control.Lens
 import Data.Functor.Contravariant
+import Data.Generics.Product
 import Data.Kind
 import qualified Data.Map.Strict as M
+import Data.Maybe
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -28,6 +30,9 @@ import qualified Glazier.React.Framework.Core.Obj as F
 
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
+
+getListeners :: GadgetId -> Frame m s -> [R.Listener]
+getListeners i s = fromMaybe [] (s ^. plan.field @"listeners".at i)
 
 -- | One for every archetype, may be shared for many prototypes
 data Plan m = Plan

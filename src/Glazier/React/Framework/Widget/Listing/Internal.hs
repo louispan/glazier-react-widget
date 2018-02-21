@@ -134,7 +134,7 @@ listing flt srt f (F.Archetype
         _)
     = F.Prototype
     (F.toItemBuilder (listingBuilder bld))
-    (listingDisplay flt srt f dis)
+    (F.viaSpec (alongside id (item' @(Listing flt srt s))) (listingDisplay flt srt f dis))
     (\s -> fold <$> traverse fin (s ^. item' @(Listing flt srt s).field @"items"))
     (F.viaObj (alongside id (item' @(Listing flt srt s))) (listingActivator act))
     (F.viaObj (alongside id (item' @(Listing flt srt s))) (listingHandler fin mkSpc act))
@@ -319,18 +319,16 @@ listingBuilder (F.Builder (F.MkInfo mkInf, F.MkSpec mkSpc)) =
     mkInf' (Listing df ds dss ss) = Listing df ds <$> traverse mkInf dss <*> traverse mkInf ss
     mkSpc' (Listing df ds dps ps) = Listing df ds <$> traverse mkSpc dps <*> traverse mkSpc ps
 
-listingDisplay :: forall m s ss flt srt.
+listingDisplay :: forall m s flt srt.
     ( R.MonadReactor m
-    , HasItem' (Listing flt srt s) ss
     )
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
     -> (s -> [JE.Property])
     -> F.Display m s ()
-    -> F.FrameDisplay m ss ()
-listingDisplay flt srt f dis (_, ss) = do
-    let Listing df ds ys xs = ss ^. item' @(Listing flt srt s)
-        toLi s = R.branch "li"
+    -> F.FrameDisplay m (Listing flt srt s) ()
+listingDisplay flt srt f dis (_, Listing df ds ys xs) = do
+    let toLi s = R.branch "li"
             []
             (f s)
             (dis s)

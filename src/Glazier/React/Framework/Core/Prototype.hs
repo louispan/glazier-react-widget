@@ -176,11 +176,11 @@ enclose ji ij ts st p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec ts (F.viaInfo ji p)
     in p' { builder' = F.mapBuilder ij st bld }
 
-encloseTagged :: forall t m v i s i' s' a x y.
+toTaggedPrototype :: forall t m v i s i' s' a x y.
     Functor m
     => Prototype m v i s i' s' a x y
     -> Prototype m v (Tagged t i) (Tagged t s) (Tagged t i') (Tagged t s') a x y
-encloseTagged p =
+toTaggedPrototype p =
     let ts :: Iso' (Tagged t s) s
         ts = iso unTagged Tagged
         ji :: Iso' (Tagged t i) i
@@ -188,13 +188,13 @@ encloseTagged p =
     in enclose ji (Tagged @t) ts (Tagged @t) p
 
 -- | Wrap a prototype's info and model as an item inside a Many.
-comprise
+toItemPrototype
     :: ( Functor m
        , HasItem' s1 s2
        , HasItem' i1 i2
        )
     => Prototype m v i1 s1 i' s' a x y
     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) a x y
-comprise p =
+toItemPrototype p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec item' (F.viaInfo item' p)
     in p' { builder' = F.mapBuilder single single bld }

@@ -24,15 +24,15 @@ type Activator m s c = s -> ContT () m c
 type ObjActivator m v s c = Activator m (F.Obj v s) c
 type SceneActivator m v s c = Activator m (F.Scene m v s) c
 
--- The identity for 'andActivator''
-nulActivator' :: Activator m r ()
-nulActivator' _ = pure ()
+-- -- The identity for 'andActivator''
+-- nulActivator' :: Activator m r ()
+-- nulActivator' _ = pure ()
 
--- Activate left after the right.
--- The binary associative function for 'nulActivator''.
-andActivator' :: Activator m r () -> Activator m r () -> Activator m r ()
-andActivator' x y s = x s *> y s
-infixr 6 `andActivator'` -- like mappend
+-- -- Activate left after the right.
+-- -- The binary associative function for 'nulActivator''.
+-- andActivator' :: Activator m r () -> Activator m r () -> Activator m r ()
+-- andActivator' x y s = x s *> y s
+-- infixr 6 `andActivator'` -- like mappend
 
 -- The identity for 'andActivator'
 nulActivator :: Applicative m => Activator m r (Which '[])

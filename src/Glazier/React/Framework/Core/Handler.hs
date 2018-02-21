@@ -22,30 +22,30 @@ type Handler m s a b = s -> a -> ContT () m b
 type ObjHandler m v s a b = Handler m (F.Obj v s) a b
 type SceneHandler m v s a b = Handler m (F.Scene m v s) a b
 
--- | Identify for 'orHandler'' or 'andHandler''
-nulHandler' :: Applicative m => Handler m r (Which '[]) ()
-nulHandler' _ _ = ContT $ \_ -> pure ()
+-- -- | Identify for 'orHandler'' or 'andHandler''
+-- nulHandler' :: Applicative m => Handler m r (Which '[]) ()
+-- nulHandler' _ _ = ContT $ \_ -> pure ()
 
--- Run left after the right.
--- A binary associative function for 'nulHandler''.
-andHandler' :: (Applicative m)
-    => Handler m s a ()
-    -> Handler m s a ()
-    -> Handler m s a ()
-andHandler' f g s a = (f s a) `TE.seqContT` (g s a)
-infixr 6 `andHandler'` -- like mappend
+-- -- Run left after the right.
+-- -- A binary associative function for 'nulHandler''.
+-- andHandler' :: (Applicative m)
+--     => Handler m s a ()
+--     -> Handler m s a ()
+--     -> Handler m s a ()
+-- andHandler' f g s a = (f s a) `TE.seqContT` (g s a)
+-- infixr 6 `andHandler'` -- like mappend
 
--- | Run one or the other.
--- Compile error if types in @a1@ are not distinct from types in @a2@
--- A binary associative function for 'nulHandler''.
-orHandler' :: forall m s a1 a2 a3. ChooseFrom a1 a2 a3
-    => Handler m s (Which a1) ()
-    -> Handler m s (Which a2) ()
-    -> Handler m s (Which a3) ()
-orHandler' f g s a = case reinterpret @a2 @a3 a of
-    Left a1 -> f s a1
-    Right a2 -> g s a2
-infixr 6 `orHandler'` -- like mappend
+-- -- | Run one or the other.
+-- -- Compile error if types in @a1@ are not distinct from types in @a2@
+-- -- A binary associative function for 'nulHandler''.
+-- orHandler' :: forall m s a1 a2 a3. ChooseFrom a1 a2 a3
+--     => Handler m s (Which a1) ()
+--     -> Handler m s (Which a2) ()
+--     -> Handler m s (Which a3) ()
+-- orHandler' f g s a = case reinterpret @a2 @a3 a of
+--     Left a1 -> f s a1
+--     Right a2 -> g s a2
+-- infixr 6 `orHandler'` -- like mappend
 
 -- | Identify for 'orHandler' or 'andHandler'
 nulHandler :: Applicative m => Handler m r (Which '[]) (Which '[])

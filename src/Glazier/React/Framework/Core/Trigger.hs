@@ -33,7 +33,7 @@ import qualified JavaScript.Extras as JE
 
 -- | Create callbacks and add it to this state's dlist of listeners.
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-trigger :: forall m v s a.
+trigger' :: forall m v s a.
     ( R.MonadReactor m
     , NFData a
     )
@@ -41,8 +41,21 @@ trigger :: forall m v s a.
     -> J.JSString
     -> (J.JSVal -> IO a)
     -> F.SceneActivator m v s a
-trigger i n f = \(F.Obj ref its) -> ContT $ \fire -> do
-    (ds, cb) <- R.doMkCallback f fire
+trigger' i n f = trigger i n f id
+
+-- | Create callbacks and add it to this state's dlist of listeners.
+-- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
+trigger :: forall m v s a b.
+    ( R.MonadReactor m
+    , NFData a
+    )
+    => F.GadgetId
+    -> J.JSString
+    -> (J.JSVal -> IO a)
+    -> (a -> b)
+    -> F.SceneActivator m v s b
+trigger i n f g = \(F.Obj ref its) -> ContT $ \fire -> do
+    (ds, cb) <- R.doMkCallback f (fire . g)
     R.doModifyIORef' ref $ \obj ->
         obj & its.F.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) : (fromMaybe [] ls))
             & its.F.plan.field @"disposeOnRemoved" %~ (<> ds)
@@ -88,7 +101,7 @@ withRef ::
     )
     => F.GadgetId
     -> F.SceneActivator m v s (Which '[])
-withRef i = trigger i "ref" (pure. R.EventTarget . JE.JSVar) -- requires Internal
+withRef i = trigger' i "ref" (pure. R.EventTarget . JE.JSVar) -- requires Internal
     `activates` hdlRef
   where
     -- hdlRef :: F.SceneHandler m v s (R.EventTarget) (Which '[])

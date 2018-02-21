@@ -35,8 +35,8 @@ input :: ( R.MonadReactor m
         (Which '[])
         (Which '[])
 input i f = F.nulPrototype
-    { F.display' = \s -> R.leaf "input" (F.getListeners i s) (f s)
-    , F.activator' = F.withRef i }
+    { F.display = \s -> R.leaf "input" (F.getListeners i s) (f s)
+    , F.activator = F.withRef i }
 
 -- data SubmitInput = SubmitInput R.EventTarget J.JSString
 --     deriving (G.Generic, NFData)

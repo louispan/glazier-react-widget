@@ -28,11 +28,11 @@ import qualified Parameterized.Data.Monoid as P
 import qualified Parameterized.TypeLevel as P
 
 data Prototype m v i s i' s' c a b = Prototype
-    { builder' :: F.Builder m i s i' s'
-    , display' :: F.FrameDisplay m s ()
-    , finalizer' :: F.Finalizer m s
-    , activator' :: F.SceneActivator m v s c
-    , handler' :: F.SceneHandler m v s a b
+    { builder :: F.Builder m i s i' s'
+    , display :: F.FrameDisplay m s ()
+    , finalizer :: F.Finalizer m s
+    , activator :: F.SceneActivator m v s c
+    , handler :: F.SceneHandler m v s a b
     } deriving (G.Generic)
 
 ------------------------------------------
@@ -155,4 +155,4 @@ toItemPrototype
     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) a x y
 toItemPrototype p =
     let p'@(Prototype bld _ _ _ _) = F.viaSpec item' (F.viaInfo item' p)
-    in p' { builder' = F.mapBuilder single single bld }
+    in p' { builder = F.mapBuilder single single bld }

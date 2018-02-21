@@ -159,7 +159,7 @@ broadcastListing :: forall m v i s is ss cs as a3 bs b3 flt srt.
         (Which b3)
 broadcastListing flt srt f arch =
     let F.Prototype bld' dis' fin' act' hdl' = listing flt srt f arch
-        hdl = F.handler arch
+        hdl = F.handler' arch
     in F.Prototype
         bld'
         dis'

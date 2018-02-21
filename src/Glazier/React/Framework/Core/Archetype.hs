@@ -31,11 +31,11 @@ import qualified Glazier.React.Framework.Core.Prototype as F
 import qualified JavaScript.Extras as JE
 
 data Archetype m i s c a b = Archetype
-    { builder :: F.Builder m i s i s
-    , display :: F.Display m s ()
-    , finalizer :: F.Finalizer m s
-    , activator :: F.Activator m s c
-    , handler :: F.Handler m s a b
+    { builder' :: F.Builder m i s i s
+    , display' :: F.Display m s ()
+    , finalizer' :: F.Finalizer m s
+    , activator' :: F.Activator m s c
+    , handler' :: F.Handler m s a b
     } deriving (G.Generic)
 
 -- | NB. fromArchetype . toArchetype != id

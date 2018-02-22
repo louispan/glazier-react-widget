@@ -59,7 +59,6 @@ orHandler :: ChooseBetween a1 a2 a3 b1 b2 b3
     -> Handler m s (Which a2) (Which b2)
     -> Handler m s (Which a3) (Which b3)
 orHandler f g s = runKleisli $ Kleisli (f s) +||+ Kleisli (g s)
-infixr 6 `orHandler` -- like mappend
 
 -- Run left after the right.
 -- A binary associative function for 'nulHandler'.

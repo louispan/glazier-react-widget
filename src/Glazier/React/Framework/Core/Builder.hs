@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -19,8 +20,6 @@ import Data.Coerce
 import Data.Diverse.Lens
 import Data.Tagged
 import qualified Glazier.React.Framework.Core.Model as F
-import qualified Parameterized.Data.Monoid as P
-import qualified Parameterized.TypeLevel as P
 
 ------------------------------------------------
 
@@ -96,9 +95,10 @@ instance F.ViaSpec (BuilderOnSpec m i i' s') where
         Builder (F.viaSpec l mkInf, mkSpc)
 
 ------------------------------------------------
-newtype PBuilder m i s is' = PBuilder
-    { unPBuilder :: Builder m i s (P.At0 is') (P.At1 is')
-    }
+
+-- | THe identity for 'andBuilder'
+nulBuilder :: Applicative m => Builder m i s (Many '[]) (Many '[])
+nulBuilder = bipure nil nil
 
 -- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.
 type AndBuilder i1 i2 i3 s1 s2 s3 =
@@ -106,37 +106,25 @@ type AndBuilder i1 i2 i3 s1 s2 s3 =
     , s3 ~ Append s1 s2
     )
 
-type instance P.PNullary (PBuilder m i s) (i', s') = Builder m i s i' s'
-
--- | NB. This is also identity for 'Data.Diverse.Profunctor.+||+'
-instance Applicative m => P.PMEmpty (PBuilder m i s) (Many '[], Many '[]) where
-    pmempty = bipure nil nil
-
--- | type restricted version of 'P.pmempty' for 'Builder'
-nulBuilder :: Applicative m => Builder m i s (Many '[]) (Many '[])
-nulBuilder = P.pmempty
-
--- | UndecidableInstances!
-instance (Applicative m
-         , AndBuilder i1 i2 i3 s1 s2 s3
-         ) =>
-         P.PSemigroup (PBuilder m i s) (Many i1, Many s1) (Many i2, Many s2) (Many i3, Many s3) where
-    (Builder (MkInfo mkInf, MkSpec mkSpc)) `pmappend`
-        (Builder (MkInfo mkInf', MkSpec mkSpc')) =
-            Builder
-                ( MkInfo $ \s -> (/./) <$> mkInf s <*> mkInf' s
-                , MkSpec $ \i -> (/./) <$> mkSpc i <*> mkSpc' i)
-
--- | type restricted version of 'P.pmappend' for 'Builder'
 andBuilder ::
-    ( Applicative m
+    (Applicative m
     , AndBuilder i1 i2 i3 s1 s2 s3
-    )
-    => Builder m i s (Many i1) (Many s1)
+    ) =>
+    Builder m i s (Many i1) (Many s1)
     -> Builder m i s (Many i2) (Many s2)
     -> Builder m i s (Many i3) (Many s3)
-andBuilder = P.pmappend
 infixr 6 `andBuilder` -- like mappend
+(Builder (MkInfo mkInf, MkSpec mkSpc)) `andBuilder`
+    (Builder (MkInfo mkInf', MkSpec mkSpc')) =
+        Builder
+            ( MkInfo $ \s -> (/./) <$> mkInf s <*> mkInf' s
+            , MkSpec $ \i -> (/./) <$> mkSpc i <*> mkSpc' i)
+
+-- | A type restricted verison of const
+-- where the right builder is a 'nulBuilder'.
+-- It is useful for double checking that we can throw away the 'nulBuilder'
+constBuilder :: Builder m i s i' s' -> Builder m i s (Many '[]) (Many '[]) -> Builder m i s i' s'
+constBuilder = const
 
 ------------------------------------------------
 
@@ -219,23 +207,23 @@ hardcodeItemTag x = Builder ( MkInfo . const $ pure nil
 --         ( coerce (contramap ts (MkInfoOnSpec (ij <$> mkInf)))
 --         , coerce (contramap ji (MkSpecOnInfo (st <$> mkSpc))))
 
-contramapBuilder ::
-    (j -> i)
-    -> (t -> s)
-    -> Builder m i s i' s' -> Builder m j t i' s'
-contramapBuilder ji ts (Builder (mkInf, mkSpc)) =
-    Builder
-        ( coerce (contramap ts (MkInfoOnSpec mkInf))
-        , coerce (contramap ji (MkSpecOnInfo mkSpc)))
+-- bicontramapBuilder ::
+--     (j -> i)
+--     -> (t -> s)
+--     -> Builder m i s i' s' -> Builder m j t i' s'
+-- bicontramapBuilder ji ts (Builder (mkInf, mkSpc)) =
+--     Builder
+--         ( coerce (contramap ts (MkInfoOnSpec mkInf))
+--         , coerce (contramap ji (MkSpecOnInfo mkSpc)))
 
-mapBuilder :: Functor m
-    => (i' -> j')
-    -> (s' -> t')
-    -> Builder m i s i' s' -> Builder m i s j' t'
-mapBuilder ij st (Builder (mkInf, mkSpc)) =
-    Builder
-        ( coerce (MkInfoOnSpec (ij <$> mkInf))
-        , coerce (MkSpecOnInfo (st <$> mkSpc)))
+-- bimapBuilder :: Functor m
+--     => (i' -> j')
+--     -> (s' -> t')
+--     -> Builder m i s i' s' -> Builder m i s j' t'
+-- bimapBuilder ij st (Builder (mkInf, mkSpc)) =
+--     Builder
+--         ( coerce (MkInfoOnSpec (ij <$> mkInf))
+--         , coerce (MkSpecOnInfo (st <$> mkSpc)))
 
 -- taggedBuilder :: forall t m i s i' s'.
 --     Functor m

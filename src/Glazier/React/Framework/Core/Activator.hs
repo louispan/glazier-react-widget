@@ -1,7 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -42,10 +41,10 @@ nulActivator _ =  ContT $ \_ -> pure ()
 -- The binary associative function for 'nulActivator'.
 andActivator ::
     ( Applicative m
-    , ChooseBoth b1 b2 b3
-    )
-    => Activator m r (Which b1)
-    -> Activator m r (Which b2)
-    -> Activator m r (Which b3)
-andActivator x y s = (diversify <$> x s) `TE.seqContT` (diversify <$> y s)
+    , ChooseBoth c1 c2 c3
+    ) =>
+    Activator m r (Which c1)
+    -> Activator m r (Which c2)
+    -> Activator m r (Which c3)
 infixr 6 `andActivator` -- like mappend
+andActivator x y s = (diversify <$> x s) `TE.seqContT` (diversify <$> y s)

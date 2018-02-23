@@ -26,7 +26,7 @@ import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core.Obj as F
+import qualified Glazier.React.Framework.Core.Obj as R
 
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
@@ -47,6 +47,12 @@ data Plan m = Plan
     , afterOnUpdated :: m () -- ^ additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
+    -- Storing listeners and refs in a 'M.Map', which simplifies the type of the model.
+    -- Unfortunately, this means mismatches between event listeners and handlers
+    -- are not compile time checked.
+    -- Eg. `Glazier.React.Framework.Effect.MonadHTMLElement.focusRef` expects a ref
+    -- but wont have compile error if `Glazier.React.Framework.TriggeR.withRef` was not attached.
+    -- The alternative is to store as a 'Many' in the model, but this ends up with messier types.
     , listeners :: M.Map GadgetId [R.Listener]
     , refs :: M.Map GadgetId R.EventTarget
     } deriving (G.Generic)
@@ -75,7 +81,7 @@ model :: Lens' (Frame m s) s
 model = _2
 
 -- | Mutable
-type Scene m v s = F.Obj v (Frame m s)
+type Scene m v s = R.Obj v (Frame m s)
 
 -- -- | If a new item was added, then we need to delay focusing until after the next render
 -- focus :: (R.MonadReactor m)
@@ -110,11 +116,11 @@ class ViaObj (w :: Type -> Type) where
     -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
     viaObj :: Lens' s a -> OnObj w a -> OnObj w s
 
-newtype ObjOp a v s = ObjOp { unObjOp :: F.Obj v s -> a }
+newtype ObjOp a v s = ObjOp { unObjOp :: R.Obj v s -> a }
 
 instance ViaObj (ObjOp a v) where
-    type OnObj (ObjOp a v) s = F.Obj v s -> a
-    viaObj l f obj = f (F.edit l obj)
+    type OnObj (ObjOp a v) s = R.Obj v s -> a
+    viaObj l f obj = f (R.edit l obj)
 
 ----------------------------------------------------------
 

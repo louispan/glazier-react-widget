@@ -12,16 +12,16 @@ module Glazier.React.Framework.Core.Activator where
 import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Cont.Extras as TE
 import Data.Diverse.Profunctor
-import qualified Glazier.React.Framework.Core.Model as F
-import qualified Glazier.React.Framework.Core.Obj as F
+import qualified Glazier.React.Framework.Core.Model as R
+import qualified Glazier.React.Framework.Core.Obj as R
 
 -- | Activates (installs event listeners, etc) a widget
 -- where the event are completely handled.
 
 -- | Activates something that fires an event @c@
 type Activator m s c = s -> ContT () m c
-type ObjActivator m v s c = Activator m (F.Obj v s) c
-type SceneActivator m v s c = Activator m (F.Scene m v s) c
+type ObjActivator m v s c = Activator m (R.Obj v s) c
+type SceneActivator m v s c = Activator m (R.Scene m v s) c
 
 -- -- The identity for 'andActivator''
 -- nulActivator' :: Activator m r ()

@@ -14,13 +14,13 @@ import Control.Arrow
 import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Cont.Extras as TE
 import Data.Diverse.Profunctor
-import qualified Glazier.React.Framework.Core.Model as F
-import qualified Glazier.React.Framework.Core.Obj as F
+import qualified Glazier.React.Framework.Core.Model as R
+import qualified Glazier.React.Framework.Core.Obj as R
 
 -- | Handle a input @a@ and fire a event @b@
 type Handler m s a b = s -> a -> ContT () m b
-type ObjHandler m v s a b = Handler m (F.Obj v s) a b
-type SceneHandler m v s a b = Handler m (F.Scene m v s) a b
+type ObjHandler m v s a b = Handler m (R.Obj v s) a b
+type SceneHandler m v s a b = Handler m (R.Scene m v s) a b
 
 -- -- | Identify for 'orHandler'' or 'andHandler''
 -- nulHandler' :: Applicative m => Handler m r (Which '[]) ()
@@ -35,7 +35,7 @@ type SceneHandler m v s a b = Handler m (F.Scene m v s) a b
 -- andHandler' f g s a = (f s a) `TE.seqContT` (g s a)
 -- infixr 6 `andHandler'` -- like mappend
 
--- -- | Run one or the other.
+-- -- | Run one or the otheR.
 -- -- Compile error if types in @a1@ are not distinct from types in @a2@
 -- -- A binary associative function for 'nulHandler''.
 -- orHandler' :: forall m s a1 a2 a3. ChooseFrom a1 a2 a3
@@ -51,7 +51,7 @@ type SceneHandler m v s a b = Handler m (F.Scene m v s) a b
 nulHandler :: Applicative m => Handler m r (Which '[]) (Which '[])
 nulHandler _ _ = ContT $ \_ -> pure ()
 
--- | Run one or the other.
+-- | Run one or the otheR.
 -- Compile error if types in @a1@ are not distinct from types in @a2@
 -- A binary associative function for 'nulHandler'.
 orHandler :: ChooseBetween a1 a2 a3 b1 b2 b3

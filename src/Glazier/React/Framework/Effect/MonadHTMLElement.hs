@@ -10,9 +10,9 @@ import Control.Lens
 import Control.Monad.IO.Class
 import Data.Generics.Product
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core as F
+import qualified Glazier.React.Framework.Core as R
 
--- Effects from methods in https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement
+-- Effects from methods in https://developeR.mozilla.org/en-US/docs/Web/API/HTMLElement
 class Monad m => MonadHTMLElement m where
     doFocus :: R.EventTarget -> m ()
     doBlur :: R.EventTarget -> m ()
@@ -27,10 +27,10 @@ focusRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m
     )
-    => F.GadgetId -> F.Scene m v s -> m ()
-focusRef i (F.Obj ref its) = do
+    => R.GadgetId -> R.Scene m v s -> m ()
+focusRef i (R.Obj ref its) = do
     obj <- R.doReadIORef ref
-    let j = obj ^. its.F.plan.field @"refs".at i
+    let j = obj ^. its.R.plan.field @"refs".at i
     maybe (pure ()) doFocus j
 
 -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
@@ -38,10 +38,10 @@ blurRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m
     )
-    => F.GadgetId -> F.Scene m v s -> m ()
-blurRef i (F.Obj ref its) = do
+    => R.GadgetId -> R.Scene m v s -> m ()
+blurRef i (R.Obj ref its) = do
     obj <- R.doReadIORef ref
-    let j = obj ^. its.F.plan.field @"refs".at i
+    let j = obj ^. its.R.plan.field @"refs".at i
     maybe (pure ()) doBlur j
 
 #ifdef __GHCJS__

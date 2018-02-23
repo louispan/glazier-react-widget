@@ -19,7 +19,7 @@ import Data.Biapplicative
 import Data.Coerce
 import Data.Diverse.Lens
 import Data.Tagged
-import qualified Glazier.React.Framework.Core.Model as F
+import qualified Glazier.React.Framework.Core.Model as R
 
 ------------------------------------------------
 
@@ -32,7 +32,7 @@ newtype MkSpec m i s = MkSpec {
 
 newtype MkSpecOnInfo m s i = MkSpecOnInfo { unMkSpecOnInfo :: MkSpec m i s }
 
-instance F.ViaInfo (MkSpecOnInfo m s) where
+instance R.ViaInfo (MkSpecOnInfo m s) where
     type OnInfo (MkSpecOnInfo m s) i = MkSpec m i s
     viaInfo l (MkSpec mkSpc) = MkSpec $ mkSpc . view l
 
@@ -50,7 +50,7 @@ newtype MkInfo m s i = MkInfo {
 
 newtype MkInfoOnSpec m i s = MkInfoOnSpec { unMkInfoOnSpec :: MkInfo m s i }
 
-instance F.ViaSpec (MkInfoOnSpec m i) where
+instance R.ViaSpec (MkInfoOnSpec m i) where
     type OnSpec (MkInfoOnSpec m i) s = MkInfo m s i
     viaSpec l (MkInfo mkInf) = MkInfo $ mkInf . view l
 
@@ -80,19 +80,19 @@ instance Applicative m => Biapplicative (Builder m i s) where
 
 newtype BuilderOnInfo m s i' s' i = BuilderOnInfo { unBuilderOnInfo :: Builder m i s i' s' }
 
-instance F.ViaInfo (BuilderOnInfo m s i' s') where
+instance R.ViaInfo (BuilderOnInfo m s i' s') where
     type OnInfo (BuilderOnInfo m s i' s') i = Builder m i s i' s'
     viaInfo l (Builder (mkInf, mkSpc)) =
-        Builder (mkInf, F.viaInfo l mkSpc)
+        Builder (mkInf, R.viaInfo l mkSpc)
 
 ------------------------------------------------
 
 newtype BuilderOnSpec m i i' s' s = BuilderOnSpec { unBuilderOnSpec :: Builder m i s i' s' }
 
-instance F.ViaSpec (BuilderOnSpec m i i' s') where
+instance R.ViaSpec (BuilderOnSpec m i i' s') where
     type OnSpec (BuilderOnSpec m i i' s') s = Builder m i s i' s'
     viaSpec l (Builder (mkInf, mkSpc)) =
-        Builder (F.viaSpec l mkInf, mkSpc)
+        Builder (R.viaSpec l mkInf, mkSpc)
 
 ------------------------------------------------
 

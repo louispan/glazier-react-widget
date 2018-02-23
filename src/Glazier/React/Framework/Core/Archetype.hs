@@ -118,10 +118,12 @@ toArchetype n (R.Prototype
                             (cp', _) <- R.doReadIORef ref
                             R.doModifyIORef' ref $ \s -> s
                                 -- can't use '.~' with afterOnUpdated - causes type inference errors
-                                & (R.plan.field @"afterOnUpdated") `set'` pure mempty
+                                & (R.plan.field @"onceOnUpdated") `set'` pure mempty
                                 & R.plan.field @"disposeOnUpdated" .~ mempty
+                            -- Now run things on every updated
                             R.doDispose (R.disposeOnUpdated cp')
-                            R.afterOnUpdated cp'
+                            R.everyOnUpdated cp'
+                            R.onceOnUpdated cp'
             let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ Just cb
                                             & field @"disposeOnRemoved" %~ (<> d)
                         ) <$> rnd

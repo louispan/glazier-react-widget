@@ -35,8 +35,8 @@ data Plan m = Plan
       -- when finalizing
       disposeOnRemoved :: CD.Disposable
     , disposeOnUpdated :: CD.Disposable -- ^ things to dispose on updated
-    , afterOnUpdated :: m () -- ^ additional monadic action to take after a rerender
-    , afterOnEveryUpdated :: m () -- ^ additional monadic action to take after every rerender
+    , everyOnUpdated :: m () -- ^ additional monadic action to take after every rerender
+    , onceOnUpdated :: m () -- ^ additional monadic action to take after a rerender
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     -- Storing listeners and refs in a 'M.Map', which simplifies the type of the model.
@@ -56,7 +56,7 @@ mkPlan n = Plan
     <*> pure 0 -- ^ frameNum
     <*> pure mempty -- ^ disposeOnRemoved
     <*> pure mempty -- ^ disposeOnUpdated
-    <*> pure (pure ()) -- ^ afterOnUpdated
+    <*> pure (pure ()) -- ^ afterOnEveryUpdated
     <*> pure (pure ()) -- ^ afterOnUpdated
     <*> pure Nothing -- ^ callback
     <*> pure Nothing -- ^ render

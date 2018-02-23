@@ -15,7 +15,7 @@ import qualified JavaScript.Extras as JE
 rerender :: R.MonadReactor m => R.Scene m v s -> m () -> m ()
 rerender (R.Obj ref its) k = do
     obj <- R.doReadIORef ref
-    let (i, obj') = obj & its.R.plan.field @"afterOnUpdated" %~ (*> k)
+    let (i, obj') = obj & its.R.plan.field @"onceOnUpdated" %~ (*> k)
                         & (its.R.plan.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'
     R.doSetComponentState

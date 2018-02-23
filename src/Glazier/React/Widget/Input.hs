@@ -52,16 +52,16 @@ textInput ::
     , R.MonadJS m
     , R.MonadHTMLElement m
     )
-    => R.GadgetId
-    -> (i -> TextInput)
+    => (i -> TextInput)
     -> Lens' s TextInput
+    -> R.GadgetId
     -> R.Prototype m v i s
         (Many '[TextInput])
         (Many '[TextInput])
         (Which '[InputDidBlur, InputDidEnter, InputDidEsc])
         (Which '[FocusInput])
         (Which '[])
-textInput i fi fs =
+textInput fi fs i =
     let p = R.nulPrototype
             { R.display = \s -> R.lf' i s "input"
                 -- For uncontrolled components, we need to generate a new key per render

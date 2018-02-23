@@ -112,10 +112,10 @@ newtype ListingAction flt srt i s = ListingAction {
 listing :: forall m v i s is ss c a b flt srt.
     ( R.MonadReactor m
     )
-    => (flt -> s -> m Bool)
-    -> (srt -> s -> s -> m Ordering)
-    -> (is -> (Listing flt srt i))
+    => (is -> (Listing flt srt i))
     -> Lens' ss (Listing flt srt s)
+    -> (flt -> s -> m Bool)
+    -> (srt -> s -> s -> m Ordering)
     -> R.Archetype m i s c a b
     -> R.Prototype m v is ss
         (Many '[Listing flt srt i])
@@ -123,7 +123,7 @@ listing :: forall m v i s is ss c a b flt srt.
         c
         (Which '[ListingAction flt srt i s])
         c
-listing flt srt fi fs (R.Archetype
+listing fi fs flt srt (R.Archetype
     (bld@(R.Builder (_, mkSpc)))
     dis
     fin
@@ -144,10 +144,10 @@ broadcastListing :: forall m v i s is ss cs as a3 bs b3 flt srt.
     ( R.MonadReactor m
     , ChooseBetween '[ListingAction flt srt i s] as a3 cs bs b3
     )
-    => (flt -> s -> m Bool)
-    -> (srt -> s -> s -> m Ordering)
-    -> (is -> (Listing flt srt i))
+    => (is -> (Listing flt srt i))
     -> Lens' ss (Listing flt srt s)
+    -> (flt -> s -> m Bool)
+    -> (srt -> s -> s -> m Ordering)
     -> R.Archetype m i s (Which cs) (Which as) (Which bs)
     -> R.Prototype m v is ss
         (Many '[Listing flt srt i])
@@ -155,8 +155,8 @@ broadcastListing :: forall m v i s is ss cs as a3 bs b3 flt srt.
         (Which cs)
         (Which a3)
         (Which b3)
-broadcastListing flt srt fi fs arch =
-    let p = listing flt srt fi fs arch
+broadcastListing fi fs flt srt arch =
+    let p = listing fi fs flt srt arch
         hdl = R.handler' arch
         hdl' = R.handler p
     in p { R.handler = hdl'

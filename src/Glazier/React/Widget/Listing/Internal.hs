@@ -26,10 +26,8 @@ import qualified Data.Map.Strict as M
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
-
 import qualified Glazier.React.Framework.Core as R
 import qualified Glazier.React.Framework.Effect as R
-import qualified JavaScript.Extras as JE
 
 -- | Internal: Make a key that will fit in between the two provided keys,
 -- Except when the inputs are equal, then it will return the same key.
@@ -118,7 +116,6 @@ listing :: forall m v i s is ss c a b flt srt.
     )
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
-    -> (s -> [JE.Property])
     -> R.Archetype m i s c a b
     -> R.Prototype m v is ss
         (Many '[Listing flt srt i])
@@ -126,7 +123,7 @@ listing :: forall m v i s is ss c a b flt srt.
         c
         (Which '[ListingAction flt srt i s])
         c
-listing flt srt f (R.Archetype
+listing flt srt (R.Archetype
     (bld@(R.Builder (_, mkSpc)))
         dis
         fin
@@ -134,7 +131,7 @@ listing flt srt f (R.Archetype
         _)
     = R.Prototype
     (R.toItemBuilder (listingBuilder bld))
-    (R.viaSpec (alongside id (item' @(Listing flt srt s))) (listingDisplay flt srt f dis))
+    (R.viaSpec (alongside id (item' @(Listing flt srt s))) (listingDisplay flt srt dis))
     (\s -> fold <$> traverse fin (s ^. item' @(Listing flt srt s).field @"items"))
     (R.viaObj (alongside id (item' @(Listing flt srt s))) (listingActivator act))
     (R.viaObj (alongside id (item' @(Listing flt srt s))) (listingHandler fin mkSpc act))
@@ -149,7 +146,6 @@ broadcastListing :: forall m v i s is ss cs as a3 bs b3 flt srt.
     )
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
-    -> (s -> [JE.Property])
     -> R.Archetype m i s (Which cs) (Which as) (Which bs)
     -> R.Prototype m v is ss
         (Many '[Listing flt srt i])
@@ -157,8 +153,8 @@ broadcastListing :: forall m v i s is ss cs as a3 bs b3 flt srt.
         (Which cs)
         (Which a3)
         (Which b3)
-broadcastListing flt srt f arch =
-    let R.Prototype bld' dis' fin' act' hdl' = listing flt srt f arch
+broadcastListing flt srt arch =
+    let R.Prototype bld' dis' fin' act' hdl' = listing flt srt arch
         hdl = R.handler' arch
     in R.Prototype
         bld'
@@ -324,13 +320,10 @@ listingDisplay :: forall m s flt srt.
     )
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
-    -> (s -> [JE.Property])
     -> R.Display m s ()
     -> R.FrameDisplay m (Listing flt srt s) ()
-listingDisplay flt srt f dis (_, Listing df ds ys xs) = do
-    let toLi s = R.branch "li"
-            []
-            (f s)
+listingDisplay flt srt dis (_, Listing df ds ys xs) = do
+    let toLi s = R.bh "li" []
             (dis s)
         df' = flt df
         ds' = srt ds
@@ -343,7 +336,7 @@ listingDisplay flt srt f dis (_, Listing df ds ys xs) = do
                 pure zs''
             -- else display as is
             ys' -> pure ys'
-    R.branch "ul" [] []
+    R.bh "ul" []
         (mconcat $ toLi <$> ys')
 
 listingActivator ::

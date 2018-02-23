@@ -18,10 +18,8 @@ module Glazier.React.Framework.Core.Model where
 import qualified Control.Disposable as CD
 import Control.Lens
 import Data.Functor.Contravariant
-import Data.Generics.Product
 import Data.Kind
 import qualified Data.Map.Strict as M
-import Data.Maybe
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -30,9 +28,6 @@ import qualified Glazier.React.Framework.Core.Obj as R
 
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
-
-getListeners :: GadgetId -> Frame m s -> [R.Listener]
-getListeners i s = fromMaybe [] (s ^. plan.field @"listeners".at i)
 
 -- | One for every archetype, may be shared for many prototypes
 data Plan m = Plan
@@ -82,16 +77,6 @@ model = _2
 
 -- | Mutable
 type Scene m v s = R.Obj v (Frame m s)
-
--- -- | If a new item was added, then we need to delay focusing until after the next render
--- focus :: (R.MonadReactor m)
---     => IORef v
---     -> Lens' v (Frame x m s)
---     -> R.EventTarget
---     -> m ()
--- focus ref its j = do
---     R.doModifyIORef' ref (its.plan.field @"doOnUpdated" %~ (\g -> liftA2 const g (R.focus j)))
---     rerender ref its
 
 ----------------------------------------------------------
 

@@ -16,10 +16,7 @@ module Glazier.React.Framework.Core.Builder where
 
 import Control.Lens
 import Data.Biapplicative
-import Data.Coerce
 import Data.Diverse.Lens
-import Data.Tagged
-import qualified Glazier.React.Framework.Core.Model as R
 
 ------------------------------------------------
 
@@ -30,14 +27,14 @@ newtype MkSpec m i s = MkSpec {
 
 ------------------------------------------------
 
-newtype MkSpecOnInfo m s i = MkSpecOnInfo { unMkSpecOnInfo :: MkSpec m i s }
+-- newtype MkSpecOnInfo m s i = MkSpecOnInfo { unMkSpecOnInfo :: MkSpec m i s }
 
-instance R.ViaInfo (MkSpecOnInfo m s) where
-    type OnInfo (MkSpecOnInfo m s) i = MkSpec m i s
-    viaInfo l (MkSpec mkSpc) = MkSpec $ mkSpc . view l
+-- instance R.ViaInfo (MkSpecOnInfo m s) where
+--     type OnInfo (MkSpecOnInfo m s) i = MkSpec m i s
+--     viaInfo l (MkSpec mkSpc) = MkSpec $ mkSpc . view l
 
-instance Contravariant (MkSpecOnInfo m s) where
-    contramap f (MkSpecOnInfo (MkSpec g)) = coerce (g . f)
+-- instance Contravariant (MkSpecOnInfo m s) where
+--     contramap f (MkSpecOnInfo (MkSpec g)) = coerce (g . f)
 
 ------------------------------------------------
 
@@ -50,12 +47,12 @@ newtype MkInfo m s i = MkInfo {
 
 newtype MkInfoOnSpec m i s = MkInfoOnSpec { unMkInfoOnSpec :: MkInfo m s i }
 
-instance R.ViaSpec (MkInfoOnSpec m i) where
-    type OnSpec (MkInfoOnSpec m i) s = MkInfo m s i
-    viaSpec l (MkInfo mkInf) = MkInfo $ mkInf . view l
+-- instance R.ViaSpec (MkInfoOnSpec m i) where
+--     type OnSpec (MkInfoOnSpec m i) s = MkInfo m s i
+--     viaSpec l (MkInfo mkInf) = MkInfo $ mkInf . view l
 
-instance Contravariant (MkInfoOnSpec m s) where
-    contramap f (MkInfoOnSpec (MkInfo g)) = coerce (g . f)
+-- instance Contravariant (MkInfoOnSpec m s) where
+--     contramap f (MkInfoOnSpec (MkInfo g)) = coerce (g . f)
 
 ------------------------------------------------
 
@@ -76,25 +73,25 @@ instance Applicative m => Biapplicative (Builder m i s) where
                 , MkSpec $ \s -> fMkMdl s <*> mkSpc s
                 )
 
-------------------------------------------------
+-- ------------------------------------------------
 
-newtype BuilderOnInfo m s i' s' i = BuilderOnInfo { unBuilderOnInfo :: Builder m i s i' s' }
+-- newtype BuilderOnInfo m s i' s' i = BuilderOnInfo { unBuilderOnInfo :: Builder m i s i' s' }
 
-instance R.ViaInfo (BuilderOnInfo m s i' s') where
-    type OnInfo (BuilderOnInfo m s i' s') i = Builder m i s i' s'
-    viaInfo l (Builder (mkInf, mkSpc)) =
-        Builder (mkInf, R.viaInfo l mkSpc)
+-- instance R.ViaInfo (BuilderOnInfo m s i' s') where
+--     type OnInfo (BuilderOnInfo m s i' s') i = Builder m i s i' s'
+--     viaInfo l (Builder (mkInf, mkSpc)) =
+--         Builder (mkInf, R.viaInfo l mkSpc)
 
-------------------------------------------------
+-- ------------------------------------------------
 
-newtype BuilderOnSpec m i i' s' s = BuilderOnSpec { unBuilderOnSpec :: Builder m i s i' s' }
+-- newtype BuilderOnSpec m i i' s' s = BuilderOnSpec { unBuilderOnSpec :: Builder m i s i' s' }
 
-instance R.ViaSpec (BuilderOnSpec m i i' s') where
-    type OnSpec (BuilderOnSpec m i i' s') s = Builder m i s i' s'
-    viaSpec l (Builder (mkInf, mkSpc)) =
-        Builder (R.viaSpec l mkInf, mkSpc)
+-- instance R.ViaSpec (BuilderOnSpec m i i' s') where
+--     type OnSpec (BuilderOnSpec m i i' s') s = Builder m i s i' s'
+--     viaSpec l (Builder (mkInf, mkSpc)) =
+--         Builder (R.viaSpec l mkInf, mkSpc)
 
-------------------------------------------------
+-- ------------------------------------------------
 
 -- | THe identity for 'andBuilder'
 nulBuilder :: Applicative m => Builder m i s (Many '[]) (Many '[])
@@ -128,21 +125,27 @@ constBuilder = const
 
 ------------------------------------------------
 
+-- | Modify Builder's reading environment @i1@ and @s1@ inside a larger @i2@ @s2@
+byBuilder ::
+    (i2 -> i1)
+    -> (s2 -> s1)
+    -> Builder m i1 s1 i' s' -> Builder m i2 s2 i' s'
+byBuilder ji ts (Builder (MkInfo mkInf, MkSpec mkSpc)) =
+    Builder
+        ( MkInfo (mkInf . ts)
+        , MkSpec (mkSpc . ji))
+
 -- | Return a builder that builds an item inside a Many
 toItemBuilder
-    :: forall m i s i' s' is ss.
+    :: forall m i1 i2 s1 s2 i' s'.
     ( Applicative m
-    , HasItem' i is
-    , HasItem' s ss
     )
-    => Builder m i s i' s'
-    -> Builder m is ss (Many '[i']) (Many '[s'])
-toItemBuilder (Builder (MkInfo mkInf, MkSpec mkSpc)) =
-    Builder (MkInfo mkInf', MkSpec mkSpc')
-  where
-    mkInf' ss = single <$> mkInf (view (item' @s) ss)
-    mkSpc' is = single <$> mkSpc (view (item' @i) is)
-
+    => (i2 -> i1)
+    -> (s2 -> s1)
+    -> Builder m i1 s1 i' s'
+    -> Builder m i2 s2 (Many '[i']) (Many '[s'])
+toItemBuilder fi fs bld = byBuilder fi fs
+    $ bimap single single bld
 
 -- | Add a type @x@ into the model that is used directly from the info.
 -- @forall@ so that the type can be specified first
@@ -157,28 +160,47 @@ build = Builder ( MkInfo pure
 -- and return a builder that uses a Many.
 -- @forall@ so that the type can be specified first
 buildItem
-    :: forall x m i s. (Applicative m, HasItem' x i, HasItem' x s)
-    => Builder m i s (Many '[x]) (Many '[x])
-buildItem = toItemBuilder build
+    :: forall x m i s. (Applicative m)
+    => (i -> x) -> (s -> x) -> Builder m i s (Many '[x]) (Many '[x])
+buildItem fi fs = toItemBuilder fi fs build
+
+-- -- | Add a type @x@ into the model that is used directly from the info
+-- -- and return a builder that uses a Many.
+-- -- @forall@ so that the type can be specified first
+-- buildItem
+--     :: forall x m i s. (Applicative m)
+--     => Builder m i s (Many '[x]) (Many '[x])
+-- buildItem = bimap single
 
 -- | Add a value @x@ into the model that is not from the info.
--- @forall@ so that the type can be specified first
-hardcodeItem
-    :: forall x m i s. Applicative m
-    => x -> Builder m i s (Many '[]) (Many '[x])
-hardcodeItem x = Builder ( MkInfo . const $ pure nil
-                  , MkSpec . const . pure $ single x
-                  )
+hardcode :: Applicative m => x -> Builder m i s (Many '[]) x
+hardcode x = Builder
+    ( MkInfo . const $ pure nil
+    , MkSpec . const $ pure x
+    )
 
 -- | Add a value @x@ into the model that is not from the info.
--- @forall@ so that the type can be specified first
--- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
-hardcodeItemTag
-    :: forall t x m i s. Applicative m
-    => x -> Builder m i s (Many '[]) (Many '[Tagged t x])
-hardcodeItemTag x = Builder ( MkInfo . const $ pure nil
-                  , MkSpec . const . pure . single $ Tagged x
-                  )
+hardcodeItem :: Applicative m => x -> Builder m i s (Many '[]) (Many '[x])
+hardcodeItem = bimap id single . hardcode
+
+-- -- | Add a value @x@ into the model that is not from the info.
+-- -- @forall@ so that the type can be specified first
+-- hardcodeItem
+--     :: forall x m i s. Applicative m
+--     => x -> Builder m i s (Many '[]) (Many '[x])
+-- hardcodeItem x = Builder ( MkInfo . const $ pure nil
+--                   , MkSpec . const . pure $ single x
+--                   )
+
+-- -- | Add a value @x@ into the model that is not from the info.
+-- -- @forall@ so that the type can be specified first
+-- -- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
+-- hardcodeItemTag
+--     :: forall t x m i s. Applicative m
+--     => x -> Builder m i s (Many '[]) (Many '[Tagged t x])
+-- hardcodeItemTag x = Builder ( MkInfo . const $ pure nil
+--                   , MkSpec . const . pure . single $ Tagged x
+--                   )
 
 -- -- | More descriptive name for 'second' for Builder
 -- mapModel :: Functor m => (s' -> t') -> Builder m i s i' s' -> Builder m i s i' t'
@@ -207,14 +229,6 @@ hardcodeItemTag x = Builder ( MkInfo . const $ pure nil
 --         ( coerce (contramap ts (MkInfoOnSpec (ij <$> mkInf)))
 --         , coerce (contramap ji (MkSpecOnInfo (st <$> mkSpc))))
 
--- bicontramapBuilder ::
---     (j -> i)
---     -> (t -> s)
---     -> Builder m i s i' s' -> Builder m j t i' s'
--- bicontramapBuilder ji ts (Builder (mkInf, mkSpc)) =
---     Builder
---         ( coerce (contramap ts (MkInfoOnSpec mkInf))
---         , coerce (contramap ji (MkSpecOnInfo mkSpc)))
 
 -- bimapBuilder :: Functor m
 --     => (i' -> j')

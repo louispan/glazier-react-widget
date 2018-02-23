@@ -111,11 +111,11 @@ newtype ListingAction flt srt i s = ListingAction {
 -- | This version drops the original item handlers @a -> b@, and only have list handlers.
 listing :: forall m v i s is ss c a b flt srt.
     ( R.MonadReactor m
-    , HasItem' (Listing flt srt i) is
-    , HasItem' (Listing flt srt s) ss
     )
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
+    -> (is -> (Listing flt srt i))
+    -> Lens' ss (Listing flt srt s)
     -> R.Archetype m i s c a b
     -> R.Prototype m v is ss
         (Many '[Listing flt srt i])
@@ -123,29 +123,31 @@ listing :: forall m v i s is ss c a b flt srt.
         c
         (Which '[ListingAction flt srt i s])
         c
-listing flt srt (R.Archetype
+listing flt srt fi fs (R.Archetype
     (bld@(R.Builder (_, mkSpc)))
-        dis
-        fin
-        act
-        _)
-    = R.Prototype
-    (R.toItemBuilder (listingBuilder bld))
-    (R.viaSpec (alongside id (item' @(Listing flt srt s))) (listingDisplay flt srt dis))
-    (\s -> fold <$> traverse fin (s ^. item' @(Listing flt srt s).field @"items"))
-    (R.viaObj (alongside id (item' @(Listing flt srt s))) (listingActivator act))
-    (R.viaObj (alongside id (item' @(Listing flt srt s))) (listingHandler fin mkSpc act))
+    dis
+    fin
+    act
+    _)
+    =
+    let p = R.Prototype
+            (bimap single single (listingBuilder bld))
+            (listingDisplay flt srt dis)
+            R.nulFinalizer
+            (listingActivator act)
+            (listingHandler fin mkSpc act)
+    in (R.byPrototype fi fs p) { R.finalizer = \s -> fold <$> traverse fin (s ^. fs.field @"items") }
 
 -- | Creates a listing with a handler that handles listing actions,
 -- as well as broadcasting original actions to in each item in the listing.
 broadcastListing :: forall m v i s is ss cs as a3 bs b3 flt srt.
     ( R.MonadReactor m
-    , HasItem' (Listing flt srt i) is
-    , HasItem' (Listing flt srt s) ss
     , ChooseBetween '[ListingAction flt srt i s] as a3 cs bs b3
     )
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
+    -> (is -> (Listing flt srt i))
+    -> Lens' ss (Listing flt srt s)
     -> R.Archetype m i s (Which cs) (Which as) (Which bs)
     -> R.Prototype m v is ss
         (Many '[Listing flt srt i])
@@ -153,15 +155,13 @@ broadcastListing :: forall m v i s is ss cs as a3 bs b3 flt srt.
         (Which cs)
         (Which a3)
         (Which b3)
-broadcastListing flt srt arch =
-    let R.Prototype bld' dis' fin' act' hdl' = listing flt srt arch
+broadcastListing flt srt fi fs arch =
+    let p = listing flt srt fi fs arch
         hdl = R.handler' arch
-    in R.Prototype
-        bld'
-        dis'
-        fin'
-        act'
-        (hdl' `R.orHandler` (R.viaObj (alongside id (item' @(Listing flt srt s))) (broadcastListingHandler hdl)))
+        hdl' = R.handler p
+    in p { R.handler = hdl'
+            `R.orHandler` ((broadcastListingHandler hdl)
+                . R.edit (alongside id fs)) }
 
 hdlListingDeleteItem :: forall m v s flt srt.
     (R.MonadReactor m)

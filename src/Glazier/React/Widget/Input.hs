@@ -51,17 +51,17 @@ textInput ::
     ( R.MonadReactor m
     , R.MonadJS m
     , R.MonadHTMLElement m
-    , HasItem' TextInput s
-    , HasItem' TextInput i
     )
     => R.GadgetId
+    -> (i -> TextInput)
+    -> Lens' s TextInput
     -> R.Prototype m v i s
         (Many '[TextInput])
         (Many '[TextInput])
         (Which '[InputDidBlur, InputDidEnter, InputDidEsc])
         (Which '[FocusInput])
         (Which '[])
-textInput i  =
+textInput i fi fs =
     let p = R.nulPrototype
             { R.display = \s -> R.lf' i s "input"
                 -- For uncontrolled components, we need to generate a new key per render
@@ -78,7 +78,7 @@ textInput i  =
             , R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
             , R.handler = hdlFocusInput
             }
-    in R.toItemPrototype p
+    in R.toItemPrototype fi fs p
   where
     onBlur :: ( R.MonadReactor m, R.MonadJS m)
         => R.SceneActivator m v TextInput (Which '[InputDidBlur])

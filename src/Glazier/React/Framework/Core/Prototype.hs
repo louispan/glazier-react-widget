@@ -24,7 +24,7 @@ import qualified Glazier.React.Framework.Core.Builder as R
 import qualified Glazier.React.Framework.Core.Display as R
 import qualified Glazier.React.Framework.Core.Finalizer as R
 import qualified Glazier.React.Framework.Core.Handler as R
-import qualified Glazier.React.Framework.Core.Model as R
+import qualified Glazier.React.Framework.Core.Obj as R
 
 data Prototype m v i s i' s' c a b = Prototype
     { builder :: R.Builder m i s i' s'
@@ -99,62 +99,26 @@ andPrototype ::
         (hdl1 `R.orHandler` hdl2)
 infixr 6 `andPrototype` -- like mappend
 
--- -- | A friendlier constraint synonym for 'PBuilder' 'pmappend'.
--- type AndPrototype m i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3 =
---     ( R.AndBuilder m i1 i2 i3 s1 s2 s3
---     , ChooseBoth c1 c2 c3
---     , ChooseBetween a1 a2 a3 b1 b2 b3
---     )
+-- | Modify prototype's reading environment @i1@ and @s1@ inside a larger @i2@ @s2@
+byPrototype
+    :: (i2 -> i1)
+    -> Lens' s2 s1
+    -> Prototype m v i1 s1 i' s' a x y
+    -> Prototype m v i2 s2 i' s' a x y
+byPrototype fi l = viaSpec l . viaInfo fi
 
--- instance ( R.MonadReactor m
---          , AndPrototype m i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3
---          ) => P.PSemigroup (PPrototype m v i s)
---              (i1, s1, Which c1, Which a1, Which b1)
---              (i2, s2, Which c2, Which a2, Which b2)
---              (i3, s3, Which c3, Which a3, Which b3) where
---     (Prototype bld1 dis1 fin1 act1 hdl1) `pmappend` (Prototype bld2 dis2 fin2 act2 hdl2) =
---         Prototype
---         (bld1 `R.andBuilder` bld2)
---         (dis1 <> dis2)
---         (fin1 `R.andFinalizer` fin2)
---         (act1 `R.andActivator` act2)
---         (hdl1 `R.orHandler` hdl2)
+-- | Modify prototype's reading environment @s1@ inside a larger @s2@
+viaSpec :: Lens' s2 s1  -> Prototype m v i s1 i' s' c a b -> Prototype m v i s2 i' s' c a b
+viaSpec l (Prototype bld dis fin act hdl) = Prototype
+    (R.byBuilder id (view l) bld)
+    (dis . view (alongside id l))
+    (fin . view l)
+    (act . R.edit (alongside id l))
+    (hdl . R.edit (alongside id l))
 
--- -- | type restricted version of 'P.pmappend' for 'Prototype'
--- andPrototype ::
---     ( R.MonadReactor m
---     , AndPrototype m i1 i2 i3 s1 s2 s3 c1 c2 c3 a1 a2 a3 b1 b2 b3
---     )
---     => Prototype m v i s i1 s1 (Which c1) (Which a1) (Which b1)
---     -> Prototype m v i s i2 s2 (Which c2) (Which a2) (Which b2)
---     -> Prototype m v i s i3 s3 (Which c3) (Which a3) (Which b3)
--- andPrototype = P.pmappend
--- infixr 6 `andPrototype` -- like mappend
-
-------------------------------------------
-
-newtype PrototypeOnSpec m v i i' s' c a b s = PrototypeOnSpec
-    { unPrototypeOnSpec :: Prototype m v i s i' s' c a b
-    }
-
-instance R.ViaSpec (PrototypeOnSpec m v i i' s' c a b) where
-    type OnSpec (PrototypeOnSpec m v i i' s' c a b) s = Prototype m v i s i' s' c a b
-    viaSpec l (Prototype bld dis fin act hdl) = Prototype
-        (R.viaSpec l bld)
-        (R.viaSpec (alongside id l) dis)
-        (R.viaSpec l fin)
-        (R.viaObj (alongside id l) act)
-        (R.viaObj (alongside id l) hdl)
-
-------------------------------------------
-
-newtype PrototypeOnInfo m v s i' s' c a b i = PrototypeOnInfo
-    { unPrototypeOnInfo :: Prototype m v i s i' s' c a b
-    }
-
-instance R.ViaInfo (PrototypeOnInfo m v s i' s' c a b) where
-    type OnInfo (PrototypeOnInfo m v s i' s' c a b) i = Prototype m v i s i' s' c a b
-    viaInfo l p = let bld = builder p in p { builder = (R.viaInfo l bld) }
+-- | Modify prototype's reading environment @i1@ inside a larger @i2@
+viaInfo :: (j -> i) -> Prototype m v i s i' s' c a b -> Prototype m v j s i' s' c a b
+viaInfo fi = mapBuilder (R.byBuilder fi id)
 
 -- -- | Apply isomorphisms of Info and Model to the prototype
 -- enclose :: Functor m
@@ -182,10 +146,10 @@ instance R.ViaInfo (PrototypeOnInfo m v s i' s' c a b) where
 -- | Wrap a prototype's info and model as an item inside a Many.
 toItemPrototype
     :: ( Functor m
-       , HasItem' s1 s2
-       , HasItem' i1 i2
        )
-    => Prototype m v i1 s1 i' s' a x y
+    => (i2 -> i1)
+    -> Lens' s2 s1
+    -> Prototype m v i1 s1 i' s' a x y
     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) a x y
-toItemPrototype p = mapBuilder (bimap single single)
-    $ R.viaSpec item' (R.viaInfo item' p)
+toItemPrototype fi l = mapBuilder (bimap single single)
+    . viaSpec l . viaInfo fi

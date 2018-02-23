@@ -63,7 +63,7 @@ textInput ::
         (Which '[])
 textInput i  =
     let p = R.nulPrototype
-            { R.display = \s -> R.lf'' i s "input"
+            { R.display = \s -> R.lf' i s "input"
                 -- For uncontrolled components, we need to generate a new key per render
                 -- in to force react to use the new defaultValue
                 [ ("key", JE.toJS' $ J.unwords
@@ -172,7 +172,7 @@ data CheckboxInput = CheckboxInput
 --             -- { R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
 --             -- , R.handler = hdlFocusInput }
 --     in (R.viaSpec checkbox p) {
---         R.display = \s -> R.lf'' i s "input"
+--         R.display = \s -> R.lf' i s "input"
 --             (props s <>
 --                 [ ("key", R.runReactKey . R.reactKey $ s ^. R.plan)
 --                 , ("type", "checkbox")

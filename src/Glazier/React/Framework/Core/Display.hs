@@ -22,20 +22,20 @@ getListeners i s = fromMaybe [] (s ^. R.plan.field @"listeners".at i)
 
 -- | Convenience function to create an internactive dom element
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
--- Memonic: the convenient listener version has a double prime.
-lf''
+-- Memonic: the convenient listener version has a prime'.
+lf'
     :: Monad m
     => R.GadgetId
     -> R.Frame m s
     -> JE.JSVar
     -> [JE.Property]
     -> R.ReactMlT m ()
-lf'' i s = R.lf' (getListeners i s)
+lf' i s = R.leaf (getListeners i s)
 
 -- | Convenience function to create an internactive dom element
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
--- Memonic: the convenient listener version has a double prime.
-bh''
+-- Memonic: the convenient listener version has a prime'.
+bh'
     :: Monad m
     => R.GadgetId
     -> R.Frame m s
@@ -43,4 +43,4 @@ bh''
     -> [JE.Property]
     -> R.ReactMlT m a
     -> R.ReactMlT m a
-bh'' i s = R.bh' (getListeners i s)
+bh' i s = R.branch (getListeners i s)

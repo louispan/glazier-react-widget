@@ -88,7 +88,7 @@ toArchetype n (R.Prototype
         )
     dis' ref = do
         (cp, _) <- lift $ R.doReadIORef ref
-        R.lf'
+        R.leaf
             (JE.justSnds [ ("updated", cp ^. field @"onUpdated")])
             (cp ^. field @"component".to JE.toJS')
             (JE.justSnds

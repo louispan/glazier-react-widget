@@ -154,12 +154,7 @@ newtype PrototypeOnInfo m v s i' s' c a b i = PrototypeOnInfo
 
 instance R.ViaInfo (PrototypeOnInfo m v s i' s' c a b) where
     type OnInfo (PrototypeOnInfo m v s i' s' c a b) i = Prototype m v i s i' s' c a b
-    viaInfo l (Prototype bld dis fin act hdl) = Prototype
-        (R.viaInfo l bld)
-        dis
-        fin
-        act
-        hdl
+    viaInfo l p = let bld = builder p in p { builder = (R.viaInfo l bld) }
 
 -- -- | Apply isomorphisms of Info and Model to the prototype
 -- enclose :: Functor m
@@ -192,6 +187,5 @@ toItemPrototype
        )
     => Prototype m v i1 s1 i' s' a x y
     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) a x y
-toItemPrototype p =
-    let p'@(Prototype bld _ _ _ _) = R.viaSpec item' (R.viaInfo item' p)
-    in p' { builder = bimap single single bld }
+toItemPrototype p = mapBuilder (bimap single single)
+    $ R.viaSpec item' (R.viaInfo item' p)

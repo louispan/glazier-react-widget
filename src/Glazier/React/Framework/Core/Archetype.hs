@@ -84,14 +84,12 @@ toArchetype n (R.Prototype
             -- and wrap inside a IORef
             s <- mkSpc i
             cp <- R.mkPlan n
-            R.doNewIORef (cp, s))
+            R.doNewIORef (cp, s)
+        )
     dis' ref = do
         (cp, _) <- lift $ R.doReadIORef ref
         R.leaf (cp ^. field @"component".to JE.toJS')
-            (JE.justSnds
-                [ ("updated", cp ^. field @"onUpdated")
-                ]
-            )
+            (JE.justSnds [ ("updated", cp ^. field @"onUpdated")])
             (JE.justSnds
                 [ ("key", Just . JE.toJS' $ cp ^. field @"reactKey")
                 , ("render", JE.toJS' <$> cp ^. field @"onRender")

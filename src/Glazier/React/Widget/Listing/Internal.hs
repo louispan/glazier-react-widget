@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Widget.Listing.Internal where
+module Glazier.React.Widget.Listing.Internal where
 
 import Control.DeepSeq
 import Control.Lens

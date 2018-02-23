@@ -34,10 +34,10 @@ library
                        Glazier.React.Framework.Effect.MonadHTMLElement
                        Glazier.React.Framework.Effect.MonadJS
                        Glazier.React.Framework.Effect.Rerender
-                       Glazier.React.Framework.Widget
-                       Glazier.React.Framework.Widget.Input
-                       Glazier.React.Framework.Widget.Listing
-                       Glazier.React.Framework.Widget.Listing.Internal
+                       Glazier.React.Widget
+                       Glazier.React.Widget.Input
+                       Glazier.React.Widget.Listing
+                       Glazier.React.Widget.Listing.Internal
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.3.0
                      , bifunctors >= 5.4.1

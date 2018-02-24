@@ -27,7 +27,7 @@ lf'
     :: Monad m
     => R.GadgetId
     -> R.Frame m s
-    -> JE.JSVar
+    -> JE.JSRep
     -> [JE.Property]
     -> R.ReactMlT m ()
 lf' i s = R.leaf (getListeners i s)
@@ -39,7 +39,7 @@ bh'
     :: Monad m
     => R.GadgetId
     -> R.Frame m s
-    -> JE.JSVar
+    -> JE.JSRep
     -> [JE.Property]
     -> R.ReactMlT m a
     -> R.ReactMlT m a

@@ -22,7 +22,6 @@ import Data.Maybe
 import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
-import qualified Glazier.React.Event.Internal as R
 import qualified Glazier.React.Framework.Core.Activator as R
 import qualified Glazier.React.Framework.Core.Handler as R
 import qualified Glazier.React.Framework.Core.Model as R
@@ -101,7 +100,7 @@ withRef ::
     )
     => R.GadgetId
     -> R.SceneActivator m v s (Which '[])
-withRef i = trigger' i "ref" (pure. R.EventTarget . JE.JSVar) -- requires Internal
+withRef i = trigger' i "ref" (pure. R.EventTarget . JE.JSRep) -- requires Internal
     `activates` hdlRef
   where
     -- hdlRef :: R.SceneHandler m v s (R.EventTarget) (Which '[])

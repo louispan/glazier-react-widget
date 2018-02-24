@@ -66,13 +66,13 @@ textInput fi fs i =
             { R.display = \s -> R.lf' i s "input"
                 -- For uncontrolled components, we need to generate a new key per render
                 -- in to force react to use the new defaultValue
-                [ ("key", JE.toJS' $ J.unwords
+                [ ("key", JE.toJSR $ J.unwords
                     [ R.runReactKey . R.reactKey $ s ^. R.plan
                     , J.pack . show . R.frameNum $ s ^. R.plan
                     ])
                 -- use the defaultValue to set the current html text
                 -- "value" cannot be used as React will take over as a controlled component.
-                , ("defaultValue", JE.toJS' $ s ^. R.model.field @"value")
+                , ("defaultValue", JE.toJSR $ s ^. R.model.field @"value")
                 ]
             , R.builder = R.build @TextInput
             , R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
@@ -88,7 +88,7 @@ textInput fi fs i =
     updateInputValue :: (R.MonadReactor m, R.MonadJS m)
         => R.Scene m v TextInput -> J.JSVal -> m ()
     updateInputValue (R.Obj ref its) j = do
-        v <- JE.fromJS' @J.JSString <$> (R.doGetProperty "value" (JE.toJS j))
+        v <- JE.fromJSR @J.JSString <$> (R.doGetProperty "value" j)
         let v' = J.strip $ fromMaybe J.empty v
         R.doModifyIORef' ref (its.R.model.field @"value" .~ v')
 
@@ -142,7 +142,7 @@ textInput fi fs i =
             obj <- R.doReadIORef ref
             void $ runMaybeT $ do
                 j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
-                lift $ R.doSetProperty ("value", JE.toJS' J.empty) (JE.toJS j)
+                lift $ R.doSetProperty ("value", JE.toJSR J.empty) (JE.toJSR j)
                 lift $ R.focusRef i this
 
 data CheckboxInput = CheckboxInput
@@ -150,39 +150,50 @@ data CheckboxInput = CheckboxInput
     , indeterminate :: Bool
     } deriving G.Generic
 
--- -- | This provide a prototype of a checkbox input but without a builder.
--- -- Instead a lens to the CheckboxInput is used, and the user of this widget
--- -- is responsible for making the entire model.
--- checkboxInput ::
---     ( R.MonadReactor m
---     , R.MonadJS m
---     , R.MonadHTMLElement m
---     )
---     => R.GadgetId
---     -> Lens' s CheckboxInput
---     -> (R.Frame m s -> [JE.Property])
---     -> R.Prototype m v i s
---         (Many '[])
---         (Many '[])
---         (Which '[])
---         (Which '[])
---         (Which '[])
--- checkboxInput i checkbox props =
---     let p = R.nulPrototype
---             -- { R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
---             -- , R.handler = hdlFocusInput }
---     in (R.viaSpec checkbox p) {
---         R.display = \s -> R.lf' i s "input"
---             (props s <>
---                 [ ("key", R.runReactKey . R.reactKey $ s ^. R.plan)
---                 , ("type", "checkbox")
---                 , ("checked", JE.toJS' $ s ^. R.model.checkbox)
---                 ]
---             )
---     }
+-- | This provide a prototype of a checkbox input but without a builder.
+-- Instead a lens to the CheckboxInput is used, and the user of this widget
+-- is responsible for making the entire model.
+checkboxInput ::
+    ( R.MonadReactor m
+    , R.MonadJS m
+    )
+    => R.GadgetId
+    -> R.Prototype m v i CheckboxInput
+        (Many '[])
+        (Many '[])
+        (Which '[])
+        (Which '[])
+        (Which '[])
+checkboxInput i =
+    let p = R.nulPrototype
+            { R.display = \s -> R.lf' i s "input"
+                [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
+                , ("type", "checkbox")
+                , ("checked", JE.toJSR $ s ^. R.model.field @"checked")
+                ]
+            , R.activator = onActivated
+            }
+    in p
+  where
+    -- | Add setting the indeterminate after every rerender as this is the only
+    -- way to change that setting.
+    onActivated ::
+        ( R.MonadReactor m
+        , R.MonadJS m
+        ) => R.SceneActivator m v CheckboxInput (Which '[])
+    onActivated (R.Obj ref its) = R.terminate' $ lift $ R.doModifyIORef' ref $ its.R.plan.field @"everyOnUpdated" %~ (*> go)
+      where
+        go = do
+            obj <- R.doReadIORef ref
+            let j = obj ^. its.R.plan.field @"refs".at i
+            case j of
+                Nothing -> pure ()
+                Just j' -> R.doSetProperty
+                    ( "indeterminate"
+                    , JE.toJSR $ obj ^. its.R.model.field @"indeterminate")
+                    j'
 
---   where
---     onBlur :: ( R.MonadReactor m, R.MonadJS m)
---         => R.SceneActivator m v J.JSString (Which '[InputDidBlur])
---     onBlur = R.trigger' i "onBlur" (pure)
---             `R.activates` hdlBlur
+    -- onBlur :: ( R.MonadReactor m, R.MonadJS m)
+    --     => R.SceneActivator m v J.JSString (Which '[InputDidBlur])
+    -- onBlur = R.trigger' i "onBlur" (pure)
+    --         `R.activates` hdlBlur

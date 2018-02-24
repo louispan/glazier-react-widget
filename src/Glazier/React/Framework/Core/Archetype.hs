@@ -90,10 +90,10 @@ toArchetype n (R.Prototype
         (cp, _) <- lift $ R.doReadIORef ref
         R.leaf
             (JE.justSnds [ ("updated", cp ^. field @"onUpdated")])
-            (cp ^. field @"component".to JE.toJS')
+            (cp ^. field @"component".to JE.toJSR)
             (JE.justSnds
-                [ ("key", Just . JE.toJS' $ cp ^. field @"reactKey")
-                , ("render", JE.toJS' <$> cp ^. field @"onRender")
+                [ ("key", Just . JE.toJSR $ cp ^. field @"reactKey")
+                , ("render", JE.toJSR <$> cp ^. field @"onRender")
                 ])
     fin' ref = do
         (cp, s) <- R.doReadIORef ref

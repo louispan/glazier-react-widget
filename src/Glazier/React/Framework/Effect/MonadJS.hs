@@ -1,13 +1,16 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Glazier.React.Framework.Effect.MonadJS where
 
 import Control.Monad.IO.Class
+import Data.Coerce
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified JavaScript.Extras as JE
 
 class Monad m => MonadJS m where
-    doSetProperty :: JE.Property -> J.JSVal -> m ()
-    doGetProperty :: J.JSString -> J.JSVal -> m JE.JSVar
+    doSetProperty :: Coercible j J.JSVal => JE.Property -> j -> m ()
+    doGetProperty :: Coercible j J.JSVal => J.JSString -> j -> m JE.JSRep
 
 instance MonadJS R.IOReactor where
     doSetProperty prop j = liftIO $ JE.setProperty prop j

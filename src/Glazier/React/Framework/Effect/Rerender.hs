@@ -19,7 +19,7 @@ rerender (R.Obj ref its) k = do
                         & (its.R.plan.field @"frameNum") <%~ ((+ 1) . (`mod` JE.maxSafeInteger))
     R.doWriteIORef ref obj'
     R.doSetComponentState
-        (JE.fromProperties [("frameNum", JE.toJS' i)])
+        (JE.fromProperties [("frameNum", JE.toJSR i)])
         (obj ^. (its.R.plan.field @"component"))
 
 rerender' :: R.MonadReactor m => R.Scene m v s -> m ()

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -24,35 +25,35 @@ import qualified Glazier.React.Framework.Core.Activator as R
 import qualified Glazier.React.Framework.Core.Builder as R
 import qualified Glazier.React.Framework.Core.Display as R
 import qualified Glazier.React.Framework.Core.Finalizer as R
+import qualified Glazier.React.Framework.Core.Handler as R
 import qualified Glazier.React.Framework.Core.Model as R
 import qualified Glazier.React.Framework.Core.Obj as R
 import qualified Glazier.React.Framework.Core.Prototype as R
 import qualified JavaScript.Extras as JE
 
-data Archetype m i s c = Archetype
-    { builder' :: R.Builder m i s i s
-    , display' :: R.Display m s ()
+data Archetype m s c = Archetype
+    { display' :: R.Display m s ()
     , finalizer' :: R.Finalizer m s
     , activator' :: R.Activator m s c
-    } deriving (G.Generic)
+    } deriving (G.Generic, Functor)
 
-mapBuilder' :: (R.Builder m i1 s i1 s -> R.Builder m i2 s i2 s)
-    -> Archetype m i1 s c -> Archetype m i2 s c
-mapBuilder' f p = let bld = builder' p in p { builder' = f bld }
-infixl 4 `mapBuilder'` -- like <$>
+-- mapBuilder' :: (R.Builder m i1 s i1 s -> R.Builder m i2 s i2 s)
+--     -> Archetype m i1 s c -> Archetype m i2 s c
+-- mapBuilder' f p = let bld = builder' p in p { builder' = f bld }
+-- infixl 4 `mapBuilder'` -- like <$>
 
 mapDisplay' :: (R.Display m s () -> R.Display m s ())
-    -> Archetype m i s c -> Archetype m i s c
+    -> Archetype m s c -> Archetype m s c
 mapDisplay' f p = let disp = display' p in p { display' = f disp }
 infixl 4 `mapDisplay'` -- like <$>
 
 mapFinalizer' :: (R.Finalizer m s -> R.Finalizer m s)
-    -> Archetype m i s c -> Archetype m i s c
+    -> Archetype m s c -> Archetype m s c
 mapFinalizer' f p = let fin = finalizer' p in p { finalizer' = f fin }
 infixl 4 `mapFinalizer'` -- like <$>
 
 mapActivator' :: (R.Activator m s c1 -> R.Activator m s c2)
-    -> Archetype m i s c1 -> Archetype m i s c2
+    -> Archetype m s c1 -> Archetype m s c2
 mapActivator' f p = let act = activator' p in p { activator' = f act }
 infixl 4 `mapActivator'` -- like <$>
 
@@ -61,20 +62,11 @@ infixl 4 `mapActivator'` -- like <$>
 -- mapHandler' f p = let hdl = handler' p in p { handler' = f hdl }
 -- infixl 4 `mapHandler'` -- like <$>
 
--- | NB. fromArchetype . toArchetype != id
-toArchetype :: R.MonadReactor m
+toArchetypeBuilder :: R.MonadReactor m
     => J.JSString
-    -> R.Prototype m (R.Frame m s) i s i s c
-    -> Archetype m i (IORef (R.Frame m s)) c
-toArchetype n (R.Prototype
-    (R.Builder (R.MkInfo mkInf, R.MkSpec mkSpc))
-    dis
-    fin
-    act
-    )
-    = Archetype bld' dis' fin' act'
-  where
-    bld' = R.Builder
+    -> R.Builder m i s i' s'
+    -> R.Builder m i (IORef (R.Frame m s)) i' (IORef (R.Frame m s'))
+toArchetypeBuilder n (R.Builder (R.MkInfo mkInf, R.MkSpec mkSpc)) = R.Builder
         ( R.MkInfo (R.doReadIORef >=> (mkInf . snd))
         , R.MkSpec $ \i -> do
             -- tuple the original state with a ComponentPlan
@@ -83,6 +75,25 @@ toArchetype n (R.Prototype
             cp <- R.mkPlan n
             R.doNewIORef (cp, s)
         )
+
+toArchetypeHandler ::
+    R.SceneHandler m (R.Frame m s) s a b -- ^ @v@ is no longer polymorphic
+    -> R.Handler m (IORef (R.Frame m s)) a b
+toArchetypeHandler hdl ref = hdl (R.Obj ref id)
+
+fromArchetypeHandler :: R.MonadReactor m => R.Handler m s a b -> R.SceneHandler m v s a b
+fromArchetypeHandler hdl (R.Obj ref its) a = do
+    obj <- lift $ R.doReadIORef ref
+    hdl (obj ^. its.R.model) a
+
+-- | NB. fromArchetype . toArchetype != id
+toArchetype :: R.MonadReactor m
+    => R.Prototype m (R.Frame m s) s c -- ^ @v@ is no longer polymorphic
+    -> Archetype m (IORef (R.Frame m s)) c
+toArchetype
+    (R.Prototype dis fin act)
+    = Archetype dis' fin' act'
+  where
     dis' ref = do
         (cp, _) <- lift $ R.doReadIORef ref
         R.leaf
@@ -139,16 +150,9 @@ toArchetype n (R.Prototype
 
 -- | NB. fromArchetype . toArchetype != id
 fromArchetype :: R.MonadReactor m
-    => Archetype m i s c
-    -> R.Prototype m v i s i s c
-fromArchetype (Archetype
-    bld
-    dis
-    fin
-    act
-    )
-    = R.Prototype
-    bld
+    => Archetype m s c
+    -> R.Prototype m v s c
+fromArchetype (Archetype dis fin act) = R.Prototype
     (\(_, s) -> dis s)
     fin
     (\(R.Obj ref its) -> do

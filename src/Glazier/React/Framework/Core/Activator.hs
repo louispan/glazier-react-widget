@@ -48,3 +48,4 @@ andActivator ::
     -> Activator m r (Which c3)
 infixr 6 `andActivator` -- like mappend
 andActivator x y s = (diversify <$> x s) `TE.seqContT` (diversify <$> y s)
+

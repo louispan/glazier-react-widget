@@ -181,9 +181,9 @@ checkboxInput ::
     => (i -> CheckboxInput)
     -> Lens' s CheckboxInput
     -> R.GadgetId
-    -> R.Prototype m v i s
-        (Many '[CheckboxInput])
-        (Many '[CheckboxInput])
+    -> R.Prototype m v CheckboxInput CheckboxInput
+        CheckboxInput
+        CheckboxInput
         (Which '[OnBlur, OnEsc, OnToggle])
 checkboxInput fi sl i =
     let p = R.nulPrototype
@@ -198,7 +198,7 @@ checkboxInput fi sl i =
                 `R.andActivator` onKeyDown
             , R.builder = R.build @CheckboxInput
             }
-    in R.toItemPrototype fi sl p
+    in p
 
   where
     -- | Add setting the indeterminate after every rerender as this is the only

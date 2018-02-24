@@ -19,6 +19,27 @@ import qualified Glazier.React as R
 import qualified Glazier.React.Framework as R
 import qualified JavaScript.Extras as JE
 
+-- | This event is fired when the input loses focus (eg. from TAB or mouse click else where)
+-- The model value is updated, and a rerender will be called
+-- immediately after his event, so the handler of this event
+-- may update the model before that happens.
+data OnBlur = OnBlur R.GadgetId JE.JSRep
+
+-- | This event is fired when ESC is pressed.
+-- Before this happens, js.blur() is called so InputDidBlur will be called.
+-- This means the model value will have been set to the HTML value by the onBlur handler.
+-- The handler of the event may wish to set the model value to some previously saved value.
+data OnEsc = OnEsc R.GadgetId JE.JSRep
+
+-- | This event is fired when enter is pressed.
+-- Unlike InputDidEsc, blur is not called
+data OnEnter = OnEnter R.GadgetId JE.JSRep
+
+-- | Called after checkbox is toggled
+data OnToggle = OnToggle R.GadgetId JE.JSRep
+
+----------------------------------------
+
 newtype TextInput = TextInput
     { value :: J.JSString
     } deriving G.Generic
@@ -63,24 +84,7 @@ hdlUpdateInput i this@(R.Obj ref its) _ = R.terminate' $ lift $ do
     void $ runMaybeT $ do
         j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
         lift $ updateInputValue this (JE.toJSR j)
--- | This event is fired when the input loses focus (eg. from TAB or mouse click else where)
--- The model value is updated, and a rerender will be called
--- immediately after his event, so the handler of this event
--- may update the model before that happens.
-data InputDidBlur = InputDidBlur
 
--- | This event is fired when ESC is pressed.
--- Before this happens, js.blur() is called so InputDidBlur will be called.
--- This means the model value will have been set to the HTML value by the onBlur handler.
--- The handler of the event may wish to set the model value to some previously saved value.
-data InputDidEsc = InputDidEsc
-
--- | This event is fired when enter is pressed.
--- Unlike InputDidEsc, blur is not called
-data InputDidEnter = InputDidEnter
-
--- | Called after checkbox is toggled
-data CheckboxDidToggle = CheckboxDidToggle
 
 -- | Text inputs dosn't interact will as a controlled component,
 -- so this prototype implements using the uncontrolled component.
@@ -95,7 +99,7 @@ textInput ::
     -> R.Prototype m v i s
         (Many '[TextInput])
         (Many '[TextInput])
-        (Which '[InputDidBlur, InputDidEnter, InputDidEsc])
+        (Which '[OnBlur, OnEnter, OnEsc])
         (Which '[FocusInput, UpdateInput])
         (Which '[])
 textInput fi fs i =
@@ -118,23 +122,23 @@ textInput fi fs i =
     in R.toItemPrototype fi fs p
   where
     onBlur :: ( R.MonadReactor m, R.MonadJS m)
-        => R.SceneActivator m v TextInput (Which '[InputDidBlur])
+        => R.SceneActivator m v TextInput (Which '[OnBlur])
     onBlur = R.trigger' i "onBlur" (pure)
             `R.activates` hdlBlur
 
     hdlBlur :: (R.MonadReactor m, R.MonadJS m)
-        => R.SceneHandler m v TextInput JE.JSRep (Which '[InputDidBlur])
+        => R.SceneHandler m v TextInput JE.JSRep (Which '[OnBlur])
     hdlBlur this j = ContT $ \fire -> do
         updateInputValue this j
         -- fire so handler may change the model value if necessary
-        fire . pickOnly $ InputDidBlur
+        fire . pickOnly $ OnBlur i j
         -- re-render using updated model
         R.rerender' this
 
     onKeyDown ::
         ( R.MonadReactor m
         , R.MonadHTMLElement m
-        ) => R.SceneActivator m v TextInput (Which '[InputDidEnter, InputDidEsc])
+        ) => R.SceneActivator m v TextInput (Which '[OnEnter, OnEsc])
     onKeyDown = R.trigger' i "onKeyDown" (runMaybeT . R.fireKeyDownKey)
             `R.activates` R.maybeHandle hdlKeyDown
 
@@ -142,18 +146,19 @@ textInput fi fs i =
         ( R.MonadReactor m
         , R.MonadHTMLElement m
         )
-        => R.SceneHandler m v TextInput R.KeyDownKey (Which '[InputDidEnter, InputDidEsc])
-    hdlKeyDown this (R.KeyDownKey _ key) = ContT $ \fire ->
+        => R.SceneHandler m v TextInput R.KeyDownKey (Which '[OnEnter, OnEsc])
+    hdlKeyDown this (R.KeyDownKey j key) = ContT $ \fire ->
         case key of
             "Enter" -> do
-                fire . pick $ InputDidEnter
+                fire . pick $ OnEnter i (JE.toJSR j)
                 R.rerender' this
             "Escape" -> do
                 R.blurRef i this -- The onBlur handler will also update the model
-                fire . pick $ InputDidEsc
+                fire . pick $ OnEsc i (JE.toJSR j)
                 R.rerender' this
             _ -> pure () -- ^ NB. HTML input value has changed, do nothing extra
 
+----------------------------------------
 
 data CheckboxInput = CheckboxInput
     { checked :: Bool
@@ -172,7 +177,7 @@ checkboxInput ::
     -> R.Prototype m v i CheckboxInput
         (Many '[])
         (Many '[])
-        (Which '[InputDidBlur, InputDidEnter, InputDidEsc, CheckboxDidToggle])
+        (Which '[OnBlur, OnEsc, OnToggle])
         (Which '[])
         (Which '[])
 checkboxInput i =
@@ -188,6 +193,7 @@ checkboxInput i =
                 `R.andActivator` onKeyDown
             }
     in p
+
   where
     -- | Add setting the indeterminate after every rerender as this is the only
     -- way to change that setting.
@@ -206,20 +212,20 @@ checkboxInput i =
                     , JE.toJSR $ obj ^. its.R.model.field @"indeterminate")
 
     onBlur :: ( R.MonadReactor m)
-        => R.SceneActivator m v CheckboxInput (Which '[InputDidBlur])
-    onBlur = R.trigger' i "onBlur" (const $ pure ())
+        => R.SceneActivator m v CheckboxInput (Which '[OnBlur])
+    onBlur = R.trigger' i "onBlur" pure
             `R.activates` hdlBlur
 
     hdlBlur :: (R.MonadReactor m)
-        => R.SceneHandler m v CheckboxInput () (Which '[InputDidBlur])
-    hdlBlur this _ = ContT $ \fire -> do
-        fire . pickOnly $ InputDidBlur
+        => R.SceneHandler m v CheckboxInput JE.JSRep (Which '[OnBlur])
+    hdlBlur this j = ContT $ \fire -> do
+        fire . pickOnly $ OnBlur i j
         R.rerender' this
 
     onKeyDown ::
         ( R.MonadReactor m
         , R.MonadHTMLElement m
-        ) => R.SceneActivator m v CheckboxInput (Which '[InputDidEnter, InputDidEsc, CheckboxDidToggle])
+        ) => R.SceneActivator m v CheckboxInput (Which '[OnEsc, OnToggle])
     onKeyDown = R.trigger' i "onKeyDown" (runMaybeT . R.fireKeyDownKey)
             `R.activates` R.maybeHandle hdlKeyDown
 
@@ -227,19 +233,20 @@ checkboxInput i =
         ( R.MonadReactor m
         , R.MonadHTMLElement m
         )
-        => R.SceneHandler m v CheckboxInput R.KeyDownKey (Which '[InputDidEnter, InputDidEsc, CheckboxDidToggle])
-    hdlKeyDown this@(R.Obj ref its) (R.KeyDownKey _ key) = ContT $ \fire ->
+        => R.SceneHandler m v CheckboxInput R.KeyDownKey (Which '[OnEsc, OnToggle])
+    hdlKeyDown this@(R.Obj ref its) (R.KeyDownKey j key) = ContT $ \fire ->
         case key of
             "Enter" -> do
-                fire . pick $ InputDidEnter
+                R.doModifyIORef' ref (its.R.model.field @"checked" %~ not)
+                fire . pick $ OnToggle i (JE.toJSR j)
                 R.rerender' this
             "Escape" -> do
                 R.blurRef i this
-                fire . pick $ InputDidEsc
+                fire . pick $ OnEsc i (JE.toJSR j)
                 R.rerender' this
             "Space" -> do
                 R.blurRef i this
                 R.doModifyIORef' ref (its.R.model.field @"checked" %~ not)
-                fire . pick $ CheckboxDidToggle
+                fire . pick $ OnToggle i (JE.toJSR j)
                 R.rerender' this
             _ -> pure () -- ^ NB. HTML input value has changed, do nothing extra

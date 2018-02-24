@@ -35,7 +35,7 @@ type SceneHandler m v s a b = Handler m (R.Scene m v s) a b
 -- andHandler' f g s a = (f s a) `TE.seqContT` (g s a)
 -- infixr 6 `andHandler'` -- like mappend
 
--- -- | Run one or the otheR.
+-- -- | Run one or the other.
 -- -- Compile error if types in @a1@ are not distinct from types in @a2@
 -- -- A binary associative function for 'nulHandler''.
 -- orHandler' :: forall m s a1 a2 a3. ChooseFrom a1 a2 a3
@@ -51,7 +51,7 @@ type SceneHandler m v s a b = Handler m (R.Scene m v s) a b
 nulHandler :: Applicative m => Handler m r (Which '[]) (Which '[])
 nulHandler _ _ = ContT $ \_ -> pure ()
 
--- | Run one or the otheR.
+-- | Run one or the other.
 -- Compile error if types in @a1@ are not distinct from types in @a2@
 -- A binary associative function for 'nulHandler'.
 orHandler :: ChooseBetween a1 a2 a3 b1 b2 b3

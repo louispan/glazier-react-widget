@@ -43,7 +43,7 @@ data Plan m = Plan
     -- Unfortunately, this means mismatches between event listeners and handlers
     -- are not compile time checked.
     -- Eg. `Glazier.React.Framework.Effect.MonadHTMLElement.focusRef` expects a ref
-    -- but wont have compile error if `Glazier.React.Framework.TriggeR.withRef` was not attached.
+    -- but wont have compile error if `Glazier.React.Framework.Trigger.withRef` was not attached.
     -- The alternative is to store as a 'Many' in the model, but this ends up with messier types.
     , listeners :: M.Map GadgetId [R.Listener]
     , refs :: M.Map GadgetId R.EventTarget

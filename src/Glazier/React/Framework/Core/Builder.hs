@@ -117,11 +117,11 @@ infixr 6 `andBuilder` -- like mappend
             ( MkInfo $ \s -> (/./) <$> mkInf s <*> mkInf' s
             , MkSpec $ \i -> (/./) <$> mkSpc i <*> mkSpc' i)
 
--- | A type restricted verison of const
--- where the right builder is a 'nulBuilder'.
--- It is useful for double checking that we can throw away the 'nulBuilder'
-constBuilder :: Builder m i s i' s' -> Builder m i s (Many '[]) (Many '[]) -> Builder m i s i' s'
-constBuilder = const
+-- -- | A type restricted verison of const
+-- -- where the right builder is a 'nulBuilder'.
+-- -- It is useful for double checking that we can throw away the 'nulBuilder'
+-- constBuilder :: Builder m i s i' s' -> Builder m i s (Many '[]) (Many '[]) -> Builder m i s i' s'
+-- constBuilder = const
 
 ------------------------------------------------
 

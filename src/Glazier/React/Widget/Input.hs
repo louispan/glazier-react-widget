@@ -5,7 +5,22 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Widget.Input where
+module Glazier.React.Widget.Input (
+    -- * Events
+    OnBlur(..)
+    , OnEsc(..)
+    , OnEnter(..)
+    , OnToggle(..)
+    -- * Text input
+    , TextInput(..)
+    , textInput
+    -- ** Text input handlers
+    , hdlInputFocusInput
+    , hdlInputUpdateValue
+    -- * Checkbox input
+    , CheckboxInput(..)
+    , checkboxInput
+    ) where
 
 import Control.Lens
 import Control.Monad.Cont
@@ -44,15 +59,12 @@ newtype TextInput = TextInput
     { value :: J.JSString
     } deriving G.Generic
 
--- | Fire this event to focus and start editing the input.
-data FocusInput = FocusInput
-
-hdlFocusInput ::
-    ( R.MonadReactor m
+-- | Focus and start editing the input.
+hdlInputFocusInput :: ( R.MonadReactor m
     , R.MonadJS m
     , R.MonadHTMLElement m)
-    => R.GadgetId -> R.SceneHandler m v TextInput (Which '[FocusInput]) (Which '[])
-hdlFocusInput i this@(R.Obj ref its) _ = R.terminate' $ lift $ do
+    => R.GadgetId -> R.SceneHandler m v TextInput () (Which '[])
+hdlInputFocusInput i this@(R.Obj ref its) _ = R.terminate' . lift $ do
     -- Do a rerender because the inputValue may have been modified by
     -- prior firing of this event, or other state changed that will affect the rendering
     -- of this input element.
@@ -65,26 +77,22 @@ hdlFocusInput i this@(R.Obj ref its) _ = R.terminate' $ lift $ do
             lift $ R.doSetProperty ("value", JE.toJSR J.empty) j
             lift $ R.focusRef i this
 
--- | Fire this event to update the model with the HTML input value.
-data UpdateInput = UpdateInput
+hdlInputUpdateValue :: ( R.MonadReactor m
+    , R.MonadJS m)
+    => R.GadgetId -> R.SceneHandler m v TextInput () (Which '[])
+hdlInputUpdateValue i this@(R.Obj ref its) _ = R.terminate' . lift $ do
+    obj <- R.doReadIORef ref
+    void $ runMaybeT $ do
+        j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
+        lift $ updateInputValue this (JE.toJSR j)
 
+-- | Internal
 updateInputValue :: (R.MonadReactor m, R.MonadJS m)
     => R.Scene m v TextInput -> JE.JSRep -> m ()
 updateInputValue (R.Obj ref its) j = do
     v <- JE.fromJSR @J.JSString <$> (R.doGetProperty "value" j)
     let v' = J.strip $ fromMaybe J.empty v
     R.doModifyIORef' ref (its.R.model.field @"value" .~ v')
-
-hdlUpdateInput ::
-    ( R.MonadReactor m
-    , R.MonadJS m)
-    => R.GadgetId -> R.SceneHandler m v TextInput (Which '[UpdateInput]) (Which '[])
-hdlUpdateInput i this@(R.Obj ref its) _ = R.terminate' $ lift $ do
-    obj <- R.doReadIORef ref
-    void $ runMaybeT $ do
-        j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
-        lift $ updateInputValue this (JE.toJSR j)
-
 
 -- | Text inputs dosn't interact will as a controlled component,
 -- so this prototype implements using the uncontrolled component.
@@ -100,8 +108,6 @@ textInput ::
         (Many '[TextInput])
         (Many '[TextInput])
         (Which '[OnBlur, OnEnter, OnEsc])
-        (Which '[FocusInput, UpdateInput])
-        (Which '[])
 textInput fi fs i =
     let p = R.nulPrototype
             { R.display = \s -> R.lf' i s "input"
@@ -117,7 +123,6 @@ textInput fi fs i =
                 ]
             , R.builder = R.build @TextInput
             , R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
-            , R.handler = hdlFocusInput i `R.orHandler` hdlUpdateInput i
             }
     in R.toItemPrototype fi fs p
   where
@@ -178,8 +183,6 @@ checkboxInput ::
         (Many '[])
         (Many '[])
         (Which '[OnBlur, OnEsc, OnToggle])
-        (Which '[])
-        (Which '[])
 checkboxInput i =
     let p = R.nulPrototype
             { R.display = \s -> R.lf' i s "input"

@@ -14,9 +14,9 @@ import qualified JavaScript.Extras as JE
 data KeyDownKey = KeyDownKey R.EventTarget J.JSString
     deriving (G.Generic, NFData)
 
-fireKeyDownKey :: J.JSVal -> MaybeT IO KeyDownKey
+fireKeyDownKey :: JE.JSRep -> MaybeT IO KeyDownKey
 fireKeyDownKey evt = do
-    syn <- MaybeT $ pure $ JE.fromJS evt
+    syn <- MaybeT $ pure $ JE.fromJSR evt
     kevt <- MaybeT $ pure $ R.parseKeyboardEvent syn
     let evt' = R.parseEvent syn
         k = R.key kevt

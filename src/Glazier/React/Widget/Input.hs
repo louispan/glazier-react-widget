@@ -15,7 +15,6 @@ import Data.Generics.Product
 import qualified Data.JSString as J
 import Data.Maybe
 import qualified GHC.Generics as G
-import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework as R
 import qualified JavaScript.Extras as JE
@@ -49,7 +48,7 @@ hdlFocusInput i this@(R.Obj ref its) _ = R.terminate' $ lift $ do
 data UpdateInput = UpdateInput
 
 updateInputValue :: (R.MonadReactor m, R.MonadJS m)
-    => R.Scene m v TextInput -> J.JSVal -> m ()
+    => R.Scene m v TextInput -> JE.JSRep -> m ()
 updateInputValue (R.Obj ref its) j = do
     v <- JE.fromJSR @J.JSString <$> (R.doGetProperty "value" j)
     let v' = J.strip $ fromMaybe J.empty v
@@ -63,7 +62,7 @@ hdlUpdateInput i this@(R.Obj ref its) _ = R.terminate' $ lift $ do
     obj <- R.doReadIORef ref
     void $ runMaybeT $ do
         j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
-        lift $ updateInputValue this (JE.toJS j)
+        lift $ updateInputValue this (JE.toJSR j)
 -- | This event is fired when the input loses focus (eg. from TAB or mouse click else where)
 -- The model value is updated, and a rerender will be called
 -- immediately after his event, so the handler of this event
@@ -124,7 +123,7 @@ textInput fi fs i =
             `R.activates` hdlBlur
 
     hdlBlur :: (R.MonadReactor m, R.MonadJS m)
-        => R.SceneHandler m v TextInput J.JSVal (Which '[InputDidBlur])
+        => R.SceneHandler m v TextInput JE.JSRep (Which '[InputDidBlur])
     hdlBlur this j = ContT $ \fire -> do
         updateInputValue this j
         -- fire so handler may change the model value if necessary

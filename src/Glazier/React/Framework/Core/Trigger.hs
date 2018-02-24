@@ -38,7 +38,7 @@ trigger' :: forall m v s a.
     )
     => R.GadgetId
     -> J.JSString
-    -> (J.JSVal -> IO a)
+    -> (JE.JSRep -> IO a)
     -> R.SceneActivator m v s a
 trigger' i n f = trigger i n f id
 
@@ -50,7 +50,7 @@ trigger :: forall m v s a b.
     )
     => R.GadgetId
     -> J.JSString
-    -> (J.JSVal -> IO a)
+    -> (JE.JSRep -> IO a)
     -> (a -> b)
     -> R.SceneActivator m v s b
 trigger i n f g = \(R.Obj ref its) -> ContT $ \fire -> do
@@ -100,7 +100,7 @@ withRef ::
     )
     => R.GadgetId
     -> R.SceneActivator m v s (Which '[])
-withRef i = trigger' i "ref" (pure. R.EventTarget . JE.JSRep) -- requires Internal
+withRef i = trigger' i "ref" (pure . R.EventTarget) -- requires Internal
     `activates` hdlRef
   where
     -- hdlRef :: R.SceneHandler m v s (R.EventTarget) (Which '[])

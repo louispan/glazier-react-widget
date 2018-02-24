@@ -101,7 +101,7 @@ listing :: (R.MonadReactor m)
         (Many '[Listing flt srt k i])
         (Many '[Listing flt srt k s])
         c
-listing fi fs flt srt (R.Archetype
+listing fi sl flt srt (R.Archetype
     bld
     dis
     fin
@@ -112,8 +112,8 @@ listing fi fs flt srt (R.Archetype
             (listingDisplay flt srt dis)
             R.nulFinalizer
             (listingActivator act)
-    in (R.byPrototype fi fs p)
-        { R.finalizer = \s -> fold <$> traverse fin (s ^. fs.field @"items") }
+    in (R.enlargePrototype fi sl p)
+        { R.finalizer = \s -> fold <$> traverse fin (s ^. sl.field @"items") }
 
 hdlListingDeleteItem :: (R.MonadReactor m, Ord k)
     => R.Finalizer m s

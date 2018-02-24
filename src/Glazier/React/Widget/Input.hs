@@ -108,7 +108,7 @@ textInput ::
         (Many '[TextInput])
         (Many '[TextInput])
         (Which '[OnBlur, OnEnter, OnEsc])
-textInput fi fs i =
+textInput fi sl i =
     let p = R.nulPrototype
             { R.display = \s -> R.lf' i s "input"
                 -- For uncontrolled components, we need to generate a new key per render
@@ -124,7 +124,7 @@ textInput fi fs i =
             , R.builder = R.build @TextInput
             , R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
             }
-    in R.toItemPrototype fi fs p
+    in R.toItemPrototype fi sl p
   where
     onBlur :: ( R.MonadReactor m, R.MonadJS m)
         => R.SceneActivator m v TextInput (Which '[OnBlur])
@@ -178,12 +178,14 @@ checkboxInput ::
     , R.MonadJS m
     , R.MonadHTMLElement m
     )
-    => R.GadgetId
-    -> R.Prototype m v i CheckboxInput
-        (Many '[])
-        (Many '[])
+    => (i -> CheckboxInput)
+    -> Lens' s CheckboxInput
+    -> R.GadgetId
+    -> R.Prototype m v i s
+        (Many '[CheckboxInput])
+        (Many '[CheckboxInput])
         (Which '[OnBlur, OnEsc, OnToggle])
-checkboxInput i =
+checkboxInput fi sl i =
     let p = R.nulPrototype
             { R.display = \s -> R.lf' i s "input"
                 [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
@@ -194,8 +196,9 @@ checkboxInput i =
                 `R.andActivator` onActivated
                 `R.andActivator` onBlur
                 `R.andActivator` onKeyDown
+            , R.builder = R.build @CheckboxInput
             }
-    in p
+    in R.toItemPrototype fi sl p
 
   where
     -- | Add setting the indeterminate after every rerender as this is the only

@@ -23,7 +23,7 @@ import qualified Glazier.React.Framework.Core.Activator as R
 import qualified Glazier.React.Framework.Core.Builder as R
 import qualified Glazier.React.Framework.Core.Display as R
 import qualified Glazier.React.Framework.Core.Finalizer as R
-import qualified Glazier.React.Framework.Core.Obj as R
+import qualified Glazier.React.Framework.Core.Model as R
 
 data Prototype m v i s i' s' c = Prototype
     { builder :: R.Builder m i s i' s'
@@ -92,25 +92,13 @@ andPrototype ::
         (act1 `R.andActivator` act2)
 infixr 6 `andPrototype` -- like mappend
 
--- | Modify prototype's reading environment @i1@ and @s1@ inside a larger @i2@ @s2@
-byPrototype
-    :: (i2 -> i1)
-    -> Lens' s2 s1
-    -> Prototype m v i1 s1 i' s' c
-    -> Prototype m v i2 s2 i' s' c
-byPrototype fi l = viaSpec l . viaInfo fi
-
 -- | Modify prototype's reading environment @s1@ inside a larger @s2@
-viaSpec :: Lens' s2 s1  -> Prototype m v i s1 i' s' c -> Prototype m v i s2 i' s' c
-viaSpec l (Prototype bld dis fin act) = Prototype
-    (R.byBuilder id (view l) bld)
-    (dis . view (alongside id l))
-    (fin . view l)
-    (act . R.edit (alongside id l))
-
--- | Modify prototype's reading environment @i1@ inside a larger @i2@
-viaInfo :: (j -> i) -> Prototype m v i s i' s' c -> Prototype m v j s i' s' c
-viaInfo fi = mapBuilder (R.byBuilder fi id)
+enlargePrototype :: (i2 -> i1) -> Lens' s2 s1  -> Prototype m v i1 s1 i' s' c -> Prototype m v i2 s2 i' s' c
+enlargePrototype fi sl (Prototype bld dis fin act) = Prototype
+    (R.enlargeBuilder fi (view sl) bld)
+    (dis . view (alongside id sl))
+    (fin . view sl)
+    (R.magnifyScene sl act)
 
 -- -- | Apply isomorphisms of Info and Model to the prototype
 -- enclose :: Functor m
@@ -121,7 +109,7 @@ viaInfo fi = mapBuilder (R.byBuilder fi id)
 --     -> Prototype m v i s i' s' a x y
 --     -> Prototype m v j t j' t' a x y
 -- enclose ji ij ts st p =
---     let p'@(Prototype bld _ _ _ _) = R.viaSpec ts (R.viaInfo ji p)
+--     let p'@(Prototype bld _ _ _ _) = R.magnifyPrototype ts (R.viaInfo ji p)
 --     in p' { builder' = R.mapBuilder ij st bld }
 
 -- toTaggedPrototype :: forall t m v i s i' s' a x y.
@@ -136,12 +124,10 @@ viaInfo fi = mapBuilder (R.byBuilder fi id)
 --     in enclose ji (Tagged @t) ts (Tagged @t) p
 
 -- | Wrap a prototype's info and model as an item inside a Many.
-toItemPrototype
-    :: ( Functor m
-       )
+toItemPrototype :: ( Functor m)
     => (i2 -> i1)
     -> Lens' s2 s1
     -> Prototype m v i1 s1 i' s' c
     -> Prototype m v i2 s2 (Many '[i']) (Many '[s']) c
-toItemPrototype fi l = mapBuilder (bimap single single)
-    . viaSpec l . viaInfo fi
+toItemPrototype fi sl = mapBuilder (bimap single single)
+    . enlargePrototype fi sl

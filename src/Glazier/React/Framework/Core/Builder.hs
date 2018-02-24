@@ -126,14 +126,14 @@ infixr 6 `andBuilder` -- like mappend
 ------------------------------------------------
 
 -- | Modify Builder's reading environment @i1@ and @s1@ inside a larger @i2@ @s2@
-byBuilder ::
+enlargeBuilder ::
     (i2 -> i1)
     -> (s2 -> s1)
     -> Builder m i1 s1 i' s' -> Builder m i2 s2 i' s'
-byBuilder ji ts (Builder (MkInfo mkInf, MkSpec mkSpc)) =
+enlargeBuilder fi fs (Builder (MkInfo mkInf, MkSpec mkSpc)) =
     Builder
-        ( MkInfo (mkInf . ts)
-        , MkSpec (mkSpc . ji))
+        ( MkInfo (mkInf . fs)
+        , MkSpec (mkSpc . fi))
 
 -- | Return a builder that builds an item inside a Many
 toItemBuilder
@@ -144,13 +144,12 @@ toItemBuilder
     -> (s2 -> s1)
     -> Builder m i1 s1 i' s'
     -> Builder m i2 s2 (Many '[i']) (Many '[s'])
-toItemBuilder fi fs bld = byBuilder fi fs
+toItemBuilder fi fs bld = enlargeBuilder fi fs
     $ bimap single single bld
 
 -- | Add a type @x@ into the model that is used directly from the info.
 -- @forall@ so that the type can be specified first
-build
-    :: forall x m. (Applicative m)
+build :: forall x m. (Applicative m)
     => Builder m x x x x
 build = Builder ( MkInfo pure
                 , MkSpec pure
@@ -159,8 +158,7 @@ build = Builder ( MkInfo pure
 -- | Add a type @x@ into the model that is used directly from the info
 -- and return a builder that uses a Many.
 -- @forall@ so that the type can be specified first
-buildItem
-    :: forall x m i s. (Applicative m)
+buildItem :: forall x m i s. (Applicative m)
     => (i -> x) -> (s -> x) -> Builder m i s (Many '[x]) (Many '[x])
 buildItem fi fs = toItemBuilder fi fs build
 

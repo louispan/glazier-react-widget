@@ -75,3 +75,6 @@ model = _2
 
 -- | Mutable
 type Scene m v s = R.Obj v (Frame m s)
+
+magnifyScene :: Lens' t s -> (Scene m v s -> a) -> (Scene m v t -> a)
+magnifyScene l f = f . R.edit (alongside id l)

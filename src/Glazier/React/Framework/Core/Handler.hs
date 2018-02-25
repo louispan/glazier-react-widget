@@ -47,6 +47,13 @@ type SceneHandler m v s a b = Handler m (R.Scene m v s) a b
 --     Right a2 -> g s a2
 -- infixr 6 `orHandler'` -- like mappend
 
+memptyHandler :: Applicative m => Handler m s a b
+memptyHandler _ _ = ContT $ \_ -> pure ()
+
+mappendHandler :: Applicative m => Handler m s a b -> Handler m s a b -> Handler m s a b
+mappendHandler f g s a = f s a `TE.seqContT` g s a
+infixr 6 `mappendHandler` -- like mappend
+
 -- | Identify for 'orHandler' or 'andHandler'
 nulHandler :: Applicative m => Handler m r (Which '[]) (Which '[])
 nulHandler _ _ = ContT $ \_ -> pure ()

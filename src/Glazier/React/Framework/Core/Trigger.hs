@@ -16,6 +16,7 @@ import Control.DeepSeq
 import Control.Lens
 import Control.Monad.Trans
 import Control.Monad.Trans.Cont
+import Control.Monad.Trans.Cont.Extras as TE
 import Data.Diverse.Profunctor
 import Data.Generics.Product
 import Data.Maybe
@@ -107,11 +108,6 @@ withRef i = trigger' i "ref" (pure . R.EventTarget) -- requires Internal
     hdlRef (R.Obj ref its) j = terminate' . lift $
         R.doModifyIORef' ref (its.R.plan.field @"refs".at i .~ Just j)
 
--- | Convert the original ContT to a ContT that
--- doens't call it's continuation, by 'const'ing the original contination
--- to 'pure'.
-terminate :: forall b m . Applicative m => ContT () m () -> ContT () m b
-terminate = withContT (const $ pure)
 
 -- A variation of 'terminate' which  also fixes the result a @(Which '[])@.
 -- This is useful for converting a @Handler m s a ()@ to a @Handler m s a (Which '[])@
@@ -119,5 +115,4 @@ terminate = withContT (const $ pure)
 -- This ContT can be run with  'Data.Diverse.Which.impossible'.
 -- @ContT r m (Which '[])@ is effectively equivanlent to @m r@
 terminate' :: Applicative m => ContT () m () -> ContT () m (Which '[])
-terminate' = terminate @(Which '[])
-
+terminate' = TE.terminate @(Which '[])

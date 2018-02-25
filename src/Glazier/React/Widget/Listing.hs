@@ -18,6 +18,7 @@ module Glazier.React.Widget.Listing (
     , smallerIdx
     -- * Listing
     , Listing(..)
+    , listingBuilder
     , listing
     , listingMakeItem
     , hdlListingDeleteItem
@@ -89,31 +90,27 @@ data Listing flt srt k i = Listing
     , items :: M.Map k i
     } deriving (G.Generic, Functor)
 
+-- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
+listingBuilder :: (Applicative m)
+    => R.Builder m i s i s
+    -> R.Builder m (Listing flt srt k i) (Listing flt srt k s) (Listing flt srt k i) (Listing flt srt k s)
+listingBuilder (R.Builder (R.MkInfo mkInf, R.MkSpec mkSpc)) =
+    R.Builder (R.MkInfo mkInf', R.MkSpec mkSpc')
+  where
+    mkInf' (Listing df ds dss ss) = Listing df ds <$> traverse mkInf dss <*> traverse mkInf ss
+    mkSpc' (Listing df ds dps ps) = Listing df ds <$> traverse mkSpc dps <*> traverse mkSpc ps
 
 -- | This version drops the original item handlers @a -> b@, and only have list handlers.
 listing :: (R.MonadReactor m)
-    => (is -> (Listing flt srt k i))
-    -> Lens' ss (Listing flt srt k s)
-    -> (flt -> s -> m Bool)
+    => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
-    -> R.Archetype m i s c
-    -> R.Prototype m v is ss
-        (Many '[Listing flt srt k i])
-        (Many '[Listing flt srt k s])
-        c
-listing fi sl flt srt (R.Archetype
-    bld
-    dis
-    fin
-    act)
-    =
-    let p = R.Prototype
-            (bimap single single (listingBuilder bld))
-            (listingDisplay flt srt dis)
-            R.nulFinalizer
-            (listingActivator act)
-    in (R.enlargePrototype fi sl p)
-        { R.finalizer = \s -> fold <$> traverse fin (s ^. sl.field @"items") }
+    -> R.Archetype m s c
+    -> R.Prototype m v (Listing flt srt k s) c
+listing flt srt (R.Archetype dis fin act)
+    = R.Prototype
+        (listingDisplay flt srt dis)
+        (\s -> fold <$> traverse fin (s ^. field @"items"))
+        (listingActivator act)
 
 hdlListingDeleteItem :: (R.MonadReactor m, Ord k)
     => R.Finalizer m s
@@ -180,16 +177,6 @@ broadcastListingHandler :: (R.MonadReactor m)
 broadcastListingHandler hdl (R.Obj ref its) a = ContT $ \k -> do
     obj <- R.doReadIORef ref
     traverse_ (\s -> runContT (hdl s a) k) (obj ^. its.R.model.field @"items")
-
--- | Converts a builder with a plan of @[a]@ to a plan of @Listing a@
-listingBuilder :: (Applicative m)
-    => R.Builder m i s i s
-    -> R.Builder m (Listing flt srt k i) (Listing flt srt k s) (Listing flt srt k i) (Listing flt srt k s)
-listingBuilder (R.Builder (R.MkInfo mkInf, R.MkSpec mkSpc)) =
-    R.Builder (R.MkInfo mkInf', R.MkSpec mkSpc')
-  where
-    mkInf' (Listing df ds dss ss) = Listing df ds <$> traverse mkInf dss <*> traverse mkInf ss
-    mkSpc' (Listing df ds dps ps) = Listing df ds <$> traverse mkSpc dps <*> traverse mkSpc ps
 
 listingDisplay :: (R.MonadReactor m)
     => (flt -> s -> m Bool)

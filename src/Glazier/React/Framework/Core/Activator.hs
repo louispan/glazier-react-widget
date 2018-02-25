@@ -33,6 +33,13 @@ type SceneActivator m v s c = Activator m (R.Scene m v s) c
 -- andActivator' x y s = x s *> y s
 -- infixr 6 `andActivator'` -- like mappend
 
+memptyActivator :: Applicative m => Activator m s c
+memptyActivator _ =  ContT $ \_ -> pure ()
+
+mappendActivator :: Applicative m => Activator m s c -> Activator m s c -> Activator m s c
+infixr 6 `mappendActivator` -- like mappend
+mappendActivator f g s = f s `TE.seqContT` g s
+
 -- The identity for 'andActivator'
 nulActivator :: Applicative m => Activator m r (Which '[])
 nulActivator _ =  ContT $ \_ -> pure ()
@@ -48,4 +55,3 @@ andActivator ::
     -> Activator m r (Which c3)
 infixr 6 `andActivator` -- like mappend
 andActivator x y s = (diversify <$> x s) `TE.seqContT` (diversify <$> y s)
-

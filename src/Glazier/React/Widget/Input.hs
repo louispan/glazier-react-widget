@@ -101,30 +101,22 @@ textInput ::
     , R.MonadJS m
     , R.MonadHTMLElement m
     )
-    => (i -> TextInput)
-    -> Lens' s TextInput
-    -> R.GadgetId
-    -> R.Prototype m v i s
-        (Many '[TextInput])
-        (Many '[TextInput])
-        (Which '[OnBlur, OnEnter, OnEsc])
-textInput fi sl i =
-    let p = R.nulPrototype
-            { R.display = \s -> R.lf' i s "input"
-                -- For uncontrolled components, we need to generate a new key per render
-                -- in to force react to use the new defaultValue
-                [ ("key", JE.toJSR $ J.unwords
-                    [ R.runReactKey . R.reactKey $ s ^. R.plan
-                    , J.pack . show . R.frameNum $ s ^. R.plan
-                    ])
-                -- use the defaultValue to set the current html text
-                -- "value" cannot be used as React will take over as a controlled component.
-                , ("defaultValue", JE.toJSR $ s ^. R.model.field @"value")
-                ]
-            , R.builder = R.build @TextInput
-            , R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
-            }
-    in R.toItemPrototype fi sl p
+    => R.GadgetId
+    -> R.Prototype m v TextInput (Which '[OnBlur, OnEnter, OnEsc])
+textInput i = R.nulPrototype
+    { R.display = \s -> R.lf' i s "input"
+        -- For uncontrolled components, we need to generate a new key per render
+        -- in to force react to use the new defaultValue
+        [ ("key", JE.toJSR $ J.unwords
+            [ R.runReactKey . R.reactKey $ s ^. R.plan
+            , J.pack . show . R.frameNum $ s ^. R.plan
+            ])
+        -- use the defaultValue to set the current html text
+        -- "value" cannot be used as React will take over as a controlled component.
+        , ("defaultValue", JE.toJSR $ s ^. R.model.field @"value")
+        ]
+    , R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
+    }
   where
     onBlur :: ( R.MonadReactor m, R.MonadJS m)
         => R.SceneActivator m v TextInput (Which '[OnBlur])
@@ -178,27 +170,19 @@ checkboxInput ::
     , R.MonadJS m
     , R.MonadHTMLElement m
     )
-    => (i -> CheckboxInput)
-    -> Lens' s CheckboxInput
-    -> R.GadgetId
-    -> R.Prototype m v CheckboxInput CheckboxInput
-        CheckboxInput
-        CheckboxInput
-        (Which '[OnBlur, OnEsc, OnToggle])
-checkboxInput fi sl i =
-    let p = R.nulPrototype
-            { R.display = \s -> R.lf' i s "input"
-                [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
-                , ("type", "checkbox")
-                , ("checked", JE.toJSR $ s ^. R.model.field @"checked")
-                ]
-            , R.activator = R.withRef i
-                `R.andActivator` onActivated
-                `R.andActivator` onBlur
-                `R.andActivator` onKeyDown
-            , R.builder = R.build @CheckboxInput
-            }
-    in p
+    => R.GadgetId
+    -> R.Prototype m v CheckboxInput (Which '[OnBlur, OnEsc, OnToggle])
+checkboxInput i = R.nulPrototype
+    { R.display = \s -> R.lf' i s "input"
+        [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
+        , ("type", "checkbox")
+        , ("checked", JE.toJSR $ s ^. R.model.field @"checked")
+        ]
+    , R.activator = R.withRef i
+        `R.andActivator` onActivated
+        `R.andActivator` onBlur
+        `R.andActivator` onKeyDown
+    }
 
   where
     -- | Add setting the indeterminate after every rerender as this is the only

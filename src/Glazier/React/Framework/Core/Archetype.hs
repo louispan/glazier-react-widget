@@ -21,11 +21,11 @@ import qualified Data.JSString as J
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core.Activator as R
 import qualified Glazier.React.Framework.Core.Builder as R
 import qualified Glazier.React.Framework.Core.Display as R
 import qualified Glazier.React.Framework.Core.Finalizer as R
 import qualified Glazier.React.Framework.Core.Handler as R
+import qualified Glazier.React.Framework.Core.Initializer as R
 import qualified Glazier.React.Framework.Core.Model as R
 import qualified Glazier.React.Framework.Core.Obj as R
 import qualified Glazier.React.Framework.Core.Prototype as R
@@ -34,7 +34,7 @@ import qualified JavaScript.Extras as JE
 data Archetype m s c = Archetype
     { display' :: R.Display m s ()
     , finalizer' :: R.Finalizer m s
-    , activator' :: R.Activator m s c
+    , initializer' :: R.Initializer m s c
     } deriving (G.Generic, Functor)
 
 -- mapBuilder' :: (R.Builder m i1 s i1 s -> R.Builder m i2 s i2 s)
@@ -42,20 +42,20 @@ data Archetype m s c = Archetype
 -- mapBuilder' f p = let bld = builder' p in p { builder' = f bld }
 -- infixl 4 `mapBuilder'` -- like <$>
 
-mapDisplay' :: (R.Display m s () -> R.Display m s ())
+overDisplay' :: (R.Display m s () -> R.Display m s ())
     -> Archetype m s c -> Archetype m s c
-mapDisplay' f p = let disp = display' p in p { display' = f disp }
-infixl 4 `mapDisplay'` -- like <$>
+overDisplay' f p = let disp = display' p in p { display' = f disp }
+infixl 4 `overDisplay'` -- like <$>
 
-mapFinalizer' :: (R.Finalizer m s -> R.Finalizer m s)
+overFinalizer' :: (R.Finalizer m s -> R.Finalizer m s)
     -> Archetype m s c -> Archetype m s c
-mapFinalizer' f p = let fin = finalizer' p in p { finalizer' = f fin }
-infixl 4 `mapFinalizer'` -- like <$>
+overFinalizer' f p = let fin = finalizer' p in p { finalizer' = f fin }
+infixl 4 `overFinalizer'` -- like <$>
 
-mapActivator' :: (R.Activator m s c1 -> R.Activator m s c2)
+overInitializer' :: (R.Initializer m s c1 -> R.Initializer m s c2)
     -> Archetype m s c1 -> Archetype m s c2
-mapActivator' f p = let act = activator' p in p { activator' = f act }
-infixl 4 `mapActivator'` -- like <$>
+overInitializer' f p = let act = initializer' p in p { initializer' = f act }
+infixl 4 `overInitializer'` -- like <$>
 
 -- mapHandler' :: (R.Handler m s a1 b1 -> R.Handler m s a2 b2)
 --     -> Archetype m i s c a1 b1 -> Archetype m i s c a2 b2
@@ -66,8 +66,8 @@ toArchetypeBuilder :: R.MonadReactor m
     => J.JSString
     -> R.Builder m i s i' s'
     -> R.Builder m i (IORef (R.Frame m s)) i' (IORef (R.Frame m s'))
-toArchetypeBuilder n (R.Builder (R.MkInfo mkInf, R.MkSpec mkSpc)) = R.Builder
-        ( R.MkInfo (R.doReadIORef >=> (mkInf . snd))
+toArchetypeBuilder n (R.Builder (R.MkReq mkReq, R.MkSpec mkSpc)) = R.Builder
+        ( R.MkReq (R.doReadIORef >=> (mkReq . snd))
         , R.MkSpec $ \i -> do
             -- tuple the original state with a ComponentPlan
             -- and wrap inside a IORef
@@ -108,7 +108,7 @@ toArchetype
         fin'' <- fin s
         pure (fin'' <> R.disposeOnRemoved cp <> R.disposeOnUpdated cp)
     act' ref = do
-        -- Run the Prototype's activator, saving the continuation result
+        -- Run the Prototype's Initializer, saving the continuation result
         a <- act (R.Obj ref id)
         -- Now activate this archetype, passing the output
         fmap (const a) . lift $ do

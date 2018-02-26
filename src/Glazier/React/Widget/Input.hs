@@ -115,13 +115,13 @@ textInput i = R.nulPrototype
         -- "value" cannot be used as React will take over as a controlled component.
         , ("defaultValue", JE.toJSR $ s ^. R.model.field @"value")
         ]
-    , R.activator = R.withRef i `R.andActivator` onBlur `R.andActivator` onKeyDown
+    , R.initializer = R.withRef i `R.andInitializer` onBlur `R.andInitializer` onKeyDown
     }
   where
     onBlur :: ( R.MonadReactor m, R.MonadJS m)
-        => R.SceneActivator m v TextInput (Which '[OnBlur])
+        => R.SceneInitializer m v TextInput (Which '[OnBlur])
     onBlur = R.trigger' i "onBlur" (pure)
-            `R.activates` hdlBlur
+            `R.handledBy` hdlBlur
 
     hdlBlur :: (R.MonadReactor m, R.MonadJS m)
         => R.SceneHandler m v TextInput JE.JSRep (Which '[OnBlur])
@@ -135,9 +135,9 @@ textInput i = R.nulPrototype
     onKeyDown ::
         ( R.MonadReactor m
         , R.MonadHTMLElement m
-        ) => R.SceneActivator m v TextInput (Which '[OnEnter, OnEsc])
+        ) => R.SceneInitializer m v TextInput (Which '[OnEnter, OnEsc])
     onKeyDown = R.trigger' i "onKeyDown" (runMaybeT . R.fireKeyDownKey)
-            `R.activates` R.maybeHandle hdlKeyDown
+            `R.handledBy` R.maybeHandle hdlKeyDown
 
     hdlKeyDown ::
         ( R.MonadReactor m
@@ -159,7 +159,7 @@ textInput i = R.nulPrototype
 
 data CheckboxInput = CheckboxInput
     { checked :: Bool
-    , indeterminate :: Bool
+    , indeterminate' :: Bool
     } deriving G.Generic
 
 -- | This provide a prototype of a checkbox input but without a builder.
@@ -178,19 +178,19 @@ checkboxInput i = R.nulPrototype
         , ("type", "checkbox")
         , ("checked", JE.toJSR $ s ^. R.model.field @"checked")
         ]
-    , R.activator = R.withRef i
-        `R.andActivator` onActivated
-        `R.andActivator` onBlur
-        `R.andActivator` onKeyDown
+    , R.initializer = R.withRef i
+        `R.andInitializer` onActivated
+        `R.andInitializer` onBlur
+        `R.andInitializer` onKeyDown
     }
 
   where
-    -- | Add setting the indeterminate after every rerender as this is the only
+    -- | Add setting the indeterminate' after every rerender as this is the only
     -- way to change that setting.
     onActivated ::
         ( R.MonadReactor m
         , R.MonadJS m
-        ) => R.SceneActivator m v CheckboxInput (Which '[])
+        ) => R.SceneInitializer m v CheckboxInput (Which '[])
     onActivated (R.Obj ref its) = R.terminate' $ lift $ R.doModifyIORef' ref $ its.R.plan.field @"everyOnUpdated" %~ (*> go)
       where
         go = do
@@ -198,13 +198,13 @@ checkboxInput i = R.nulPrototype
             let j = obj ^. its.R.plan.field @"refs".at i
                 f g = maybe (pure ()) g j
             f $ R.doSetProperty
-                    ( "indeterminate"
-                    , JE.toJSR $ obj ^. its.R.model.field @"indeterminate")
+                    ( "indeterminate'"
+                    , JE.toJSR $ obj ^. its.R.model.field @"indeterminate'")
 
     onBlur :: ( R.MonadReactor m)
-        => R.SceneActivator m v CheckboxInput (Which '[OnBlur])
+        => R.SceneInitializer m v CheckboxInput (Which '[OnBlur])
     onBlur = R.trigger' i "onBlur" pure
-            `R.activates` hdlBlur
+            `R.handledBy` hdlBlur
 
     hdlBlur :: (R.MonadReactor m)
         => R.SceneHandler m v CheckboxInput JE.JSRep (Which '[OnBlur])
@@ -215,9 +215,9 @@ checkboxInput i = R.nulPrototype
     onKeyDown ::
         ( R.MonadReactor m
         , R.MonadHTMLElement m
-        ) => R.SceneActivator m v CheckboxInput (Which '[OnEsc, OnToggle])
+        ) => R.SceneInitializer m v CheckboxInput (Which '[OnEsc, OnToggle])
     onKeyDown = R.trigger' i "onKeyDown" (runMaybeT . R.fireKeyDownKey)
-            `R.activates` R.maybeHandle hdlKeyDown
+            `R.handledBy` R.maybeHandle hdlKeyDown
 
     hdlKeyDown ::
         ( R.MonadReactor m

@@ -47,6 +47,12 @@ type SceneHandler m v s a b = Handler m (R.Scene m v s) a b
 --     Right a2 -> g s a2
 -- infixr 6 `orHandler'` -- like mappend
 
+contramapHandler :: (a1 -> a2) -> Handler m s a2 b -> Handler m s a1 b
+contramapHandler f hdl s a = hdl s (f a)
+
+mapHandler :: (b1 -> b2) -> Handler m s a b1 -> Handler m s a b2
+mapHandler f hdl s a = f <$> hdl s a
+
 memptyHandler :: Applicative m => Handler m s a b
 memptyHandler _ _ = ContT $ \_ -> pure ()
 

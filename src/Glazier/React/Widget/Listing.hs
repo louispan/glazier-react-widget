@@ -94,10 +94,10 @@ data Listing flt srt k i = Listing
 listingBuilder :: (Applicative m)
     => R.Builder m i s i s
     -> R.Builder m (Listing flt srt k i) (Listing flt srt k s) (Listing flt srt k i) (Listing flt srt k s)
-listingBuilder (R.Builder (R.MkInfo mkInf, R.MkSpec mkSpc)) =
-    R.Builder (R.MkInfo mkInf', R.MkSpec mkSpc')
+listingBuilder (R.Builder (R.MkReq mkReq, R.MkSpec mkSpc)) =
+    R.Builder (R.MkReq mkReq', R.MkSpec mkSpc')
   where
-    mkInf' (Listing df ds dss ss) = Listing df ds <$> traverse mkInf dss <*> traverse mkInf ss
+    mkReq' (Listing df ds dss ss) = Listing df ds <$> traverse mkReq dss <*> traverse mkReq ss
     mkSpc' (Listing df ds dps ps) = Listing df ds <$> traverse mkSpc dps <*> traverse mkSpc ps
 
 -- | This version drops the original item handlers @a -> b@, and only have list handlers.
@@ -110,7 +110,7 @@ listing flt srt (R.Archetype dis fin act)
     = R.Prototype
         (listingDisplay flt srt dis)
         (\s -> fold <$> traverse fin (s ^. field @"items"))
-        (listingActivator act)
+        (listingInitializer act)
 
 hdlListingDeleteItem :: (R.MonadReactor m, Ord k)
     => R.Finalizer m s
@@ -160,7 +160,7 @@ hdlListingInsertItem fin this@(R.Obj ref its) (k, s) = R.terminate' . lift $ do
 
 listingMakeItem :: (R.MonadReactor m)
     => R.MkSpec m i s
-    -> R.Activator m s c
+    -> R.Initializer m s c
     -> i
     -> ContT () m (c, s)
 listingMakeItem mkSpc act i = do
@@ -200,10 +200,10 @@ listingDisplay flt srt dis (_, Listing df ds ys xs) = do
     R.bh "ul" []
         (mconcat $ toLi <$> ys')
 
-listingActivator :: R.MonadReactor m
-    => R.Activator m s b
+listingInitializer :: R.MonadReactor m
+    => R.Initializer m s b
     -> R.Scene m v (Listing flt srt k s)
     -> ContT () m b
-listingActivator act (R.Obj ref its) = ContT $ \k -> do
+listingInitializer act (R.Obj ref its) = ContT $ \k -> do
     obj <- R.doReadIORef ref
     traverse_ (\s -> runContT (act s) k) (obj ^. its.R.model.field @"items")

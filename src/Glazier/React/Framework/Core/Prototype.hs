@@ -97,12 +97,12 @@ magnifyPrototype sl (Prototype disp fin act) = Prototype
     (magnify sl fin)
     (R.magnifyScene sl act)
 
--- | Convenience function to change a @Prototype m v s ()@ to @Prototype m v s (Which '[])@
-terminatePrototype' :: Applicative m => Prototype m v s () -> Prototype m v s (Which '[])
-terminatePrototype' = terminatePrototype @(Which '[])
+-- -- | Convenience function to change a @Prototype m v s ()@ to @Prototype m v s (Which '[])@
+-- terminatePrototype' :: Applicative m => Prototype m v s () -> Prototype m v s (Which '[])
+-- terminatePrototype' = terminatePrototype @(Which '[])
 
-terminatePrototype :: forall c m v s. Applicative m => Prototype m v s () -> Prototype m v s c
-terminatePrototype = overInitializer (TE.terminate .)
+-- terminatePrototype :: forall c m v s. Applicative m => Prototype m v s () -> Prototype m v s c
+-- terminatePrototype = overInitializer (TE.terminate .)
 
 -- -- | Apply isomorphisms of Info and Model to the prototype
 -- enclose :: Functor m

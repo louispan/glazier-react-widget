@@ -1,5 +1,3 @@
--- {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -32,7 +30,6 @@ import qualified JavaScript.Extras as JE
 ------------------------------------------------------
 
 -- | Create callbacks and add it to this state's dlist of listeners.
--- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 trigger' :: forall m v s a.
     ( R.MonadReactor m
     , NFData a
@@ -44,7 +41,6 @@ trigger' :: forall m v s a.
 trigger' i n f = trigger i n f id
 
 -- | Create callbacks and add it to this state's dlist of listeners.
--- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 trigger :: forall m v s a b.
     ( R.MonadReactor m
     , NFData a

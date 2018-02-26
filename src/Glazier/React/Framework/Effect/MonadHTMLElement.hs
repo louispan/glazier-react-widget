@@ -22,7 +22,6 @@ instance MonadHTMLElement R.IOReactor where
     doBlur j  = liftIO $ js_blur j
 
 
--- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 focusRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m
@@ -33,7 +32,6 @@ focusRef i (R.Obj ref its) = do
     let j = obj ^. its.R.plan.field @"refs".at i
     maybe (pure ()) doFocus j
 
--- @AllowAmbiguousTypes@: Use @TypeApplications@ instead of @Proxy@ to specify @t@
 blurRef ::
     ( R.MonadReactor m
     , MonadHTMLElement m

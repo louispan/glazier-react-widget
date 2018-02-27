@@ -106,11 +106,11 @@ listing :: (R.MonadReactor m)
     -> (srt -> s -> s -> m Ordering)
     -> R.Archetype m s c
     -> R.Prototype m v (Listing flt srt k s) c
-listing flt srt (R.Archetype dis fin act)
+listing flt srt (R.Archetype dis fin ini)
     = R.Prototype
         (listingDisplay flt srt dis)
         (\s -> fold <$> traverse fin (s ^. field @"items"))
-        (listingInitializer act)
+        (listingInitializer ini)
 
 hdlListingDeleteItem :: (R.MonadReactor m, Ord k)
     => R.Finalizer m s
@@ -163,9 +163,9 @@ listingMakeItem :: (R.MonadReactor m)
     -> R.Initializer m s c
     -> i
     -> ContT () m (c, s)
-listingMakeItem mkSpc act i = do
+listingMakeItem mkSpc ini i = do
     s <- lift $ R.unMkSpec mkSpc i
-    c <- act s
+    c <- ini s
     pure (c, s)
 
 -- | lift a handler for a single widget into a handler of a list of widgets
@@ -204,6 +204,6 @@ listingInitializer :: R.MonadReactor m
     => R.Initializer m s b
     -> R.Scene m v (Listing flt srt k s)
     -> ContT () m b
-listingInitializer act (R.Obj ref its) = ContT $ \k -> do
+listingInitializer ini (R.Obj ref its) = ContT $ \k -> do
     obj <- R.doReadIORef ref
-    traverse_ (\s -> runContT (act s) k) (obj ^. its.R.model.field @"items")
+    traverse_ (\s -> runContT (ini s) k) (obj ^. its.R.model.field @"items")

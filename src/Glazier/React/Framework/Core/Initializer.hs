@@ -33,8 +33,8 @@ type SceneInitializer m v s c = Initializer m (R.Scene m v s) c
 -- andInitializer' x y s = x s *> y s
 -- infixr 6 `andInitializer'` -- like mappend
 
-memptyInitializer :: Applicative m => Initializer m s c
-memptyInitializer _ =  ContT $ \_ -> pure ()
+memptyInitializer :: forall c m s. Applicative m => Initializer m s c
+memptyInitializer _ =  ContT $ const $ pure ()
 
 mappendInitializer :: Applicative m => Initializer m s c -> Initializer m s c -> Initializer m s c
 infixr 6 `mappendInitializer` -- like mappend
@@ -42,7 +42,7 @@ mappendInitializer f g s = f s `TE.seqContT` g s
 
 -- The identity for 'andInitializer'
 nulInitializer :: Applicative m => Initializer m r (Which '[])
-nulInitializer _ =  ContT $ \_ -> pure ()
+nulInitializer =  memptyInitializer @(Which '[])
 
 -- Activate left after the right.
 -- The binary associative function for 'nulInitializer'.

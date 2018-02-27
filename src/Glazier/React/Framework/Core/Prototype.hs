@@ -17,7 +17,6 @@ module Glazier.React.Framework.Core.Prototype where
 
 import Control.Applicative
 import Control.Lens
-import qualified Control.Monad.Trans.Cont.Extras as TE
 import Data.Diverse.Profunctor
 import Data.Semigroup
 import qualified GHC.Generics as G
@@ -40,20 +39,20 @@ instance Monad m => Applicative (Prototype m v s) where
         (fin1 `R.andFinalizer` fin2)
         (liftA2 (<*>) act1 act2)
 
-overDisplay :: (R.FrameDisplay m s () -> R.FrameDisplay m s ())
+modifyDisplay :: (R.FrameDisplay m s () -> R.FrameDisplay m s ())
     -> Prototype m v s c -> Prototype m v s c
-overDisplay f p = let disp = display p in p { display = f disp }
-infixl 4 `overDisplay` -- like <$>
+modifyDisplay f p = let disp = display p in p { display = f disp }
+infixl 4 `modifyDisplay` -- like <$>
 
-overFinalizer :: (R.Finalizer m s -> R.Finalizer m s)
+modifyFinalizer :: (R.Finalizer m s -> R.Finalizer m s)
     -> Prototype m v s c -> Prototype m v s c
-overFinalizer f p = let fin = finalizer p in p { finalizer = f fin }
-infixl 4 `overFinalizer` -- like <$>
+modifyFinalizer f p = let fin = finalizer p in p { finalizer = f fin }
+infixl 4 `modifyFinalizer` -- like <$>
 
-overInitializer :: (R.SceneInitializer m v s c1 -> R.SceneInitializer m v s c2)
+modifyInitializer :: (R.SceneInitializer m v s c1 -> R.SceneInitializer m v s c2)
     -> Prototype m v s c1 -> Prototype m v s c2
-overInitializer f p = let act = initializer p in p { initializer = f act }
-infixl 4 `overInitializer` -- like <$>
+modifyInitializer f p = let ini = initializer p in p { initializer = f ini }
+infixl 4 `modifyInitializer` -- like <$>
 
 ------------------------------------------
 
@@ -91,18 +90,27 @@ infixr 6 `mappendPrototype` -- like mappend
 
 -- | Modify prototype's reading environment @s1@ inside a larger @s2@
 magnifyPrototype :: Lens' s2 s1  -> Prototype m v s1 c -> Prototype m v s2 c
-magnifyPrototype sl (Prototype disp fin act) = Prototype
+magnifyPrototype sl (Prototype disp fin ini) = Prototype
     -- (R.enlargeBuilder fi (view sl) bld)
     (magnify (alongside id sl) disp)
     (magnify sl fin)
-    (R.magnifyScene sl act)
+    (R.magnifyScene sl ini)
+
+
+-- -- | Modify prototype's reading environment @s1@ inside a larger @s2@
+-- magnifyPrototype :: Lens' s2 s1  -> Prototype m v s1 c -> Prototype m v s2 c
+-- magnifyPrototype sl (Prototype disp fin ini) = Prototype
+--     -- (R.enlargeBuilder fi (view sl) bld)
+--     (magnify (alongside id sl) disp)
+--     (magnify sl fin)
+--     (R.magnifyScene sl ini)
 
 -- -- | Convenience function to change a @Prototype m v s ()@ to @Prototype m v s (Which '[])@
 -- terminatePrototype' :: Applicative m => Prototype m v s () -> Prototype m v s (Which '[])
 -- terminatePrototype' = terminatePrototype @(Which '[])
 
 -- terminatePrototype :: forall c m v s. Applicative m => Prototype m v s () -> Prototype m v s c
--- terminatePrototype = overInitializer (TE.terminate .)
+-- terminatePrototype = modifyInitializer (TE.terminate .)
 
 -- -- | Apply isomorphisms of Info and Model to the prototype
 -- enclose :: Functor m

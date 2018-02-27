@@ -46,6 +46,11 @@ type SceneHandler m v s a b = Handler m (R.Scene m v s) a b
 --     Left a1 -> f s a1
 --     Right a2 -> g s a2
 -- infixr 6 `orHandler'` -- like mappend
+arrowHandler :: (a -> b) -> Handler m s a b
+arrowHandler f _ =  runKleisli $  arr f
+
+obviousHandler :: Handler m s a b -> Handler m s (Which '[a]) b
+obviousHandler = contramapHandler obvious
 
 contramapHandler :: (a1 -> a2) -> Handler m s a2 b -> Handler m s a1 b
 contramapHandler f hdl s a = hdl s (f a)
@@ -53,16 +58,19 @@ contramapHandler f hdl s a = hdl s (f a)
 mapHandler :: (b1 -> b2) -> Handler m s a b1 -> Handler m s a b2
 mapHandler f hdl s a = f <$> hdl s a
 
-memptyHandler :: Applicative m => Handler m s a b
+memptyHandler :: forall a b m s. Applicative m => Handler m s a b
 memptyHandler _ _ = ContT $ \_ -> pure ()
 
 mappendHandler :: Applicative m => Handler m s a b -> Handler m s a b -> Handler m s a b
 mappendHandler f g s a = f s a `TE.seqContT` g s a
 infixr 6 `mappendHandler` -- like mappend
 
+ignoreHandler :: forall a m s. Applicative m => Handler m s a (Which '[])
+ignoreHandler = memptyHandler @a @(Which '[])
+
 -- | Identify for 'orHandler' or 'andHandler'
 nulHandler :: Applicative m => Handler m r (Which '[]) (Which '[])
-nulHandler _ _ = ContT $ \_ -> pure ()
+nulHandler = ignoreHandler @(Which '[])
 
 -- | Run one or the other.
 -- Compile error if types in @a1@ are not distinct from types in @a2@

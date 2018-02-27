@@ -62,7 +62,7 @@ trigger i n f g = \(R.Obj ref its) -> ContT $ \fire -> do
 -- handledBy :: R.Initializer m s a -> R.Handler m s a b -> R.Initializer m s b
 -- @
 handledBy :: (Applicative f, Monad m) => f (m a) -> f (a -> m b) -> f (m b)
-handledBy act hdl = liftA2 (>>=) act hdl
+handledBy ini hdl = liftA2 (>>=) ini hdl
 infixl 1 `handledBy` -- like >>=
 
 -- | feed the result from an Initializer into a handler, from right to left.
@@ -77,7 +77,7 @@ handledBy' :: forall m s a1 a2 b2 b3.
     => R.Initializer m s (Which a1)
     -> R.Handler m s (Which a2) (Which b2)
     -> R.Initializer m s (Which b3)
-handledBy' act hdl = act `handledBy` (R.pretend @a1 hdl)
+handledBy' ini hdl = ini `handledBy` (R.pretend @a1 hdl)
 infixl 1 `handledBy'` -- like >>=
 
 -- | feed as much of the result from an Initializer into a handler,

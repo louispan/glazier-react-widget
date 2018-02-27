@@ -15,6 +15,7 @@ import Control.Arrow
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Cont
 import Data.Generics.Product
 import Data.IORef
 import qualified Data.JSString as J
@@ -42,20 +43,20 @@ data Archetype m s c = Archetype
 -- mapBuilder' f p = let bld = builder' p in p { builder' = f bld }
 -- infixl 4 `mapBuilder'` -- like <$>
 
-overDisplay' :: (R.Display m s () -> R.Display m s ())
+modifyDisplay' :: (R.Display m s () -> R.Display m s ())
     -> Archetype m s c -> Archetype m s c
-overDisplay' f p = let disp = display' p in p { display' = f disp }
-infixl 4 `overDisplay'` -- like <$>
+modifyDisplay' f p = let disp = display' p in p { display' = f disp }
+infixl 4 `modifyDisplay'` -- like <$>
 
-overFinalizer' :: (R.Finalizer m s -> R.Finalizer m s)
+modifyFinalizer' :: (R.Finalizer m s -> R.Finalizer m s)
     -> Archetype m s c -> Archetype m s c
-overFinalizer' f p = let fin = finalizer' p in p { finalizer' = f fin }
-infixl 4 `overFinalizer'` -- like <$>
+modifyFinalizer' f p = let fin = finalizer' p in p { finalizer' = f fin }
+infixl 4 `modifyFinalizer'` -- like <$>
 
-overInitializer' :: (R.Initializer m s c1 -> R.Initializer m s c2)
+modifyInitializer' :: (R.Initializer m s c1 -> R.Initializer m s c2)
     -> Archetype m s c1 -> Archetype m s c2
-overInitializer' f p = let act = initializer' p in p { initializer' = f act }
-infixl 4 `overInitializer'` -- like <$>
+modifyInitializer' f p = let ini = initializer' p in p { initializer' = f ini }
+infixl 4 `modifyInitializer'` -- like <$>
 
 -- mapHandler' :: (R.Handler m s a1 b1 -> R.Handler m s a2 b2)
 --     -> Archetype m i s c a1 b1 -> Archetype m i s c a2 b2
@@ -91,8 +92,8 @@ toArchetype :: R.MonadReactor m
     => R.Prototype m (R.Frame m s) s c -- ^ @v@ is no longer polymorphic
     -> Archetype m (IORef (R.Frame m s)) c
 toArchetype
-    (R.Prototype dis fin act)
-    = Archetype dis' fin' act'
+    (R.Prototype dis fin ini)
+    = Archetype dis' fin' ini'
   where
     dis' ref = do
         (cp, _) <- lift $ R.doReadIORef ref
@@ -107,9 +108,9 @@ toArchetype
         (cp, s) <- R.doReadIORef ref
         fin'' <- fin s
         pure (fin'' <> R.disposeOnRemoved cp <> R.disposeOnUpdated cp)
-    act' ref = do
+    ini' ref = do
         -- Run the Prototype's Initializer, saving the continuation result
-        a <- act (R.Obj ref id)
+        a <- ini (R.Obj ref id)
         -- Now activate this archetype, passing the output
         fmap (const a) . lift $ do
             -- Now add our own Archetype activation
@@ -152,12 +153,34 @@ toArchetype
 fromArchetype :: R.MonadReactor m
     => Archetype m s c
     -> R.Prototype m v s c
-fromArchetype (Archetype dis fin act) = R.Prototype
-    (\(_, s) -> dis s)
+fromArchetype (Archetype disp fin ini) = R.Prototype
+    (\(_, s) -> disp s)
     fin
     (\(R.Obj ref its) -> do
         obj <- lift $ R.doReadIORef ref
-        act (obj ^. its.R.model))
+        ini (obj ^. its.R.model))
     -- (\(R.Obj ref its) a -> do
     --     obj <- lift $ R.doReadIORef ref
     --     hdl (obj ^. its.R.model) a)
+
+fromArchetypeMaybe :: R.MonadReactor m
+    => Archetype m s c
+    -> R.Prototype m v (Maybe s) c
+fromArchetypeMaybe (Archetype disp fin ini) = R.Prototype
+    (\(_, s) -> maybe (pure ()) disp s)
+    (maybe (pure mempty) fin)
+    (\(R.Obj ref its) -> do
+        obj <- lift $ R.doReadIORef ref
+        case obj ^. its.R.model of
+            Nothing -> ContT $ const $ pure ()
+            Just s' -> ini s')
+    -- (\(R.Obj ref its) a -> do
+    --     obj <- lift $ R.doReadIORef ref
+    --     hdl (obj ^. its.R.model) a)
+
+fromArchetypeMaybeHandler :: R.MonadReactor m => R.Handler m s a b -> R.SceneHandler m v (Maybe s) a b
+fromArchetypeMaybeHandler hdl (R.Obj ref its) a = do
+    obj <- lift $ R.doReadIORef ref
+    case obj ^. its.R.model of
+        Nothing -> ContT $ const $ pure ()
+        Just s' -> hdl s' a

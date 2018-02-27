@@ -36,12 +36,12 @@ import qualified Glazier.React.Framework as R
 import qualified JavaScript.Extras as JE
 
 -- | This event is fired when the input loses focus (eg. from TAB or mouse click else where)
--- The model value is updated, and a rerender will be called
+-- The model value is updated, and a stale will be called
 -- immediately after his event, so the handler of this event
 -- may update the model before that happens.
 data OnBlur = OnBlur R.GadgetId JE.JSRep
 
--- | No data is changed, so rerender is not called.
+-- | No data is changed, so stale is not called.
 data OnFocus = OnFocus R.GadgetId JE.JSRep
 
 -- | This event is fired when ESC is pressed.
@@ -66,17 +66,18 @@ hdlInputFocusInput :: ( R.MonadReactor m
     , R.MonadHTMLElement m)
     => R.GadgetId -> R.SceneHandler m v J.JSString () (Which '[])
 hdlInputFocusInput i this@(R.Obj ref its) _ = R.terminate' . lift $ do
-    -- Do a rerender because the inputValue may have been modified by
+    -- Do a stale because the inputValue may have been modified by
     -- prior firing of this event, or other state changed that will affect the rendering
     -- of this input element.
     -- Only focus after rendering changed because we are using uncontrolled components
     -- with a new key. This will result in a different input element after each render
-    R.rerender this $ do
+    R.addOnceOnUpdated this $ do
         obj <- R.doReadIORef ref
         void $ runMaybeT $ do
             j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
             lift $ R.doSetProperty ("value", JE.toJSR J.empty) j
             lift $ R.focusRef i this
+    R.stale this
 
 -- hdlInputUpdateValue :: ( R.MonadReactor m
 --     , R.MonadJS m)
@@ -90,10 +91,11 @@ hdlInputFocusInput i this@(R.Obj ref its) _ = R.terminate' . lift $ do
 -- | Internal
 updateInputValue :: (R.MonadReactor m, R.MonadJS m)
     => R.Scene m v J.JSString -> JE.JSRep -> m ()
-updateInputValue (R.Obj ref its) j = do
+updateInputValue this@(R.Obj ref its) j = do
     v <- JE.fromJSR @J.JSString <$> (R.doGetProperty "value" j)
     let v' = J.strip $ fromMaybe J.empty v
     R.doModifyIORef' ref (its.R.model .~ v')
+    R.stale this
 
 -- | Text inputs dosn't interact will as a controlled component,
 -- so this prototype implements using the uncontrolled component.
@@ -110,7 +112,7 @@ textInput i = R.nulPrototype
         -- in to force react to use the new defaultValue
         [ ("key", JE.toJSR $ J.unwords
             [ R.runReactKey . R.reactKey $ s ^. R.plan
-            , J.pack . show . R.frameNum $ s ^. R.plan
+            , J.pack . show . R.currentFrameNum $ s ^. R.plan
             ])
         -- use the defaultValue to set the current html text
         -- "value" cannot be used as React will take over as a controlled component.
@@ -137,8 +139,6 @@ textInput i = R.nulPrototype
         updateInputValue this j
         -- fire so handler may change the model value if necessary
         fire . pickOnly $ OnBlur i j
-        -- re-render using updated model
-        R.rerender' this
 
     onKeyDown ::
         ( R.MonadReactor m
@@ -159,12 +159,10 @@ textInput i = R.nulPrototype
             "Enter" -> do
                 updateInputValue this (JE.toJSR j)
                 fire . pick $ OnEnter i (JE.toJSR j)
-                R.rerender' this
             "Escape" -> do
                 R.blurRef i this -- The onBlur handler will also update the model
                 fire . pick $ OnEsc i (JE.toJSR j)
-                R.rerender' this
-            _ -> updateInputValue this (JE.toJSR j)
+            _ -> updateInputValue this (JE.toJSR j) -- copy the value but don't stale!
 
 ----------------------------------------
 
@@ -176,7 +174,7 @@ checkboxInput ::
     , R.MonadHTMLElement m
     )
     => R.GadgetId
-    -> R.Prototype m v Bool (Which '[OnBlur, OnEsc, OnToggle])
+    -> R.Prototype m v Bool (Which '[OnFocus, OnBlur, OnEsc, OnToggle])
 checkboxInput i = R.nulPrototype
     { R.display = \s -> R.lf' i s "input"
         [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
@@ -184,6 +182,7 @@ checkboxInput i = R.nulPrototype
         , ("checked", JE.toJSR $ s ^. R.model)
         ]
     , R.initializer = R.withRef i
+        `R.andInitializer` onFocus
         `R.andInitializer` onBlur
         `R.andInitializer` onKeyDown
         `R.andInitializer` onChange
@@ -202,18 +201,15 @@ checkboxInput i = R.nulPrototype
     hdlChange this@(R.Obj ref its) j = ContT $ \fire -> do
         R.doModifyIORef' ref (its.R.model %~ not)
         fire . pick $ OnToggle i (JE.toJSR j)
-        R.rerender' this
+        R.stale this
+
+    onFocus :: ( R.MonadReactor m)
+        => R.SceneInitializer m v Bool (Which '[OnFocus])
+    onFocus = R.trigger i "onFocus" pure (pickOnly . OnFocus i)
 
     onBlur :: ( R.MonadReactor m)
         => R.SceneInitializer m v Bool (Which '[OnBlur])
-    onBlur = R.trigger' i "onBlur" pure
-            `R.handledBy` hdlBlur
-
-    hdlBlur :: (R.MonadReactor m)
-        => R.SceneHandler m v Bool JE.JSRep (Which '[OnBlur])
-    hdlBlur this j = ContT $ \fire -> do
-        fire . pickOnly $ OnBlur i j
-        R.rerender' this
+    onBlur = R.trigger i "onBlur" pure (pickOnly . OnBlur i)
 
     onKeyDown ::
         ( R.MonadReactor m
@@ -232,15 +228,15 @@ checkboxInput i = R.nulPrototype
             "Enter" -> do
                 R.doModifyIORef' ref (its.R.model %~ not)
                 fire . pick $ OnToggle i (JE.toJSR j)
-                R.rerender' this
+                R.stale this
             "Escape" -> do
                 R.blurRef i this
                 fire . pick $ OnEsc i (JE.toJSR j)
-                R.rerender' this
+                R.stale this
             "Space" -> do
                 R.doModifyIORef' ref (its.R.model %~ not)
                 fire . pick $ OnToggle i (JE.toJSR j)
-                R.rerender' this
+                R.stale this
             _ -> pure () -- ^ NB. HTML input value has changed, do nothing extra
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
@@ -257,19 +253,19 @@ indeterminateCheckboxInput ::
     , R.MonadHTMLElement m
     )
     => R.GadgetId
-    -> R.Prototype m v IndeterminateCheckboxInput (Which '[OnBlur, OnEsc, OnToggle])
+    -> R.Prototype m v IndeterminateCheckboxInput (Which '[OnFocus, OnBlur, OnEsc, OnToggle])
 indeterminateCheckboxInput i = R.magnifyPrototype (field @"checked") (checkboxInput i)
     & R.modifyInitializer fini
   where
     fini ini = ini `R.andInitializer` onActivated
 
-    -- | Add setting the indeterminate' after every rerender as this is the only
+    -- | Add setting the indeterminate' after every stale as this is the only
     -- way to change that setting.
     onActivated ::
         ( R.MonadReactor m
         , R.MonadJS m
         ) => R.SceneInitializer m v IndeterminateCheckboxInput (Which '[])
-    onActivated (R.Obj ref its) = R.terminate' $ lift $ R.doModifyIORef' ref $ its.R.plan.field @"everyOnUpdated" %~ (*> go)
+    onActivated this@(R.Obj ref its) = R.terminate' $ lift $ R.addEveryOnUpdated this go
       where
         go = do
             obj <- R.doReadIORef ref

@@ -41,7 +41,6 @@ import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core as R
-import qualified Glazier.React.Framework.Effect as R
 
 -- | Internal: Make a key that will fit in between the two provided keys,
 -- Except when the inputs are equal, then it will return the same key.
@@ -123,7 +122,7 @@ hdlListingDeleteItem fin this@(R.Obj ref its) k = R.terminate' . lift $ do
         pure $ obj & (its.R.model.field @"items" %~ M.delete k)
             . (its.R.plan.field @"disposeOnUpdated" %~ (<> fin'))
             . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.rerender' this
+    R.stale this
 
 -- | Sort the items on the listing given a sorting function
 hdlListingSort :: (R.MonadReactor m)
@@ -133,7 +132,7 @@ hdlListingSort this@(R.Obj ref its) f = R.terminate' . lift $ do
     R.doModifyIORef' ref $ \obj ->
         obj & (its.R.model.field @"displaySort" .~ f)
             . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.rerender' this
+    R.stale this
 
 -- | Filter the items on the listing given a filter function
 hdlListingFilter :: (R.MonadReactor m)
@@ -143,7 +142,7 @@ hdlListingFilter this@(R.Obj ref its) f = R.terminate' . lift $ do
     R.doModifyIORef' ref $ \obj ->
         obj & (its.R.model.field @"displayFilter" .~ f)
             . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.rerender' this
+    R.stale this
 
 hdlListingInsertItem :: (R.MonadReactor m, Ord k)
     => R.Finalizer m s
@@ -156,7 +155,7 @@ hdlListingInsertItem fin this@(R.Obj ref its) (k, s) = R.terminate' . lift $ do
         pure $ obj & (its.R.model.field @"items" %~ M.insert k s)
             . (its.R.plan.field @"disposeOnUpdated" %~ (<> fin'))
             . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.rerender' this
+    R.stale this
 
 listingMakeItem :: (R.MonadReactor m)
     => R.MkSpec m i s

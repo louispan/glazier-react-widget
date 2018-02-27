@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -14,12 +15,14 @@ module Glazier.React.Framework.Core.Model where
 
 import qualified Control.Disposable as CD
 import Control.Lens
+import Data.Generics.Product
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Obj as R
+import qualified JavaScript.Extras as JE
 
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
@@ -28,14 +31,15 @@ newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
 data Plan m = Plan
     { component :: R.ReactComponent
     , reactKey :: R.ReactKey
-    , frameNum :: Int
-    , -- things to dispose when this widget is removed
+    , currentFrameNum :: Int
+    , previousFrameNum :: Int
+      -- things to dispose when this widget is removed
       -- cannot be hidden inside afterOnUpdated, as this needs to be used
       -- when finalizing
-      disposeOnRemoved :: CD.Disposable
+    , disposeOnRemoved :: CD.Disposable
     , disposeOnUpdated :: CD.Disposable -- ^ things to dispose on updated
-    , everyOnUpdated :: m () -- ^ additional monadic action to take after every rerender
-    , onceOnUpdated :: m () -- ^ additional monadic action to take after a rerender
+    , everyOnUpdated :: m () -- ^ additional monadic action to take after every stale
+    , onceOnUpdated :: m () -- ^ additional monadic action to take after a stale
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     -- Storing listeners and refs in a 'M.Map', which simplifies the type of the model.
@@ -52,7 +56,8 @@ mkPlan :: R.MonadReactor m => J.JSString -> m (Plan m)
 mkPlan n = Plan
     <$> R.doGetComponent
     <*> R.doMkReactKey n
-    <*> pure 0 -- ^ frameNum
+    <*> pure 0 -- ^ currentFrameNum
+    <*> pure 0 -- ^ previousFrameNum
     <*> pure mempty -- ^ disposeOnRemoved
     <*> pure mempty -- ^ disposeOnUpdated
     <*> pure (pure ()) -- ^ everyOnUpdated
@@ -77,3 +82,16 @@ type Scene m v s = R.Obj v (Frame m s)
 
 magnifyScene :: Lens' t s -> (Scene m v s -> a) -> (Scene m v t -> a)
 magnifyScene l f = f . R.edit (alongside id l)
+
+-- Add an action to run after a stale
+addOnceOnUpdated :: R.MonadReactor m => Scene m v s -> m () -> m ()
+addOnceOnUpdated (R.Obj ref its) k = R.doModifyIORef' ref (its.plan.field @"onceOnUpdated" %~ (*> k))
+
+-- Add an action to run after a stale
+addEveryOnUpdated :: R.MonadReactor m => Scene m v s -> m () -> m ()
+addEveryOnUpdated (R.Obj ref its) k = R.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))
+
+-- Marks the current widget as dirty, and stale required
+stale :: R.MonadReactor m => Scene m v s -> m ()
+stale (R.Obj ref its) =
+    R.doModifyIORef' ref (its.plan.field @"currentFrameNum" %~ ((+ 1) . (`mod` JE.maxSafeInteger)))

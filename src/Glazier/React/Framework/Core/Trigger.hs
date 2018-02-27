@@ -51,7 +51,18 @@ trigger :: forall m v s a b.
     -> (a -> b)
     -> R.SceneInitializer m v s b
 trigger i n f g = \(R.Obj ref its) -> ContT $ \fire -> do
-    (ds, cb) <- R.doMkCallback f (fire . g)
+    let checkRerender = do
+            obj <- R.doReadIORef ref
+            let c = obj ^. its.R.plan.field @"currentFrameNum"
+                p = obj ^. its.R.plan.field @"previousFrameNum"
+            if c == p
+                then pure ()
+                else do
+                    R.doModifyIORef' ref (its.R.plan.field @"previousFrameNum" .~ c)
+                    R.doSetComponentState
+                        (JE.fromProperties [("frameNum", JE.toJSR c)])
+                        (obj ^. (its.R.plan.field @"component"))
+    (ds, cb) <- R.doMkCallback f (\a -> (fire (g a)) *> checkRerender)
     R.doModifyIORef' ref $ \obj ->
         obj & its.R.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) : (fromMaybe [] ls))
             & its.R.plan.field @"disposeOnRemoved" %~ (<> ds)

@@ -33,7 +33,6 @@ library
                        Glazier.React.Framework.Effect
                        Glazier.React.Framework.Effect.MonadHTMLElement
                        Glazier.React.Framework.Effect.MonadJS
-                       Glazier.React.Framework.Effect.Rerender
                        Glazier.React.Widget
                        Glazier.React.Widget.Input
                        Glazier.React.Widget.Listing

@@ -62,7 +62,7 @@ textInput gid = R.nulPrototype
         ]
     , R.initializer = R.withRef gid
         `R.andInitializer` onInitialized
-        `R.andInitializer` (R.trigger' gid "onChange" `R.handledBy` hdlChange)
+        `R.andInitializer` (R.trigger' gid "onChange" () `R.handledBy` hdlChange)
     }
   where
 
@@ -155,7 +155,7 @@ checkboxInput gid = R.nulPrototype
         , ("checked", JE.toJSR $ s ^. R.model)
         ]
     , R.initializer = R.withRef gid
-        `R.andInitializer` (R.trigger' gid "onChange" `R.handledBy` hdlChange)
+        `R.andInitializer` (R.trigger' gid "onChange" () `R.handledBy` hdlChange)
     }
 
   where

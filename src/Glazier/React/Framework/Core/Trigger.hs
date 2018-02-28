@@ -32,11 +32,13 @@ import qualified JavaScript.Extras as JE
 ------------------------------------------------------
 
 -- | A simplified form of 'trigger' where all event info is dropped
+-- and the given value is fired
 trigger' :: (R.MonadReactor m)
     => R.GadgetId
     -> J.JSString
-    -> R.SceneInitializer m v s ()
-trigger' gid n = trigger gid n (const $ pure ()) id
+    -> b
+    -> R.SceneInitializer m v s b
+trigger' gid n b = trigger gid n (const $ pure ()) (const b)
 
 -- | Create callback for 'R.SyntheticEvent' and add it to this state's dlist of listeners.
 trigger ::
@@ -48,7 +50,7 @@ trigger ::
     -> (R.SyntheticEvent -> IO a)
     -> (a -> b)
     -> R.SceneInitializer m v s b
-trigger gid n goStrict goLazy = listen gid n goStrict' goLazy
+trigger gid n goStrict goLazy = mkListener gid n goStrict' goLazy
   where
     goStrict' e = case JE.fromJSR e of
         Nothing -> pure Nothing
@@ -59,7 +61,7 @@ trigger gid n goStrict goLazy = listen gid n goStrict' goLazy
 -- generate a 'R.SyntheticEvent'.
 -- Only the "ref" callback generate 'R.EventTarget' in which case you would want
 -- to use 'withRef' instead.
-listen ::
+mkListener ::
     ( R.MonadReactor m
     , NFData a
     )
@@ -68,7 +70,7 @@ listen ::
     -> (JE.JSRep -> IO (Maybe a))
     -> (a -> b)
     -> R.SceneInitializer m v s b
-listen gid n goStrict goLazy this@(R.Obj ref its) = ContT $ \fire -> do
+mkListener gid n goStrict goLazy this@(R.Obj ref its) = ContT $ \fire -> do
     (ds, cb) <- R.doMkCallback goStrict (goLazy' fire)
     R.doModifyIORef' ref $ \obj ->
         obj & its.R.plan.field @"listeners".at gid %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
@@ -119,7 +121,7 @@ withRef ::
     )
     => R.GadgetId
     -> R.SceneInitializer m v s (Which '[])
-withRef i = listen i "ref" (pure . Just . R.EventTarget) id
+withRef i = mkListener i "ref" (pure . Just . R.EventTarget) id
     `handledBy` hdlRef
   where
     -- hdlRef :: R.SceneHandler m v s (R.EventTarget) (Which '[])

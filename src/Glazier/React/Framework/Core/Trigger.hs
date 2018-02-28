@@ -31,32 +31,52 @@ import qualified JavaScript.Extras as JE
 
 ------------------------------------------------------
 
--- | Create callbacks and add it to this state's dlist of listeners.
-trigger' :: forall m v s a.
-    ( R.MonadReactor m
-    , NFData a
-    )
+-- | A simplified form of 'trigger' where all event info is dropped
+trigger' :: (R.MonadReactor m)
     => R.GadgetId
     -> J.JSString
-    -> (JE.JSRep -> IO a)
-    -> R.SceneInitializer m v s a
-trigger' i n f = trigger i n f id
+    -> R.SceneInitializer m v s ()
+trigger' gid n = trigger gid n (const $ pure ()) id
 
--- | Create callbacks and add it to this state's dlist of listeners.
-trigger :: forall m v s a b.
+-- | Create callback for 'R.SyntheticEvent' and add it to this state's dlist of listeners.
+trigger ::
     ( R.MonadReactor m
     , NFData a
     )
     => R.GadgetId
     -> J.JSString
-    -> (JE.JSRep -> IO a)
+    -> (R.SyntheticEvent -> IO a)
     -> (a -> b)
     -> R.SceneInitializer m v s b
-trigger i n f g = \this@(R.Obj ref its) -> ContT $ \fire -> do
-    (ds, cb) <- R.doMkCallback f (\a -> (fire (g a)) *> R.rerender this)
+trigger gid n goStrict goLazy = listen gid n goStrict' goLazy
+  where
+    goStrict' e = case JE.fromJSR e of
+        Nothing -> pure Nothing
+        Just e' -> Just <$> goStrict e'
+
+-- | Create callbacks and add it to this state's dlist of listeners.
+-- NB. You probably want ot use 'trigger' instead since most React callbacks
+-- generate a 'R.SyntheticEvent'.
+-- Only the "ref" callback generate 'R.EventTarget' in which case you would want
+-- to use 'withRef' instead.
+listen ::
+    ( R.MonadReactor m
+    , NFData a
+    )
+    => R.GadgetId
+    -> J.JSString
+    -> (JE.JSRep -> IO (Maybe a))
+    -> (a -> b)
+    -> R.SceneInitializer m v s b
+listen gid n goStrict goLazy this@(R.Obj ref its) = ContT $ \fire -> do
+    (ds, cb) <- R.doMkCallback goStrict (goLazy' fire)
     R.doModifyIORef' ref $ \obj ->
-        obj & its.R.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
+        obj & its.R.plan.field @"listeners".at gid %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
             & its.R.plan.field @"disposeOnRemoved" %~ (<> ds)
+  where
+    goLazy' fire ma = case ma of
+        Nothing -> pure ()
+        Just a -> fire (goLazy a) *> R.rerender this
 
 -- | feed the result from an Initializer into a handler, from left to right.
 -- A simply way to think of the types is:
@@ -99,13 +119,12 @@ withRef ::
     )
     => R.GadgetId
     -> R.SceneInitializer m v s (Which '[])
-withRef i = trigger' i "ref" (pure . R.EventTarget) -- requires Internal
+withRef i = listen i "ref" (pure . Just . R.EventTarget) id
     `handledBy` hdlRef
   where
     -- hdlRef :: R.SceneHandler m v s (R.EventTarget) (Which '[])
     hdlRef (R.Obj ref its) j = terminate' . lift $
         R.doModifyIORef' ref (its.R.plan.field @"refs".at i .~ Just j)
-
 
 -- | Convert the original ContT to a ContT that
 -- doens't call it's continuation, by 'const'ing the original contination

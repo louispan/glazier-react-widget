@@ -62,7 +62,7 @@ textInput gid = R.nulPrototype
         ]
     , R.initializer = R.withRef gid
         `R.andInitializer` onInitialized
-        `R.andInitializer` (R.trigger' gid "onChange" pure `R.handledBy` hdlChange)
+        `R.andInitializer` (R.trigger' gid "onChange" `R.handledBy` hdlChange)
     }
   where
 
@@ -89,11 +89,12 @@ textInput gid = R.nulPrototype
 
     hdlChange ::
         ( R.MonadReactor m, R.MonadJS m
-        ) => R.SceneHandler m v J.JSString JE.JSRep (Which '[])
-    hdlChange (R.Obj ref its) j = R.terminate' $ lift $ do
-        v <- JE.fromJSR @J.JSString <$> (R.doGetProperty "value" j)
-        let v' = fromMaybe J.empty v
-        R.doModifyIORef' ref (its.R.model .~ v')
+        ) => R.SceneHandler m v J.JSString a (Which '[])
+    hdlChange (R.Obj ref its) _ = R.terminate' $ lift $ void $ runMaybeT $ do
+        obj <- lift $ R.doReadIORef ref
+        j <- MaybeT $ pure $ obj ^. its.R.plan.field @"refs".at gid
+        v <- lift $ (fromMaybe J.empty . JE.fromJSR) <$> (R.doGetProperty "value" j)
+        lift $ R.doModifyIORef' ref (its.R.model .~ v)
         -- Don't mark input as dirty since changing model
         -- does not change the DOM input value.
 
@@ -154,13 +155,13 @@ checkboxInput gid = R.nulPrototype
         , ("checked", JE.toJSR $ s ^. R.model)
         ]
     , R.initializer = R.withRef gid
-        `R.andInitializer` (R.trigger' gid "onChange" pure `R.handledBy` hdlChange)
+        `R.andInitializer` (R.trigger' gid "onChange" `R.handledBy` hdlChange)
     }
 
   where
     hdlChange ::
         (R.MonadReactor m)
-        => R.SceneHandler m v Bool JE.JSRep (Which '[])
+        => R.SceneHandler m v Bool a (Which '[])
     hdlChange this@(R.Obj ref its) _ = R.terminate' $ lift $ do
         R.doModifyIORef' ref (its.R.model %~ not)
         R.dirty this

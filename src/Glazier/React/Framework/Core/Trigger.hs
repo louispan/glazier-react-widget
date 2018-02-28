@@ -22,6 +22,7 @@ import Data.Maybe
 import Data.Semigroup
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
+import qualified Glazier.React.Framework.Core.Display as R
 import qualified Glazier.React.Framework.Core.Handler as R
 import qualified Glazier.React.Framework.Core.Initializer as R
 import qualified Glazier.React.Framework.Core.Model as R
@@ -51,19 +52,8 @@ trigger :: forall m v s a b.
     -> (JE.JSRep -> IO a)
     -> (a -> b)
     -> R.SceneInitializer m v s b
-trigger i n f g = \(R.Obj ref its) -> ContT $ \fire -> do
-    let checkRerender = do
-            obj <- R.doReadIORef ref
-            let c = obj ^. its.R.plan.field @"currentFrameNum"
-                p = obj ^. its.R.plan.field @"previousFrameNum"
-            if c == p
-                then pure ()
-                else do
-                    R.doModifyIORef' ref (its.R.plan.field @"previousFrameNum" .~ c)
-                    R.doSetComponentState
-                        (JE.fromProperties [("frameNum", JE.toJSR c)])
-                        (obj ^. (its.R.plan.field @"component"))
-    (ds, cb) <- R.doMkCallback f (\a -> (fire (g a)) *> checkRerender)
+trigger i n f g = \this@(R.Obj ref its) -> ContT $ \fire -> do
+    (ds, cb) <- R.doMkCallback f (\a -> (fire (g a)) *> R.rerender this)
     R.doModifyIORef' ref $ \obj ->
         obj & its.R.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
             & its.R.plan.field @"disposeOnRemoved" %~ (<> ds)

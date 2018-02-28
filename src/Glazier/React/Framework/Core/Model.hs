@@ -23,7 +23,6 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import qualified Glazier.React as R
 import qualified Glazier.React.Framework.Core.Obj as R
-import qualified JavaScript.Extras as JE
 
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
@@ -91,24 +90,3 @@ addOnceOnUpdated (R.Obj ref its) k = R.doModifyIORef' ref (its.plan.field @"once
 -- Add an action to run after every render
 addEveryOnUpdated :: R.MonadReactor m => Scene m v s -> m () -> m ()
 addEveryOnUpdated (R.Obj ref its) k = R.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))
-
--- Marks the current widget as dirty, and rerender is required
--- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Core.Trigger.trigger'
--- This means calling 'stale' on other widgets from a different widget's 'Glazier.React.Framework.Core.Trigger.trigger'
--- will not result in a rerender for the other widget.
-stale :: R.MonadReactor m => Scene m v s -> m ()
-stale (R.Obj ref its) =
-    R.doModifyIORef' ref (its.plan.field @"currentFrameNum" %~ ((+ 1) . (`mod` JE.maxSafeInteger)))
-
-rerender :: R.MonadReactor m => Scene m v s -> m ()
-rerender (R.Obj ref its) = do
-    obj <- R.doReadIORef ref
-    let c = obj ^. its.plan.field @"currentFrameNum"
-        p = obj ^. its.plan.field @"previousFrameNum"
-    if c == p
-        then pure ()
-        else do
-            R.doModifyIORef' ref (its.plan.field @"previousFrameNum" .~ c)
-            R.doSetComponentState
-                (JE.fromProperties [("frameNum", JE.toJSR c)])
-                (obj ^. (its.plan.field @"component"))

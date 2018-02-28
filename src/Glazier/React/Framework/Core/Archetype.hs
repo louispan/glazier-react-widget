@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -20,6 +21,7 @@ import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
 import qualified Data.JSString as J
+import qualified Data.Maybe.Extras as E
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
@@ -99,9 +101,9 @@ toArchetype
     dis' ref = do
         (cp, _) <- lift $ R.doReadIORef ref
         R.leaf
-            (DL.fromList $ JE.justSnds [ ("updated", cp ^. field @"onUpdated")])
+            (DL.fromList $ E.keepMaybes [ ("updated", cp ^. field @"onUpdated")])
             (cp ^. field @"component".to JE.toJSR)
-            (DL.fromList $ JE.justSnds
+            (DL.fromList $ E.keepMaybes
                 [ ("key", Just . JE.toJSR $ cp ^. field @"reactKey")
                 , ("render", JE.toJSR <$> cp ^. field @"onRender")
                 ])

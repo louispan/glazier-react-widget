@@ -30,78 +30,43 @@ import qualified JavaScript.Extras as JE
 
 ----------------------------------------
 
--- -- | Focus and start editing the input.
--- focusInput :: ( R.MonadReactor m
---     , R.MonadJS m
---     , R.MonadHTMLElement m)
---     => R.GadgetId -> R.Scene m v J.JSString -> ContT () m (Which '[])
--- focusInput i this@(R.Obj ref its) = R.terminate' . lift $ do
---     -- Do a stale because the inputValue may have been modified by
---     -- prior firing of this event, or other state changed that will affect the rendering
---     -- of this input element.
---     -- Only focus after rendering changed because we are using uncontrolled components
---     -- with a new key. This will result in a different input element after each render
---     R.addOnceOnUpdated this $ do
---         obj <- R.doReadIORef ref
---         void $ runMaybeT $ do
---             j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
---             lift $ R.doSetProperty ("value", JE.toJSR J.empty) j
---             lift $ R.focusRef i this
---     R.stale this
-
--- hdlInputUpdateValue :: ( R.MonadReactor m
---     , R.MonadJS m)
---     => R.GadgetId -> R.SceneHandler m v J.JSString () (Which '[])
--- hdlInputUpdateValue i this@(R.Obj ref its) _ = R.terminate' . lift $ do
---     obj <- R.doReadIORef ref
---     void $ runMaybeT $ do
---         j <- MaybeT . pure $ obj ^. its.R.plan.field @"refs".at i
---         lift $ updateInputValue this (JE.toJSR j)
-
--- -- | Internal
--- updateInputValue :: (R.MonadReactor m, R.MonadJS m)
---     => R.Scene m v J.JSString -> JE.JSRep -> m ()
--- updateInputValue this@(R.Obj ref its) j = do
---     v <- JE.fromJSR @J.JSString <$> (R.doGetProperty "value" j)
---     let v' = J.strip $ fromMaybe J.empty v
---     R.doModifyIORef' ref (its.R.model .~ v')
---     R.stale this
-
--- | Text inputs dosn't interact well as a controlled component.
+-- | Text inputs dosn't interact well as a React controlled component.
 -- Eg. cursor jumps if user types quickly.
--- I think there a timing issue with lazy event handling setting the value,
--- So this prototype implements using the uncontrolled component
+-- I think there a timing issue with lazy event handlers setting the value,
+-- So this prototype uses the React uncontrolled component
 -- (using defaultValue instead of value).
+--
+-- For input, React uses controlled input if input.value is not null
+-- For checkboxes,  React uses controlled checkbox if input.checked is not null
+-- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 --
 -- This widget attempts to set the cursor position at the correct place
 -- by using a diffing algorithm on the old and new value.
---
--- Aside: For input, React uses controlled input if input.value is not null
--- For checkboxes,  React uses controlled checkbox if input.checked is not null
--- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 textInput ::
     ( R.MonadReactor m
     , R.MonadJS m
     )
     => R.GadgetId
     -> R.Prototype m v J.JSString (Which '[])
-textInput i = R.nulPrototype
-    { R.display = \s -> R.lf' i s "input"
+textInput gid = R.nulPrototype
+    { R.display = \s -> R.lf' gid s "input"
         [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
         -- "value" cannot be used as React will take over as a controlled component.
-        -- use the defaultValue to set the *initial* DOM value
+        -- The defaultValue only sets the *initial* DOM value
         -- The user will need to modify reactKey if they want
         -- react to actually rerender, since React will not do anything
         -- even if defaultValue changes.
+        -- But hopefully this is not necessary as the DOM inpt value
+        -- is updated under the hood in onInitialized
         , ("defaultValue", JE.toJSR $ s ^. R.model)
         ]
-    , R.initializer = R.withRef i
+    , R.initializer = R.withRef gid
         `R.andInitializer` onInitialized
-        `R.andInitializer` onChange
+        `R.andInitializer` (R.trigger' gid "onChange" pure `R.handledBy` hdlChange)
     }
   where
 
-    -- | Add setting the indeterminate' after every stale as this is the only
+    -- | Add setting the DOM input value after every render as this is the only
     -- way to change that setting.
     onInitialized ::
         ( R.MonadReactor m
@@ -113,7 +78,7 @@ textInput i = R.nulPrototype
             obj <- R.doReadIORef ref
             let s = obj ^. its.R.model
             void $ runMaybeT $ do
-                j <- MaybeT $ pure $ obj ^. its.R.plan.field @"refs".at i
+                j <- MaybeT $ pure $ obj ^. its.R.plan.field @"refs".at gid
                 start <- MaybeT $ JE.fromJSR <$> (R.doGetProperty "selectionStart" j)
                 end <- MaybeT $ JE.fromJSR <$> (R.doGetProperty "selectionEnd" j)
                 v <- MaybeT $ JE.fromJSR <$> (R.doGetProperty "value" j)
@@ -122,13 +87,6 @@ textInput i = R.nulPrototype
                 lift $ j & R.doSetProperty ("selectionStart", JE.toJSR a)
                 lift $ j & R.doSetProperty ("selectionEnd", JE.toJSR b)
 
-    onChange ::
-        ( R.MonadReactor m
-        , R.MonadJS m
-        ) => R.SceneInitializer m v J.JSString (Which '[])
-    onChange = R.trigger' i "onChange" pure
-            `R.handledBy` hdlChange
-
     hdlChange ::
         ( R.MonadReactor m, R.MonadJS m
         ) => R.SceneHandler m v J.JSString JE.JSRep (Which '[])
@@ -136,7 +94,7 @@ textInput i = R.nulPrototype
         v <- JE.fromJSR @J.JSString <$> (R.doGetProperty "value" j)
         let v' = fromMaybe J.empty v
         R.doModifyIORef' ref (its.R.model .~ v')
-        -- Don't mark input as stale since changing model
+        -- Don't mark input as dirty since changing model
         -- does not change the DOM input value.
 
 
@@ -189,29 +147,23 @@ checkboxInput ::
     )
     => R.GadgetId
     -> R.Prototype m v Bool (Which '[])
-checkboxInput i = R.nulPrototype
-    { R.display = \s -> R.lf' i s "input"
+checkboxInput gid = R.nulPrototype
+    { R.display = \s -> R.lf' gid s "input"
         [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
         , ("type", "checkbox")
         , ("checked", JE.toJSR $ s ^. R.model)
         ]
-    , R.initializer = R.withRef i
-        `R.andInitializer` onChange
+    , R.initializer = R.withRef gid
+        `R.andInitializer` (R.trigger' gid "onChange" pure `R.handledBy` hdlChange)
     }
 
   where
-    onChange ::
-        ( R.MonadReactor m
-        ) => R.SceneInitializer m v Bool (Which '[])
-    onChange = R.trigger' i "onChange" pure
-            `R.handledBy` hdlChange
-
     hdlChange ::
         (R.MonadReactor m)
         => R.SceneHandler m v Bool JE.JSRep (Which '[])
     hdlChange this@(R.Obj ref its) _ = R.terminate' $ lift $ do
         R.doModifyIORef' ref (its.R.model %~ not)
-        R.stale this
+        R.dirty this
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -227,12 +179,12 @@ indeterminateCheckboxInput ::
     )
     => R.GadgetId
     -> R.Prototype m v IndeterminateCheckboxInput (Which '[])
-indeterminateCheckboxInput i = R.magnifyPrototype (field @"checked") (checkboxInput i)
+indeterminateCheckboxInput gid = R.magnifyPrototype (field @"checked") (checkboxInput gid)
     & R.modifyInitializer fini
   where
     fini ini = ini `R.andInitializer` onInitialized
 
-    -- | Add setting the indeterminate' after every stale as this is the only
+    -- | Add setting the indeterminate' after every dirty as this is the only
     -- way to change that setting.
     onInitialized ::
         ( R.MonadReactor m
@@ -242,7 +194,7 @@ indeterminateCheckboxInput i = R.magnifyPrototype (field @"checked") (checkboxIn
       where
         go = do
             obj <- R.doReadIORef ref
-            let j = obj ^. its.R.plan.field @"refs".at i
+            let j = obj ^. its.R.plan.field @"refs".at gid
             case j of
                 Nothing -> pure ()
                 Just j' -> j' & R.doSetProperty

@@ -51,10 +51,10 @@ bh' i s = R.branch (getListeners i s)
 
 -- Marks the current widget as dirty, and rerender is required
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Core.Trigger.trigger'
--- This means calling 'stale' on other widgets from a different widget's 'Glazier.React.Framework.Core.Trigger.trigger'
+-- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Core.Trigger.trigger'
 -- will not result in a rerender for the other widget.
-stale :: R.MonadReactor m => R.Scene m v s -> m ()
-stale (R.Obj ref its) =
+dirty :: R.MonadReactor m => R.Scene m v s -> m ()
+dirty (R.Obj ref its) =
     R.doModifyIORef' ref (its.R.plan.field @"currentFrameNum" %~ ((+ 1) . (`mod` JE.maxSafeInteger)))
 
 rerender :: R.MonadReactor m => R.Scene m v s -> m ()

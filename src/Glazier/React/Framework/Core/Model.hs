@@ -38,8 +38,8 @@ data Plan m = Plan
       -- when finalizing
     , disposeOnRemoved :: CD.Disposable
     , disposeOnUpdated :: CD.Disposable -- ^ things to dispose on updated
-    , everyOnUpdated :: m () -- ^ additional monadic action to take after every stale
-    , onceOnUpdated :: m () -- ^ additional monadic action to take after a stale
+    , everyOnUpdated :: m () -- ^ additional monadic action to take after every dirty
+    , onceOnUpdated :: m () -- ^ additional monadic action to take after a dirty
     , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
     , onRender :: Maybe (J.Callback (IO J.JSVal))
     -- Storing listeners and refs in a 'M.Map', which simplifies the type of the model.

@@ -15,6 +15,7 @@ module Glazier.React.Framework.Core.Model where
 
 import qualified Control.Disposable as CD
 import Control.Lens
+import qualified Data.DList as DL
 import Data.Generics.Product
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
@@ -48,7 +49,7 @@ data Plan m = Plan
     -- Eg. `Glazier.React.Framework.Effect.MonadHTMLElement.focusRef` expects a ref
     -- but wont have compile error if `Glazier.React.Framework.Trigger.withRef` was not attached.
     -- The alternative is to store as a 'Many' in the model, but this ends up with messier types.
-    , listeners :: M.Map GadgetId [R.Listener]
+    , listeners :: M.Map GadgetId (DL.DList R.Listener)
     , refs :: M.Map GadgetId R.EventTarget
     } deriving (G.Generic)
 

@@ -16,6 +16,7 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Cont
+import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
 import qualified Data.JSString as J
@@ -98,9 +99,9 @@ toArchetype
     dis' ref = do
         (cp, _) <- lift $ R.doReadIORef ref
         R.leaf
-            (JE.justSnds [ ("updated", cp ^. field @"onUpdated")])
+            (DL.fromList $ JE.justSnds [ ("updated", cp ^. field @"onUpdated")])
             (cp ^. field @"component".to JE.toJSR)
-            (JE.justSnds
+            (DL.fromList $ JE.justSnds
                 [ ("key", Just . JE.toJSR $ cp ^. field @"reactKey")
                 , ("render", JE.toJSR <$> cp ^. field @"onRender")
                 ])

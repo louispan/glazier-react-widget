@@ -16,6 +16,7 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Cont
 import qualified Control.Monad.Trans.Cont.Extras as TE
 import Data.Diverse.Profunctor
+import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.Maybe
 import Data.Semigroup
@@ -64,7 +65,7 @@ trigger i n f g = \(R.Obj ref its) -> ContT $ \fire -> do
                         (obj ^. (its.R.plan.field @"component"))
     (ds, cb) <- R.doMkCallback f (\a -> (fire (g a)) *> checkRerender)
     R.doModifyIORef' ref $ \obj ->
-        obj & its.R.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) : (fromMaybe [] ls))
+        obj & its.R.plan.field @"listeners".at i %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
             & its.R.plan.field @"disposeOnRemoved" %~ (<> ds)
 
 -- | feed the result from an Initializer into a handler, from left to right.

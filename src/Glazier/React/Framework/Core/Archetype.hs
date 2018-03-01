@@ -21,7 +21,7 @@ import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
 import qualified Data.JSString as J
-import qualified Data.Maybe.Extras as E
+import qualified Data.Maybe.Esoteric as E
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified Glazier.React as R
@@ -68,8 +68,8 @@ infixl 4 `modifyInitializer'` -- like <$>
 
 toArchetypeBuilder :: R.MonadReactor m
     => J.JSString
-    -> R.Builder m i s i' s'
-    -> R.Builder m i (IORef (R.Frame m s)) i' (IORef (R.Frame m s'))
+    -> R.Builder m r s r' s'
+    -> R.Builder m r (IORef (R.Frame m s)) r' (IORef (R.Frame m s'))
 toArchetypeBuilder n (R.Builder (R.MkReq mkReq, R.MkSpec mkSpc)) = R.Builder
         ( R.MkReq (R.doReadIORef >=> (mkReq . snd))
         , R.MkSpec $ \i -> do

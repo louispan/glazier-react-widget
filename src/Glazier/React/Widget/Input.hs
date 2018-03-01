@@ -42,6 +42,10 @@ import qualified JavaScript.Extras as JE
 --
 -- This widget attempts to set the cursor position at the correct place
 -- by using a diffing algorithm on the old and new value.
+--
+-- Warning: This widget listens to onChange and will update the model value with the DOM input value.
+-- potentially overridding any user changes.
+-- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
     ( R.MonadReactor m
     , R.MonadJS m
@@ -143,9 +147,7 @@ estimateSelectionRange before after start end =
 -- | This provide a prototype of a checkbox input but without a builder.
 -- Instead a lens to the CheckboxInput is used, and the user of this widget
 -- is responsible for making the entire model.
-checkboxInput ::
-    ( R.MonadReactor m
-    )
+checkboxInput :: ( R.MonadReactor m)
     => R.GadgetId
     -> R.Prototype m v Bool (Which '[])
 checkboxInput gid = R.nulPrototype

@@ -33,9 +33,9 @@ library
                        Glazier.React.Framework.Effect
                        Glazier.React.Framework.Effect.MonadHTMLElement
                        Glazier.React.Framework.Effect.MonadJS
-                       Glazier.React.Widget
                        Glazier.React.Widget.Input
                        Glazier.React.Widget.Listing
+                      --  Glazier.React.Widget.Mapping
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.3.0
                      , bifunctors >= 5.4.1

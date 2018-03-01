@@ -17,9 +17,12 @@ module Glazier.React.Framework.Core.Prototype where
 
 import Control.Applicative
 import Control.Lens
+import Control.Monad.Trans
+import Control.Monad.Trans.Cont
 import Data.Diverse.Profunctor
 import Data.Semigroup
 import qualified GHC.Generics as G
+import qualified Glazier.React.Framework.Core.Builder as R
 import qualified Glazier.React.Framework.Core.Display as R
 import qualified Glazier.React.Framework.Core.Finalizer as R
 import qualified Glazier.React.Framework.Core.Initializer as R
@@ -96,6 +99,17 @@ magnifyPrototype sl (Prototype disp fin ini) = Prototype
     (magnify sl fin)
     (R.magnifyScene sl ini)
 
+-- | Makes and initialzies a spec from a req.
+-- Used by prototypes that contain other archetypes.
+mkInitializedSpec :: Monad m
+    => R.MkSpec m r s
+    -> R.Initializer m s c
+    -> r
+    -> ContT () m (c, s)
+mkInitializedSpec mkSpc ini r = do
+    s <- lift $ R.unMkSpec mkSpc r
+    c <- ini s
+    pure (c, s)
 
 -- -- | Modify prototype's reading environment @s1@ inside a larger @s2@
 -- magnifyPrototype :: Lens' s2 s1  -> Prototype m v s1 c -> Prototype m v s2 c

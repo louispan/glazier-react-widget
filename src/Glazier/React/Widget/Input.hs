@@ -19,7 +19,6 @@ import Control.Lens
 import Control.Monad.Cont
 import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
-import Data.Diverse.Lens
 import Data.Generics.Product
 import qualified Data.JSString as J
 import Data.Maybe
@@ -51,8 +50,8 @@ textInput ::
     , Z.MonadJS m
     )
     => Z.GadgetId
-    -> Z.Prototype m v J.JSString (Which '[])
-textInput gid = Z.nulPrototype
+    -> Z.Prototype m v J.JSString ()
+textInput gid = Z.noopPrototype
     { Z.display = \s -> Z.lf' gid s "input"
         [ ("key", JE.toJSR . Z.reactKey $ s ^. Z.plan)
         -- "value" cannot be used as React will take over as a controlled component.
@@ -65,8 +64,8 @@ textInput gid = Z.nulPrototype
         , ("defaultValue", JE.toJSR $ s ^. Z.model)
         ]
     , Z.initializer = Z.withRef gid
-        `Z.alsoInitializer` onInitialized
-        `Z.alsoInitializer` (Z.trigger' gid "onChange" () `Z.handledBy` hdlChange)
+        `Z.thenInitializer` onInitialized
+        `Z.thenInitializer` (Z.trigger' gid "onChange" () `Z.handledBy` hdlChange)
     }
   where
 
@@ -75,8 +74,8 @@ textInput gid = Z.nulPrototype
     onInitialized ::
         ( Z.MonadReactor m
         , Z.MonadJS m
-        ) => Z.SceneInitializer m v J.JSString (Which '[])
-    onInitialized this@(Z.Obj ref its) = Z.terminate' $ lift $ Z.addEveryOnUpdated this go
+        ) => Z.SceneInitializer m v J.JSString ()
+    onInitialized this@(Z.Obj ref its) = lift $ Z.addEveryOnUpdated this go
       where
         go = do
             obj <- Z.doReadIORef ref
@@ -93,8 +92,8 @@ textInput gid = Z.nulPrototype
 
     hdlChange ::
         ( Z.MonadReactor m, Z.MonadJS m
-        ) => Z.SceneHandler m v J.JSString a (Which '[])
-    hdlChange (Z.Obj ref its) _ = Z.terminate' $ lift $ void $ runMaybeT $ do
+        ) => Z.SceneHandler m v J.JSString a ()
+    hdlChange (Z.Obj ref its) _ = lift $ void $ runMaybeT $ do
         obj <- lift $ Z.doReadIORef ref
         j <- MaybeT $ pure $ obj ^. its.Z.plan.field @"refs".at gid
         v <- lift $ (fromMaybe J.empty . JE.fromJSR) <$> (Z.doGetProperty "value" j)
@@ -149,22 +148,22 @@ estimateSelectionRange before after start end =
 -- is responsible for making the entire model.
 checkboxInput :: ( Z.MonadReactor m)
     => Z.GadgetId
-    -> Z.Prototype m v Bool (Which '[])
-checkboxInput gid = Z.nulPrototype
+    -> Z.Prototype m v Bool ()
+checkboxInput gid = Z.noopPrototype
     { Z.display = \s -> Z.lf' gid s "input"
         [ ("key", JE.toJSR . Z.reactKey $ s ^. Z.plan)
         , ("type", "checkbox")
         , ("checked", JE.toJSR $ s ^. Z.model)
         ]
     , Z.initializer = Z.withRef gid
-        `Z.alsoInitializer` (Z.trigger' gid "onChange" () `Z.handledBy` hdlChange)
+        `Z.thenInitializer` (Z.trigger' gid "onChange" () `Z.handledBy` hdlChange)
     }
 
   where
     hdlChange ::
         (Z.MonadReactor m)
-        => Z.SceneHandler m v Bool a (Which '[])
-    hdlChange this@(Z.Obj ref its) _ = Z.terminate' $ lift $ do
+        => Z.SceneHandler m v Bool a ()
+    hdlChange this@(Z.Obj ref its) _ = lift $ do
         Z.doModifyIORef' ref (its.Z.model %~ not)
         Z.dirty this
 
@@ -181,19 +180,19 @@ indeterminateCheckboxInput ::
     , Z.MonadJS m
     )
     => Z.GadgetId
-    -> Z.Prototype m v IndeterminateCheckboxInput (Which '[])
+    -> Z.Prototype m v IndeterminateCheckboxInput ()
 indeterminateCheckboxInput gid = Z.magnifyPrototype (field @"checked") (checkboxInput gid)
     & Z.modifyInitializer fini
   where
-    fini ini = ini `Z.alsoInitializer` onInitialized
+    fini ini = ini `Z.thenInitializer` onInitialized
 
     -- | Add setting the indeterminate' after every dirty as this is the only
     -- way to change that setting.
     onInitialized ::
         ( Z.MonadReactor m
         , Z.MonadJS m
-        ) => Z.SceneInitializer m v IndeterminateCheckboxInput (Which '[])
-    onInitialized this@(Z.Obj ref its) = Z.terminate' $ lift $ Z.addEveryOnUpdated this go
+        ) => Z.SceneInitializer m v IndeterminateCheckboxInput ()
+    onInitialized this@(Z.Obj ref its) = lift $ Z.addEveryOnUpdated this go
       where
         go = do
             obj <- Z.doReadIORef ref

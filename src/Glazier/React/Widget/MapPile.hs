@@ -14,7 +14,6 @@ module Glazier.React.Widget.MapPile where
 
 import Control.Lens
 import Control.Monad.Trans
-import Data.Diverse.Profunctor
 import Data.Generics.Product
 import qualified Data.Map.Strict as M
 import Data.Semigroup
@@ -22,8 +21,8 @@ import qualified Glazier.React.Framework as Z
 
 hdlMapPileDeleteItem :: (Z.MonadReactor m, Ord k)
     => Z.Finalizer m s
-    -> Z.SceneHandler m v (M.Map k s) k (Which '[])
-hdlMapPileDeleteItem fin this@(Z.Obj ref its) k = Z.terminate' . lift $ do
+    -> Z.SceneHandler m v (M.Map k s) k ()
+hdlMapPileDeleteItem fin this@(Z.Obj ref its) k = lift $ do
     obj <- Z.doReadIORef ref
     let mi = M.lookup k (obj ^. its.Z.model)
     fin' <- maybe (pure mempty) fin mi
@@ -34,8 +33,8 @@ hdlMapPileDeleteItem fin this@(Z.Obj ref its) k = Z.terminate' . lift $ do
 
 hdlMapPileInsertItem :: (Z.MonadReactor m, Ord k)
     => Z.Finalizer m s
-    -> Z.SceneHandler m v (M.Map k s) (k, s) (Which '[])
-hdlMapPileInsertItem fin this@(Z.Obj ref its) (k, s) = Z.terminate' . lift $ do
+    -> Z.SceneHandler m v (M.Map k s) (k, s) ()
+hdlMapPileInsertItem fin this@(Z.Obj ref its) (k, s) = lift $ do
     obj <- Z.doReadIORef ref
     let mi = M.lookup k (obj ^. its.Z.model)
     fin' <- maybe (pure mempty) fin mi

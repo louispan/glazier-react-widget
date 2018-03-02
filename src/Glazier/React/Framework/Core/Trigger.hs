@@ -118,20 +118,20 @@ withRef ::
     ( Z.MonadReactor m
     )
     => Z.GadgetId
-    -> Z.SceneInitializer m v s (Which '[])
+    -> Z.SceneInitializer m v s ()
 withRef i = mkListener i "ref" (pure . Just . Z.EventTarget) id
     `handledBy` hdlRef
   where
     -- hdlRef :: Z.SceneHandler m v s (Z.EventTarget) (Which '[])
-    hdlRef (Z.Obj ref its) j = terminate' . lift $
+    hdlRef (Z.Obj ref its) j = lift $
         Z.doModifyIORef' ref (its.Z.plan.field @"refs".at i .~ Just j)
 
--- | Convert the original ContT to a ContT that
--- doens't call it's continuation, by 'const'ing the original contination
--- to 'pure'.
--- This is useful for converting a @Handler m s a ()@ to a @Handler m s a (Which '[])@
--- for combining using 'orHandler'.
--- This ContT can be run with  'Data.Diverse.Which.impossible'.
--- @ContT r m (Which '[])@ is effectively equivanlent to @m r@
-terminate' :: Applicative m => ContT () m () -> ContT () m (Which '[])
-terminate' = TE.terminate @(Which '[])
+-- -- | Convert the original ContT to a ContT that
+-- -- doens't call it's continuation, by 'const'ing the original contination
+-- -- to 'pure'.
+-- -- This is useful for converting a @Handler m s a ()@ to a @Handler m s a (Which '[])@
+-- -- for combining using 'orHandler'.
+-- -- This ContT can be run with  'Data.Diverse.Which.impossible'.
+-- -- NB. This stops further ContT from executing.
+-- terminate' :: Applicative m => ContT () m () -> ContT () m (Which '[])
+-- terminate' = TE.terminate @(Which '[])

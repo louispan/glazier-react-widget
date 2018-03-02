@@ -26,7 +26,7 @@ import qualified Glazier.React.Widget.Pile.Glam as W
 
 hdlGlamMapPileDeleteItem :: (Z.MonadReactor m, Ord k)
     => Z.Finalizer m s
-    -> Z.SceneHandler m v (W.GlamPile flt srt (M.Map k) s) k (Which '[])
+    -> Z.SceneHandler m v (W.GlamPile flt srt (M.Map k) s) k ()
 hdlGlamMapPileDeleteItem fin this@(Z.Obj ref its) k = do
     lift $ do
         Z.doModifyIORef' ref (its.Z.model.field @"glamList" .~ []) -- this tells render to update displayItems
@@ -35,7 +35,7 @@ hdlGlamMapPileDeleteItem fin this@(Z.Obj ref its) k = do
 
 hdlGlamMapPileInsertItem :: (Z.MonadReactor m, Ord k)
     => Z.Finalizer m s
-    -> Z.SceneHandler m v (W.GlamPile flt srt (M.Map k) s) (k, s) (Which '[])
+    -> Z.SceneHandler m v (W.GlamPile flt srt (M.Map k) s) (k, s) ()
 hdlGlamMapPileInsertItem fin this@(Z.Obj ref its) k = do
     lift $ do
         Z.doModifyIORef' ref (its.Z.model.field @"glamList" .~ []) -- this tells render to update displayItems

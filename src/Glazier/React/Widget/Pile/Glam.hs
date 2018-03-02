@@ -17,7 +17,6 @@ module Glazier.React.Widget.Pile.Glam where
 import Control.Lens
 import qualified Control.Monad.ListM as LM
 import Control.Monad.Trans.Class
-import Data.Diverse.Profunctor
 import Data.Foldable
 import Data.Generics.Product
 import qualified GHC.Generics as G
@@ -56,8 +55,8 @@ glamPile flt srt (Z.Archetype dis fin ini)
 
 -- | Sort the items on the listing given a sorting function
 hdlGlamPileSortCriteria :: (Z.MonadReactor m)
-    => Z.SceneHandler m v (GlamPile flt srt t a) srt (Which '[])
-hdlGlamPileSortCriteria this@(Z.Obj ref its) f = Z.terminate' . lift $ do
+    => Z.SceneHandler m v (GlamPile flt srt t a) srt ()
+hdlGlamPileSortCriteria this@(Z.Obj ref its) f = lift $ do
     Z.doModifyIORef' ref $ \obj ->
         obj & (its.Z.model.field @"sortCriteria" .~ f)
             . (its.Z.model.field @"glamList" .~ []) -- this tells render to update displayItems
@@ -65,8 +64,8 @@ hdlGlamPileSortCriteria this@(Z.Obj ref its) f = Z.terminate' . lift $ do
 
 -- | Filter the items on the listing given a filter function
 hdlGlamPileFilterCriteria :: (Z.MonadReactor m)
-    => Z.SceneHandler m v (GlamPile flt srt t a) flt (Which '[])
-hdlGlamPileFilterCriteria this@(Z.Obj ref its) f = Z.terminate' . lift $ do
+    => Z.SceneHandler m v (GlamPile flt srt t a) flt ()
+hdlGlamPileFilterCriteria this@(Z.Obj ref its) f = lift $ do
     Z.doModifyIORef' ref $ \obj ->
         obj & (its.Z.model.field @"filterCriteria" .~ f)
             . (its.Z.model.field @"glamList" .~ []) -- this tells render to update displayItems

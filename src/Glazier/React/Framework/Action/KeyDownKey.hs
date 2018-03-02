@@ -8,15 +8,15 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import qualified GHC.Generics as G
 import qualified GHCJS.Types as J
-import qualified Glazier.React as R
+import qualified Glazier.React as Z
 
-data KeyDownKey = KeyDownKey R.EventTarget J.JSString
+data KeyDownKey = KeyDownKey Z.EventTarget J.JSString
     deriving (G.Generic, NFData)
 
-fireKeyDownKey :: R.SyntheticEvent -> MaybeT IO KeyDownKey
+fireKeyDownKey :: Z.SyntheticEvent -> MaybeT IO KeyDownKey
 fireKeyDownKey evt = do
-    kevt <- MaybeT $ pure $ R.toKeyboardEvent evt
-    let evt' = R.toEvent evt
-        k = R.key kevt
-    target <- lift $ pure . R.target $ evt'
+    kevt <- MaybeT $ pure $ Z.toKeyboardEvent evt
+    let evt' = Z.toEvent evt
+        k = Z.key kevt
+    target <- lift $ pure . Z.target $ evt'
     pure $ KeyDownKey target k

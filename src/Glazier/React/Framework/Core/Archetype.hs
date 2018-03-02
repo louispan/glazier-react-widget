@@ -24,83 +24,79 @@ import qualified Data.JSString as J
 import qualified Data.Maybe.Esoteric as E
 import Data.Semigroup
 import qualified GHC.Generics as G
-import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core.Builder as R
-import qualified Glazier.React.Framework.Core.Display as R
-import qualified Glazier.React.Framework.Core.Finalizer as R
-import qualified Glazier.React.Framework.Core.Handler as R
-import qualified Glazier.React.Framework.Core.Initializer as R
-import qualified Glazier.React.Framework.Core.Model as R
-import qualified Glazier.React.Framework.Core.Obj as R
-import qualified Glazier.React.Framework.Core.Prototype as R
+import qualified Glazier.Core as Z
+import qualified Glazier.React as Z
+import qualified Glazier.React.Framework.Core.Display as Z
+import qualified Glazier.React.Framework.Core.Model as Z
+import qualified Glazier.React.Framework.Core.Prototype as Z
 import qualified JavaScript.Extras as JE
 
 data Archetype m s c = Archetype
-    { display' :: R.Display m s ()
-    , finalizer' :: R.Finalizer m s
-    , initializer' :: R.Initializer m s c
+    { display' :: Z.Display m s ()
+    , finalizer' :: Z.Finalizer m s
+    , initializer' :: Z.Initializer m s c
     } deriving (G.Generic, Functor)
 
--- mapBuilder' :: (R.Builder m i1 s i1 s -> R.Builder m i2 s i2 s)
+-- mapBuilder' :: (Z.Builder m i1 s i1 s -> Z.Builder m i2 s i2 s)
 --     -> Archetype m i1 s c -> Archetype m i2 s c
 -- mapBuilder' f p = let bld = builder' p in p { builder' = f bld }
 -- infixl 4 `mapBuilder'` -- like <$>
 
-modifyDisplay' :: (R.Display m s () -> R.Display m s ())
+modifyDisplay' :: (Z.Display m s () -> Z.Display m s ())
     -> Archetype m s c -> Archetype m s c
 modifyDisplay' f p = let disp = display' p in p { display' = f disp }
 infixl 4 `modifyDisplay'` -- like <$>
 
-modifyFinalizer' :: (R.Finalizer m s -> R.Finalizer m s)
+modifyFinalizer' :: (Z.Finalizer m s -> Z.Finalizer m s)
     -> Archetype m s c -> Archetype m s c
 modifyFinalizer' f p = let fin = finalizer' p in p { finalizer' = f fin }
 infixl 4 `modifyFinalizer'` -- like <$>
 
-modifyInitializer' :: (R.Initializer m s c1 -> R.Initializer m s c2)
+modifyInitializer' :: (Z.Initializer m s c1 -> Z.Initializer m s c2)
     -> Archetype m s c1 -> Archetype m s c2
 modifyInitializer' f p = let ini = initializer' p in p { initializer' = f ini }
 infixl 4 `modifyInitializer'` -- like <$>
 
--- mapHandler' :: (R.Handler m s a1 b1 -> R.Handler m s a2 b2)
+-- mapHandler' :: (Z.Handler m s a1 b1 -> Z.Handler m s a2 b2)
 --     -> Archetype m i s c a1 b1 -> Archetype m i s c a2 b2
 -- mapHandler' f p = let hdl = handler' p in p { handler' = f hdl }
 -- infixl 4 `mapHandler'` -- like <$>
 
-toArchetypeBuilder :: R.MonadReactor m
+toArchetypeBuilder :: Z.MonadReactor m
     => J.JSString
-    -> R.Builder m r s r' s'
-    -> R.Builder m r (IORef (R.Frame m s)) r' (IORef (R.Frame m s'))
-toArchetypeBuilder n (R.Builder (R.MkReq mkReq, R.MkSpec mkSpc)) = R.Builder
-        ( R.MkReq (R.doReadIORef >=> (mkReq . snd))
-        , R.MkSpec $ \i -> do
+    -> Z.Builder m r s r' s'
+    -> Z.Builder m r (IORef (Z.Frame m s)) r' (IORef (Z.Frame m s'))
+toArchetypeBuilder n (Z.Builder (Z.MkReq mkReq, Z.MkSpec mkSpc)) = Z.Builder
+        ( Z.MkReq (Z.doReadIORef >=> (mkReq . snd))
+        , Z.MkSpec $ \i -> do
             -- tuple the original state with a ComponentPlan
             -- and wrap inside a IORef
             s <- mkSpc i
-            cp <- R.mkPlan n
-            R.doNewIORef (cp, s)
+            cp <- Z.mkPlan n
+            Z.doNewIORef (cp, s)
         )
 
 toArchetypeHandler ::
-    R.SceneHandler m (R.Frame m s) s a b -- ^ @v@ is no longer polymorphic
-    -> R.Handler m (IORef (R.Frame m s)) a b
-toArchetypeHandler hdl ref = hdl (R.Obj ref id)
+    Z.SceneHandler m (Z.Frame m s) s a b -- ^ @v@ is no longer polymorphic
+    -> Z.Handler m (IORef (Z.Frame m s)) a b
+toArchetypeHandler hdl ref = hdl (Z.Obj ref id)
 
-fromArchetypeHandler :: R.MonadReactor m => R.Handler m s a b -> R.SceneHandler m v s a b
-fromArchetypeHandler hdl (R.Obj ref its) a = do
-    obj <- lift $ R.doReadIORef ref
-    hdl (obj ^. its.R.model) a
+fromArchetypeHandler :: Z.MonadReactor m => Z.Handler m s a b -> Z.SceneHandler m v s a b
+fromArchetypeHandler hdl (Z.Obj ref its) a = do
+    obj <- lift $ Z.doReadIORef ref
+    hdl (obj ^. its.Z.model) a
 
 -- | NB. fromArchetype . toArchetype != id
-toArchetype :: R.MonadReactor m
-    => R.Prototype m (R.Frame m s) s c -- ^ @v@ is no longer polymorphic
-    -> Archetype m (IORef (R.Frame m s)) c
+toArchetype :: Z.MonadReactor m
+    => Z.Prototype m (Z.Frame m s) s c -- ^ @v@ is no longer polymorphic
+    -> Archetype m (IORef (Z.Frame m s)) c
 toArchetype
-    (R.Prototype dis fin ini)
+    (Z.Prototype dis fin ini)
     = Archetype dis' fin' ini'
   where
     dis' ref = do
-        (cp, _) <- lift $ R.doReadIORef ref
-        R.leaf
+        (cp, _) <- lift $ Z.doReadIORef ref
+        Z.leaf
             (DL.fromList $ E.keepMaybes [ ("updated", cp ^. field @"onUpdated")])
             (cp ^. field @"component".to JE.toJSR)
             (DL.fromList $ E.keepMaybes
@@ -108,34 +104,34 @@ toArchetype
                 , ("render", JE.toJSR <$> cp ^. field @"onRender")
                 ])
     fin' ref = do
-        (cp, s) <- R.doReadIORef ref
+        (cp, s) <- Z.doReadIORef ref
         fin'' <- fin s
-        pure (fin'' <> R.disposeOnRemoved cp <> R.disposeOnUpdated cp)
+        pure (fin'' <> Z.disposeOnRemoved cp <> Z.disposeOnUpdated cp)
     ini' ref = do
         -- Run the Prototype's Initializer, saving the continuation result
-        a <- ini (R.Obj ref id)
+        a <- ini (Z.Obj ref id)
         -- Now activate this archetype, passing the output
         fmap (const a) . lift $ do
             -- Now add our own Archetype activation
-            (cp, _) <- R.doReadIORef ref
+            (cp, _) <- Z.doReadIORef ref
             -- now replace the render and componentUpdated in the model if not already activated
-            rnd <- case R.onRender cp of
+            rnd <- case Z.onRender cp of
                         Just _ -> pure Nothing
-                        Nothing -> fmap Just . R.doMkRenderer $ do
-                            s <- lift $ R.doReadIORef ref
+                        Nothing -> fmap Just . Z.doMkRenderer $ do
+                            s <- lift $ Z.doReadIORef ref
                             dis s
-            upd <- case R.onUpdated cp of
+            upd <- case Z.onUpdated cp of
                         Just _ -> pure Nothing
-                        Nothing -> fmap Just . R.doMkCallback (const $ pure ()) . const $ do
-                            (cp', _) <- R.doReadIORef ref
-                            R.doModifyIORef' ref $ \s -> s
+                        Nothing -> fmap Just . Z.doMkCallback (const $ pure ()) . const $ do
+                            (cp', _) <- Z.doReadIORef ref
+                            Z.doModifyIORef' ref $ \s -> s
                                 -- can't use '.~' with afterOnUpdated - causes type inference errors
-                                & (R.plan.field @"onceOnUpdated") `set'` pure mempty
-                                & R.plan.field @"disposeOnUpdated" .~ mempty
+                                & (Z.plan.field @"onceOnUpdated") `set'` pure mempty
+                                & Z.plan.field @"disposeOnUpdated" .~ mempty
                             -- Now run things on every updated
-                            R.doDispose (R.disposeOnUpdated cp')
-                            R.everyOnUpdated cp'
-                            R.onceOnUpdated cp'
+                            Z.doDispose (Z.disposeOnUpdated cp')
+                            Z.everyOnUpdated cp'
+                            Z.onceOnUpdated cp'
             let rnd' = (\(d, cb) cp' -> cp' & field @"onRender" .~ Just cb
                                             & field @"disposeOnRemoved" %~ (<> d)
                         ) <$> rnd
@@ -148,42 +144,42 @@ toArchetype
                         (Just x, Just y) -> Just (y . x)
             case mf of
                 Nothing -> pure ()
-                Just g -> R.doModifyIORef' ref (first g)
+                Just g -> Z.doModifyIORef' ref (first g)
 
-    -- hdl' ref = hdl (R.Obj ref id)
+    -- hdl' ref = hdl (Z.Obj ref id)
 
 -- | NB. fromArchetype . toArchetype != id
-fromArchetype :: R.MonadReactor m
+fromArchetype :: Z.MonadReactor m
     => Archetype m s c
-    -> R.Prototype m v s c
-fromArchetype (Archetype disp fin ini) = R.Prototype
+    -> Z.Prototype m v s c
+fromArchetype (Archetype disp fin ini) = Z.Prototype
     (\(_, s) -> disp s)
     fin
-    (\(R.Obj ref its) -> do
-        obj <- lift $ R.doReadIORef ref
-        ini (obj ^. its.R.model))
-    -- (\(R.Obj ref its) a -> do
-    --     obj <- lift $ R.doReadIORef ref
-    --     hdl (obj ^. its.R.model) a)
+    (\(Z.Obj ref its) -> do
+        obj <- lift $ Z.doReadIORef ref
+        ini (obj ^. its.Z.model))
+    -- (\(Z.Obj ref its) a -> do
+    --     obj <- lift $ Z.doReadIORef ref
+    --     hdl (obj ^. its.Z.model) a)
 
-fromArchetypeMaybe :: R.MonadReactor m
+fromArchetypeMaybe :: Z.MonadReactor m
     => Archetype m s c
-    -> R.Prototype m v (Maybe s) c
-fromArchetypeMaybe (Archetype disp fin ini) = R.Prototype
+    -> Z.Prototype m v (Maybe s) c
+fromArchetypeMaybe (Archetype disp fin ini) = Z.Prototype
     (\(_, s) -> maybe (pure ()) disp s)
     (maybe (pure mempty) fin)
-    (\(R.Obj ref its) -> do
-        obj <- lift $ R.doReadIORef ref
-        case obj ^. its.R.model of
+    (\(Z.Obj ref its) -> do
+        obj <- lift $ Z.doReadIORef ref
+        case obj ^. its.Z.model of
             Nothing -> ContT $ const $ pure ()
             Just s' -> ini s')
-    -- (\(R.Obj ref its) a -> do
-    --     obj <- lift $ R.doReadIORef ref
-    --     hdl (obj ^. its.R.model) a)
+    -- (\(Z.Obj ref its) a -> do
+    --     obj <- lift $ Z.doReadIORef ref
+    --     hdl (obj ^. its.Z.model) a)
 
-fromArchetypeMaybeHandler :: R.MonadReactor m => R.Handler m s a b -> R.SceneHandler m v (Maybe s) a b
-fromArchetypeMaybeHandler hdl (R.Obj ref its) a = do
-    obj <- lift $ R.doReadIORef ref
-    case obj ^. its.R.model of
+fromArchetypeMaybeHandler :: Z.MonadReactor m => Z.Handler m s a b -> Z.SceneHandler m v (Maybe s) a b
+fromArchetypeMaybeHandler hdl (Z.Obj ref its) a = do
+    obj <- lift $ Z.doReadIORef ref
+    case obj ^. its.Z.model of
         Nothing -> ContT $ const $ pure ()
         Just s' -> hdl s' a

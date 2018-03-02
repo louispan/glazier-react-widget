@@ -54,6 +54,8 @@ packages:
   extra-dep: true
 - location: '/Users/louis/repo/hs/esoteric-extras'
   extra-dep: true
+- location: '/Users/louis/repo/hs/glazier'
+  extra-dep: true
 # - location: '/Users/louis/repo/hs/parameterized'
 #   extra-dep: true
 # - location: '/Users/louis/repo/hs/alternators'

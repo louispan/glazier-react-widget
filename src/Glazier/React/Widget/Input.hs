@@ -24,8 +24,8 @@ import Data.Generics.Product
 import qualified Data.JSString as J
 import Data.Maybe
 import qualified GHC.Generics as G
-import qualified Glazier.React as R
-import qualified Glazier.React.Framework as R
+import qualified Glazier.React as Z
+import qualified Glazier.React.Framework as Z
 import qualified JavaScript.Extras as JE
 
 ----------------------------------------
@@ -47,14 +47,14 @@ import qualified JavaScript.Extras as JE
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( R.MonadReactor m
-    , R.MonadJS m
+    ( Z.MonadReactor m
+    , Z.MonadJS m
     )
-    => R.GadgetId
-    -> R.Prototype m v J.JSString (Which '[])
-textInput gid = R.nulPrototype
-    { R.display = \s -> R.lf' gid s "input"
-        [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
+    => Z.GadgetId
+    -> Z.Prototype m v J.JSString (Which '[])
+textInput gid = Z.nulPrototype
+    { Z.display = \s -> Z.lf' gid s "input"
+        [ ("key", JE.toJSR . Z.reactKey $ s ^. Z.plan)
         -- "value" cannot be used as React will take over as a controlled component.
         -- The defaultValue only sets the *initial* DOM value
         -- The user will need to modify reactKey if they want
@@ -62,43 +62,43 @@ textInput gid = R.nulPrototype
         -- even if defaultValue changes.
         -- But hopefully this is not necessary as the DOM inpt value
         -- is updated under the hood in onInitialized
-        , ("defaultValue", JE.toJSR $ s ^. R.model)
+        , ("defaultValue", JE.toJSR $ s ^. Z.model)
         ]
-    , R.initializer = R.withRef gid
-        `R.andInitializer` onInitialized
-        `R.andInitializer` (R.trigger' gid "onChange" () `R.handledBy` hdlChange)
+    , Z.initializer = Z.withRef gid
+        `Z.alsoInitializer` onInitialized
+        `Z.alsoInitializer` (Z.trigger' gid "onChange" () `Z.handledBy` hdlChange)
     }
   where
 
     -- | Add setting the DOM input value after every render as this is the only
     -- way to change that setting.
     onInitialized ::
-        ( R.MonadReactor m
-        , R.MonadJS m
-        ) => R.SceneInitializer m v J.JSString (Which '[])
-    onInitialized this@(R.Obj ref its) = R.terminate' $ lift $ R.addEveryOnUpdated this go
+        ( Z.MonadReactor m
+        , Z.MonadJS m
+        ) => Z.SceneInitializer m v J.JSString (Which '[])
+    onInitialized this@(Z.Obj ref its) = Z.terminate' $ lift $ Z.addEveryOnUpdated this go
       where
         go = do
-            obj <- R.doReadIORef ref
-            let s = obj ^. its.R.model
+            obj <- Z.doReadIORef ref
+            let s = obj ^. its.Z.model
             void $ runMaybeT $ do
-                j <- MaybeT $ pure $ obj ^. its.R.plan.field @"refs".at gid
-                start <- MaybeT $ JE.fromJSR <$> (R.doGetProperty "selectionStart" j)
-                end <- MaybeT $ JE.fromJSR <$> (R.doGetProperty "selectionEnd" j)
-                v <- MaybeT $ JE.fromJSR <$> (R.doGetProperty "value" j)
+                j <- MaybeT $ pure $ obj ^. its.Z.plan.field @"refs".at gid
+                start <- MaybeT $ JE.fromJSR <$> (Z.doGetProperty "selectionStart" j)
+                end <- MaybeT $ JE.fromJSR <$> (Z.doGetProperty "selectionEnd" j)
+                v <- MaybeT $ JE.fromJSR <$> (Z.doGetProperty "value" j)
                 let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                lift $ j & R.doSetProperty ("value", JE.toJSR s)
-                lift $ j & R.doSetProperty ("selectionStart", JE.toJSR a)
-                lift $ j & R.doSetProperty ("selectionEnd", JE.toJSR b)
+                lift $ j & Z.doSetProperty ("value", JE.toJSR s)
+                lift $ j & Z.doSetProperty ("selectionStart", JE.toJSR a)
+                lift $ j & Z.doSetProperty ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
-        ( R.MonadReactor m, R.MonadJS m
-        ) => R.SceneHandler m v J.JSString a (Which '[])
-    hdlChange (R.Obj ref its) _ = R.terminate' $ lift $ void $ runMaybeT $ do
-        obj <- lift $ R.doReadIORef ref
-        j <- MaybeT $ pure $ obj ^. its.R.plan.field @"refs".at gid
-        v <- lift $ (fromMaybe J.empty . JE.fromJSR) <$> (R.doGetProperty "value" j)
-        lift $ R.doModifyIORef' ref (its.R.model .~ v)
+        ( Z.MonadReactor m, Z.MonadJS m
+        ) => Z.SceneHandler m v J.JSString a (Which '[])
+    hdlChange (Z.Obj ref its) _ = Z.terminate' $ lift $ void $ runMaybeT $ do
+        obj <- lift $ Z.doReadIORef ref
+        j <- MaybeT $ pure $ obj ^. its.Z.plan.field @"refs".at gid
+        v <- lift $ (fromMaybe J.empty . JE.fromJSR) <$> (Z.doGetProperty "value" j)
+        lift $ Z.doModifyIORef' ref (its.Z.model .~ v)
         -- Don't mark input as dirty since changing model
         -- does not change the DOM input value.
 
@@ -147,26 +147,26 @@ estimateSelectionRange before after start end =
 -- | This provide a prototype of a checkbox input but without a builder.
 -- Instead a lens to the CheckboxInput is used, and the user of this widget
 -- is responsible for making the entire model.
-checkboxInput :: ( R.MonadReactor m)
-    => R.GadgetId
-    -> R.Prototype m v Bool (Which '[])
-checkboxInput gid = R.nulPrototype
-    { R.display = \s -> R.lf' gid s "input"
-        [ ("key", JE.toJSR . R.reactKey $ s ^. R.plan)
+checkboxInput :: ( Z.MonadReactor m)
+    => Z.GadgetId
+    -> Z.Prototype m v Bool (Which '[])
+checkboxInput gid = Z.nulPrototype
+    { Z.display = \s -> Z.lf' gid s "input"
+        [ ("key", JE.toJSR . Z.reactKey $ s ^. Z.plan)
         , ("type", "checkbox")
-        , ("checked", JE.toJSR $ s ^. R.model)
+        , ("checked", JE.toJSR $ s ^. Z.model)
         ]
-    , R.initializer = R.withRef gid
-        `R.andInitializer` (R.trigger' gid "onChange" () `R.handledBy` hdlChange)
+    , Z.initializer = Z.withRef gid
+        `Z.alsoInitializer` (Z.trigger' gid "onChange" () `Z.handledBy` hdlChange)
     }
 
   where
     hdlChange ::
-        (R.MonadReactor m)
-        => R.SceneHandler m v Bool a (Which '[])
-    hdlChange this@(R.Obj ref its) _ = R.terminate' $ lift $ do
-        R.doModifyIORef' ref (its.R.model %~ not)
-        R.dirty this
+        (Z.MonadReactor m)
+        => Z.SceneHandler m v Bool a (Which '[])
+    hdlChange this@(Z.Obj ref its) _ = Z.terminate' $ lift $ do
+        Z.doModifyIORef' ref (its.Z.model %~ not)
+        Z.dirty this
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -177,30 +177,30 @@ data IndeterminateCheckboxInput = IndeterminateCheckboxInput
 -- Instead a lens to the CheckboxInput is used, and the user of this widget
 -- is responsible for making the entire model.
 indeterminateCheckboxInput ::
-    ( R.MonadReactor m
-    , R.MonadJS m
+    ( Z.MonadReactor m
+    , Z.MonadJS m
     )
-    => R.GadgetId
-    -> R.Prototype m v IndeterminateCheckboxInput (Which '[])
-indeterminateCheckboxInput gid = R.magnifyPrototype (field @"checked") (checkboxInput gid)
-    & R.modifyInitializer fini
+    => Z.GadgetId
+    -> Z.Prototype m v IndeterminateCheckboxInput (Which '[])
+indeterminateCheckboxInput gid = Z.magnifyPrototype (field @"checked") (checkboxInput gid)
+    & Z.modifyInitializer fini
   where
-    fini ini = ini `R.andInitializer` onInitialized
+    fini ini = ini `Z.alsoInitializer` onInitialized
 
     -- | Add setting the indeterminate' after every dirty as this is the only
     -- way to change that setting.
     onInitialized ::
-        ( R.MonadReactor m
-        , R.MonadJS m
-        ) => R.SceneInitializer m v IndeterminateCheckboxInput (Which '[])
-    onInitialized this@(R.Obj ref its) = R.terminate' $ lift $ R.addEveryOnUpdated this go
+        ( Z.MonadReactor m
+        , Z.MonadJS m
+        ) => Z.SceneInitializer m v IndeterminateCheckboxInput (Which '[])
+    onInitialized this@(Z.Obj ref its) = Z.terminate' $ lift $ Z.addEveryOnUpdated this go
       where
         go = do
-            obj <- R.doReadIORef ref
-            let j = obj ^. its.R.plan.field @"refs".at gid
+            obj <- Z.doReadIORef ref
+            let j = obj ^. its.Z.plan.field @"refs".at gid
             case j of
                 Nothing -> pure ()
-                Just j' -> j' & R.doSetProperty
+                Just j' -> j' & Z.doSetProperty
                     ( "indeterminate'"
-                    , JE.toJSR $ obj ^. its.R.model.field @"indeterminate'"
+                    , JE.toJSR $ obj ^. its.Z.model.field @"indeterminate'"
                     )

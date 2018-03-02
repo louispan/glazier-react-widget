@@ -35,8 +35,8 @@ import Data.Generics.Product
 import qualified Data.Map.Strict as M
 import Data.Semigroup
 import qualified GHC.Generics as G
-import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core as R
+import qualified Glazier.React as Z
+import qualified Glazier.React.Framework.Core as Z
 
 -- | A listing is actually a map so that we allow for fast insert/deleting
 -- and also be able to reorder the elements.
@@ -50,99 +50,99 @@ data Mapping flt srt k i = Mapping
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Mapping a@
 listingBuilder :: (Applicative m)
-    => R.Builder m i s i s
-    -> R.Builder m (Mapping flt srt k i) (Mapping flt srt k s) (Mapping flt srt k i) (Mapping flt srt k s)
-listingBuilder (R.Builder (R.MkReq mkReq, R.MkSpec mkSpc)) =
-    R.Builder (R.MkReq mkReq', R.MkSpec mkSpc')
+    => Z.Builder m i s i s
+    -> Z.Builder m (Mapping flt srt k i) (Mapping flt srt k s) (Mapping flt srt k i) (Mapping flt srt k s)
+listingBuilder (Z.Builder (Z.MkReq mkReq, Z.MkSpec mkSpc)) =
+    Z.Builder (Z.MkReq mkReq', Z.MkSpec mkSpc')
   where
     mkReq' (Mapping df ds dss ss) = Mapping df ds <$> traverse mkReq dss <*> traverse mkReq ss
     mkSpc' (Mapping df ds dps ps) = Mapping df ds <$> traverse mkSpc dps <*> traverse mkSpc ps
 
 -- | This version drops the original item handlers @a -> b@, and only have list handlers.
-listing :: (R.MonadReactor m)
+listing :: (Z.MonadReactor m)
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
-    -> R.Archetype m s c
-    -> R.Prototype m v (Mapping flt srt k s) c
-listing flt srt (R.Archetype dis fin ini)
-    = R.Prototype
+    -> Z.Archetype m s c
+    -> Z.Prototype m v (Mapping flt srt k s) c
+listing flt srt (Z.Archetype dis fin ini)
+    = Z.Prototype
         (listingDisplay flt srt dis)
         (\s -> fold <$> traverse fin (s ^. field @"items"))
         (listingInitializer ini)
 
-hdlListingDeleteItem :: (R.MonadReactor m, Ord k)
-    => R.Finalizer m s
-    -> R.SceneHandler m v (Mapping flt srt k s)
+hdlListingDeleteItem :: (Z.MonadReactor m, Ord k)
+    => Z.Finalizer m s
+    -> Z.SceneHandler m v (Mapping flt srt k s)
         k (Which '[])
-hdlListingDeleteItem fin this@(R.Obj ref its) k = R.terminate' . lift $ do
-    R.doModifyIORefM ref $ \obj -> do
-        let mi = M.lookup k (obj ^. its.R.model.field @"items")
+hdlListingDeleteItem fin this@(Z.Obj ref its) k = Z.terminate' . lift $ do
+    Z.doModifyIORefM ref $ \obj -> do
+        let mi = M.lookup k (obj ^. its.Z.model.field @"items")
         fin' <- maybe (pure mempty) fin mi
-        pure $ obj & (its.R.model.field @"items" %~ M.delete k)
-            . (its.R.plan.field @"disposeOnUpdated" %~ (<> fin'))
-            . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.dirty this
+        pure $ obj & (its.Z.model.field @"items" %~ M.delete k)
+            . (its.Z.plan.field @"disposeOnUpdated" %~ (<> fin'))
+            . (its.Z.model.field @"displayList" .~ []) -- this tells render to update displayItems
+    Z.dirty this
 
 -- | Sort the items on the listing given a sorting function
-hdlListingSort :: (R.MonadReactor m)
-    => R.SceneHandler m v (Mapping flt srt k s)
+hdlListingSort :: (Z.MonadReactor m)
+    => Z.SceneHandler m v (Mapping flt srt k s)
         srt (Which '[])
-hdlListingSort this@(R.Obj ref its) f = R.terminate' . lift $ do
-    R.doModifyIORef' ref $ \obj ->
-        obj & (its.R.model.field @"displaySort" .~ f)
-            . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.dirty this
+hdlListingSort this@(Z.Obj ref its) f = Z.terminate' . lift $ do
+    Z.doModifyIORef' ref $ \obj ->
+        obj & (its.Z.model.field @"displaySort" .~ f)
+            . (its.Z.model.field @"displayList" .~ []) -- this tells render to update displayItems
+    Z.dirty this
 
 -- | Filter the items on the listing given a filter function
-hdlListingFilter :: (R.MonadReactor m)
-    => R.SceneHandler m v (Mapping flt srt k s)
+hdlListingFilter :: (Z.MonadReactor m)
+    => Z.SceneHandler m v (Mapping flt srt k s)
         flt (Which '[])
-hdlListingFilter this@(R.Obj ref its) f = R.terminate' . lift $ do
-    R.doModifyIORef' ref $ \obj ->
-        obj & (its.R.model.field @"displayFilter" .~ f)
-            . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.dirty this
+hdlListingFilter this@(Z.Obj ref its) f = Z.terminate' . lift $ do
+    Z.doModifyIORef' ref $ \obj ->
+        obj & (its.Z.model.field @"displayFilter" .~ f)
+            . (its.Z.model.field @"displayList" .~ []) -- this tells render to update displayItems
+    Z.dirty this
 
-hdlListingInsertItem :: (R.MonadReactor m, Ord k)
-    => R.Finalizer m s
-    -> R.SceneHandler m v (Mapping flt srt k s)
+hdlListingInsertItem :: (Z.MonadReactor m, Ord k)
+    => Z.Finalizer m s
+    -> Z.SceneHandler m v (Mapping flt srt k s)
         (k, s) (Which '[])
-hdlListingInsertItem fin this@(R.Obj ref its) (k, s) = R.terminate' . lift $ do
-    R.doModifyIORefM ref $ \obj -> do
-        let mi = M.lookup k (obj ^. its.R.model.field @"items")
+hdlListingInsertItem fin this@(Z.Obj ref its) (k, s) = Z.terminate' . lift $ do
+    Z.doModifyIORefM ref $ \obj -> do
+        let mi = M.lookup k (obj ^. its.Z.model.field @"items")
         fin' <- maybe (pure mempty) fin mi
-        pure $ obj & (its.R.model.field @"items" %~ M.insert k s)
-            . (its.R.plan.field @"disposeOnUpdated" %~ (<> fin'))
-            . (its.R.model.field @"displayList" .~ []) -- this tells render to update displayItems
-    R.dirty this
+        pure $ obj & (its.Z.model.field @"items" %~ M.insert k s)
+            . (its.Z.plan.field @"disposeOnUpdated" %~ (<> fin'))
+            . (its.Z.model.field @"displayList" .~ []) -- this tells render to update displayItems
+    Z.dirty this
 
-listingMakeItem :: (R.MonadReactor m)
-    => R.MkSpec m i s
-    -> R.Initializer m s c
+listingMakeItem :: (Z.MonadReactor m)
+    => Z.MkSpec m i s
+    -> Z.Initializer m s c
     -> i
     -> ContT () m (c, s)
 listingMakeItem mkSpc ini i = do
-    s <- lift $ R.unMkSpec mkSpc i
+    s <- lift $ Z.unMkSpec mkSpc i
     c <- ini s
     pure (c, s)
 
 -- | lift a handler for a single widget into a handler of a list of widgets
 -- where the input is broadcast to all the items in the list.
-broadcastListingHandler :: (R.MonadReactor m)
-    => R.Handler m s a b
-    -> R.SceneHandler m v (Mapping flt srt k s)
+broadcastListingHandler :: (Z.MonadReactor m)
+    => Z.Handler m s a b
+    -> Z.SceneHandler m v (Mapping flt srt k s)
         a b
-broadcastListingHandler hdl (R.Obj ref its) a = ContT $ \k -> do
-    obj <- R.doReadIORef ref
-    traverse_ (\s -> runContT (hdl s a) k) (obj ^. its.R.model.field @"items")
+broadcastListingHandler hdl (Z.Obj ref its) a = ContT $ \k -> do
+    obj <- Z.doReadIORef ref
+    traverse_ (\s -> runContT (hdl s a) k) (obj ^. its.Z.model.field @"items")
 
-listingDisplay :: (R.MonadReactor m)
+listingDisplay :: (Z.MonadReactor m)
     => (flt -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
-    -> R.Display m s ()
-    -> R.FrameDisplay m (Mapping flt srt k s) ()
+    -> Z.Display m s ()
+    -> Z.FrameDisplay m (Mapping flt srt k s) ()
 listingDisplay flt srt dis (_, Mapping df ds ys xs) = do
-    let toLi s = R.bh "li" []
+    let toLi s = Z.bh "li" []
             (dis s)
         df' = flt df
         ds' = srt ds
@@ -155,13 +155,13 @@ listingDisplay flt srt dis (_, Mapping df ds ys xs) = do
                 pure zs''
             -- else display as is
             ys' -> pure ys'
-    R.bh "ul" []
+    Z.bh "ul" []
         (mconcat $ toLi <$> ys')
 
-listingInitializer :: R.MonadReactor m
-    => R.Initializer m s b
-    -> R.Scene m v (Mapping flt srt k s)
+listingInitializer :: Z.MonadReactor m
+    => Z.Initializer m s b
+    -> Z.Scene m v (Mapping flt srt k s)
     -> ContT () m b
-listingInitializer ini (R.Obj ref its) = ContT $ \k -> do
-    obj <- R.doReadIORef ref
-    traverse_ (\s -> runContT (ini s) k) (obj ^. its.R.model.field @"items")
+listingInitializer ini (Z.Obj ref its) = ContT $ \k -> do
+    obj <- Z.doReadIORef ref
+    traverse_ (\s -> runContT (ini s) k) (obj ^. its.Z.model.field @"items")

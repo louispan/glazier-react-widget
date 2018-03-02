@@ -21,16 +21,16 @@ import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
-import qualified Glazier.React as R
-import qualified Glazier.React.Framework.Core.Obj as R
+import qualified Glazier.Core as Z
+import qualified Glazier.React as Z
 
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
 
 -- | One for every archetype, may be shared for many prototypes
 data Plan m = Plan
-    { component :: R.ReactComponent
-    , reactKey :: R.ReactKey
+    { component :: Z.ReactComponent
+    , reactKey :: Z.ReactKey
     , currentFrameNum :: Int
     , previousFrameNum :: Int
       -- things to dispose when this widget is removed
@@ -48,14 +48,14 @@ data Plan m = Plan
     -- Eg. `Glazier.React.Framework.Effect.MonadHTMLElement.focusRef` expects a ref
     -- but wont have compile error if `Glazier.React.Framework.Trigger.withRef` was not attached.
     -- The alternative is to store as a 'Many' in the model, but this ends up with messier types.
-    , listeners :: M.Map GadgetId (DL.DList R.Listener)
-    , refs :: M.Map GadgetId R.EventTarget
+    , listeners :: M.Map GadgetId (DL.DList Z.Listener)
+    , refs :: M.Map GadgetId Z.EventTarget
     } deriving (G.Generic)
 
-mkPlan :: R.MonadReactor m => J.JSString -> m (Plan m)
+mkPlan :: Z.MonadReactor m => J.JSString -> m (Plan m)
 mkPlan n = Plan
-    <$> R.doGetComponent
-    <*> R.doMkReactKey n
+    <$> Z.doGetComponent
+    <*> Z.doMkReactKey n
     <*> pure 0 -- ^ currentFrameNum
     <*> pure 0 -- ^ previousFrameNum
     <*> pure mempty -- ^ disposeOnRemoved
@@ -78,15 +78,17 @@ model :: Lens' (Frame m s) s
 model = _2
 
 -- | Mutable
-type Scene m v s = R.Obj v (Frame m s)
+type Scene m v s = Z.Obj v (Frame m s)
+type SceneHandler m v s a b = Z.Handler m (Scene m v s) a b
+type SceneInitializer m v s c = Z.Initializer m (Scene m v s) c
 
 magnifyScene :: Lens' t s -> (Scene m v s -> a) -> (Scene m v t -> a)
-magnifyScene l f = f . R.edit (alongside id l)
+magnifyScene l f = f . Z.edit (alongside id l)
 
 -- Add an action to run once after the next render
-addOnceOnUpdated :: R.MonadReactor m => Scene m v s -> m () -> m ()
-addOnceOnUpdated (R.Obj ref its) k = R.doModifyIORef' ref (its.plan.field @"onceOnUpdated" %~ (*> k))
+addOnceOnUpdated :: Z.MonadReactor m => Scene m v s -> m () -> m ()
+addOnceOnUpdated (Z.Obj ref its) k = Z.doModifyIORef' ref (its.plan.field @"onceOnUpdated" %~ (*> k))
 
 -- Add an action to run after every render
-addEveryOnUpdated :: R.MonadReactor m => Scene m v s -> m () -> m ()
-addEveryOnUpdated (R.Obj ref its) k = R.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))
+addEveryOnUpdated :: Z.MonadReactor m => Scene m v s -> m () -> m ()
+addEveryOnUpdated (Z.Obj ref its) k = Z.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))

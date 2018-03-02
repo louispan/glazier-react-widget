@@ -21,21 +21,18 @@ library
                        Glazier.React.Framework.Action.KeyDownKey
                        Glazier.React.Framework.Core
                        Glazier.React.Framework.Core.Archetype
-                       Glazier.React.Framework.Core.Builder
                        Glazier.React.Framework.Core.Display
-                       Glazier.React.Framework.Core.Finalizer
-                       Glazier.React.Framework.Core.Handler
-                       Glazier.React.Framework.Core.Initializer
                        Glazier.React.Framework.Core.Model
-                       Glazier.React.Framework.Core.Obj
                        Glazier.React.Framework.Core.Prototype
                        Glazier.React.Framework.Core.Trigger
                        Glazier.React.Framework.Effect
                        Glazier.React.Framework.Effect.MonadHTMLElement
                        Glazier.React.Framework.Effect.MonadJS
                        Glazier.React.Widget.Input
-                       Glazier.React.Widget.Listing
-                      --  Glazier.React.Widget.Mapping
+                       Glazier.React.Widget.Pile
+                       Glazier.React.Widget.Pile.Glam
+                       Glazier.React.Widget.MapPile
+                       Glazier.React.Widget.MapPile.Glam
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.3.0
                      , bifunctors >= 5.4.1
@@ -50,6 +47,7 @@ library
                      , dlist >= 0.8
                      , esoteric-extras >= 0.0.1
                      , generic-lens >= 0.5.1.0
+                     , glazier >= 1.0
                      , glazier-react >= 0.7
                      , javascript-extras >= 0.4.0.0
                      , lens >= 4

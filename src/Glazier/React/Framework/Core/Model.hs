@@ -17,6 +17,7 @@ import qualified Control.Disposable as CD
 import Control.Lens
 import qualified Data.DList as DL
 import Data.Generics.Product
+import Data.IORef
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
@@ -78,9 +79,7 @@ model :: Lens' (Frame m s) s
 model = _2
 
 -- | Mutable
-type Scene m v s = Z.Obj v (Frame m s)
-type SceneHandler m v s a b = Z.Handler m (Scene m v s) a b
-type SceneInitializer m v s c = Z.Initializer m (Scene m v s) c
+type Scene m v s = Z.Obj IORef v (Frame m s)
 
 magnifyScene :: Lens' t s -> (Scene m v s -> a) -> (Scene m v t -> a)
 magnifyScene l f = f . Z.edit (alongside id l)

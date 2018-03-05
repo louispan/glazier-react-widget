@@ -1,4 +1,4 @@
-module Glazier.Core.Finalizer where
+module Glazier.React.Framework.Core.Finalizer where
 
 import Control.Disposable as CD
 import qualified Glazier.Core.Method as Z

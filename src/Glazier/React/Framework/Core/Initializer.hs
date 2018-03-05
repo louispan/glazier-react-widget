@@ -7,7 +7,7 @@
 -- {-# LANGUAGE TypeApplications #-}
 -- {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.Core.Initializer where
+module Glazier.React.Framework.Core.Initializer where
 
 -- import Control.Monad.Trans.Cont
 -- import Control.Monad.Trans.Cont.Extras as TE
@@ -20,7 +20,7 @@ import qualified Glazier.React.Framework.Core.Model as Z
 
 type Initializer s m c = Z.Delegate s m c
 type ObjInitializer v s m c = Initializer (Z.Obj IORef v s) m c
-type SceneInitializer m v s c = Z.Initializer m (Z.Scene m v s) c
+type SceneInitializer v s m c = Initializer (Z.Scene v s m) m c
 
 -- -- mempty
 -- memptyInitializer :: Applicative m => Initializer s m c

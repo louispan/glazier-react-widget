@@ -65,7 +65,7 @@ infixl 4 `modifyInitializer'` -- like <$>
 toArchetypeBuilder :: Z.MonadReactor m
     => J.JSString
     -> Z.Builder m r s r' s'
-    -> Z.Builder m r (IORef (Z.Frame m s)) r' (IORef (Z.Frame m s'))
+    -> Z.Builder m r (IORef (Z.Frame s m)) r' (IORef (Z.Frame s m'))
 toArchetypeBuilder n (Z.Builder (Z.MkReq mkReq, Z.MkSpec mkSpc)) = Z.Builder
         ( Z.MkReq (Z.doReadIORef >=> (mkReq . snd))
         , Z.MkSpec $ \i -> do
@@ -77,19 +77,19 @@ toArchetypeBuilder n (Z.Builder (Z.MkReq mkReq, Z.MkSpec mkSpc)) = Z.Builder
         )
 
 toArchetypeHandler ::
-    Z.SceneHandler m (Z.Frame m s) s a b -- ^ @v@ is no longer polymorphic
-    -> Z.Handler m (IORef (Z.Frame m s)) a b
+    Z.SceneHandler m (Z.Frame s m) s a b -- ^ @v@ is no longer polymorphic
+    -> Z.Handler m (IORef (Z.Frame s m)) a b
 toArchetypeHandler hdl ref = hdl (Z.Obj ref id)
 
-fromArchetypeHandler :: Z.MonadReactor m => Z.Handler m s a b -> Z.SceneHandler m v s a b
+fromArchetypeHandler :: Z.MonadReactor m => Z.Handler m s a b -> Z.SceneHandler v s m a b
 fromArchetypeHandler hdl (Z.Obj ref its) a = do
     obj <- lift $ Z.doReadIORef ref
     hdl (obj ^. its.Z.model) a
 
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: Z.MonadReactor m
-    => Z.Prototype m (Z.Frame m s) s c -- ^ @v@ is no longer polymorphic
-    -> Archetype m (IORef (Z.Frame m s)) c
+    => Z.Prototype m (Z.Frame s m) s c -- ^ @v@ is no longer polymorphic
+    -> Archetype m (IORef (Z.Frame s m)) c
 toArchetype
     (Z.Prototype dis fin ini)
     = Archetype dis' fin' ini'

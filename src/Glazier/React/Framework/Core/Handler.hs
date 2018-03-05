@@ -1,6 +1,6 @@
 -- {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
-module Glazier.Core.Handler where
+module Glazier.React.Framework.Core.Handler where
 
 import Data.IORef
 
@@ -11,7 +11,7 @@ import qualified Glazier.React.Framework.Core.Model as Z
 -- | Handle a input @a@ and fire a event @b@
 type Handler s m a b = a -> Z.Delegate s m b
 type ObjHandler ref v s m a b = Handler (Z.Obj IORef v s) m a b
-type SceneHandler m v s a b = Z.Handler m (Z.Scene m v s) a b
+type SceneHandler v s m a b = Handler (Z.Scene v s m) m a b
 
 -- obviousHandler :: Handler s m a b -> Handler s m (Which '[a]) b
 -- obviousHandler hdl = hdl . obvious

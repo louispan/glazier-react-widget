@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -15,6 +16,7 @@ module Glazier.React.Framework.Core.Model where
 
 import qualified Control.Disposable as CD
 import Control.Lens
+import Control.Monad.Reader
 import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.IORef
@@ -70,24 +72,33 @@ mkPlan n = Plan
 
 -- Read-only
 -- Using type synonym to a tuple for usages of 'alongside'.
-type Frame m s = (Plan m, s)
+type Frame s m = (Plan m, s)
 
-plan :: Lens' (Frame m s) (Plan m)
+plan :: Lens' (Frame s m) (Plan m)
 plan = _1
 
-model :: Lens' (Frame m s) s
+model :: Lens' (Frame s m) s
 model = _2
 
 -- | Mutable
-type Scene m v s = Z.Obj IORef v (Frame m s)
+type Scene v s m = Z.Obj IORef v (Frame s m)
+type SceneDelegate v s m a = Z.Delegate (Scene v s m) m a
+type MonadScene v s t m = (MonadReader (Scene v s m) (t m), MonadTrans t)
 
-magnifyScene :: Lens' t s -> (Scene m v s -> a) -> (Scene m v t -> a)
-magnifyScene l f = f . Z.edit (alongside id l)
+-- magnifyScene :: Lens' s' s -> (Scene v s m -> a) -> (Scene v s' m -> a)
+-- magnifyScene l f = f . Z.edit (alongside id l)
+
+editScene :: Lens' s' s -> (Scene v s' m -> Scene v s m)
+editScene l = Z.edit (alongside id l)
 
 -- Add an action to run once after the next render
-addOnceOnUpdated :: Z.MonadReactor m => Scene m v s -> m () -> m ()
-addOnceOnUpdated (Z.Obj ref its) k = Z.doModifyIORef' ref (its.plan.field @"onceOnUpdated" %~ (*> k))
+addOnceOnUpdated :: (Z.MonadReactor m, MonadScene v s t m) => m () -> t m ()
+addOnceOnUpdated k = do
+    (Z.Obj ref its) <- ask
+    lift $ Z.doModifyIORef' ref (its.plan.field @"onceOnUpdated" %~ (*> k))
 
 -- Add an action to run after every render
-addEveryOnUpdated :: Z.MonadReactor m => Scene m v s -> m () -> m ()
-addEveryOnUpdated (Z.Obj ref its) k = Z.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))
+addEveryOnUpdated :: (Z.MonadReactor m, MonadScene v s t m) =>  m () -> t m ()
+addEveryOnUpdated k = do
+    (Z.Obj ref its) <- ask
+    lift $ Z.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))

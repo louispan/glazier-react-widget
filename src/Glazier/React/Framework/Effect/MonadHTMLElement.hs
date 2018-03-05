@@ -26,7 +26,7 @@ focusRef ::
     ( Z.MonadReactor m
     , MonadHTMLElement m
     )
-    => Z.GadgetId -> Z.Scene m v s -> m ()
+    => Z.GadgetId -> Z.Scene v s m -> m ()
 focusRef i (Z.Obj ref its) = do
     obj <- Z.doReadIORef ref
     let j = obj ^. its.Z.plan.field @"refs".at i
@@ -36,7 +36,7 @@ blurRef ::
     ( Z.MonadReactor m
     , MonadHTMLElement m
     )
-    => Z.GadgetId -> Z.Scene m v s -> m ()
+    => Z.GadgetId -> Z.Scene v s m -> m ()
 blurRef i (Z.Obj ref its) = do
     obj <- Z.doReadIORef ref
     let j = obj ^. its.Z.plan.field @"refs".at i

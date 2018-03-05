@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
@@ -7,7 +6,6 @@
 module Glazier.React.Framework.Core.Display where
 
 import Control.Lens
-import Control.Monad.Reader
 import qualified Data.DList as DL
 import Data.Generics.Product
 import Data.Maybe
@@ -55,22 +53,19 @@ bh' i s = Z.branch (getListeners i s)
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Core.Trigger.trigger'
 -- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Core.Trigger.trigger'
 -- will not result in a rerender for the other widget.
-dirty :: (Z.MonadReactor m, Z.MonadScene v s t m) => t m ()
-dirty = do
-    (Z.Obj ref its) <- ask
-    lift $ Z.doModifyIORef' ref (its.Z.plan.field @"currentFrameNum" %~ ((+ 1) . (`mod` JE.maxSafeInteger)))
+dirty :: Z.MonadReactor m => Z.Scene v s m -> m ()
+dirty (Z.Obj ref its) =
+    Z.doModifyIORef' ref (its.Z.plan.field @"currentFrameNum" %~ ((+ 1) . (`mod` JE.maxSafeInteger)))
 
-rerender :: (Z.MonadReactor m, Z.MonadScene v s t m) => t m ()
-rerender = do
-    (Z.Obj ref its) <- ask
-    lift $ do
-        obj <- Z.doReadIORef ref
-        let c = obj ^. its.Z.plan.field @"currentFrameNum"
-            p = obj ^. its.Z.plan.field @"previousFrameNum"
-        if c == p
-            then pure ()
-            else do
-                Z.doModifyIORef' ref (its.Z.plan.field @"previousFrameNum" .~ c)
-                Z.doSetComponentState
-                    (JE.fromProperties [("frameNum", JE.toJSR c)])
-                    (obj ^. (its.Z.plan.field @"component"))
+rerender :: Z.MonadReactor m => Z.Scene v s m -> m ()
+rerender (Z.Obj ref its) = do
+    obj <- Z.doReadIORef ref
+    let c = obj ^. its.Z.plan.field @"currentFrameNum"
+        p = obj ^. its.Z.plan.field @"previousFrameNum"
+    if c == p
+        then pure ()
+        else do
+            Z.doModifyIORef' ref (its.Z.plan.field @"previousFrameNum" .~ c)
+            Z.doSetComponentState
+                (JE.fromProperties [("frameNum", JE.toJSR c)])
+                (obj ^. (its.Z.plan.field @"component"))

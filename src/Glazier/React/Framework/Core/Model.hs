@@ -82,8 +82,8 @@ model = _2
 
 -- | Mutable
 type Scene v s m = Z.Obj IORef v (Frame s m)
-type SceneDelegate v s m a = Z.Delegate (Scene v s m) m a
-type MonadScene v s t m = (MonadReader (Scene v s m) (t m), MonadTrans t)
+-- type SceneDelegate v s m a = Z.Delegate (Scene v s m) m a
+-- type MonadScene v s t m = (MonadReader (Scene v s m) (t m), MonadTrans t)
 
 -- magnifyScene :: Lens' s' s -> (Scene v s m -> a) -> (Scene v s' m -> a)
 -- magnifyScene l f = f . Z.edit (alongside id l)
@@ -92,13 +92,9 @@ editScene :: Lens' s' s -> (Scene v s' m -> Scene v s m)
 editScene l = Z.edit (alongside id l)
 
 -- Add an action to run once after the next render
-addOnceOnUpdated :: (Z.MonadReactor m, MonadScene v s t m) => m () -> t m ()
-addOnceOnUpdated k = do
-    (Z.Obj ref its) <- ask
-    lift $ Z.doModifyIORef' ref (its.plan.field @"onceOnUpdated" %~ (*> k))
+addOnceOnUpdated :: (Z.MonadReactor m) => Scene v s m -> m () -> m ()
+addOnceOnUpdated (Z.Obj ref its) k = Z.doModifyIORef' ref (its.plan.field @"onceOnUpdated" %~ (*> k))
 
 -- Add an action to run after every render
-addEveryOnUpdated :: (Z.MonadReactor m, MonadScene v s t m) =>  m () -> t m ()
-addEveryOnUpdated k = do
-    (Z.Obj ref its) <- ask
-    lift $ Z.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))
+addEveryOnUpdated :: (Z.MonadReactor m) => Scene v s m -> m () -> m ()
+addEveryOnUpdated (Z.Obj ref its) k = Z.doModifyIORef' ref (its.plan.field @"everyOnUpdated" %~ (*> k))

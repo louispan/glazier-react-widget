@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -13,38 +14,36 @@ import Control.DeepSeq
 import Control.Lens
 import Control.Monad.Trans
 import qualified Data.DList as DL
-import Data.Generics.Product
 import Data.Maybe
 import Data.Semigroup
 import qualified GHCJS.Types as J
-import qualified Glazier.Core as Z
-import qualified Glazier.React as Z
-import qualified Glazier.React.Framework.Core.Display as Z
-import qualified Glazier.React.Framework.Core.Initializer as Z
-import qualified Glazier.React.Framework.Core.Model as Z
+import Glazier.Core
+import Glazier.React
+import Glazier.React.Framework.Core.Display
+import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
 ------------------------------------------------------
 
 -- | A simplified form of 'trigger' where all event info is dropped
 -- and the given value is fired
-trigger' :: (Z.MonadReactor m)
-    => Z.GadgetId
+trigger' :: (MonadReactor m)
+    => GadgetId
     -> J.JSString
     -> b
-    -> Z.SceneInitializer v s m b
+    -> Delegate (Scene p m s) m b
 trigger' gid n b = trigger gid n (const $ pure ()) (const b)
 
--- | Create callback for 'Z.SyntheticEvent' and add it to this state's dlist of listeners.
+-- | Create callback for 'SyntheticEvent' and add it to this state's dlist of listeners.
 trigger ::
-    ( Z.MonadReactor m
+    ( MonadReactor m
     , NFData a
     )
-    => Z.GadgetId
+    => GadgetId
     -> J.JSString
-    -> (Z.SyntheticEvent -> IO a)
+    -> (SyntheticEvent -> IO a)
     -> (a -> b)
-    -> Z.SceneInitializer v s m b
+    -> Delegate (Scene p m s) m b
 trigger gid n goStrict goLazy = mkListener gid n goStrict' goLazy
   where
     goStrict' e = case JE.fromJSR e of
@@ -53,74 +52,74 @@ trigger gid n goStrict goLazy = mkListener gid n goStrict' goLazy
 
 -- | Create callbacks and add it to this state's dlist of listeners.
 -- NB. You probably want ot use 'trigger' instead since most React callbacks
--- generate a 'Z.SyntheticEvent'.
--- Only the "ref" callback generate 'Z.EventTarget' in which case you would want
+-- generate a 'SyntheticEvent'.
+-- Only the "ref" callback generate 'EventTarget' in which case you would want
 -- to use 'withRef' instead.
 mkListener ::
-    ( Z.MonadReactor m
+    ( MonadReactor m
     , NFData a
     )
-    => Z.GadgetId
+    => GadgetId
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
     -> (a -> b)
-    -> Z.SceneInitializer v s m b
-mkListener gid n goStrict goLazy = Z.delegate'' $ \this@(Z.Obj ref its) fire -> do
+    -> Delegate (Scene p m s) m b
+mkListener gid n goStrict goLazy = delegate'' $ \this@(Obj{..}) fire -> do
     let goLazy' ma = case ma of
             Nothing -> pure ()
-            Just a -> fire (goLazy a) *> Z.rerender this
-    (ds, cb) <- Z.doMkCallback goStrict goLazy'
-    Z.doModifyIORef' ref $ \obj ->
-        obj & its.Z.plan.field @"listeners".at gid %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
-            & its.Z.plan.field @"disposeOnRemoved" %~ (<> ds)
+            Just a -> fire (goLazy a) *> rerender this
+    (ds, cb) <- doMkCallback goStrict goLazy'
+    doModifyIORef' self $ \me ->
+        me & my._plan._listeners.at gid %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
+            & my._plan._disposeOnRemoved %~ (<> ds)
 
 -- -- | feed the result from an Initializer into a handler, from left to right.
 -- -- A simply way to think of the types is:
 -- -- @
--- -- handledBy :: Z.Initializer m s a -> Z.Handler m s a b -> Z.Initializer m s b
+-- -- handledBy :: Initializer m s a -> Handler m s a b -> Initializer m s b
 -- -- @
 -- handledBy :: (Applicative f, Monad m) => f (m a) -> f (a -> m b) -> f (m b)
 -- handledBy ini hdl = liftA2 (>>=) ini hdl
 -- infixl 1 `handledBy` -- like >>=
 
 -- -- | feed the result from an Initializer into a handler, from right to left.
--- handles :: Z.Handler m s a b -> Z.Initializer m s a -> Z.Initializer m s b
+-- handles :: Handler m s a b -> Initializer m s a -> Initializer m s b
 -- handles = flip handledBy
 -- infixr 1 `handles` -- like =<<
 
 -- -- | feed as much of the result from an Initializer into a handler,
 -- -- from left to right.
 -- handledBy' :: forall m s a1 a2 b2 b3.
---     (Z.Pretend a2 a1 b2 b3)
---     => Z.Initializer m s (Which a1)
---     -> Z.Handler m s (Which a2) (Which b2)
---     -> Z.Initializer m s (Which b3)
--- handledBy' ini hdl = ini `handledBy` (Z.pretend @a1 hdl)
+--     (Pretend a2 a1 b2 b3)
+--     => Initializer m s (Which a1)
+--     -> Handler m s (Which a2) (Which b2)
+--     -> Initializer m s (Which b3)
+-- handledBy' ini hdl = ini `handledBy` (pretend @a1 hdl)
 -- infixl 1 `handledBy'` -- like >>=
 
 -- -- | feed as much of the result from an Initializer into a handler,
 -- -- from right to left.
 -- handles' ::
---     (Z.Pretend a2 a1 b2 b3)
---     => Z.Handler m s (Which a2) (Which b2)
---     -> Z.Initializer m s (Which a1)
---     -> Z.Initializer m s (Which b3)
+--     (Pretend a2 a1 b2 b3)
+--     => Handler m s (Which a2) (Which b2)
+--     -> Initializer m s (Which a1)
+--     -> Initializer m s (Which b3)
 -- handles' = flip handledBy'
 -- infixr 1 `handles'` -- like =<<
 
--- | This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an Z.EventTarget
+-- | This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an EventTarget
 -- in the plan
 withRef ::
-    ( Z.MonadReactor m
+    ( MonadReactor m
     )
-    => Z.GadgetId
-    -> Z.SceneInitializer v s m ()
-withRef i = mkListener i "ref" (pure . Just . Z.EventTarget) id
+    => GadgetId
+    -> Delegate (Scene p m s) m ()
+withRef i = mkListener i "ref" (pure . Just . EventTarget) id
     >>= hdlRef
   where
-    -- hdlRef :: Z.SceneHandler v s m (Z.EventTarget) (Which '[])
-    hdlRef j = Z.delegate' $ \(Z.Obj ref its) ->
-        lift $ Z.doModifyIORef' ref (its.Z.plan.field @"refs".at i .~ Just j)
+    -- hdlRef :: SceneHandler p s m (EventTarget) (Which '[])
+    hdlRef j = delegate' $ \(Obj{..}) ->
+        lift $ doModifyIORef' self (my._plan._refs.at i .~ Just j)
 
 -- -- | Convert the original ContT to a ContT that
 -- -- doens't call it's continuation, by 'const'ing the original contination

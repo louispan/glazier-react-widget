@@ -1,71 +1,71 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Framework.Core.Display where
 
 import Control.Lens
 import qualified Data.DList as DL
-import Data.Generics.Product
 import Data.Maybe
-import qualified Glazier.Core as Z
-import qualified Glazier.React as Z
-import qualified Glazier.React.Framework.Core.Model as Z
+import Glazier.Core
+import Glazier.React
+import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
-type Display s m r = Z.Method s (Z.ReactMlT m) r
+type Display s m r = Method s (ReactMlT m) r
 
-type FrameDisplay s m r = Display (Z.Frame s m) m r
+type FrameDisplay s m r = Display (Frame m s) m r
 
 -- | Gets the listeners for a particular 'GadgetId', usually for a
 -- specific DOM element.
-getListeners :: Z.GadgetId -> Z.Frame s m -> (DL.DList Z.Listener)
-getListeners i s = fromMaybe [] (s ^. Z.plan.field @"listeners".at i)
+getListeners :: GadgetId -> Frame m s -> (DL.DList Listener)
+getListeners i s = fromMaybe [] (s ^. _plan._listeners.at i)
 
 -- | Convenience function to create an internactive dom element
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
 -- Memonic: the convenient listener version has a prime'.
 lf'
     :: Monad m
-    => Z.GadgetId
-    -> Z.Frame s m
+    => GadgetId
+    -> Frame m s
     -> JE.JSRep
     -> (DL.DList JE.Property)
-    -> Z.ReactMlT m ()
-lf' i s = Z.leaf (getListeners i s)
+    -> ReactMlT m ()
+lf' i s = leaf (getListeners i s)
 
 -- | Convenience function to create an internactive dom element
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
 -- Memonic: the convenient listener version has a prime'.
 bh'
     :: Monad m
-    => Z.GadgetId
-    -> Z.Frame s m
+    => GadgetId
+    -> Frame m s
     -> JE.JSRep
     -> (DL.DList JE.Property)
-    -> Z.ReactMlT m a
-    -> Z.ReactMlT m a
-bh' i s = Z.branch (getListeners i s)
+    -> ReactMlT m a
+    -> ReactMlT m a
+bh' i s = branch (getListeners i s)
 
 
 -- Marks the current widget as dirty, and rerender is required
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Core.Trigger.trigger'
 -- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Core.Trigger.trigger'
 -- will not result in a rerender for the other widget.
-dirty :: Z.MonadReactor m => Z.Scene v s m -> m ()
-dirty (Z.Obj ref its) =
-    Z.doModifyIORef' ref (its.Z.plan.field @"currentFrameNum" %~ ((+ 1) . (`mod` JE.maxSafeInteger)))
+dirty :: MonadReactor m => Scene p m s -> m ()
+dirty (Obj{..}) =
+    doModifyIORef' self (my._plan._currentFrameNum %~ ((+ 1) . (`mod` JE.maxSafeInteger)))
 
-rerender :: Z.MonadReactor m => Z.Scene v s m -> m ()
-rerender (Z.Obj ref its) = do
-    obj <- Z.doReadIORef ref
-    let c = obj ^. its.Z.plan.field @"currentFrameNum"
-        p = obj ^. its.Z.plan.field @"previousFrameNum"
+rerender :: MonadReactor m => Scene p m s -> m ()
+rerender (Obj{..}) = do
+    me <- doReadIORef self
+    let c = me ^. my._plan._currentFrameNum
+        p = me ^. my._plan._previousFrameNum
     if c == p
         then pure ()
         else do
-            Z.doModifyIORef' ref (its.Z.plan.field @"previousFrameNum" .~ c)
-            Z.doSetComponentState
+            doModifyIORef' self (my._plan._previousFrameNum .~ c)
+            doSetComponentState
                 (JE.fromProperties [("frameNum", JE.toJSR c)])
-                (obj ^. (its.Z.plan.field @"component"))
+                (me ^. (my._plan._component))

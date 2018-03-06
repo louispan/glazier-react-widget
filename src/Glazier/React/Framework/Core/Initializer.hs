@@ -15,12 +15,12 @@ module Glazier.React.Framework.Core.Initializer where
 -- import Data.Semigroup
 import Data.IORef
 
-import qualified Glazier.Core as Z
-import qualified Glazier.React.Framework.Core.Model as Z
+import Glazier.Core
+import Glazier.React.Framework.Core.Model
 
-type Initializer s m c = Z.Delegate s m c
-type ObjInitializer v s m c = Initializer (Z.Obj IORef v s) m c
-type SceneInitializer v s m c = Initializer (Z.Scene v s m) m c
+type Initializer s m c = Delegate s m c
+type ObjInitializer p s m c = Initializer (Obj IORef p s) m c
+type SceneInitializer p s m c = Initializer (Scene p m s) m c
 
 -- -- mempty
 -- memptyInitializer :: Applicative m => Initializer s m c

@@ -104,9 +104,9 @@ data Design = Design
 makeClassy ''Design
 type Model = Design
 type Outline = Design
-instance Z.ToOutline Model Outline where outline = id
+instance ToOutline Model Outline where outline = id
 
-mkModel :: Outline -> F (Z.Maker Action) Model
+mkModel :: Outline -> F (Maker Action) Model
 mkModel = pure
 ```
 `Design`s should have [`makeClassy`](https://hackage.haskell.org/package/lens-4.15.1/docs/Control-Lens-TH.html#v:makeClassy) generated to facilitate embedding it in larger widget with [`magnify`](https://hackage.haskell.org/package/lens-4.15.1/docs/Control-Lens-Zoom.html#v:magnify) and [`zoom`](https://hackage.haskell.org/package/lens-4.15.1/docs/Control-Lens-Zoom.html#v:zoom).
@@ -114,21 +114,21 @@ mkModel = pure
 If the `Design` contains child widgets, then it should have use a type parameter and `DesignType` to allow specializations of `Model` and `Outline`
 ```haskell
 data Design t = Design
-    { _input :: Z.DesignType t W.Input.Widget
-    , _todos :: Z.DesignType t (W.List.Widget TodosKey TD.Todo.Widget)
-    , _footer :: Z.DesignType t TD.Footer.Widget
+    { _input :: DesignType t W.Input.Widget
+    , _todos :: DesignType t (W.List.Widget TodosKey TD.Todo.Widget)
+    , _footer :: DesignType t TD.Footer.Widget
     }
 
-type Model = Design Z.WithGizmo
-type Outline = Design Z.WithOutline
-instance Z.ToOutline Model Outline where
-    outline (Design a b c) = Design (Z.outline a) (Z.outline b) (Z.outline c)
+type Model = Design WithGizmo
+type Outline = Design WithOutline
+instance ToOutline Model Outline where
+    outline (Design a b c) = Design (outline a) (outline b) (outline c)
 
-mkModel :: Z.ReactMl () -> Outline -> F (Z.Maker Action) Model
+mkModel :: ReactMl () -> Outline -> F (Maker Action) Model
 mkModel separator (Design a b c) = Design
-    <$> (Z.hoistWithAction InputAction (Z.mkGizmo' W.Input.widget a))
-    <*> (Z.hoistWithAction TodosAction (Z.mkGizmo' (W.List.widget separator TD.Todo.widget) b))
-    <*> (Z.hoistWithAction FooterAction (Z.mkGizmo' TD.Footer.widget c))
+    <$> (hoistWithAction InputAction (mkGizmo' W.Input.widget a))
+    <*> (hoistWithAction TodosAction (mkGizmo' (W.List.widget separator TD.Todo.widget) b))
+    <*> (hoistWithAction FooterAction (mkGizmo' TD.Footer.widget c))
 ```
 
 ## Plan
@@ -136,7 +136,7 @@ The `Plan` contains the callbacks for integrating with React (the verbs). It als
 
 ```haskell
 data Plan = Plan
-    { _component :: Z.ReactComponent
+    { _component :: ReactComponent
     , _key :: J.JSString
     , _frameNum :: Int
     , _componentRef :: J.JSVal
@@ -205,8 +205,8 @@ The `Applicative` typeclass makes this easy to define.
 ```haskell
 mkPlan :: Frame Model Plan -> F (Maker Action) Plan
 mkPlan frm = Plan
-    <$> Z.getComponent
-    <*> Z.mkKey
+    <$> getComponent
+    <*> mkKey
     <*> pure 0
     <*> pure J.nullRef
     <*> pure mempty
@@ -230,14 +230,14 @@ instance Disposing Model where
 Link `Glazier.React.Model`'s genericHasPlan/HasModel with this widget's specific `HasPlan`/`HasModel` from generated from `makeClassy`
 
 ```haskell
-instance HasPlan (Z.Scene Model Plan) where
-    plan = Z.plan
-instance HasDesign (Z.Scene Model Plan) where
-    design = Z.model
-instance HasPlan (Z.Gizmo Model Plan) where
-    plan = Z.scene . plan
-instance HasDesign (Z.Gizmo Model Plan) where
-    design = Z.scene . design
+instance HasPlan (Scene Model Plan) where
+    plan = plan
+instance HasDesign (Scene Model Plan) where
+    design = model
+instance HasPlan (Gizmo Model Plan) where
+    plan = scene . plan
+instance HasDesign (Gizmo Model Plan) where
+    design = scene . design
 ```
 
 ### Widget definitions
@@ -245,7 +245,7 @@ instance HasDesign (Z.Gizmo Model Plan) where
 ```haskell
 type Widget = Widget Command Action Model Plan
 widget :: Widget
-widget = Z.Widget
+widget = Widget
     mkModel
     mkPlan
     window
@@ -283,7 +283,7 @@ This a a monad transformer stack over `Identity`. This ensures only pure effects
 ## gadget
 This contains the state update logic:
 ```haskell
-gadget :: G.Gadget () Action (Z.SuperModel Model Plan) (DList Command)
+gadget :: G.Gadget () Action (SuperModel Model Plan) (DList Command)
 ```
 This a a monad transformer stack over `Identity`. This ensures only pure effects are allowed.
 

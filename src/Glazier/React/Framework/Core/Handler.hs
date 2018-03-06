@@ -5,13 +5,13 @@ module Glazier.React.Framework.Core.Handler where
 import Data.IORef
 
 -- import qualified Control.Arrow.Extras as E
-import qualified Glazier.Core as Z
-import qualified Glazier.React.Framework.Core.Model as Z
+import Glazier.Core
+import Glazier.React.Framework.Core.Model
 
 -- | Handle a input @a@ and fire a event @b@
-type Handler s m a b = a -> Z.Delegate s m b
-type ObjHandler ref v s m a b = Handler (Z.Obj IORef v s) m a b
-type SceneHandler v s m a b = Handler (Z.Scene v s m) m a b
+type Handler s m a b = a -> Delegate s m b
+type ObjHandler ref p s m a b = Handler (Obj IORef p s) m a b
+type SceneHandler p s m a b = Handler (Scene p m s) m a b
 
 -- obviousHandler :: Handler s m a b -> Handler s m (Which '[a]) b
 -- obviousHandler hdl = hdl . obvious
@@ -61,7 +61,7 @@ type SceneHandler v s m a b = Handler (Z.Scene v s m) m a b
 --     => Handler s m a (Which b1)
 --     -> Handler s m a (Which b2)
 --     -> Handler s m a (Which b3)
--- alsoH = liftA2 Z.also
+-- alsoH = liftA2 also
 -- infixr 6 `alsoH` -- like mappend
 
 -- maybeH :: Applicative m

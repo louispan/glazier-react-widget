@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -13,53 +14,53 @@
 module Glazier.React.Widget.Pile where
 
 import Control.Lens
-import Control.Monad.Trans.Cont
+import Control.Monad.Reader
 import Data.Foldable
 import qualified Data.Foldable.Esoteric as E
-import qualified Glazier.React.Framework as Z
+import Glazier.React.Framework
 
 -- | Converts a builder to a builder that can build a list (or any Traversable)
 pileBuilder :: (Applicative m, Traversable t)
-    => Z.Builder m r s r' s'
-    -> Z.Builder m (t r) (t s) (t r') (t s')
-pileBuilder (Z.Builder (Z.MkReq mkReq, Z.MkSpec mkSpc)) =
-    Z.Builder (Z.MkReq mkReq', Z.MkSpec mkSpc')
+    => Builder r s m r' s'
+    -> Builder (t r) (t s) m (t r') (t s')
+pileBuilder (Builder (ReaderT mkReq) (ReaderT mkSpc)) =
+    Builder (ReaderT mkReq') (ReaderT mkSpc')
   where
     mkReq' = traverse mkReq
     mkSpc' = traverse mkSpc
 
-pile :: (Traversable t, Z.MonadReactor m)
-    => Z.Archetype m s c
-    -> Z.Prototype m v (t s) c
-pile (Z.Archetype dis fin ini)
-    = Z.Prototype
+pile :: (Traversable t, MonadReactor m)
+    => Archetype s m c
+    -> Prototype p (t s) m c
+pile (Archetype dis fin ini)
+    = Prototype
         (pileDisplay dis)
         (pileFinalizer fin)
         (pileInitializer ini)
 
 -- | lift a handler for a single widget into a handler of a list of widgets
 -- where the input is broadcast to all the items in the list.
-broadcastPileHandler :: (Foldable t, Z.MonadReactor m)
-    => Z.Handler m s a b
-    -> Z.SceneHandler m v (t s) a b
-broadcastPileHandler hdl (Z.Obj ref its) a = ContT $ \fire -> do
-    obj <- Z.doReadIORef ref
-    E.traverse_' (\s -> runContT (hdl s a) fire) (obj ^. its.Z.model)
+broadcastPileHandler :: (Foldable t, MonadReactor m)
+    => (a -> Delegate s m b)
+    -> a -> Delegate (Scene p m (t s)) m b
+broadcastPileHandler hdl a = delegate'' $ \Obj{..} fire -> do
+    me <- doReadIORef self
+    E.traverse_' (\s -> runDelegate'' (hdl a) s fire) (me ^. my._model)
 
 pileFinalizer :: (Traversable t, Applicative m)
-    => Z.Finalizer m s -> Z.Finalizer m (t s)
-pileFinalizer fin ss = fold <$> traverse fin ss
+    => Finalizer s m -> Finalizer (t s) m
+pileFinalizer fin = method' $ \ss -> fold <$> traverse (runMethod' fin) ss
 
 pileDisplay :: (Functor t, Foldable t, Monad m)
-    => Z.Display m s ()
-    -> Z.FrameDisplay m (t s) ()
-pileDisplay dis (_, ss) = do
-    let toLi s = Z.bh "li" [] (dis s)
-    Z.bh "ul" [] (fold $ toLi <$> ss)
+    => Display s m ()
+    -> FrameDisplay (t s) m ()
+pileDisplay dis = method' $ \(Frame _ ss) -> do
+    let toLi s = bh "li" [] (runMethod' dis s)
+    bh "ul" [] (fold $ toLi <$> ss)
 
-pileInitializer :: (Foldable t, Z.MonadReactor m)
-    => Z.Initializer m s b
-    -> Z.SceneInitializer m v (t s) b
-pileInitializer ini (Z.Obj ref its) = ContT $ \k -> do
-    obj <- Z.doReadIORef ref
-    E.traverse_' (\s -> runContT (ini s) k) (obj ^. its.Z.model)
+pileInitializer :: (Foldable t, MonadReactor m)
+    => Delegate s m b
+    -> Delegate (Scene p m (t s)) m b
+pileInitializer ini = delegate'' $ \Obj{..} fire -> do
+    me <- doReadIORef self
+    E.traverse_' (\s -> runDelegate'' ini s fire) (me ^. my._model)

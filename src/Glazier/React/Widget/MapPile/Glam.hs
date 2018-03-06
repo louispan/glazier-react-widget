@@ -32,7 +32,7 @@ hdlGlamMapPileDeleteItem fin k = do
     lift $ do
         doModifyIORef' self (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
         dirty this
-    magnify (editScene (field @"rawPile")) (W.hdlMapPileDeleteItem fin k)
+    magnify (to $ accessScene (field @"rawPile")) (W.hdlMapPileDeleteItem fin k)
 
 hdlGlamMapPileInsertItem :: (MonadReactor m, Ord k)
     => Finalizer s m
@@ -42,4 +42,4 @@ hdlGlamMapPileInsertItem fin k = do
     lift $ do
         doModifyIORef' self (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
         dirty this
-    magnify (editScene (field @"rawPile")) (W.hdlMapPileInsertItem fin k)
+    magnify (to $ accessScene (field @"rawPile")) (W.hdlMapPileInsertItem fin k)

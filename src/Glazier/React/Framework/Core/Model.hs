@@ -142,8 +142,8 @@ type Scene p m s = IOObj p (Frame m s)
 -- magnifyScene :: Lens' s' s -> (Scene p m s -> a) -> (Scene p s' m -> a)
 -- magnifyScene l f = f . edit (alongside id l)
 
-editScene :: Lens' s' s -> Lens' (Scene p m s') (Scene p m s)
-editScene l = accessor (editFrame l)
+accessScene :: Lens' s' s -> Scene p m s' -> Scene p m s
+accessScene l = access (editFrame l)
 
 -- Add an action to run once after the next render
 addOnceOnUpdated :: (MonadReactor m) => Scene p m s -> m () -> m ()

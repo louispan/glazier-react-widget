@@ -85,7 +85,7 @@ magnifyPrototype sl (Prototype disp fin ini) = Prototype
     -- (enlargeBuilder fi (view sl) bld)
     (magnify (editFrame sl) disp)
     (magnify sl fin)
-    (magnify (editScene sl) ini)
+    (magnify (to $ accessScene sl) ini)
 
 -- | Makes and initialzies a spec from a req.
 -- Used by prototypes that contain other archetypes.

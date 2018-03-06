@@ -78,7 +78,7 @@ hdlGlamPileFilterCriteria f = delegate' $ \this@Obj{..} -> lift $ do
 broadcastGlamPileHandler :: (Traversable t, MonadReactor m)
     => (a -> Delegate s m b)
     -> a -> Delegate (Scene p m (GlamPile flt srt t s)) m b
-broadcastGlamPileHandler hdl a = magnify (editScene (field @"rawPile")) (W.broadcastPileHandler hdl a)
+broadcastGlamPileHandler hdl a = magnify (to $ accessScene (field @"rawPile")) (W.broadcastPileHandler hdl a)
 
 glamPileDisplay :: (Foldable t, MonadReactor m)
     => (flt -> s -> m Bool)
@@ -107,4 +107,4 @@ glamPileFinalizer fin = magnify (field @"rawPile") (W.pileFinalizer fin)
 glamPileInitializer :: (Foldable t, MonadReactor m)
     => Delegate s m b
     -> Delegate (Scene p m (GlamPile flt srt t s)) m b
-glamPileInitializer ini = magnify (editScene (field @"rawPile")) (W.pileInitializer ini)
+glamPileInitializer ini = magnify (to $ accessScene (field @"rawPile")) (W.pileInitializer ini)

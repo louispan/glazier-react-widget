@@ -19,7 +19,6 @@ import Control.Lens
 import Control.Monad.Reader
 import Data.Generics.Product
 import qualified Data.Map.Strict as M
-import Glazier.React
 import Glazier.React.Framework
 import Glazier.React.Widget.MapPile as W
 import Glazier.React.Widget.Pile.Glam as W

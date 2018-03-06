@@ -22,7 +22,6 @@ library
                        Glazier.React.Framework.Core
                        Glazier.React.Framework.Core.Archetype
                        Glazier.React.Framework.Core.Display
-                       Glazier.React.Framework.Core.Finalizer
                        Glazier.React.Framework.Core.Model
                        Glazier.React.Framework.Core.Prototype
                        Glazier.React.Framework.Core.Trigger

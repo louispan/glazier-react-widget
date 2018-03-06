@@ -26,7 +26,6 @@ import qualified GHC.Generics as G
 import Glazier.Core
 import Glazier.React
 import Glazier.React.Framework.Core.Display
-import Glazier.React.Framework.Core.Finalizer
 import Glazier.React.Framework.Core.Model
 import Glazier.React.Framework.Core.Prototype
 import qualified JavaScript.Extras as JE

@@ -146,7 +146,7 @@ mkInitializedSpec mkSpc ini = do
 -- -- Run th left handler and then the right handler with the same input,
 -- -- and only fire events from the second input.
 -- thenH :: Handler s m a () -> Handler s m a b -> Handler s m a b
--- thenH = ($*>!)
+-- thenH = ($!*>)
 
 -- -- Run left and also the right handler with the same input, and combine the output type
 -- -- A binary associative function for 'nulHandler'.

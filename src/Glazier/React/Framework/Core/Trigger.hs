@@ -34,17 +34,17 @@ trigger' :: (MonadReactor m)
     -> Delegate (Scene p m s) m b
 trigger' gid n b = trigger gid n (const $ pure ()) (const b)
 
--- | Create callback for 'SyntheticEvent' and add it to this state's dlist of listeners.
+-- | Create callback for 'Notice' and add it to this state's dlist of listeners.
 trigger ::
     ( MonadReactor m
     , NFData a
     )
     => GadgetId
     -> J.JSString
-    -> (SyntheticEvent -> IO a)
+    -> (Notice -> IO a)
     -> (a -> b)
     -> Delegate (Scene p m s) m b
-trigger gid n goStrict goLazy = mkListener gid n goStrict' goLazy
+trigger gid n goStrict = mkListener gid n goStrict'
   where
     goStrict' e = case JE.fromJSR e of
         Nothing -> pure Nothing
@@ -52,7 +52,7 @@ trigger gid n goStrict goLazy = mkListener gid n goStrict' goLazy
 
 -- | Create callbacks and add it to this state's dlist of listeners.
 -- NB. You probably want ot use 'trigger' instead since most React callbacks
--- generate a 'SyntheticEvent'.
+-- generate a 'Notice'.
 -- Only the "ref" callback generate 'EventTarget' in which case you would want
 -- to use 'withRef' instead.
 mkListener ::
@@ -114,7 +114,7 @@ withRef ::
     )
     => GadgetId
     -> Delegate (Scene p m s) m ()
-withRef i = mkListener i "ref" (pure . Just . EventTarget) id
+withRef i = mkListener i "ref" (pure . JE.fromJSR) id
     >>= hdlRef
   where
     -- hdlRef :: SceneHandler p s m (EventTarget) (Which '[])

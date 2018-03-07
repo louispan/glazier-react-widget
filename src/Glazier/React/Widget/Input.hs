@@ -67,8 +67,8 @@ textInput gid = mempty
         , ("defaultValue", JE.toJSR $ s ^. _model)
         ]
     , initializer = withRef gid
-        *>! onInitialized
-        *>! (trigger' gid "onChange" () >>= hdlChange)
+        !*> onInitialized
+        !*> (trigger' gid "onChange" () >>= hdlChange)
     }
   where
 
@@ -162,7 +162,7 @@ checkboxInput gid = mempty
         , ("checked", JE.toJSR $ s ^. _model)
         ]
     , initializer = withRef gid
-        *>! (trigger' gid "onChange" () >>= hdlChange)
+        !*> (trigger' gid "onChange" () >>= hdlChange)
     }
 
   where
@@ -189,7 +189,7 @@ indeterminateCheckboxInput ::
     => GadgetId
     -> Prototype p IndeterminateCheckboxInput m ()
 indeterminateCheckboxInput gid = magnifyPrototype (field @"checked") (checkboxInput gid)
-    & _initializer %~ (*>! onInitialized)
+    & _initializer %~ (!*> onInitialized)
   where
     -- | Add setting the indeterminate after every dirty as this is the only
     -- way to change that setting.

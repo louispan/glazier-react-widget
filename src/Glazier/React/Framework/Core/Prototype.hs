@@ -48,21 +48,6 @@ _initializer :: Lens (Prototype p s m c) (Prototype p s m c')
     (Delegate (Scene p m s) m c) (Delegate (Scene p m s) m c')
 _initializer = field @"initializer"
 
--- modifyDisplay :: (FrameDisplay s m () -> FrameDisplay s m ())
---     -> Prototype p s m c -> Prototype p s m c
--- modifyDisplay f p = let disp = display p in p { display = f disp }
--- infixl 4 `modifyDisplay` -- like <$>
-
--- modifyFinalizer :: (Finalizer s m -> Finalizer s m)
---     -> Prototype p s m c -> Prototype p s m c
--- modifyFinalizer f p = let fin = finalizer p in p { finalizer = f fin }
--- infixl 4 `modifyFinalizer` -- like <$>
-
--- modifyInitializer :: (Delegate (Scene p m s) m c1 -> Delegate (Scene p m s) m c2)
---     -> Prototype p s m c1 -> Prototype p s m c2
--- modifyInitializer f p = let ini = initializer p in p { initializer = f ini }
--- infixl 4 `modifyInitializer` -- like <$>
-
 withPrototype :: Monad m =>
     (Delegate (Scene p m s) m c1 -> Delegate (Scene p m s) m c2 -> Delegate (Scene p m s) m c3)
     -> Prototype p s m c1 -> Prototype p s m c2 -> Prototype p s m c3

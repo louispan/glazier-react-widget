@@ -108,16 +108,6 @@ mkPlan n = Plan
     <*> pure M.empty
     <*> pure M.empty
 
--- Read-only
--- Using type synonym to a tuple for usages of 'alongside'.
--- type Frame m s = (Plan m, s)
-
--- plan :: Lens' (Frame m s) (Plan m)
--- plan = _1
-
--- model :: Lens' (Frame m s) s
--- model = _2
-
 data Frame m s = Frame
     { plan :: Plan m
     , model :: s
@@ -137,11 +127,6 @@ editFrame l = lens
 -- | Mutable
 type IOObj = Obj IORef
 type Scene p m s = IOObj p (Frame m s)
--- type SceneDelegate p s m a = Delegate (Scene p m s) m a
--- type MonadScene p s t m = (MonadReader (Scene p m s) (t m), MonadTrans t)
-
--- magnifyScene :: Lens' s' s -> (Scene p m s -> a) -> (Scene p s' m -> a)
--- magnifyScene l f = f . edit (alongside id l)
 
 accessScene :: Lens' s' s -> Scene p m s' -> Scene p m s
 accessScene l = access (editFrame l)

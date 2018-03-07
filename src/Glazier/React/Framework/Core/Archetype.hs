@@ -46,21 +46,6 @@ _initializer' :: Lens (Archetype s m c) (Archetype s m c')
     (Delegate s m c) (Delegate s m c')
 _initializer' = field @"initializer'"
 
--- modifyDisplay' :: (Display s m () -> Display s m ())
---     -> Archetype s m c -> Archetype s m c
--- modifyDisplay' f p = let disp = display' p in p { display' = f disp }
--- infixl 4 `modifyDisplay'` -- like <$>
-
--- modifyFinalizer' :: (Finalizer s m -> Finalizer s m)
---     -> Archetype s m c -> Archetype s m c
--- modifyFinalizer' f p = let fin = finalizer' p in p { finalizer' = f fin }
--- infixl 4 `modifyFinalizer'` -- like <$>
-
--- modifyInitializer' :: (Delegate s m c1 -> Delegate s m c2)
---     -> Archetype s m c1 -> Archetype s m c2
--- modifyInitializer' f p = let ini = initializer' p in p { initializer' = f ini }
--- infixl 4 `modifyInitializer'` -- like <$>
-
 withArchetype :: Monad m =>
     (Delegate s m c1 -> Delegate s m c2 -> Delegate s m c3)
     -> Archetype s m c1 -> Archetype s m c2 ->  Archetype s m c3
@@ -69,11 +54,6 @@ withArchetype f (Archetype dis1 fin1 ini1) (Archetype dis2 fin2 ini2) =
     (dis1 <> dis2)
     (fin1 <> fin2)
     (f ini1 ini2)
-
--- mapHandler' :: (Handler m s a1 b1 -> Handler m s a2 b2)
---     -> Archetype m i s c a1 b1 -> Archetype m i s c a2 b2
--- mapHandler' f p = let hdl = handler' p in p { handler' = f hdl }
--- infixl 4 `mapHandler'` -- like <$>
 
 toArchetypeBuilder :: MonadReactor m
     => J.JSString

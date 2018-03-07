@@ -114,7 +114,7 @@ withRef ::
     )
     => GadgetId
     -> Delegate (Scene p m s) m ()
-withRef i = mkListener i "ref" (pure . JE.fromJSR) id
+withRef i = mkListener i "ref" (pure . Just) id
     >>= hdlRef
   where
     -- hdlRef :: SceneHandler p s m (EventTarget) (Which '[])

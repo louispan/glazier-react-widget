@@ -27,6 +27,7 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.Core
 import Glazier.React
+import qualified JavaScript.Extras as JE
 
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (G.Generic, Ord, Eq)
@@ -53,7 +54,7 @@ data Plan m = Plan
     -- but wont have compile error if `Glazier.React.Framework.Trigger.withRef` was not attached.
     -- The alternative is to store as a 'Many' in the model, but this ends up with messier types.
     , listeners :: M.Map GadgetId (DL.DList Listener)
-    , refs :: M.Map GadgetId EventTarget
+    , refs :: M.Map GadgetId JE.JSRep
     } deriving (G.Generic)
 
 _component :: Lens' (Plan m) ReactComponent
@@ -89,7 +90,7 @@ _onRender = field @"onRender"
 _listeners :: Lens' (Plan m) (M.Map GadgetId (DL.DList Listener))
 _listeners = field @"listeners"
 
-_refs :: Lens' (Plan m) (M.Map GadgetId EventTarget)
+_refs :: Lens' (Plan m) (M.Map GadgetId JE.JSRep)
 _refs = field @"refs"
 
 mkPlan :: MonadReactor m => J.JSString -> m (Plan m)

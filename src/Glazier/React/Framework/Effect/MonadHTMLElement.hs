@@ -8,9 +8,13 @@
 module Glazier.React.Framework.Effect.MonadHTMLElement where
 
 import Control.Lens
+import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans
+import Control.Monad.Trans.Maybe
 import Glazier.React
 import Glazier.React.Framework.Core
+import qualified JavaScript.Extras as JE
 
 -- Effects from methods in https://developeR.mozilla.org/en-US/docs/Web/API/HTMLElement
 class Monad m => MonadHTMLElement m where
@@ -29,8 +33,11 @@ focusRef ::
     => GadgetId -> Scene p m s -> m ()
 focusRef i Obj{..} = do
     me <- doReadIORef self
-    let j = me ^. my._plan._refs.at i
-    maybe (pure ()) doFocus j
+    void $ runMaybeT $ do
+        et <- MaybeT $ pure $ do
+            j <- me ^. my._plan._refs.at i
+            JE.fromJSR j
+        lift $ doFocus et
 
 blurRef ::
     ( MonadReactor m
@@ -39,8 +46,11 @@ blurRef ::
     => GadgetId -> Scene p m s -> m ()
 blurRef i Obj{..} = do
     me <- doReadIORef self
-    let j = me ^. my._plan._refs.at i
-    maybe (pure ()) doBlur j
+    void $ runMaybeT $ do
+        et <- MaybeT $ pure $ do
+            j <- me ^. my._plan._refs.at i
+            JE.fromJSR j
+        lift $ doBlur et
 
 #ifdef __GHCJS__
 

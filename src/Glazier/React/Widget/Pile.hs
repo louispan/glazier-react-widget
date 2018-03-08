@@ -11,10 +11,18 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Widget.Pile where
+module Glazier.React.Widget.Pile
+    (
+    -- * Pile
+    pileBuilder
+    , pile
+    , pileDisplay
+    , pileFinalizer
+    , pileInitializer
+    , broadcastPileHandler
+    ) where
 
 import Control.Lens
-import Control.Monad.Reader
 import Data.Foldable
 import qualified Data.Foldable.Esoteric as E
 import Glazier.React.Framework

@@ -10,6 +10,8 @@
 
 module Glazier.React.Framework.Core.Trigger where
 
+import Control.Applicative.Esoteric
+import Control.Arrow
 import Control.DeepSeq
 import Control.Lens
 import Control.Monad.Trans
@@ -67,11 +69,11 @@ mkListener ::
 mkListener gid n goStrict goLazy = methodT' $ \this@(Obj{..}) fire -> do
     let goLazy' ma = case ma of
             Nothing -> pure ()
-            Just a -> fire (goLazy a) *> rerender this
+            Just a -> fire (goLazy a) ^*> rerender this
     (ds, cb) <- doMkCallback goStrict goLazy'
-    doModifyIORef' self $ \me ->
-        me & my._plan._listeners.at gid %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
-            & my._plan._disposeOnRemoved %~ (<> ds)
+    doModifyIORef' self
+        $ my._plan._listeners.at gid %~ (\ls -> Just $ (n, cb) `DL.cons` (fromMaybe DL.empty ls))
+        >>> my._plan._disposeOnRemoved %~ (<> ds)
 
 -- | This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an EventTarget
 -- in the plan

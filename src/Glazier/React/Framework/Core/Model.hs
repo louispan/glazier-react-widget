@@ -16,6 +16,7 @@
 
 module Glazier.React.Framework.Core.Model where
 
+import Control.Applicative.Esoteric
 import qualified Control.Disposable as CD
 import Control.Lens
 import qualified Data.DList as DL
@@ -108,6 +109,7 @@ mkPlan n = Plan
     <*> pure M.empty
     <*> pure M.empty
 
+-- | A 'Frame' contains a widget 'Plan' as well as the model data.
 data Frame m s = Frame
     { plan :: Plan m
     , model :: s
@@ -124,17 +126,25 @@ editFrame l = lens
     (\(Frame p s') -> Frame p (s' ^. l))
     (\(Frame _ s') (Frame p s) -> Frame p (s' & l .~ s))
 
--- | Mutable
-type IOObj = Obj IORef
-type Scene p m s = IOObj p (Frame m s)
+-- | A 'Scene' is an mutable 'Obj' to a 'Frame'
+-- In 'Glazier.React.Framework' we are using 'IORef'
+type Scene p m s = Obj IORef p (Frame m s)
+-- | 'Specimen' is the type used by 'Glazier.React.Framework.Core.Archetype'
+-- It contains the same information as @Scene (Frame m s) m s@
+-- and @IOObj (Frame m s) (Frame m s)@
+-- that is an 'Obj' where the 'my' lens is 'id'.
+type Specimen m s = IORef (Frame m s)
+
+-- class Specimen2 m s
+-- instance Specimen2
 
 accessScene :: Lens' s' s -> Scene p m s' -> Scene p m s
 accessScene l = access (editFrame l)
 
 -- Add an action to run once after the next render
 addOnceOnUpdated :: (MonadReactor m) => Scene p m s -> m () -> m ()
-addOnceOnUpdated (Obj{..}) k = doModifyIORef' self (my._plan._onceOnUpdated %~ (*> k))
+addOnceOnUpdated (Obj{..}) k = doModifyIORef' self (my._plan._onceOnUpdated %~ (^*> k))
 
 -- Add an action to run after every render
 addEveryOnUpdated :: (MonadReactor m) => Scene p m s -> m () -> m ()
-addEveryOnUpdated (Obj{..}) k = doModifyIORef' self (my._plan._everyOnUpdated %~ (*> k))
+addEveryOnUpdated (Obj{..}) k = doModifyIORef' self (my._plan._everyOnUpdated %~ (^*> k))

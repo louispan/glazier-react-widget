@@ -13,12 +13,12 @@
 
 module Glazier.React.Framework.Core.Archetype where
 
+import Control.Arrow
 import Control.Lens
 import Control.Monad
 import Control.Monad.Reader
 import qualified Data.DList as DL
 import Data.Generics.Product
-import Data.IORef
 import qualified Data.JSString as J
 import qualified Data.Maybe.Esoteric as E
 import Data.Semigroup
@@ -59,7 +59,7 @@ withArchetype f (Archetype dis1 fin1 ini1) (Archetype dis2 fin2 ini2) =
 toArchetypeBuilder :: MonadReactor m
     => J.JSString
     -> Builder r s m r' s'
-    -> Builder r (IORef (Frame m s)) m r' (IORef (Frame m s'))
+    -> Builder r (Specimen m s) m r' (Specimen m s')
 toArchetypeBuilder n (Builder mkReq mkSpc) =
     Builder mkReq' mkSpc'
   where
@@ -73,7 +73,7 @@ toArchetypeBuilder n (Builder mkReq mkSpc) =
 
 toArchetypeHandler ::
     (a -> MethodT (Scene (Frame m s) m s) m b) -- ^ @v@ is no longer polymorphic
-    -> a -> MethodT (IORef (Frame m s)) m b
+    -> a -> MethodT (Specimen m s) m b
 toArchetypeHandler hdl a = do
     r <- ask
     magnify (to . const $ Obj r id) (hdl a)
@@ -89,7 +89,7 @@ fromArchetypeHandler hdl a = do
 -- | NB. fromArchetype . toArchetype != id
 toArchetype :: MonadReactor m
     => Prototype (Frame m s) s m c -- ^ @v@ is no longer polymorphic
-    -> Archetype (IORef (Frame m s)) m c
+    -> Archetype (Specimen m s) m c
 toArchetype (Prototype dis fin ini) = Archetype dis' fin' ini'
   where
     dis' ref = do
@@ -123,19 +123,21 @@ toArchetype (Prototype dis fin ini) = Archetype dis' fin' ini'
                         Just _ -> pure Nothing
                         Nothing -> fmap Just . doMkCallback (const $ pure ()) . const $ do
                             Frame cp' _ <- doReadIORef ref
-                            doModifyIORef' ref $ \s -> s
+                            doModifyIORef' ref $
                                 -- can't use '.~' with afterOnUpdated - causes type inference errors
-                                & (_plan._onceOnUpdated) `set'` pure mempty
-                                & _plan._disposeOnUpdated .~ mempty
+                                (_plan._onceOnUpdated) `set'` pure mempty
+                                >>> _plan._disposeOnUpdated .~ mempty
                             -- Now run things on every updated
                             doDispose (disposeOnUpdated cp')
                             everyOnUpdated cp'
                             onceOnUpdated cp'
-            let rnd' = (\(d, cb) cp' -> cp' & _onRender .~ Just cb
-                                            & _disposeOnRemoved %~ (<> d)
+            let rnd' = (\(d, cb)
+                        -> _onRender .~ Just cb
+                        >>> _disposeOnRemoved %~ (<> d)
                         ) <$> rnd
-                upd' = (\(d, cb) cp' -> cp' & _onUpdated .~ Just cb
-                                            & _disposeOnRemoved %~ (<> d)
+                upd' = (\(d, cb)
+                        -> _onUpdated .~ Just cb
+                        >>> _disposeOnRemoved %~ (<> d)
                         ) <$> upd
                 mf = case (rnd', upd') of
                         (Nothing, x) -> x
@@ -157,10 +159,10 @@ fromArchetype (Archetype disp fin ini) = Prototype
         me <- lift $ lift $ doReadIORef self
         magnify (to . const $ (me ^. my._model)) ini)
 
-fromArchetypeMaybe :: MonadReactor m
+fromMaybeArchetype :: MonadReactor m
     => Archetype s m c
     -> Prototype p (Maybe s) m c
-fromArchetypeMaybe (Archetype disp fin ini) = Prototype
+fromMaybeArchetype (Archetype disp fin ini) = Prototype
     -- (\(_, s) -> maybe (pure ()) disp s)
     (magnify (_model._Just) disp)
     (magnify _Just fin)
@@ -171,9 +173,9 @@ fromArchetypeMaybe (Archetype disp fin ini) = Prototype
             Nothing -> mempty
             Just s' -> magnify (to . const $ s') ini)
 
-fromArchetypeMaybeHandler :: MonadReactor m =>
+fromMaybeArchetypeHandler :: MonadReactor m =>
     (a -> MethodT s m b) -> (a -> MethodT (Scene p m (Maybe s)) m b)
-fromArchetypeMaybeHandler hdl a = do
+fromMaybeArchetypeHandler hdl a = do
     Obj{..} <- ask
     me <- lift $ lift $ doReadIORef self
     case me ^. my._model of

@@ -67,8 +67,8 @@ textInput gid = mempty
         , ("defaultValue", JE.toJSR $ s ^. _model)
         ]
     , initializer = withRef gid
-        !*> onInitialized
-        !*> (trigger' gid "onChange" () >>= hdlChange)
+        ^*> onInitialized
+        ^*> (trigger' gid "onChange" () >>= hdlChange)
     }
   where
 
@@ -162,7 +162,7 @@ checkboxInput gid = mempty
         , ("checked", JE.toJSR $ s ^. _model)
         ]
     , initializer = withRef gid
-        !*> (trigger' gid "onChange" () >>= hdlChange)
+        ^*> (trigger' gid "onChange" () >>= hdlChange)
     }
 
   where
@@ -179,6 +179,13 @@ data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     , indeterminate :: Bool
     } deriving G.Generic
 
+_checked :: Lens' IndeterminateCheckboxInput Bool
+_checked = field @"checked"
+
+_indeterminate :: Lens' IndeterminateCheckboxInput Bool
+_indeterminate = field @"indeterminate"
+
+
 -- | This provide a prototype of a checkbox input but without a builder.
 -- Instead a lens to the CheckboxInput is used, and the user of this widget
 -- is responsible for making the entire model.
@@ -188,8 +195,8 @@ indeterminateCheckboxInput ::
     )
     => GadgetId
     -> Prototype p IndeterminateCheckboxInput m ()
-indeterminateCheckboxInput gid = magnifyPrototype (field @"checked") (checkboxInput gid)
-    & _initializer %~ (!*> onInitialized)
+indeterminateCheckboxInput gid = magnifyPrototype _checked (checkboxInput gid)
+    & _initializer %~ (^*> onInitialized)
   where
     -- | Add setting the indeterminate after every dirty as this is the only
     -- way to change that setting.
@@ -207,5 +214,5 @@ indeterminateCheckboxInput gid = magnifyPrototype (field @"checked") (checkboxIn
                 Nothing -> pure ()
                 Just j' -> j' & doSetProperty
                     ( "indeterminate"
-                    , JE.toJSR $ me ^. my._model.field @"indeterminate"
+                    , JE.toJSR $ me ^. my._model._indeterminate
                     )

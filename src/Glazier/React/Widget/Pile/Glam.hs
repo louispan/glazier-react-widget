@@ -13,8 +13,21 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Widget.Pile.Glam where
+module Glazier.React.Widget.Pile.Glam
+    (
+    -- * Pile.Glam
+    GlamPile(..)
+    , glamPileBuilder
+    , glamPile
+    , glamPileDisplay
+    , glamPileFinalizer
+    , glamPileInitializer
+    , broadcastGlamPileHandler
+    , hdlGlamPileSortCriteria
+    , hdlGlamPileFilterCriteria
+    ) where
 
+import Control.Arrow
 import Control.Lens
 import qualified Control.Monad.ListM as LM
 import Control.Monad.Reader
@@ -26,18 +39,30 @@ import Glazier.React.Widget.Pile as W
 
 -- | Contains information on sorting and filtering the items in a pile
 -- differerently from the native data structure.
-data GlamPile flt srt t a = GlamPile
-    { filterCriteria :: flt
+data GlamPile ftr srt t a = GlamPile
+    { filterCriteria :: ftr
     , sortCriteria :: srt
     , glamList :: [a] -- filtered and sorted
     , rawPile :: t a
     } deriving (G.Generic, Functor)
 
+_filterCriteria :: Lens (GlamPile ftr srt t a) (GlamPile ftr' srt t a) ftr ftr'
+_filterCriteria = field @"filterCriteria"
+
+_sortCriteria :: Lens (GlamPile ftr srt t a) (GlamPile ftr srt' t a) srt srt'
+_sortCriteria = field @"sortCriteria"
+
+_glamList :: Lens' (GlamPile ftr srt t a) [a]
+_glamList = field @"glamList"
+
+_rawPile :: Lens' (GlamPile ftr srt t a) (t a)
+_rawPile = field @"rawPile"
+
 -- | Converts a builder with a plan of @[a]@ to a plan of @Mapping a@
 glamPileBuilder :: (Traversable t, Applicative m)
     => Builder r s m r' s'
-    -> Builder (GlamPile flt srt t r) (GlamPile flt srt t s)
-        m (GlamPile flt srt t r') (GlamPile flt srt t s')
+    -> Builder (GlamPile ftr srt t r) (GlamPile ftr srt t s)
+        m (GlamPile ftr srt t r') (GlamPile ftr srt t s')
 glamPileBuilder (Builder mkReq mkSpc) =
     Builder mkReq' mkSpc'
   where
@@ -45,49 +70,49 @@ glamPileBuilder (Builder mkReq mkSpc) =
     mkSpc' (GlamPile fc sc al rs) = GlamPile fc sc <$> traverse mkSpc al <*> traverse mkSpc rs
 
 glamPile :: (Traversable t, MonadReactor m)
-    => (flt -> s -> m Bool)
+    => (ftr -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
     -> Archetype s m c
-    -> Prototype p (GlamPile flt srt t s) m c
-glamPile flt srt (Archetype dis fin ini)
+    -> Prototype p (GlamPile ftr srt t s) m c
+glamPile ftr srt (Archetype dis fin ini)
     = Prototype
-        (glamPileDisplay flt srt dis)
+        (glamPileDisplay ftr srt dis)
         (glamPileFinalizer fin)
         (glamPileInitializer ini)
-
--- | Sort the items on the listing given a sorting function
-hdlGlamPileSortCriteria :: (MonadReactor m)
-    => srt -> MethodT (Scene p m (GlamPile flt srt t a)) m ()
-hdlGlamPileSortCriteria f = readrT' $ \this@Obj{..} -> lift $ do
-    doModifyIORef' self $ \me ->
-        me & (my._model.field @"sortCriteria" .~ f)
-            . (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
-    dirty this
-
--- | Filter the items on the listing given a filter function
-hdlGlamPileFilterCriteria :: (MonadReactor m)
-    => flt -> MethodT (Scene p m (GlamPile flt srt t a)) m ()
-hdlGlamPileFilterCriteria f = readrT' $ \this@Obj{..} -> lift $ do
-    doModifyIORef' self $ \me ->
-        me & (my._model.field @"filterCriteria" .~ f)
-            . (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
-    dirty this
 
 -- | lift a handler for a single widget into a handler of a list of widgets
 -- where the input is broadcast to all the items in the list.
 broadcastGlamPileHandler :: (Traversable t, MonadReactor m)
     => (a -> MethodT s m b)
-    -> a -> MethodT (Scene p m (GlamPile flt srt t s)) m b
-broadcastGlamPileHandler hdl a = magnify (to $ accessScene (field @"rawPile")) (W.broadcastPileHandler hdl a)
+    -> a -> MethodT (Scene p m (GlamPile ftr srt t s)) m b
+broadcastGlamPileHandler hdl a = magnify (to $ accessScene _rawPile) (W.broadcastPileHandler hdl a)
+
+-- | Sort the items on the listing given a sorting function
+hdlGlamPileSortCriteria :: (MonadReactor m)
+    => srt -> MethodT (Scene p m (GlamPile ftr srt t s)) m ()
+hdlGlamPileSortCriteria f = readrT' $ \this@Obj{..} -> lift $ do
+    doModifyIORef' self
+        $ my._model._sortCriteria .~ f
+        >>> my._model._glamList .~ [] -- this tells render to update displayItems
+    dirty this
+
+-- | Filter the items on the listing given a filter function
+hdlGlamPileFilterCriteria :: (MonadReactor m)
+    => ftr -> MethodT (Scene p m (GlamPile ftr srt t s)) m ()
+hdlGlamPileFilterCriteria f = readrT' $ \this@Obj{..} -> lift $ do
+    doModifyIORef' self
+        $ my._model._filterCriteria .~ f
+        >>> my._model._glamList .~ [] -- this tells render to update displayItems
+    dirty this
 
 glamPileDisplay :: (Foldable t, MonadReactor m)
-    => (flt -> s -> m Bool)
+    => (ftr -> s -> m Bool)
     -> (srt -> s -> s -> m Ordering)
     -> Display s m ()
-    -> FrameDisplay (GlamPile flt srt t s) m ()
-glamPileDisplay flt srt dis (Frame _ (GlamPile df ds ys xs)) = do
+    -> FrameDisplay (GlamPile ftr srt t s) m ()
+glamPileDisplay ftr srt dis (Frame _ (GlamPile df ds ys xs)) = do
     let toLi s = bh "li" [] (dis s)
-        df' = flt df
+        df' = ftr df
         ds' = srt ds
     ys' <- lift $ case ys of
             -- if displayList is empty, then run the filter and sort
@@ -101,10 +126,10 @@ glamPileDisplay flt srt dis (Frame _ (GlamPile df ds ys xs)) = do
     bh "ul" [] (fold $ toLi <$> ys')
 
 glamPileFinalizer :: (Traversable t, Monad m)
-    => Finalizer s m -> Finalizer (GlamPile flt srt t s) m
-glamPileFinalizer fin = magnify (field @"rawPile") (W.pileFinalizer fin)
+    => Finalizer s m -> Finalizer (GlamPile ftr srt t s) m
+glamPileFinalizer fin = magnify _rawPile (W.pileFinalizer fin)
 
 glamPileInitializer :: (Foldable t, MonadReactor m)
     => MethodT s m b
-    -> MethodT (Scene p m (GlamPile flt srt t s)) m b
-glamPileInitializer ini = magnify (to $ accessScene (field @"rawPile")) (W.pileInitializer ini)
+    -> MethodT (Scene p m (GlamPile ftr srt t s)) m b
+glamPileInitializer ini = magnify (to $ accessScene _rawPile) (W.pileInitializer ini)

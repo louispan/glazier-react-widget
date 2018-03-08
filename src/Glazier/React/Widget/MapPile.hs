@@ -11,7 +11,14 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Widget.MapPile where
+module Glazier.React.Widget.MapPile
+    (
+    -- * MapPile
+    hdlMapPileDeleteItem
+    , hdlMapPileInsertItem
+    -- * Re-exports
+    , module Glazier.React.Widget.Pile
+    ) where
 
 import Control.Lens
 import Control.Monad.Trans
@@ -19,6 +26,7 @@ import qualified Data.Map.Strict as M
 import Data.Semigroup
 import Data.Semigroup.Applicative
 import Glazier.React.Framework
+import Glazier.React.Widget.Pile
 
 hdlMapPileDeleteItem :: (MonadReactor m, Ord k)
     => Finalizer s m
@@ -28,8 +36,8 @@ hdlMapPileDeleteItem fin k = readrT' $ \this@Obj{..} -> lift $ do
     let mi = M.lookup k (me ^. my._model)
     fin' <- maybe (pure mempty) (getAp . fin) mi
     doWriteIORef self $ me
-        & (my._model %~ M.delete k)
-        & (my._plan._disposeOnUpdated %~ (<> fin'))
+        & my._model %~ M.delete k
+        & my._plan._disposeOnUpdated %~ (<> fin')
     dirty this
 
 hdlMapPileInsertItem :: (MonadReactor m, Ord k)
@@ -40,6 +48,6 @@ hdlMapPileInsertItem fin (k, s) = readrT' $ \this@Obj{..} -> lift $ do
     let mi = M.lookup k (me ^. my._model)
     fin' <- maybe (pure mempty) (getAp . fin) mi
     doWriteIORef self $ me
-        & (my._model %~ M.insert k s)
-        & (my._plan._disposeOnUpdated %~ (<> fin'))
+        & my._model %~ M.insert k s
+        & my._plan._disposeOnUpdated %~ (<> fin')
     dirty this

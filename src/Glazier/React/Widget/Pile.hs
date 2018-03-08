@@ -23,8 +23,8 @@ import Glazier.React.Framework
 pileBuilder :: (Applicative m, Traversable t)
     => Builder r s m r' s'
     -> Builder (t r) (t s) m (t r') (t s')
-pileBuilder (Builder (ReaderT mkReq) (ReaderT mkSpc)) =
-    Builder (ReaderT mkReq') (ReaderT mkSpc')
+pileBuilder (Builder mkReq mkSpc) =
+    Builder mkReq' mkSpc'
   where
     mkReq' = traverse mkReq
     mkSpc' = traverse mkSpc
@@ -41,26 +41,26 @@ pile (Archetype dis fin ini)
 -- | lift a handler for a single widget into a handler of a list of widgets
 -- where the input is broadcast to all the items in the list.
 broadcastPileHandler :: (Foldable t, MonadReactor m)
-    => (a -> Delegate s m b)
-    -> a -> Delegate (Scene p m (t s)) m b
-broadcastPileHandler hdl a = delegate'' $ \Obj{..} fire -> do
+    => (a -> MethodT s m b)
+    -> a -> MethodT (Scene p m (t s)) m b
+broadcastPileHandler hdl a = methodT' $ \Obj{..} fire -> do
     me <- doReadIORef self
-    E.traverse_' (\s -> runDelegate'' (hdl a) s fire) (me ^. my._model)
+    E.traverse_' (\s -> runMethodT' (hdl a) s fire) (me ^. my._model)
 
 pileFinalizer :: (Traversable t, Applicative m)
     => Finalizer s m -> Finalizer (t s) m
-pileFinalizer fin = method' $ \ss -> fold <$> traverse (runMethod' fin) ss
+pileFinalizer fin ss = fold <$> traverse fin ss
 
 pileDisplay :: (Functor t, Foldable t, Monad m)
     => Display s m ()
     -> FrameDisplay (t s) m ()
-pileDisplay dis = method' $ \(Frame _ ss) -> do
-    let toLi s = bh "li" [] (runMethod' dis s)
+pileDisplay dis (Frame _ ss) = do
+    let toLi s = bh "li" [] (dis s)
     bh "ul" [] (fold $ toLi <$> ss)
 
 pileInitializer :: (Foldable t, MonadReactor m)
-    => Delegate s m b
-    -> Delegate (Scene p m (t s)) m b
-pileInitializer ini = delegate'' $ \Obj{..} fire -> do
+    => MethodT s m b
+    -> MethodT (Scene p m (t s)) m b
+pileInitializer ini = methodT' $ \Obj{..} fire -> do
     me <- doReadIORef self
-    E.traverse_' (\s -> runDelegate'' ini s fire) (me ^. my._model)
+    E.traverse_' (\s -> runMethodT' ini s fire) (me ^. my._model)

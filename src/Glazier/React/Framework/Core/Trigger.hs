@@ -31,7 +31,7 @@ trigger' :: (MonadReactor m)
     => GadgetId
     -> J.JSString
     -> b
-    -> Delegate (Scene p m s) m b
+    -> MethodT (Scene p m s) m b
 trigger' gid n b = trigger gid n (const $ pure ()) (const b)
 
 -- | Create callback for 'Notice' and add it to this state's dlist of listeners.
@@ -43,7 +43,7 @@ trigger ::
     -> J.JSString
     -> (Notice -> IO a)
     -> (a -> b)
-    -> Delegate (Scene p m s) m b
+    -> MethodT (Scene p m s) m b
 trigger gid n goStrict = mkListener gid n goStrict'
   where
     goStrict' e = case JE.fromJSR e of
@@ -63,8 +63,8 @@ mkListener ::
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
     -> (a -> b)
-    -> Delegate (Scene p m s) m b
-mkListener gid n goStrict goLazy = delegate'' $ \this@(Obj{..}) fire -> do
+    -> MethodT (Scene p m s) m b
+mkListener gid n goStrict goLazy = methodT' $ \this@(Obj{..}) fire -> do
     let goLazy' ma = case ma of
             Nothing -> pure ()
             Just a -> fire (goLazy a) *> rerender this
@@ -79,10 +79,10 @@ withRef ::
     ( MonadReactor m
     )
     => GadgetId
-    -> Delegate (Scene p m s) m ()
+    -> MethodT (Scene p m s) m ()
 withRef i = mkListener i "ref" (pure . Just) id
     >>= hdlRef
   where
     -- hdlRef :: SceneHandler p s m (EventTarget) (Which '[])
-    hdlRef j = delegate' $ \(Obj{..}) ->
+    hdlRef j = readrT' $ \(Obj{..}) ->
         lift $ doModifyIORef' self (my._plan._refs.at i .~ Just j)

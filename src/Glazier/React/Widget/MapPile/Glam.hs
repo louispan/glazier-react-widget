@@ -25,20 +25,20 @@ import Glazier.React.Widget.Pile.Glam as W
 
 hdlGlamMapPileDeleteItem :: (MonadReactor m, Ord k)
     => Finalizer s m
-    -> k -> Delegate (Scene p m (W.GlamPile flt srt (M.Map k) s)) m ()
+    -> k -> MethodT (Scene p m (W.GlamPile flt srt (M.Map k) s)) m ()
 hdlGlamMapPileDeleteItem fin k = do
     this@Obj{..} <- ask
-    lift $ do
+    lift $ lift $ do
         doModifyIORef' self (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
         dirty this
     magnify (to $ accessScene (field @"rawPile")) (W.hdlMapPileDeleteItem fin k)
 
 hdlGlamMapPileInsertItem :: (MonadReactor m, Ord k)
     => Finalizer s m
-    -> (k, s) -> Delegate (Scene p m (W.GlamPile flt srt (M.Map k) s)) m ()
+    -> (k, s) -> MethodT (Scene p m (W.GlamPile flt srt (M.Map k) s)) m ()
 hdlGlamMapPileInsertItem fin k = do
     this@Obj{..} <- ask
-    lift $ do
+    lift $ lift $ do
         doModifyIORef' self (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
         dirty this
     magnify (to $ accessScene (field @"rawPile")) (W.hdlMapPileInsertItem fin k)

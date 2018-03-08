@@ -21,6 +21,7 @@ import Control.Monad.Cont
 import Control.Monad.Reader
 import Data.Generics.Product
 import Data.Semigroup
+import Data.Semigroup.Applicative
 import qualified GHC.Generics as G
 import Glazier.Core
 import Glazier.React.Framework.Core.Display
@@ -30,12 +31,12 @@ import Glazier.React.Framework.Core.Model
 -- that has to be cleaned manually, we can't just rely on the garbage collector.
 -- This contains 'Disposable' to be called on the *next* render.
 -- This must be called before removing widgets from a containing model.
-type Finalizer s m = Method s m CD.Disposable
+type Finalizer s m = s -> Ap m CD.Disposable
 
 data Prototype p s m c = Prototype
     { display :: FrameDisplay s m ()
     , finalizer :: Finalizer s m
-    , initializer :: Delegate (Scene p m s) m c
+    , initializer :: MethodT (Scene p m s) m c
     } deriving (G.Generic, Functor)
 
 _display :: Lens' (Prototype p s m c) (FrameDisplay s m ())
@@ -45,11 +46,11 @@ _finalizer :: Lens' (Prototype p s m c) (Finalizer s m)
 _finalizer = field @"finalizer"
 
 _initializer :: Lens (Prototype p s m c) (Prototype p s m c')
-    (Delegate (Scene p m s) m c) (Delegate (Scene p m s) m c')
+    (MethodT (Scene p m s) m c) (MethodT (Scene p m s) m c')
 _initializer = field @"initializer"
 
 withPrototype :: Monad m =>
-    (Delegate (Scene p m s) m c1 -> Delegate (Scene p m s) m c2 -> Delegate (Scene p m s) m c3)
+    (MethodT (Scene p m s) m c1 -> MethodT (Scene p m s) m c2 -> MethodT (Scene p m s) m c3)
     -> Prototype p s m c1 -> Prototype p s m c2 -> Prototype p s m c3
 withPrototype f (Prototype dis1 fin1 ini1) (Prototype dis2 fin2 ini2) =
     Prototype
@@ -60,18 +61,18 @@ withPrototype f (Prototype dis1 fin1 ini1) (Prototype dis2 fin2 ini2) =
 ------------------------------------------
 
 instance Monad m => Applicative (Prototype p s m) where
-    pure a = Prototype mempty mempty (pure a)
+    pure a = Prototype mempty (const $ pure mempty) (pure a)
     (<*>) = withPrototype (<*>)
 
 instance Monad m => Semigroup (Prototype p s m c) where
     (<>) = withPrototype (<>)
 
 instance Monad m => Monoid (Prototype p s m c) where
-    mempty = Prototype mempty mempty mempty
+    mempty = Prototype mempty (const $ pure mempty) mempty
     mappend = withPrototype mappend
 
 -- | Modify prototype's reading environment @s1@ inside a larger @s2@
-magnifyPrototype :: Monad m => Lens' s2 s1  -> Prototype p s1 m c -> Prototype p s2 m c
+magnifyPrototype :: Lens' s2 s1  -> Prototype p s1 m c -> Prototype p s2 m c
 magnifyPrototype sl (Prototype disp fin ini) = Prototype
     -- (enlargeBuilder fi (view sl) bld)
     (magnify (editFrame sl) disp)
@@ -81,12 +82,12 @@ magnifyPrototype sl (Prototype disp fin ini) = Prototype
 -- | Makes and initialzies a spec from a req.
 -- Used by prototypes that contain other archetypes.
 mkInitializedSpec :: Monad m
-    => ReaderT r m s
-    -> Delegate s m c
-    -> Delegate r m (c, s)
+    => (r -> m s)
+    -> MethodT s m c
+    -> MethodT r m (c, s)
 mkInitializedSpec mkSpc ini = do
     r <- ask
-    s <- lift $ runReaderT mkSpc r
+    s <- lift $ lift $ mkSpc r
     c <- magnify (to (const s)) ini
     pure (c, s)
 

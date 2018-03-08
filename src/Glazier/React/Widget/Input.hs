@@ -55,7 +55,7 @@ textInput ::
     => GadgetId
     -> Prototype p J.JSString m ()
 textInput gid = mempty
-    { display = method' $ \s -> lf' gid s "input"
+    { display = \s -> lf' gid s "input"
         [ ("key", JE.toJSR . reactKey $ s ^. _plan)
         -- "value" cannot be used as React will take over as a controlled component.
         -- The defaultValue only sets the *initial* DOM value
@@ -77,10 +77,10 @@ textInput gid = mempty
     onInitialized ::
         ( MonadReactor m
         , MonadJS m
-        ) => Delegate (Scene p m J.JSString) m ()
+        ) => MethodT (Scene p m J.JSString) m ()
     onInitialized = do
         this <- ask
-        lift $ addEveryOnUpdated this (go this)
+        lift $ lift $ addEveryOnUpdated this (go this)
       where
         go Obj{..} = do
             me <- doReadIORef self
@@ -97,8 +97,8 @@ textInput gid = mempty
 
     hdlChange ::
         ( MonadReactor m, MonadJS m
-        ) => a -> Delegate (Scene p m J.JSString) m ()
-    hdlChange _ = delegate' $ \Obj{..} -> do
+        ) => a -> MethodT (Scene p m J.JSString) m ()
+    hdlChange _ = readrT' $ \Obj{..} -> do
         lift $ void $ runMaybeT $ do
             me <- lift $ doReadIORef self
             j <- MaybeT $ pure $ me ^. my._plan._refs.at gid
@@ -156,7 +156,7 @@ checkboxInput :: ( MonadReactor m)
     => GadgetId
     -> Prototype p Bool m ()
 checkboxInput gid = mempty
-    { display = method' $ \s -> lf' gid s "input"
+    { display = \s -> lf' gid s "input"
         [ ("key", JE.toJSR . reactKey $ s ^. _plan)
         , ("type", "checkbox")
         , ("checked", JE.toJSR $ s ^. _model)
@@ -168,8 +168,8 @@ checkboxInput gid = mempty
   where
     hdlChange ::
         (MonadReactor m)
-        => a -> Delegate (Scene p m Bool) m ()
-    hdlChange _ = delegate' $ \this@Obj{..} -> do
+        => a -> MethodT (Scene p m Bool) m ()
+    hdlChange _ = readrT' $ \this@Obj{..} -> do
         lift $ do
             doModifyIORef' self (my._model %~ not)
             dirty this
@@ -196,9 +196,9 @@ indeterminateCheckboxInput gid = magnifyPrototype (field @"checked") (checkboxIn
     onInitialized ::
         ( MonadReactor m
         , MonadJS m
-        ) => Delegate (Scene p m IndeterminateCheckboxInput) m ()
-    onInitialized = delegate' $ \this@Obj{..} -> do
-        lift $ addEveryOnUpdated this (go this)
+        ) => MethodT (Scene p m IndeterminateCheckboxInput) m ()
+    onInitialized = readrT' $ \this@Obj{..} -> do
+         lift $ addEveryOnUpdated this (go this)
       where
         go Obj{..} = do
             me <- doReadIORef self

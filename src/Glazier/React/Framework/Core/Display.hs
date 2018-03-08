@@ -14,7 +14,7 @@ import Glazier.React
 import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
-type Display s m r = Method s (ReactMlT m) r
+type Display s m r = s -> ReactMlT m r
 
 type FrameDisplay s m r = Display (Frame m s) m r
 

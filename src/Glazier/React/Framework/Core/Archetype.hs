@@ -22,6 +22,7 @@ import Data.IORef
 import qualified Data.JSString as J
 import qualified Data.Maybe.Esoteric as E
 import Data.Semigroup
+import Data.Semigroup.Applicative
 import qualified GHC.Generics as G
 import Glazier.Core
 import Glazier.React
@@ -33,7 +34,7 @@ import qualified JavaScript.Extras as JE
 data Archetype s m c = Archetype
     { display' :: Display s m ()
     , finalizer' :: Finalizer s m
-    , initializer' :: Delegate s m c
+    , initializer' :: MethodT s m c
     } deriving (G.Generic, Functor)
 
 _display' :: Lens' (Archetype s m c) (Display s m ())
@@ -43,11 +44,11 @@ _finalizer' :: Lens' (Archetype s m c) (Finalizer s m)
 _finalizer' = field @"finalizer'"
 
 _initializer' :: Lens (Archetype s m c) (Archetype s m c')
-    (Delegate s m c) (Delegate s m c')
+    (MethodT s m c) (MethodT s m c')
 _initializer' = field @"initializer'"
 
 withArchetype :: Monad m =>
-    (Delegate s m c1 -> Delegate s m c2 -> Delegate s m c3)
+    (MethodT s m c1 -> MethodT s m c2 -> MethodT s m c3)
     -> Archetype s m c1 -> Archetype s m c2 ->  Archetype s m c3
 withArchetype f (Archetype dis1 fin1 ini1) (Archetype dis2 fin2 ini2) =
     Archetype
@@ -59,8 +60,8 @@ toArchetypeBuilder :: MonadReactor m
     => J.JSString
     -> Builder r s m r' s'
     -> Builder r (IORef (Frame m s)) m r' (IORef (Frame m s'))
-toArchetypeBuilder n (Builder (ReaderT mkReq) (ReaderT mkSpc)) =
-    Builder (ReaderT mkReq') (ReaderT mkSpc')
+toArchetypeBuilder n (Builder mkReq mkSpc) =
+    Builder mkReq' mkSpc'
   where
     mkReq' = doReadIORef >=> (mkReq . model)
     mkSpc' r = do
@@ -71,18 +72,18 @@ toArchetypeBuilder n (Builder (ReaderT mkReq) (ReaderT mkSpc)) =
         doNewIORef (Frame cp s)
 
 toArchetypeHandler ::
-    (a -> Delegate (Scene (Frame m s) m s) m b) -- ^ @v@ is no longer polymorphic
-    -> a -> Delegate (IORef (Frame m s)) m b
+    (a -> MethodT (Scene (Frame m s) m s) m b) -- ^ @v@ is no longer polymorphic
+    -> a -> MethodT (IORef (Frame m s)) m b
 toArchetypeHandler hdl a = do
     r <- ask
     magnify (to . const $ Obj r id) (hdl a)
 
 fromArchetypeHandler :: MonadReactor m =>
-    (a -> Delegate s m b) ->
-    a -> Delegate (Scene p m s) m b
+    (a -> MethodT s m b) ->
+    a -> MethodT (Scene p m s) m b
 fromArchetypeHandler hdl a = do
     Obj{..} <- ask
-    me <- lift $ doReadIORef self
+    me <- lift $ lift $ doReadIORef self
     magnify (to . const $ me ^. my._model) (hdl a)
 
 -- | NB. fromArchetype . toArchetype != id
@@ -91,27 +92,25 @@ toArchetype :: MonadReactor m
     -> Archetype (IORef (Frame m s)) m c
 toArchetype (Prototype dis fin ini) = Archetype dis' fin' ini'
   where
-    dis' = do
-        ref <- ask
-        Frame cp _ <- lift $ lift $ doReadIORef ref
-        lift $ leaf
+    dis' ref = do
+        Frame cp _ <- lift $ doReadIORef ref
+        leaf
             (DL.fromList $ E.keepMaybes [ ("updated", cp ^. _onUpdated)])
             (cp ^. _component.to JE.toJSR)
             (DL.fromList $ E.keepMaybes
                 [ ("key", Just . JE.toJSR $ cp ^. _reactKey)
                 , ("render", JE.toJSR <$> cp ^. _onRender)
                 ])
-    fin' = do
-        ref <- ask
-        Frame cp s <- lift $ doReadIORef ref
-        fin'' <- lift $ runMethod' fin s
+    fin' ref = Ap $ do
+        Frame cp s <- doReadIORef ref
+        fin'' <- getAp $ fin s
         pure (fin'' <> disposeOnRemoved cp <> disposeOnUpdated cp)
     ini' = do
         ref <- ask
         -- Run the Prototype's Initializer, saving the continuation result
         a <- magnify (to . const $ Obj ref id) ini
         -- Now activate this archetype, passing the output
-        fmap (const a) . lift $ do
+        fmap (const a) . lift $ lift $ do
             -- Now add our own Archetype activation
             Frame cp _ <- doReadIORef ref
             -- now replace the render and componentUpdated in the model if not already activated
@@ -119,7 +118,7 @@ toArchetype (Prototype dis fin ini) = Archetype dis' fin' ini'
                         Just _ -> pure Nothing
                         Nothing -> fmap Just . doMkRenderer $ do
                             s <- lift $ doReadIORef ref
-                            runMethod' dis s
+                            dis s
             upd <- case onUpdated cp of
                         Just _ -> pure Nothing
                         Nothing -> fmap Just . doMkCallback (const $ pure ()) . const $ do
@@ -155,7 +154,7 @@ fromArchetype (Archetype disp fin ini) = Prototype
     fin
     (do
         Obj{..} <- ask
-        me <- lift $ doReadIORef self
+        me <- lift $ lift $ doReadIORef self
         magnify (to . const $ (me ^. my._model)) ini)
 
 fromArchetypeMaybe :: MonadReactor m
@@ -167,16 +166,16 @@ fromArchetypeMaybe (Archetype disp fin ini) = Prototype
     (magnify _Just fin)
     (do
         Obj{..} <- ask
-        me <- lift $ doReadIORef self
+        me <- lift . lift $ doReadIORef self
         case me ^. my._model of
             Nothing -> mempty
             Just s' -> magnify (to . const $ s') ini)
 
 fromArchetypeMaybeHandler :: MonadReactor m =>
-    (a -> Delegate s m b) -> (a -> Delegate (Scene p m (Maybe s)) m b)
+    (a -> MethodT s m b) -> (a -> MethodT (Scene p m (Maybe s)) m b)
 fromArchetypeMaybeHandler hdl a = do
     Obj{..} <- ask
-    me <- lift $ doReadIORef self
+    me <- lift $ lift $ doReadIORef self
     case me ^. my._model of
         Nothing -> mempty
         Just s' -> magnify (to . const $ s') (hdl a)

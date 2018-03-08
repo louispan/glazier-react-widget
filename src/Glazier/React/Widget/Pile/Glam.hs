@@ -38,8 +38,8 @@ glamPileBuilder :: (Traversable t, Applicative m)
     => Builder r s m r' s'
     -> Builder (GlamPile flt srt t r) (GlamPile flt srt t s)
         m (GlamPile flt srt t r') (GlamPile flt srt t s')
-glamPileBuilder (Builder (ReaderT mkReq) (ReaderT mkSpc)) =
-    Builder (ReaderT mkReq') (ReaderT mkSpc')
+glamPileBuilder (Builder mkReq mkSpc) =
+    Builder mkReq' mkSpc'
   where
     mkReq' (GlamPile fc sc al ss) = GlamPile fc sc <$> traverse mkReq al <*> traverse mkReq ss
     mkSpc' (GlamPile fc sc al rs) = GlamPile fc sc <$> traverse mkSpc al <*> traverse mkSpc rs
@@ -57,8 +57,8 @@ glamPile flt srt (Archetype dis fin ini)
 
 -- | Sort the items on the listing given a sorting function
 hdlGlamPileSortCriteria :: (MonadReactor m)
-    => srt -> Delegate (Scene p m (GlamPile flt srt t a)) m ()
-hdlGlamPileSortCriteria f = delegate' $ \this@Obj{..} -> lift $ do
+    => srt -> MethodT (Scene p m (GlamPile flt srt t a)) m ()
+hdlGlamPileSortCriteria f = readrT' $ \this@Obj{..} -> lift $ do
     doModifyIORef' self $ \me ->
         me & (my._model.field @"sortCriteria" .~ f)
             . (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
@@ -66,8 +66,8 @@ hdlGlamPileSortCriteria f = delegate' $ \this@Obj{..} -> lift $ do
 
 -- | Filter the items on the listing given a filter function
 hdlGlamPileFilterCriteria :: (MonadReactor m)
-    => flt -> Delegate (Scene p m (GlamPile flt srt t a)) m ()
-hdlGlamPileFilterCriteria f = delegate' $ \this@Obj{..} -> lift $ do
+    => flt -> MethodT (Scene p m (GlamPile flt srt t a)) m ()
+hdlGlamPileFilterCriteria f = readrT' $ \this@Obj{..} -> lift $ do
     doModifyIORef' self $ \me ->
         me & (my._model.field @"filterCriteria" .~ f)
             . (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
@@ -76,8 +76,8 @@ hdlGlamPileFilterCriteria f = delegate' $ \this@Obj{..} -> lift $ do
 -- | lift a handler for a single widget into a handler of a list of widgets
 -- where the input is broadcast to all the items in the list.
 broadcastGlamPileHandler :: (Traversable t, MonadReactor m)
-    => (a -> Delegate s m b)
-    -> a -> Delegate (Scene p m (GlamPile flt srt t s)) m b
+    => (a -> MethodT s m b)
+    -> a -> MethodT (Scene p m (GlamPile flt srt t s)) m b
 broadcastGlamPileHandler hdl a = magnify (to $ accessScene (field @"rawPile")) (W.broadcastPileHandler hdl a)
 
 glamPileDisplay :: (Foldable t, MonadReactor m)
@@ -85,8 +85,8 @@ glamPileDisplay :: (Foldable t, MonadReactor m)
     -> (srt -> s -> s -> m Ordering)
     -> Display s m ()
     -> FrameDisplay (GlamPile flt srt t s) m ()
-glamPileDisplay flt srt dis = method' $ \(Frame _ (GlamPile df ds ys xs)) -> do
-    let toLi s = bh "li" [] (runMethod' dis s)
+glamPileDisplay flt srt dis (Frame _ (GlamPile df ds ys xs)) = do
+    let toLi s = bh "li" [] (dis s)
         df' = flt df
         ds' = srt ds
     ys' <- lift $ case ys of
@@ -105,6 +105,6 @@ glamPileFinalizer :: (Traversable t, Monad m)
 glamPileFinalizer fin = magnify (field @"rawPile") (W.pileFinalizer fin)
 
 glamPileInitializer :: (Foldable t, MonadReactor m)
-    => Delegate s m b
-    -> Delegate (Scene p m (GlamPile flt srt t s)) m b
+    => MethodT s m b
+    -> MethodT (Scene p m (GlamPile flt srt t s)) m b
 glamPileInitializer ini = magnify (to $ accessScene (field @"rawPile")) (W.pileInitializer ini)

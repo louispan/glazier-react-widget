@@ -11,16 +11,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Widget.Pile
-    (
-    -- * Pile
-    pileBuilder
-    , pile
-    , pileDisplay
-    , pileFinalizer
-    , pileInitializer
-    , broadcastPileHandler
-    ) where
+module Glazier.React.Widget.Pile where
 
 import Control.Lens
 import Data.Foldable

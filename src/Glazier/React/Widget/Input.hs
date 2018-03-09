@@ -1,10 +1,12 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Widget.Input (
@@ -18,11 +20,11 @@ module Glazier.React.Widget.Input (
 
 import Control.Applicative.Esoteric
 import Control.Lens
+import Control.Lens.Misc
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
-import Data.Generics.Product
 import qualified Data.JSString as J
 import Data.Maybe
 import qualified GHC.Generics as G
@@ -166,8 +168,7 @@ checkboxInput gid = mempty
     }
 
   where
-    hdlChange ::
-        (MonadReactor m)
+    hdlChange :: (MonadReactor m)
         => a -> MethodT (Scene p m Bool) m ()
     hdlChange _ = readrT' $ \this@Obj{..} -> do
         lift $ do
@@ -179,12 +180,7 @@ data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     , indeterminate :: Bool
     } deriving G.Generic
 
-_checked :: Lens' IndeterminateCheckboxInput Bool
-_checked = field @"checked"
-
-_indeterminate :: Lens' IndeterminateCheckboxInput Bool
-_indeterminate = field @"indeterminate"
-
+makeLenses_ ''IndeterminateCheckboxInput
 
 -- | This provide a prototype of a checkbox input but without a builder.
 -- Instead a lens to the CheckboxInput is used, and the user of this widget

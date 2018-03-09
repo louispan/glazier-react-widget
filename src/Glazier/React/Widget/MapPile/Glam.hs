@@ -24,7 +24,6 @@ module Glazier.React.Widget.MapPile.Glam
 
 import Control.Lens
 import Control.Monad.Reader
-import Data.Generics.Product
 import qualified Data.Map.Strict as M
 import Glazier.React.Framework
 import Glazier.React.Widget.MapPile
@@ -36,9 +35,9 @@ hdlGlamMapPileDeleteItem :: (MonadReactor m, Ord k)
 hdlGlamMapPileDeleteItem fin k = do
     this@Obj{..} <- ask
     lift $ lift $ do
-        doModifyIORef' self (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
+        doModifyIORef' self (my._model._glamList .~ []) -- this tells render to update displayItems
         dirty this
-    magnify (to $ accessScene (field @"rawPile")) (hdlMapPileDeleteItem fin k)
+    magnify (to $ accessScene _rawPile) (hdlMapPileDeleteItem fin k)
 
 hdlGlamMapPileInsertItem :: (MonadReactor m, Ord k)
     => Finalizer s m
@@ -46,6 +45,6 @@ hdlGlamMapPileInsertItem :: (MonadReactor m, Ord k)
 hdlGlamMapPileInsertItem fin k = do
     this@Obj{..} <- ask
     lift $ lift $ do
-        doModifyIORef' self (my._model.field @"glamList" .~ []) -- this tells render to update displayItems
+        doModifyIORef' self (my._model._glamList .~ []) -- this tells render to update displayItems
         dirty this
-    magnify (to $ accessScene (field @"rawPile")) (hdlMapPileInsertItem fin k)
+    magnify (to $ accessScene _rawPile) (hdlMapPileInsertItem fin k)

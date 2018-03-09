@@ -11,6 +11,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 
@@ -19,8 +20,8 @@ module Glazier.React.Framework.Core.Model where
 import Control.Applicative.Esoteric
 import qualified Control.Disposable as CD
 import Control.Lens
+import Control.Lens.Misc
 import qualified Data.DList as DL
-import Data.Generics.Product
 import Data.IORef
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
@@ -58,41 +59,7 @@ data Plan m = Plan
     , refs :: M.Map GadgetId JE.JSRep
     } deriving (G.Generic)
 
-_component :: Lens' (Plan m) ReactComponent
-_component = field @"component"
-
-_reactKey :: Lens' (Plan m) ReactKey
-_reactKey = field @"reactKey"
-
-_currentFrameNum :: Lens' (Plan m) Int
-_currentFrameNum = field @"currentFrameNum"
-
-_previousFrameNum :: Lens' (Plan m) Int
-_previousFrameNum = field @"previousFrameNum"
-
-_disposeOnRemoved :: Lens' (Plan m) CD.Disposable
-_disposeOnRemoved = field @"disposeOnRemoved"
-
-_disposeOnUpdated :: Lens' (Plan m) CD.Disposable
-_disposeOnUpdated = field @"disposeOnUpdated"
-
-_everyOnUpdated :: Lens' (Plan m) (m ())
-_everyOnUpdated = field @"everyOnUpdated"
-
-_onceOnUpdated :: Lens' (Plan m) (m ())
-_onceOnUpdated = field @"onceOnUpdated"
-
-_onUpdated :: Lens' (Plan m) (Maybe (J.Callback (J.JSVal -> IO ())))
-_onUpdated = field @"onUpdated"
-
-_onRender :: Lens' (Plan m) (Maybe (J.Callback (IO J.JSVal)))
-_onRender = field @"onRender"
-
-_listeners :: Lens' (Plan m) (M.Map GadgetId (DL.DList Listener))
-_listeners = field @"listeners"
-
-_refs :: Lens' (Plan m) (M.Map GadgetId JE.JSRep)
-_refs = field @"refs"
+makeLenses_ ''Plan
 
 mkPlan :: MonadReactor m => J.JSString -> m (Plan m)
 mkPlan n = Plan
@@ -115,11 +82,22 @@ data Frame m s = Frame
     , model :: s
     } deriving (G.Generic, Functor)
 
-_plan :: Lens' (Frame m s) (Plan m)
-_plan = field @"plan"
+makeLenses_ ''Frame
 
-_model :: Lens' (Frame m s) s
-_model = field @"model"
+-- class HasPlan t m => HasFrame t m s | t -> m s where
+--     _frame :: Lens' t (Frame m s)
+--     _model :: Lens' t s
+--     _model = (.) _frame _model
+--     {-# INLINE _model #-}
+
+-- instance HasFrame (Frame m s) m s where
+--     _frame = id
+
+--     _model f (Frame p a) = fmap (\ y -> Frame p y) (f a)
+--     {-# INLINE _model #-}
+
+-- instance HasPlan (Frame m s) m where
+--     _plan = lens plan (\s a -> s { plan = a })
 
 editFrame :: Lens' s' s -> Lens' (Frame m s') (Frame m s)
 editFrame l = lens
@@ -135,8 +113,14 @@ type Scene p m s = Obj IORef p (Frame m s)
 -- that is an 'Obj' where the 'my' lens is 'id'.
 type Specimen m s = IORef (Frame m s)
 
--- class Specimen2 m s
--- instance Specimen2
+data Model m = Req | Spec m
+
+-- | Helper function for defining types with teh same shape,
+-- differing only if the leafs contains req or spec models.
+-- From https://www.reddit.com/r/haskell/comments/6dh3ha/the_partial_options_monoid/
+type family ModelType (mt :: Model (* -> *)) (s :: *) where
+    ModelType 'Req s = s
+    ModelType ('Spec m) s = IORef (Frame m s)
 
 accessScene :: Lens' s' s -> Scene p m s' -> Scene p m s
 accessScene l = access (editFrame l)

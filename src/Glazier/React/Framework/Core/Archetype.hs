@@ -3,10 +3,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -15,10 +17,10 @@ module Glazier.React.Framework.Core.Archetype where
 
 import Control.Arrow
 import Control.Lens
+import Control.Lens.Misc
 import Control.Monad
 import Control.Monad.Reader
 import qualified Data.DList as DL
-import Data.Generics.Product
 import qualified Data.JSString as J
 import qualified Data.Maybe.Esoteric as E
 import Data.Semigroup
@@ -37,15 +39,7 @@ data Archetype s m c = Archetype
     , initializer' :: MethodT s m c
     } deriving (G.Generic, Functor)
 
-_display' :: Lens' (Archetype s m c) (Display s m ())
-_display' = field @"display'"
-
-_finalizer' :: Lens' (Archetype s m c) (Finalizer s m)
-_finalizer' = field @"finalizer'"
-
-_initializer' :: Lens (Archetype s m c) (Archetype s m c')
-    (MethodT s m c) (MethodT s m c')
-_initializer' = field @"initializer'"
+makeLenses_ ''Archetype
 
 withArchetype :: Monad m =>
     (MethodT s m c1 -> MethodT s m c2 -> MethodT s m c3)

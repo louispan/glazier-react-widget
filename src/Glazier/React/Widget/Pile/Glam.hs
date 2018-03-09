@@ -4,35 +4,25 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Widget.Pile.Glam
-    (
-    -- * Pile.Glam
-    GlamPile(..)
-    , glamPileBuilder
-    , glamPile
-    , glamPileDisplay
-    , glamPileFinalizer
-    , glamPileInitializer
-    , broadcastGlamPileHandler
-    , hdlGlamPileSortCriteria
-    , hdlGlamPileFilterCriteria
-    ) where
+module Glazier.React.Widget.Pile.Glam where
 
 import Control.Arrow
 import Control.Lens
+import Control.Lens.Misc
 import qualified Control.Monad.ListM as LM
 import Control.Monad.Reader
 import Data.Foldable
-import Data.Generics.Product
 import qualified GHC.Generics as G
 import Glazier.React.Framework
 import Glazier.React.Widget.Pile as W
@@ -46,17 +36,7 @@ data GlamPile ftr srt t a = GlamPile
     , rawPile :: t a
     } deriving (G.Generic, Functor)
 
-_filterCriteria :: Lens (GlamPile ftr srt t a) (GlamPile ftr' srt t a) ftr ftr'
-_filterCriteria = field @"filterCriteria"
-
-_sortCriteria :: Lens (GlamPile ftr srt t a) (GlamPile ftr srt' t a) srt srt'
-_sortCriteria = field @"sortCriteria"
-
-_glamList :: Lens' (GlamPile ftr srt t a) [a]
-_glamList = field @"glamList"
-
-_rawPile :: Lens' (GlamPile ftr srt t a) (t a)
-_rawPile = field @"rawPile"
+makeLenses_ ''GlamPile
 
 -- | Converts a builder with a plan of @[a]@ to a plan of @Mapping a@
 glamPileBuilder :: (Traversable t, Applicative m)

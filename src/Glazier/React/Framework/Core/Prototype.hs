@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -17,9 +18,9 @@ module Glazier.React.Framework.Core.Prototype where
 
 import Control.Disposable as CD
 import Control.Lens
+import Control.Lens.Misc
 import Control.Monad.Cont
 import Control.Monad.Reader
-import Data.Generics.Product
 import Data.Semigroup
 import Data.Semigroup.Applicative
 import qualified GHC.Generics as G
@@ -39,15 +40,7 @@ data Prototype p s m c = Prototype
     , initializer :: MethodT (Scene p m s) m c
     } deriving (G.Generic, Functor)
 
-_display :: Lens' (Prototype p s m c) (FrameDisplay s m ())
-_display = field @"display"
-
-_finalizer :: Lens' (Prototype p s m c) (Finalizer s m)
-_finalizer = field @"finalizer"
-
-_initializer :: Lens (Prototype p s m c) (Prototype p s m c')
-    (MethodT (Scene p m s) m c) (MethodT (Scene p m s) m c')
-_initializer = field @"initializer"
+makeLenses_ ''Prototype
 
 withPrototype :: Monad m =>
     (MethodT (Scene p m s) m c1 -> MethodT (Scene p m s) m c2 -> MethodT (Scene p m s) m c3)

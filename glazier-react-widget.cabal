@@ -17,22 +17,22 @@ library
   hs-source-dirs:      src
   exposed-modules:
                        Glazier.React.Framework
-                       Glazier.React.Framework.Action
-                       Glazier.React.Framework.Action.KeyDownKey
+                      --  Glazier.React.Framework.Action
+                      --  Glazier.React.Framework.Action.KeyDownKey
                        Glazier.React.Framework.Core
-                       Glazier.React.Framework.Core.Archetype
+                      --  Glazier.React.Framework.Core.Archetype
                        Glazier.React.Framework.Core.Display
                        Glazier.React.Framework.Core.Model
                        Glazier.React.Framework.Core.Prototype
-                       Glazier.React.Framework.Core.Trigger
-                       Glazier.React.Framework.Effect
-                       Glazier.React.Framework.Effect.MonadHTMLElement
-                       Glazier.React.Framework.Effect.MonadJS
-                       Glazier.React.Widget.Input
-                       Glazier.React.Widget.Pile
-                       Glazier.React.Widget.Pile.Glam
-                       Glazier.React.Widget.MapPile
-                       Glazier.React.Widget.MapPile.Glam
+                      --  Glazier.React.Framework.Core.Trigger
+                      --  Glazier.React.Framework.Effect
+                      --  Glazier.React.Framework.Effect.MonadHTMLElement
+                      --  Glazier.React.Framework.Effect.MonadJS
+                      --  Glazier.React.Widget.Input
+                      --  Glazier.React.Widget.Pile
+                      --  Glazier.React.Widget.Pile.Glam
+                      --  Glazier.React.Widget.MapPile
+                      --  Glazier.React.Widget.MapPile.Glam
   build-depends:       base >= 4.7 && < 5
                      , alternators >= 0.1.3.0
                      , bifunctors >= 5.4.1
@@ -58,6 +58,7 @@ library
                     --  , parameterized >= 0.5.0.0
                      , profunctors >= 5.2
                      , reducers >= 3.12.1
+                     , stm >= 2.4.4.1
                      , tagged >= 0.8.5
                      , transformers >= 0.4
   default-language:    Haskell2010

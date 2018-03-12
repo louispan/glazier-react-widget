@@ -5,11 +5,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
@@ -17,118 +17,178 @@
 
 module Glazier.React.Framework.Core.Model where
 
-import Control.Applicative.Esoteric
+import Control.Concurrent.STM
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
+import Control.Monad.RWS
 import qualified Data.DList as DL
-import Data.IORef
+import qualified Data.JSString as J
 import qualified Data.Map.Strict as M
+import Data.String
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
+import qualified GHCJS.Marshal.Pure as J
 import qualified GHCJS.Types as J
-import Glazier.Core
 import Glazier.React
 import qualified JavaScript.Extras as JE
 
+
+-- In order to remove effects we need to change to use State monad
+-- where the state contains
+-- ( the pure state s
+-- , new triggers to activate: J.JSString, NOtice -> IO a, a -> b
+-- , a way to retrieve io values back out of commands
+-- )
+-- and model needs to change so
+-- component is map
+-- react key is gadget key and is passed with Obj as the reader env
+-- actually every is made into a map, so Plan is lifted into World = Map Plan
+
+
+-- On the pure state processing side
+-- create tmvar
+-- define command that uses the tmvar
+-- return command
+
+-- This returns multiple commands split into multiple transactions
+-- that can be run concurrently
+-- a <- mkTMVar
+-- b <- mkTMVar
+-- cmda <- GetFilename (writeTMVar a)
+-- cmdb <- GetUserName (writeTMVar b)
+-- cmdc <- STMEffect $ do
+--     obj <- ObjRef
+--     do something with obj a + b
+-- pure (new state, [cmda, cmdb, cmdc])
+--
+-- alternatively a single transaction run in serial.
+-- let cmd = STMEffect $ (`runContT` pure) $ do
+--   fn <- ContT $ doEffect GetFilename
+--   un <- ContT $ doEffect GetUserName
+--   do something with obj, fn and un
+-- pure cmd
+--
+-- How to sugar conconurret version above so that you don't mkTMVar explicitly?
+-- There is a difference in events and commands?
+-- comands gets pushed to a separate queue (WriterT?)
+
+
+-- So the engine (fired by trigger) now does:
+-- read word IORef
+-- run trigger state function and get (commands, new state)
+-- update state ioref
+-- check dirty and render
+--
+-- spawn multiple threads to asynchronously:
+--   - run commands, retrying forever the ones that fail.
+--   - command transactions should be small if possible
+
+
+
+-- the base monad bind:
+-- returns a STM async
+-- which actually creates a STM Ref to fire once-off results into
+-- for the pure thing to read?
+
+
+-- This id can also be used as the react @key@
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
-    deriving (G.Generic, Ord, Eq)
+    deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
+
+-- | Interactivity for a particular DOM element.
+data Gadget = Gadget
+    { reactRef :: JE.JSRep
+    , listeners :: DL.DList Listener
+    } deriving (G.Generic)
+
+makeLenses_ ''Gadget
+
+newtype PlanId = PlanId { unPlanId :: J.JSString }
+    deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
+
+mkPlanId :: TVar Int ->  J.JSString -> STM PlanId
+mkPlanId i n = do
+    i' <- readTVar i
+    modifyTVar' i (\j -> (j `mod` JE.maxSafeInteger) + 1)
+    pure . PlanId . J.append n . J.cons ':' . J.pack $ show i'
+
+type WidgetId = (PlanId, GadgetId)
+
+_planId :: Lens' WidgetId PlanId
+_planId = _1
+
+_gadgetId :: Lens' WidgetId GadgetId
+_gadgetId = _2
 
 -- | One for every archetype, may be shared for many prototypes
-data Plan m = Plan
+data Plan x = Plan
+    -- the same react component may be shared amongs many widgets
+    -- shared react component will all be rerendered at the same time
     { component :: ReactComponent
-    , reactKey :: ReactKey
-    , currentFrameNum :: Int
+    -- This is the previous "react state"
     , previousFrameNum :: Int
-      -- things to dispose when this widget is removed
-      -- cannot be hidden inside afterOnUpdated, as this needs to be used
+    -- This the current "react state".
+    -- The glazier framework engine will use this to send a render request
+    -- if the current didn't match previous.
+    , currentFrameNum :: Int
+    -- render function of the ReactComponent
+    , onRender :: Maybe (J.Callback (IO J.JSVal))
+    -- Run hte on updated handlers below
+    , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
+      -- Things to dispose when this widget is removed
+      -- cannot be hidden inside afterOnUpdated, as this also needs to be used
       -- when finalizing
     , disposeOnRemoved :: CD.Disposable
-    , disposeOnUpdated :: CD.Disposable -- ^ things to dispose on updated
-    , everyOnUpdated :: m () -- ^ additional monadic action to take after every dirty
-    , onceOnUpdated :: m () -- ^ additional monadic action to take after a dirty
-    , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
-    , onRender :: Maybe (J.Callback (IO J.JSVal))
-    -- Storing listeners and refs in a 'M.Map', which simplifies the type of the model.
-    -- Unfortunately, this means mismatches between event listeners and handlers
-    -- are not compile time checked.
-    -- Eg. `Glazier.React.Framework.Effect.MonadHTMLElement.focusRef` expects a ref
-    -- but wont have compile error if `Glazier.React.Framework.Trigger.withRef` was not attached.
-    -- The alternative is to store as a 'Many' in the model, but this ends up with messier types.
-    , listeners :: M.Map GadgetId (DL.DList Listener)
-    , refs :: M.Map GadgetId JE.JSRep
+    --  Things to dispose on updated
+    , disposeOnUpdated :: CD.Disposable
+    -- additional actions to take after every dirty
+    , everyOnUpdated :: DL.DList x
+     -- additional actions to take after a dirty
+    , onceOnUpdated :: DL.DList x
+    -- If the last gadget is removed, then this Plan should be removed
+    , gadgets :: M.Map GadgetId Gadget
     } deriving (G.Generic)
 
 makeLenses_ ''Plan
 
-mkPlan :: MonadReactor m => J.JSString -> m (Plan m)
-mkPlan n = Plan
-    <$> doGetComponent
-    <*> doMkReactKey n
-    <*> pure 0 -- ^ currentFrameNum
-    <*> pure 0 -- ^ previousFrameNum
-    <*> pure mempty -- ^ disposeOnRemoved
-    <*> pure mempty -- ^ disposeOnUpdated
-    <*> pure (pure ()) -- ^ everyOnUpdated
-    <*> pure (pure ()) -- ^ onceOnUpdated
-    <*> pure Nothing -- ^ callback
-    <*> pure Nothing -- ^ render
-    <*> pure M.empty
-    <*> pure M.empty
+-- | A 'Scene' contains interactivity data for all widgets as well as the model data.
+type Scene x s =
+    ( M.Map PlanId (Plan x)
+    , s
+    )
 
--- | A 'Frame' contains a widget 'Plan' as well as the model data.
-data Frame m s = Frame
-    { plan :: Plan m
-    , model :: s
-    } deriving (G.Generic, Functor)
+_plans :: Lens (Scene x s) (Scene x' s) (M.Map PlanId (Plan x)) (M.Map PlanId (Plan x'))
+_plans = _1
 
-makeLenses_ ''Frame
+_model :: Lens (Scene x s) (Scene x s') s s'
+_model = _2
 
--- class HasPlan t m => HasFrame t m s | t -> m s where
---     _frame :: Lens' t (Frame m s)
---     _model :: Lens' t s
---     _model = (.) _frame _model
---     {-# INLINE _model #-}
+editScene :: Lens' s' s -> Lens' (Scene x s') (Scene x s)
+editScene l = alongside id l
 
--- instance HasFrame (Frame m s) m s where
---     _frame = id
+type Widget x s m = MonadRWS WidgetId (DL.DList x) (Scene x s) m
 
---     _model f (Frame p a) = fmap (\ y -> Frame p y) (f a)
---     {-# INLINE _model #-}
+myPlan :: Widget x s m => m (ReifiedTraversal' (Scene x s) (Plan x))
+myPlan = do
+    pid <- view _planId
+    pure (Traversal $ _plans.ix pid)
 
--- instance HasPlan (Frame m s) m where
---     _plan = lens plan (\s a -> s { plan = a })
+myGadget :: Widget x s m => m (ReifiedTraversal' (Scene x s) Gadget)
+myGadget = do
+    (pid, gid) <- ask
+    pure (Traversal $ _plans.ix pid._gadgets.ix gid)
 
-editFrame :: Lens' s' s -> Lens' (Frame m s') (Frame m s)
-editFrame l = lens
-    (\(Frame p s') -> Frame p (s' ^. l))
-    (\(Frame _ s') (Frame p s) -> Frame p (s' & l .~ s))
-
--- | A 'Scene' is an mutable 'Obj' to a 'Frame'
--- In 'Glazier.React.Framework' we are using 'IORef'
-type Scene p m s = Obj IORef p (Frame m s)
--- | 'Specimen' is the type used by 'Glazier.React.Framework.Core.Archetype'
--- It contains the same information as @Scene (Frame m s) m s@
--- and @IOObj (Frame m s) (Frame m s)@
--- that is an 'Obj' where the 'my' lens is 'id'.
-type Specimen m s = IORef (Frame m s)
-
-data Model m = Req | Spec m
-
--- | Helper function for defining types with teh same shape,
--- differing only if the leafs contains req or spec models.
--- From https://www.reddit.com/r/haskell/comments/6dh3ha/the_partial_options_monoid/
-type family ModelType (mt :: Model (* -> *)) (s :: *) where
-    ModelType 'Req s = s
-    ModelType ('Spec m) s = IORef (Frame m s)
-
-accessScene :: Lens' s' s -> Scene p m s' -> Scene p m s
-accessScene l = access (editFrame l)
+----------------------------------------------------------------------------------
 
 -- Add an action to run once after the next render
-addOnceOnUpdated :: (MonadReactor m) => Scene p m s -> m () -> m ()
-addOnceOnUpdated (Obj{..}) k = doModifyIORef' self (my._plan._onceOnUpdated %~ (^*> k))
+addOnceOnUpdated :: Widget x s m => x -> m ()
+addOnceOnUpdated x = do
+    Traversal _pln <- myPlan
+    _pln._onceOnUpdated %= (`DL.snoc` x)
 
 -- Add an action to run after every render
-addEveryOnUpdated :: (MonadReactor m) => Scene p m s -> m () -> m ()
-addEveryOnUpdated (Obj{..}) k = doModifyIORef' self (my._plan._everyOnUpdated %~ (^*> k))
+addEveryOnUpdated :: Widget x s m => x -> m ()
+addEveryOnUpdated x = do
+    Traversal _pln <- myPlan
+    _pln._everyOnUpdated %= (`DL.snoc` x)

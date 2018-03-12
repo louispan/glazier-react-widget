@@ -15,7 +15,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 
-module Glazier.React.Framework.Core.Model where
+module Glazier.React.Framework.Core.Widget where
 
 import Control.Concurrent.STM
 import qualified Control.Disposable as CD
@@ -25,12 +25,15 @@ import Control.Monad.RWS
 import qualified Data.DList as DL
 import qualified Data.JSString as J
 import qualified Data.Map.Strict as M
+import Data.Maybe
 import Data.String
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Marshal.Pure as J
 import qualified GHCJS.Types as J
 import Glazier.React
+import Glazier.React.Component.Internal
+import Glazier.React.Handle.Internal
 import qualified JavaScript.Extras as JE
 
 
@@ -97,8 +100,10 @@ newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
 
 -- | Interactivity for a particular DOM element.
+-- NB. EventTarget may still be null during react dismount.
+-- so there is no point is wrapping it in a Maybe
 data Gadget = Gadget
-    { reactRef :: JE.JSRep
+    { targetRef :: EventTarget
     , listeners :: DL.DList Listener
     } deriving (G.Generic)
 
@@ -123,9 +128,11 @@ _gadgetId = _2
 
 -- | One for every archetype, may be shared for many prototypes
 data Plan x = Plan
-    -- the same react component may be shared amongs many widgets
-    -- shared react component will all be rerendered at the same time
-    { component :: ReactComponent
+    -- a react "ref" to the javascript instance of ReactComponent
+    -- so that react "componentRef.setState()" can be called.
+    -- NB. ReactComponentRef may still be null during react dismount.
+    -- so there is no point is wrapping it in a Maybe
+    { componentRef :: ReactComponentRef
     -- This is the previous "react state"
     , previousFrameNum :: Int
     -- This the current "react state".
@@ -167,28 +174,45 @@ _model = _2
 editScene :: Lens' s' s -> Lens' (Scene x s') (Scene x s)
 editScene l = alongside id l
 
-type Widget x s m = MonadRWS WidgetId (DL.DList x) (Scene x s) m
+----------------------------------------------------------------------------------
 
-myPlan :: Widget x s m => m (ReifiedTraversal' (Scene x s) (Plan x))
+type MonadWidget x s m = MonadRWS WidgetId (DL.DList x) (Scene x s) m
+
+-- type Initializer x s m = (Widget x s m, MonadCont m)
+
+-- | Create a Plan and Gadget for this widget if it did not already exists
+-- FIXME: naming
+initialize :: MonadWidget x s m => m ()
+initialize = do
+    (pid, gid) <- ask
+    -- first check if plan exists
+    _plans.at pid %= (Just . initGadget gid . fromMaybe newPlan)
+  where
+    initGadget gid = _gadgets.at gid %~ (Just . fromMaybe newGadget)
+    newGadget :: Gadget
+    newGadget = Gadget (EventTarget $ JE.JSRep J.nullRef) mempty
+
+    newPlan :: Plan x
+    newPlan = Plan
+        (ReactComponentRef $ JE.JSRep J.nullRef)
+        0
+        0
+        Nothing
+        Nothing
+        mempty
+        mempty
+        mempty
+        mempty
+        mempty
+
+myPlan :: MonadWidget x s m => m (ReifiedTraversal' (Scene x s) (Plan x))
 myPlan = do
     pid <- view _planId
     pure (Traversal $ _plans.ix pid)
 
-myGadget :: Widget x s m => m (ReifiedTraversal' (Scene x s) Gadget)
+myGadget :: MonadWidget x s m => m (ReifiedTraversal' (Scene x s) Gadget)
 myGadget = do
     (pid, gid) <- ask
     pure (Traversal $ _plans.ix pid._gadgets.ix gid)
 
 ----------------------------------------------------------------------------------
-
--- Add an action to run once after the next render
-addOnceOnUpdated :: Widget x s m => x -> m ()
-addOnceOnUpdated x = do
-    Traversal _pln <- myPlan
-    _pln._onceOnUpdated %= (`DL.snoc` x)
-
--- Add an action to run after every render
-addEveryOnUpdated :: Widget x s m => x -> m ()
-addEveryOnUpdated x = do
-    Traversal _pln <- myPlan
-    _pln._everyOnUpdated %= (`DL.snoc` x)

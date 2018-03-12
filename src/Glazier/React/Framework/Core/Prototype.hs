@@ -17,22 +17,14 @@
 
 module Glazier.React.Framework.Core.Prototype where
 
-import Control.Applicative.Esoteric
 import Control.Disposable as CD
 import Control.Lens
-import Control.Lens.Misc
 import Control.Monad.Cont
-import Control.Monad.Reader
-import Control.Monad.RWS hiding ((<>))
-import Data.Diverse.Lens
-import qualified Data.DList as DL
 import Data.Semigroup
 import Data.Semigroup.Applicative
 import qualified GHC.Generics as G
-import Glazier.Core
 import Glazier.React
-import Glazier.React.Framework.Core.Display
-import Glazier.React.Framework.Core.Model
+-- import Glazier.React.Framework.Core.Model
 
 -- | Unforunately, because each widget contains callbacks
 -- that has to be cleaned manually, we can't just rely on the garbage collector.
@@ -40,7 +32,8 @@ import Glazier.React.Framework.Core.Model
 -- This must be called before removing widgets from a containing model.
 -- type Finalizer s m = s -> Ap m CD.Disposable
 
-type Handler x s m = (Widget x s m, MonadCont m)
+-- type Initializer x s m = (Widget x s m, MonadCont m)
+-- type Handler x s m = (Widget x s m, MonadCont m)
 
 data Prototype m c = Prototype
     { display :: ReactMlT m ()
@@ -65,13 +58,14 @@ instance Monad m => Applicative (Prototype m) where
     pure a = Prototype mempty mempty (pure a)
     (<*>) = mapPrototype2 (<*>)
 
--- merge handlers togeher by pre-firing the left handler's output
+-- merge ContT together by pre-firing the left ContT's output.
+-- That is, the resultant ContT will fire the output twice.
 instance MonadCont m => Semigroup (Prototype m c) where
     (<>) = mapPrototype2 (\x y -> callCC $ \k -> (x >>= k) *> y)
 
-instance MonadCont m => Monoid (Prototype m c) where
-    mempty = Prototype mempty mempty mempty
-    mappend = mapPrototype2 (\x y -> callCC $ \k -> (x >>= k) *> y)
+instance MonadCont m => Monoid (Prototype m ()) where
+    mempty = Prototype mempty mempty (callCC $ \k -> k ())
+    mappend = mapPrototype2 (*>)
 
 -- -- | Modify prototype's reading environment @s1@ inside a larger @s2@
 -- magnifyPrototype :: Lens' s2 s1  -> Prototype p s1 m c -> Prototype p s2 m c

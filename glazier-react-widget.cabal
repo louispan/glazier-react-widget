@@ -21,11 +21,13 @@ library
                       --  Glazier.React.Framework.Action.KeyDownKey
                        Glazier.React.Framework.Core
                       --  Glazier.React.Framework.Core.Archetype
-                       Glazier.React.Framework.Core.Model
                        Glazier.React.Framework.Core.Gadget
+                       Glazier.React.Framework.Core.MkId
+                       Glazier.React.Framework.Core.MkId.Internal
+                       Glazier.React.Framework.Core.Model
+                       Glazier.React.Framework.Core.Trigger
                        Glazier.React.Framework.Core.Widget
                        Glazier.React.Framework.Core.Window
-                       Glazier.React.Framework.Core.Trigger
                       --  Glazier.React.Framework.Effect
                       --  Glazier.React.Framework.Effect.MonadHTMLElement
                       --  Glazier.React.Framework.Effect.MonadJS

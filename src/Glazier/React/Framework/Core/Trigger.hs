@@ -24,6 +24,7 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.Core.Gadget
+import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model
 import Glazier.React.Framework.Core.Window
 import qualified JavaScript.Extras as JE

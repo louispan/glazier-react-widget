@@ -25,16 +25,13 @@ import Control.Monad.RWS
 import Control.Monad.Trans.Readr
 import Data.Diverse.Lens
 import qualified Data.DList as DL
-import qualified Data.JSString as J
 import qualified Data.Map.Strict as M
 import Data.Maybe
-import Data.String
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
-import qualified GHCJS.Marshal.Pure as J
 import qualified GHCJS.Types as J
 import Glazier.React
-import qualified JavaScript.Extras as JE
+import Glazier.React.Framework.Core.MkId
 
 
 -- In order to remove effects we need to change to use State monad
@@ -86,20 +83,6 @@ import qualified JavaScript.Extras as JE
 -- spawn multiple threads to asynchronously:
 --   - run commands, retrying forever the ones that fail.
 --   - command transactions should be small if possible
-
-
-
--- the base monad bind:
--- returns a STM async
--- which actually creates a STM Ref to fire once-off results into
--- for the pure thing to read?
-
--- This id can also be used as the react @key@
-newtype GizmoId = GizmoId { unGizmoId :: J.JSString }
-    deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
-
-newtype PlanId = PlanId { unPlanId :: J.JSString }
-    deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
 
 
 -- | Interactivity for a particular DOM element.
@@ -272,13 +255,6 @@ instance (Monoid r, Monad m) => EnlargePlan (ReadrT (Scene x s) m r) where
 ----------------------------------------------------------------------------------
 
 -- type MonadWidget x s m = (MonadState (Scene x s) m, MonadWriter (DL.DList x) m)
-
-mkId :: MonadState Int t => J.JSString -> t J.JSString
-mkId n = do
-    i <- get
-    let i' = JE.safeModularIncrement i
-    put i'
-    pure . J.append n . J.cons ':' . J.pack $ show i'
 
 -- -- type Initializer x s m = (Widget x s m, MonadCont m)
 

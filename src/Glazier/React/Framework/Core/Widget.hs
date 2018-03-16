@@ -17,18 +17,11 @@
 
 module Glazier.React.Framework.Core.Widget where
 
-import Control.Disposable as CD
 import Control.Lens
-import Control.Lens.Internal.Zoom
-import Control.Monad.Cont
-import Control.Monad.Reader
-import Control.Monad.State.Strict
-import Control.Monad.Trans.Delegate
-import Control.Monad.Trans.Readr
 import Data.Semigroup
 import qualified GHC.Generics as G
-import Glazier.React
 import Glazier.React.Framework.Core.Gadget
+import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model
 import Glazier.React.Framework.Core.Window
 
@@ -80,6 +73,10 @@ instance Monad m => EnlargePlan (Widget w x s m r) where
     type EnlargingPlanCommand (Widget w x s m r) = x
     enlargePlan l (Widget disp ini) = Widget (enlargePlan l disp) (enlargePlan l ini)
 
+-- | Wrap this widget inside another 'ShimComponent' with its own 'Plan'
+-- This means that its 'dirty' state and 'Rerender' is isolated from other 'Widget's
+archetype :: Monad m => PlanId -> Widget w x s m r -> Widget w x s m r
+archetype pid = enlargePlan (_plans.ix pid)
 
 -- magnifyMethod :: Monad m
 --     => LensLike' f s a -> MethodT w x s m c1 -> MethodT w x s m c1

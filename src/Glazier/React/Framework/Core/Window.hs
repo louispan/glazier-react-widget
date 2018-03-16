@@ -14,6 +14,7 @@ import Control.Monad.Trans.Readr
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Glazier.React
+import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
@@ -21,10 +22,15 @@ type WindowT x s m = ReadrT (Scene x s) (ReactMlT m)
 
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------
+-- | Create a dom element without children.
+-- Memenoic: short for 'leaf'
+lf :: Monad m
+    => JE.JSRep
+    -> (DL.DList JE.Property)
+    -> WindowT x s m ()
+lf n props = lift $ leaf [] n props
 
--- | Convenience function to create an internactive dom element
--- using listenres obtained from the 'Frame' for a 'GadgetId'.
--- Memonic: the convenient listener version has a prime'.
+-- | Interactive version of 'lf' using listeners obtained from the 'Plan' for a 'GizmoId'.
 lf' :: Monad m
     => GizmoId
     -> JE.JSRep -- ^ eg "div" or "input"
@@ -34,19 +40,28 @@ lf' gid n props = do
     ls <- view (_plan._gizmos.ix gid._listeners)
     lift $ leaf ls n props
 
--- | Convenience function to create an internactive dom element
--- using listenres obtained from the 'Frame' for a 'GadgetId'.
--- Memonic: the convenient listener version has a prime'.
+-- | Create a dom element with children.
+-- Memenoic: short for 'branch'
+bh :: Monad m
+    => JE.JSRep
+    -> (DL.DList JE.Property)
+    -> WindowT x s m r
+    -> WindowT x s m r
+bh n props childs = do
+    r <- ask
+    lift $ branch [] n props (runReadrT' childs r)
+
+-- | Interactive version of 'bh'
 bh' :: Monad m
     => GizmoId
     -> JE.JSRep
     -> (DL.DList JE.Property)
-    -> ReactMlT m r
+    -> WindowT x s m r
     -> WindowT x s m r
 bh' gid n props childs = do
     ls <- view (_plan._gizmos.ix gid._listeners)
-    lift $ branch ls n props childs
-
+    r <- ask
+    lift $ branch ls n props (runReadrT' childs r)
 
 -- Marks the current widget as dirty, and rerender is required
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Core.Trigger.trigger'

@@ -21,6 +21,7 @@ type MethodT w x s m a = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (St
 -- #if __GLASGOW_HASKELL__ >= 802
 -- {-# COMPLETE ReadrT_ #-}
 -- #endif
+
 -- readMy :: (Traversal' w (Scene x s) -> DelegateT (StateT w m) a) -> MethodT w x s m a
 -- readMy f = do
 --     Traversal my <- ask

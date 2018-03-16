@@ -26,6 +26,7 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.JSString as J
 import qualified Data.Map.Strict as M
+import Data.Maybe
 import Data.String
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
@@ -108,6 +109,9 @@ data Gadget = Gadget
 
 makeLenses_ ''Gadget
 
+instance CD.Dispose Gadget where
+    dispose (Gadget _ ls) = foldMap (CD.dispose . snd) ls
+
 newGadget :: Gadget
 newGadget = Gadget Nothing mempty
 
@@ -121,6 +125,9 @@ data ShimListeners = ShimListeners
     } deriving (G.Generic)
 
 makeLenses_ ''ShimListeners
+
+instance CD.Dispose ShimListeners where
+    dispose (ShimListeners a b c) = CD.dispose a <> CD.dispose b <> CD.dispose c
 
 -- | Interactivity data for a react component
 data Plan x = Plan
@@ -137,7 +144,7 @@ data Plan x = Plan
       -- Things to dispose when this widget is removed
       -- cannot be hidden inside afterOnUpdated, as this also needs to be used
       -- when finalizing
-    , disposeOnRemoved :: CD.Disposable
+    -- , disposeOnRemoved :: CD.Disposable
     --  Things to dispose on updated
     , disposeOnUpdated :: CD.Disposable
     -- additional actions to take after every dirty
@@ -152,13 +159,19 @@ data Plan x = Plan
 
 makeLenses_ ''Plan
 
+instance CD.Dispose (Plan x) where
+    dispose pln = fromMaybe mempty (CD.dispose <$> (shimListeners pln))
+        <> (disposeOnUpdated pln)
+        <> (foldMap CD.dispose (gadgets pln))
+        <> (foldMap CD.dispose (plans pln))
+
 newPlan :: Plan x
 newPlan = Plan
     Nothing
     Nothing
     0
     0
-    mempty
+    -- mempty
     mempty
     mempty
     mempty

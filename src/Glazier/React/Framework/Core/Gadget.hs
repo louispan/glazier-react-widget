@@ -8,7 +8,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 #endif
 
-module Glazier.React.Framework.Core.Method where
+module Glazier.React.Framework.Core.Gadget where
 
 import Control.Lens
 import Control.Monad.Trans.Delegate
@@ -22,7 +22,7 @@ import Glazier.React.Framework.Core.Model
 -- @s@ actual model of widget
 -- @m@ inner monad
 -- @a@ return of monad
-type MethodT w x s m = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (StateT w m))
+type GadgetT w x s m = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (StateT w m))
 
 -- pattern Method' :: ((a -> m ()) -> m ()) -> DelegateT m a
 -- pattern Method' f = DelegateT (ContT f)
@@ -36,18 +36,18 @@ type MethodT w x s m = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (Stat
 --     Traversal my <- ask
 --     lift $ f my
 
-methodT' ::
+gadgetT' ::
     (Traversal' w (Scene x s)
     -> (a -> StateT w m ())
     -> StateT w m ())
-    -> MethodT w x s m a
+    -> GadgetT w x s m a
 -- methodT' = readrT' . (delegateT' .) . (. runTraversal)
-methodT' f = readrT' (\r -> delegateT' (f (runTraversal r)))
+gadgetT' f = readrT' (\r -> delegateT' (f (runTraversal r)))
 
-runMethodT' ::
-    MethodT w x s m a
+runGadgetT' ::
+    GadgetT w x s m a
     -> Traversal' w (Scene x s)
     -> (a -> StateT w m ())
     -> StateT w m ()
 -- runMethodT' = (runDelegateT' .) . runReadrT'
-runMethodT' x l = runDelegateT' (runReadrT' x (Traversal l))
+runGadgetT' x l = runDelegateT' (runReadrT' x (Traversal l))

@@ -5,7 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Framework.Core.Display where
+module Glazier.React.Framework.Core.Window where
 
 import Control.Lens
 import Control.Monad.Reader
@@ -17,7 +17,7 @@ import Glazier.React
 import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
-type Display x s m = ReadrT (Scene x s) (ReactMlT m)
+type WindowT x s m = ReadrT (Scene x s) (ReactMlT m)
 
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------
@@ -26,25 +26,25 @@ type Display x s m = ReadrT (Scene x s) (ReactMlT m)
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
 -- Memonic: the convenient listener version has a prime'.
 lf' :: Monad m
-    => GadgetId
+    => GizmoId
     -> JE.JSRep -- ^ eg "div" or "input"
     -> (DL.DList JE.Property)
-    -> Display x s m ()
+    -> WindowT x s m ()
 lf' gid n props = do
-    ls <- view (_plan._gadgets.ix gid._listeners)
+    ls <- view (_plan._gizmos.ix gid._listeners)
     lift $ leaf ls n props
 
 -- | Convenience function to create an internactive dom element
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
 -- Memonic: the convenient listener version has a prime'.
 bh' :: Monad m
-    => GadgetId
+    => GizmoId
     -> JE.JSRep
     -> (DL.DList JE.Property)
     -> ReactMlT m r
-    -> Display x s m r
+    -> WindowT x s m r
 bh' gid n props childs = do
-    ls <- view (_plan._gadgets.ix gid._listeners)
+    ls <- view (_plan._gizmos.ix gid._listeners)
     lift $ branch ls n props childs
 
 
@@ -53,7 +53,7 @@ bh' gid n props childs = do
 -- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Core.Trigger.trigger'
 -- will not result in a rerender for the other widget.
 dirty :: MonadState (Scene x s) m => m ()
-dirty = _plan._currentFrameNum %= ((+ 1) . (`mod` JE.maxSafeInteger))
+dirty = _plan._currentFrameNum %= JE.safeModularIncrement
 
 --     (JE.fromProperties [("frameNum", JE.toJSR c)])
 data Rerender = Rerender ComponentRef Int

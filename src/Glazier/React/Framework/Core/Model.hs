@@ -95,7 +95,7 @@ import qualified JavaScript.Extras as JE
 -- for the pure thing to read?
 
 -- This id can also be used as the react @key@
-newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
+newtype GizmoId = GizmoId { unGizmoId :: J.JSString }
     deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
 
 newtype PlanId = PlanId { unPlanId :: J.JSString }
@@ -103,18 +103,18 @@ newtype PlanId = PlanId { unPlanId :: J.JSString }
 
 
 -- | Interactivity for a particular DOM element.
-data Gadget = Gadget
+data Gizmo = Gizmo
     { targetRef :: Maybe EventTarget
     , listeners :: DL.DList Listener
     } deriving (G.Generic)
 
-makeLenses_ ''Gadget
+makeLenses_ ''Gizmo
 
-instance CD.Dispose Gadget where
-    dispose (Gadget _ ls) = foldMap (CD.dispose . snd) ls
+instance CD.Dispose Gizmo where
+    dispose (Gizmo _ ls) = foldMap (CD.dispose . snd) ls
 
-newGadget :: Gadget
-newGadget = Gadget Nothing mempty
+newGizmo :: Gizmo
+newGizmo = Gizmo Nothing mempty
 
 data ShimListeners = ShimListeners
     -- render function of the ReactComponent
@@ -153,7 +153,7 @@ data Plan x = Plan
      -- additional actions to take after a dirty
     , onceOnUpdated :: DL.DList x
     -- interactivity data for child DOM elements
-    , gadgets :: M.Map GadgetId Gadget
+    , gizmos :: M.Map GizmoId Gizmo
     -- interactivity data for child react components
     , plans :: M.Map PlanId (Plan x)
     } deriving (G.Generic)
@@ -163,7 +163,7 @@ makeLenses_ ''Plan
 instance CD.Dispose (Plan x) where
     dispose pln = fromMaybe mempty (CD.dispose <$> (shimListeners pln))
         <> (disposeOnUpdated pln)
-        <> (foldMap CD.dispose (gadgets pln))
+        <> (foldMap CD.dispose (gizmos pln))
         <> (foldMap CD.dispose (plans pln))
 
 newPlan :: Plan x
@@ -269,10 +269,6 @@ instance (Monoid r, Monad m) => EnlargePlan (ReadrT (Scene x s) m r) where
     type EnlargingPlanCommand (ReadrT (Scene x s) m r) = x
     enlargePlan l = magnify (editScenePlan l)
 
--- instance Monad m => EnlargePlan (ReadrT (ReifiedTraversal' w (Scene x s)) m r) where
---     type EnlargingPlanCommand (ReadrT (ReifiedTraversal' w (Scene x s)) m r) = x
---     enlargePlan l = magnify (to (editMyPlan l))
-
 ----------------------------------------------------------------------------------
 
 -- type MonadWidget x s m = (MonadState (Scene x s) m, MonadWriter (DL.DList x) m)
@@ -280,7 +276,7 @@ instance (Monoid r, Monad m) => EnlargePlan (ReadrT (Scene x s) m r) where
 mkId :: MonadState Int t => J.JSString -> t J.JSString
 mkId n = do
     i <- get
-    let i' = (+ 1) . (`mod` JE.maxSafeInteger) $ i
+    let i' = JE.safeModularIncrement i
     put i'
     pure . J.append n . J.cons ':' . J.pack $ show i'
 

@@ -23,9 +23,9 @@ import Data.Maybe
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
-import Glazier.React.Framework.Core.Display
-import Glazier.React.Framework.Core.Method
+import Glazier.React.Framework.Core.Gadget
 import Glazier.React.Framework.Core.Model
+import Glazier.React.Framework.Core.Window
 import qualified JavaScript.Extras as JE
 
 ------------------------------------------------------
@@ -73,19 +73,19 @@ mkListener ::
     , AsFacet (MkCallback1 a (StateT w m ())) x
     , Monad m
     )
-    => GadgetId
+    => GizmoId
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
     -> (a -> StateT w m b)
     -> StateT w m ()
-    -> MethodT w x s m b
+    -> GadgetT w x s m b
 mkListener gid n goStrict goLazy extra = do
     Traversal my <- ask
     lift $ delegateT' $ \fire -> do
         let goLazy' a = (goLazy a >>= fire) *> extra
             msg = MkCallback1 goStrict goLazy' $ \cb -> do
                 let addListener = over _listeners (`DL.snoc` (n, cb))
-                my._plan._gadgets.at gid %= (Just . addListener . fromMaybe newGadget)
+                my._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
         zoom my (post1' msg)
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
@@ -94,10 +94,10 @@ trigger' ::
     , AsFacet Rerender x
     , Monad m
     )
-    => GadgetId
+    => GizmoId
     -> J.JSString
     -> b
-    -> MethodT w x s m b
+    -> GadgetT w x s m b
 trigger' gid n b = do
     Traversal my <- ask
     mkListener gid n (const $ pure (Just ())) (const $ pure b) (zoom my rerender)
@@ -110,11 +110,11 @@ trigger ::
     , AsFacet Rerender x
     , Monad m
     )
-    => GadgetId
+    => GizmoId
     -> J.JSString
     -> (Notice -> IO a)
     -> (a -> StateT w m b)
-    -> MethodT w x s m b
+    -> GadgetT w x s m b
 trigger gid n goStrict goLazy = do
     Traversal my <- ask
     mkListener gid n goStrict' goLazy (zoom my rerender)
@@ -128,11 +128,11 @@ withRef ::
         ( AsFacet (MkCallback1 JE.JSRep (StateT w m ())) x
         , Monad m
         )
-        => GadgetId
-        -> MethodT w x s m ()
+        => GizmoId
+        -> GadgetT w x s m ()
 withRef gid = do
     Traversal my <- ask
     mkListener gid "ref" (pure . Just) (hdlRef my) (pure ())
   where
     hdlRef my j = let evt = JE.fromJSR j
-               in my._plan._gadgets.ix gid._targetRef .= evt
+               in my._plan._gizmos.ix gid._targetRef .= evt

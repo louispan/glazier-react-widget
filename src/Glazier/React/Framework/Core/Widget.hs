@@ -15,7 +15,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Core.Prototype where
+module Glazier.React.Framework.Core.Widget where
 
 import Control.Disposable as CD
 import Control.Lens
@@ -25,13 +25,12 @@ import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Delegate
 import Control.Monad.Trans.Readr
-import Control.Monad.Trans.Readr
 import Data.Semigroup
 import qualified GHC.Generics as G
 import Glazier.React
-import Glazier.React.Framework.Core.Display
-import Glazier.React.Framework.Core.Method
+import Glazier.React.Framework.Core.Gadget
 import Glazier.React.Framework.Core.Model
+import Glazier.React.Framework.Core.Window
 
 -- | Unforunately, because each widget contains callbacks
 -- that has to be cleaned manually, we can't just rely on the garbage collector.
@@ -42,44 +41,44 @@ import Glazier.React.Framework.Core.Model
 -- type Initializer x s m = (Widget x s m, MonadCont m)
 -- type Handler x s m = (Widget x s m, MonadCont m)
 
-data Prototype w x s m c = Prototype
-    { display :: Display x s m ()
-    , initializer :: MethodT w x s m c
+data Widget w x s m c = Widget
+    { window :: WindowT x s m ()
+    , gadget :: GadgetT w x s m c
     } deriving (G.Generic, Functor)
 
-makeLenses ''Prototype
+makeLenses ''Widget
 
-mapPrototype2 :: Monad m
-    => (MethodT w x s m c1 -> MethodT w x s m c2 -> MethodT w x s m c3)
-    -> Prototype w x s m c1 -> Prototype w x s m c2 -> Prototype w x s m c3
-mapPrototype2 f (Prototype dis1 ini1) (Prototype dis2 ini2) =
-    Prototype
+mapWidget2 :: Monad m
+    => (GadgetT w x s m c1 -> GadgetT w x s m c2 -> GadgetT w x s m c3)
+    -> Widget w x s m c1 -> Widget w x s m c2 -> Widget w x s m c3
+mapWidget2 f (Widget dis1 ini1) (Widget dis2 ini2) =
+    Widget
     (dis1 <> dis2)
     (f ini1 ini2)
 
 ------------------------------------------
 
-instance Monad m => Applicative (Prototype w x s m) where
-    pure a = Prototype mempty (pure a)
-    (<*>) = mapPrototype2 (<*>)
+instance Monad m => Applicative (Widget w x s m) where
+    pure a = Widget mempty (pure a)
+    (<*>) = mapWidget2 (<*>)
 
 -- merge ContT together by pre-firing the left ContT's output.
 -- That is, the resultant ContT will fire the output twice.
-instance Monad m => Semigroup (Prototype w x s m c) where
-    (<>) = mapPrototype2 (<>)
+instance Monad m => Semigroup (Widget w x s m c) where
+    (<>) = mapWidget2 (<>)
 
-instance Monad m => Monoid (Prototype w x s m ()) where
-    mempty = Prototype mempty mempty
-    mappend = mapPrototype2 (<>)
+instance Monad m => Monoid (Widget w x s m ()) where
+    mempty = Widget mempty mempty
+    mappend = mapWidget2 (<>)
 
-instance Monad m => EnlargeModel (Prototype w x a m r) where
-    type WithEnlargedModel (Prototype w x a m r) s = Prototype w x s m r
-    type EnlargingModel (Prototype w x a m r) = a
-    enlargeModel l (Prototype disp ini) = Prototype (enlargeModel l disp) (enlargeModel l ini)
+instance Monad m => EnlargeModel (Widget w x a m r) where
+    type WithEnlargedModel (Widget w x a m r) s = Widget w x s m r
+    type EnlargingModel (Widget w x a m r) = a
+    enlargeModel l (Widget disp ini) = Widget (enlargeModel l disp) (enlargeModel l ini)
 
-instance Monad m => EnlargePlan (Prototype w x s m r) where
-    type EnlargingPlanCommand (Prototype w x s m r) = x
-    enlargePlan l (Prototype disp ini) = Prototype (enlargePlan l disp) (enlargePlan l ini)
+instance Monad m => EnlargePlan (Widget w x s m r) where
+    type EnlargingPlanCommand (Widget w x s m r) = x
+    enlargePlan l (Widget disp ini) = Widget (enlargePlan l disp) (enlargePlan l ini)
 
 
 -- magnifyMethod :: Monad m

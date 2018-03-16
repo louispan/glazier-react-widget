@@ -33,11 +33,31 @@ import Glazier.React.Framework.Core.Model
 import Glazier.React.Framework.Core.Prototype
 import qualified JavaScript.Extras as JE
 
+-- archetype are not a reader of PlanId?
+-- display doens't need PlanId to render
+-- but initialize need PlanId to get the plan to create the callbacks
+-- or can be a reader of Plan
+-- finalize doesn't need PlanId
+data ArcheDisplayData = ArcheDisplayData
+    -- render function of the ReactComponent
+    { onRender :: J.Callback (IO J.JSVal)
+    -- Run hte on updated handlers below
+    , onUpdated :: J.Callback (IO ())
+    -- Run hte on updated handlers below
+    , onComponentRef :: J.Callback (J.JSVal -> IO ())
+    }
+
 data Archetype s m c = Archetype
     { display' :: Display s m ()
-    , finalizer' :: Finalizer s m
+    , finalizer' :: CD.Disposable
     , initializer' :: MethodT s m c
     } deriving (G.Generic, Functor)
+
+-- data Archetype s m c = Archetype
+--     { display' :: Display s m ()
+--     , finalizer' :: Finalizer s m
+--     , initializer' :: MethodT s m c
+--     } deriving (G.Generic, Functor)
 
 makeLenses_ ''Archetype
 

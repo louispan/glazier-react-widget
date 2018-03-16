@@ -7,6 +7,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
@@ -15,25 +16,22 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 
-module Glazier.React.Framework.Core.Widget where
+module Glazier.React.Framework.Core.Model where
 
-import Control.Concurrent.STM
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.RWS
+import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.JSString as J
 import qualified Data.Map.Strict as M
-import Data.Maybe
 import Data.String
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Marshal.Pure as J
 import qualified GHCJS.Types as J
 import Glazier.React
-import Glazier.React.Component.Internal
-import Glazier.React.Handle.Internal
 import qualified JavaScript.Extras as JE
 
 
@@ -94,55 +92,48 @@ import qualified JavaScript.Extras as JE
 -- which actually creates a STM Ref to fire once-off results into
 -- for the pure thing to read?
 
-
 -- This id can also be used as the react @key@
 newtype GadgetId = GadgetId { unGadgetId :: J.JSString }
     deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
 
+newtype PlanId = PlanId { unPlanId :: J.JSString }
+    deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
+
+
 -- | Interactivity for a particular DOM element.
--- NB. EventTarget may still be null during react dismount.
--- so there is no point is wrapping it in a Maybe
 data Gadget = Gadget
-    { targetRef :: EventTarget
+    { targetRef :: Maybe EventTarget
     , listeners :: DL.DList Listener
     } deriving (G.Generic)
 
 makeLenses_ ''Gadget
 
-newtype PlanId = PlanId { unPlanId :: J.JSString }
-    deriving (Read, Show, Eq, Ord, JE.ToJS, JE.FromJS, IsString, J.IsJSVal, J.PToJSVal)
+newGadget :: Gadget
+newGadget = Gadget Nothing mempty
 
-mkPlanId :: TVar Int ->  J.JSString -> STM PlanId
-mkPlanId i n = do
-    i' <- readTVar i
-    modifyTVar' i (\j -> (j `mod` JE.maxSafeInteger) + 1)
-    pure . PlanId . J.append n . J.cons ':' . J.pack $ show i'
+data ShimListeners = ShimListeners
+    -- render function of the ReactComponent
+    { onRender :: J.Callback (IO J.JSVal)
+    -- Run the on updated handlers below
+    , onUpdated :: J.Callback (IO ())
+    -- updates the componenRef
+    , onRef :: J.Callback (J.JSVal -> IO ())
+    } deriving (G.Generic)
 
-type WidgetId = (PlanId, GadgetId)
+makeLenses_ ''ShimListeners
 
-_planId :: Lens' WidgetId PlanId
-_planId = _1
-
-_gadgetId :: Lens' WidgetId GadgetId
-_gadgetId = _2
-
--- | One for every archetype, may be shared for many prototypes
+-- | Interactivity data for a react component
 data Plan x = Plan
     -- a react "ref" to the javascript instance of ReactComponent
     -- so that react "componentRef.setState()" can be called.
-    -- NB. ReactComponentRef may still be null during react dismount.
-    -- so there is no point is wrapping it in a Maybe
-    { componentRef :: ReactComponentRef
+    { componentRef :: Maybe ComponentRef
+    , shimListeners :: Maybe ShimListeners
     -- This is the previous "react state"
     , previousFrameNum :: Int
     -- This the current "react state".
     -- The glazier framework engine will use this to send a render request
     -- if the current didn't match previous.
     , currentFrameNum :: Int
-    -- render function of the ReactComponent
-    , onRender :: Maybe (J.Callback (IO J.JSVal))
-    -- Run hte on updated handlers below
-    , onUpdated :: Maybe (J.Callback (J.JSVal -> IO ()))
       -- Things to dispose when this widget is removed
       -- cannot be hidden inside afterOnUpdated, as this also needs to be used
       -- when finalizing
@@ -153,66 +144,113 @@ data Plan x = Plan
     , everyOnUpdated :: DL.DList x
      -- additional actions to take after a dirty
     , onceOnUpdated :: DL.DList x
-    -- If the last gadget is removed, then this Plan should be removed
+    -- interactivity data for child DOM elements
     , gadgets :: M.Map GadgetId Gadget
+    -- interactivity data for child react components
+    , plans :: M.Map PlanId (Plan x)
     } deriving (G.Generic)
 
 makeLenses_ ''Plan
 
--- | A 'Scene' contains interactivity data for all widgets as well as the model data.
-type Scene x s =
-    ( M.Map PlanId (Plan x)
-    , s
-    )
+newPlan :: Plan x
+newPlan = Plan
+    Nothing
+    Nothing
+    0
+    0
+    mempty
+    mempty
+    mempty
+    mempty
+    mempty
+    mempty
 
-_plans :: Lens (Scene x s) (Scene x' s) (M.Map PlanId (Plan x)) (M.Map PlanId (Plan x'))
-_plans = _1
+
+-- | A 'Scene' contains interactivity data for all widgets as well as the model data.
+data Scene x s =  Scene
+    -- commands could be in a writer monad, but then you can't get
+    -- a MonadWriter with ContT, but you can have a MonadState with ContT.
+    { commands :: DL.DList x
+    , plan :: Plan x
+    , model :: s
+    } deriving (G.Generic)
+
+_commands :: Lens' (Scene x s) (DL.DList x)
+_commands = lens commands (\s a -> s { commands = a})
+
+_plan :: Lens' (Scene x s) (Plan x)
+_plan = lens plan (\s a -> s { plan = a})
 
 _model :: Lens (Scene x s) (Scene x s') s s'
-_model = _2
+_model = lens model (\s a -> s { model = a})
 
-editScene :: Lens' s' s -> Lens' (Scene x s') (Scene x s)
-editScene l = alongside id l
+-- class HasScene c x s | c -> x s where
+--     _scene :: Lens' c (Scene x s)
 
-----------------------------------------------------------------------------------
+-- instance HasScene (Scene x s) x s where
+--     _scene = id
 
-type MonadWidget x s m = MonadRWS WidgetId (DL.DList x) (Scene x s) m
+-- data Frame x w =  Frame
+--     -- commands could be in a writer monad, but then you can't get
+--     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
+--     { commands :: DL.DList x
+--     , world :: w
+--     } deriving (G.Generic)
 
--- type Initializer x s m = (Widget x s m, MonadCont m)
+-- _world :: Lens' (Frame x s) s
+-- _world = lens world (\s a -> s { world = a})
 
--- | Create a Plan and Gadget for this widget if it did not already exists
--- FIXME: naming
-initialize :: MonadWidget x s m => m ()
-initialize = do
-    (pid, gid) <- ask
-    -- first check if plan exists
-    _plans.at pid %= (Just . initGadget gid . fromMaybe newPlan)
+-- editWorld :: Lens' s' s -> Lens' (Scene x s') (Scene x s)
+-- editWorld l = lens
+--     (\s' -> s' & _model %~ (view l))
+--     (\s' a -> a & _model %~ (\s -> (model s') & l .~ s))
+
+editScene :: Functor f => LensLike' f s a -> LensLike' f (Scene x s) (Scene x a)
+editScene l safa s = (\s' -> s { model = s'} ) <$> l afa' (model s)
   where
-    initGadget gid = _gadgets.at gid %~ (Just . fromMaybe newGadget)
-    newGadget :: Gadget
-    newGadget = Gadget (EventTarget $ JE.JSRep J.nullRef) mempty
-
-    newPlan :: Plan x
-    newPlan = Plan
-        (ReactComponentRef $ JE.JSRep J.nullRef)
-        0
-        0
-        Nothing
-        Nothing
-        mempty
-        mempty
-        mempty
-        mempty
-        mempty
-
-myPlan :: MonadWidget x s m => m (ReifiedTraversal' (Scene x s) (Plan x))
-myPlan = do
-    pid <- view _planId
-    pure (Traversal $ _plans.ix pid)
-
-myGadget :: MonadWidget x s m => m (ReifiedTraversal' (Scene x s) Gadget)
-myGadget = do
-    (pid, gid) <- ask
-    pure (Traversal $ _plans.ix pid._gadgets.ix gid)
+    afa' a = model <$> safa (s { model = a})
 
 ----------------------------------------------------------------------------------
+
+-- type MonadWidget x s m = (MonadState (Scene x s) m, MonadWriter (DL.DList x) m)
+
+mkId :: MonadState Int t => J.JSString -> t J.JSString
+mkId n = do
+    i <- get
+    let i' = (+ 1) . (`mod` JE.maxSafeInteger) $ i
+    put i'
+    pure . J.append n . J.cons ':' . J.pack $ show i'
+
+-- -- type Initializer x s m = (Widget x s m, MonadCont m)
+
+-- -- | Create a Plan and Gadget for this widget if it did not already exists
+-- -- FIXME: naming
+-- initialize :: MonadWidget x s m => m ()
+-- initialize = do
+--     (pid, gid) <- ask
+--     -- first check if plan exists
+--     _plans.at pid %= (Just . initGadget gid . fromMaybe newPlan)
+--   where
+--     initGadget gid = _gadgets.at gid %~ (Just . fromMaybe newGadget)
+
+----------------------------------------------------------------------------------
+
+-- | post a command to be interpreted at the end of the frame
+post :: (MonadState (Scene x s) m) => DL.DList x -> m ()
+post xs = _commands %= (<> xs)
+
+post1 :: (MonadState (Scene x s) m) => x -> m ()
+post1 x = _commands %= (`DL.snoc` x)
+
+post1' :: (AsFacet c x, MonadState (Scene x s) m) => c -> m ()
+post1' = post1 . review facet
+
+
+
+-- -- Add an action to run once after the next render
+-- addOnceOnUpdated :: MonadState (Scene x s) m => x -> m ()
+-- addOnceOnUpdated x = _plan._onceOnUpdated %= (`DL.snoc` x)
+
+-- -- Add an action to run after every render
+-- addEveryOnUpdated :: MonadState (Scene x s) m => x -> m ()
+-- addEveryOnUpdated x = _plan._everyOnUpdated %= (`DL.snoc` x)

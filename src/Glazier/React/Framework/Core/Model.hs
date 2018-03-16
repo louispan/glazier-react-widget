@@ -114,10 +114,11 @@ instance CD.Dispose ShimListeners where
     dispose (ShimListeners a b c) = CD.dispose a <> CD.dispose b <> CD.dispose c
 
 -- | Interactivity data for a react component
-data Plan x = Plan
+data Plan = Plan
     -- a react "ref" to the javascript instance of ReactComponent
     -- so that react "componentRef.setState()" can be called.
-    { componentRef :: Maybe ComponentRef
+    { planIdn :: PlanId
+    , componentRef :: Maybe ComponentRef
     , shimListeners :: Maybe ShimListeners
     -- This is the previous "react state"
     , previousFrameNum :: Int
@@ -131,33 +132,35 @@ data Plan x = Plan
     -- , disposeOnRemoved :: CD.Disposable
     --  Things to dispose on updated
     , disposeOnUpdated :: CD.Disposable
+    -- FIXME: To be handled by the engine like Callbacks
     -- additional actions to take after every dirty
-    , everyOnUpdated :: DL.DList x
-     -- additional actions to take after a dirty
-    , onceOnUpdated :: DL.DList x
+    -- , everyOnUpdated :: DL.DList x
+    --  -- additional actions to take after a dirty
+    -- , onceOnUpdated :: DL.DList x
     -- interactivity data for child DOM elements
     , gizmos :: M.Map GizmoId Gizmo
     -- interactivity data for child react components
-    , plans :: M.Map PlanId (Plan x)
+    , plans :: M.Map PlanId Plan
     } deriving (G.Generic)
 
 makeLenses_ ''Plan
 
-instance CD.Dispose (Plan x) where
+instance CD.Dispose Plan where
     dispose pln = fromMaybe mempty (CD.dispose <$> (shimListeners pln))
         <> (disposeOnUpdated pln)
         <> (foldMap CD.dispose (gizmos pln))
         <> (foldMap CD.dispose (plans pln))
 
-newPlan :: Plan x
-newPlan = Plan
+newPlan :: PlanId -> Plan
+newPlan i = Plan
+    i
     Nothing
     Nothing
     0
     0
     -- mempty
-    mempty
-    mempty
+    -- mempty
+    -- mempty
     mempty
     mempty
     mempty
@@ -168,14 +171,14 @@ data Scene x s =  Scene
     -- commands could be in a writer monad, but then you can't get
     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
     { commands :: DL.DList x
-    , plan :: Plan x
+    , plan :: Plan
     , model :: s
     } deriving (G.Generic)
 
 _commands :: Lens' (Scene x s) (DL.DList x)
 _commands = lens commands (\s a -> s { commands = a})
 
-_plan :: Lens' (Scene x s) (Plan x)
+_plan :: Lens' (Scene x s) Plan
 _plan = lens plan (\s a -> s { plan = a})
 
 _model :: Lens (Scene x s) (Scene x s') s s'
@@ -208,7 +211,7 @@ editSceneModel l safa s = (\s' -> s { model = s'} ) <$> l afa' (model s)
   where
     afa' a = model <$> safa (s { model = a})
 
-editScenePlan :: Functor f => LensLike' f (Plan x) (Plan x) -> LensLike' f (Scene x s) (Scene x s)
+editScenePlan :: Functor f => LensLike' f Plan Plan -> LensLike' f (Scene x s) (Scene x s)
 editScenePlan l safa s = (\s' -> s { plan = s'} ) <$> l afa' (plan s)
   where
     afa' a = plan <$> safa (s { plan = a})
@@ -221,8 +224,7 @@ class EnlargeModel c where
     enlargeModel :: Traversal' s (EnlargingModel c) -> c -> WithEnlargedModel c s
 
 class EnlargePlan c where
-    type EnlargingPlanCommand c
-    enlargePlan :: Traversal' (Plan (EnlargingPlanCommand c)) (Plan (EnlargingPlanCommand c)) -> c -> c
+    enlargePlan :: Traversal' Plan Plan -> c -> c
 
 -- | Magnfiy the reader environment of 'MethodT'
 editMyModel :: Traversal' s a -> ReifiedTraversal' w (Scene x s) -> ReifiedTraversal' w (Scene x a)
@@ -231,7 +233,7 @@ editMyModel l (Traversal t) = Traversal (t . (editSceneModel l))
 -- | Using a 'Traversal'' from a bigger plan to a contained plan,
 -- convert a 'Traversal'' from the world to a bigger scene
 -- to a 'Traversal'' from the world to the smaller scene.
-editMyPlan :: Traversal' (Plan x) (Plan x) -> ReifiedTraversal' w (Scene x s) -> ReifiedTraversal' w (Scene x s)
+editMyPlan :: Traversal' Plan Plan -> ReifiedTraversal' w (Scene x s) -> ReifiedTraversal' w (Scene x s)
 editMyPlan l (Traversal t) = Traversal (t . (editScenePlan l))
 
 instance Monad m => EnlargeModel (ReadrT (ReifiedTraversal' w (Scene x a)) m r) where
@@ -240,7 +242,6 @@ instance Monad m => EnlargeModel (ReadrT (ReifiedTraversal' w (Scene x a)) m r) 
     enlargeModel l = magnify (to (editMyModel l))
 
 instance Monad m => EnlargePlan (ReadrT (ReifiedTraversal' w (Scene x s)) m r) where
-    type EnlargingPlanCommand (ReadrT (ReifiedTraversal' w (Scene x s)) m r) = x
     enlargePlan l = magnify (to (editMyPlan l))
 
 instance (Monoid r, Monad m) => EnlargeModel (ReadrT (Scene x a) m r) where
@@ -249,7 +250,6 @@ instance (Monoid r, Monad m) => EnlargeModel (ReadrT (Scene x a) m r) where
     enlargeModel l = magnify (editSceneModel l)
 
 instance (Monoid r, Monad m) => EnlargePlan (ReadrT (Scene x s) m r) where
-    type EnlargingPlanCommand (ReadrT (Scene x s) m r) = x
     enlargePlan l = magnify (editScenePlan l)
 
 ----------------------------------------------------------------------------------

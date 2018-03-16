@@ -70,7 +70,6 @@ instance Monad m => EnlargeModel (Widget w x a m r) where
     enlargeModel l (Widget disp ini) = Widget (enlargeModel l disp) (enlargeModel l ini)
 
 instance Monad m => EnlargePlan (Widget w x s m r) where
-    type EnlargingPlanCommand (Widget w x s m r) = x
     enlargePlan l (Widget disp ini) = Widget (enlargePlan l disp) (enlargePlan l ini)
 
 -- | Wrap this widget inside another 'ShimComponent' with its own 'Plan'

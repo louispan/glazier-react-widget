@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -31,7 +32,7 @@ import qualified JavaScript.Extras as JE
 
 ------------------------------------------------------
 
--- Creates a callback that is injected into the engine processing:
+-- | Creates a callback that is injected into the engine processing:
 -- * DOM listener is generated
 -- * The strict part of the callback is invoked
 -- * If the result is nothing, finish
@@ -63,6 +64,27 @@ data MkCallback1 a next where
 
 instance Functor (MkCallback1 a) where
     fmap f (MkCallback1 goStrict goLazy g) = MkCallback1 goStrict (f . goLazy) (f . g)
+
+
+-- | The engine should use the given id and add the stateful action @next@
+-- to the onUpdated callback of the react component.
+-- That is the engine should store a map of state actions for this react component in a var.
+-- Then the onUpdated callback of a react component can:
+-- read the var to get the currently stored state action for this react component
+-- read the current state from the var
+-- apply the stored state actions to the state
+-- clear the stored state actions
+-- save the new state
+-- process any commands generated.
+data MkOnceOnUpdatedCallback w next =
+    MkOnceOnUpdatedCallback PlanId next
+        deriving Functor
+
+-- | Similar to 'MkOnceOnUpdatedCallback' except the state action
+-- gets added to a separate map which doesn't get cleared.
+data MkEveryOnUpdatedCallback w next =
+    MkEveryOnUpdatedCallback PlanId next
+        deriving Functor
 
 -- | Create a callback and add it to this state's dlist of listeners.
 -- NB. You probably want to use 'trigger' instead since most React callbacks

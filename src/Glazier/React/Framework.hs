@@ -1,12 +1,11 @@
 module Glazier.React.Framework
-    ( module Glazier.Core
-    , module Glazier.React
+    ( module Glazier.React
     , module Glazier.React.Framework.Action
     , module Glazier.React.Framework.Core
     , module Glazier.React.Framework.Effect
     ) where
 
-import Glazier.Core
+-- import Glazier.Core
 import Glazier.React
 import Glazier.React.Framework.Action
 import Glazier.React.Framework.Core

@@ -11,52 +11,24 @@
 
 module Glazier.React.Framework.Core.Trigger where
 
-import Control.Arrow
 import Control.DeepSeq
 import Control.Lens
 import Control.Monad.Cont
 import Control.Monad.Reader
-import Control.Monad.RWS
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Delegate
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Maybe
-import Data.Semigroup
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
-import Glazier.Core
 import Glazier.React
 import Glazier.React.Framework.Core.Display
+import Glazier.React.Framework.Core.Method
 import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
 ------------------------------------------------------
-
--- -- | A simplified form of 'trigger' where all event info is dropped
--- -- and the given value is fired
--- trigger' :: (MonadReactor m)
---     => GadgetId
---     -> J.JSString
---     -> b
---     -> MethodT (Scene p m s) m b
--- trigger' gid n b = trigger gid n (const $ pure ()) (const b)
-
--- -- | Create callback for 'Notice' and add it to this state's dlist of listeners.
--- trigger ::
---     ( MonadReactor m
---     , NFData a
---     )
---     => GadgetId
---     -> J.JSString
---     -> (Notice -> IO a)
---     -> (a -> b)
---     -> MethodT (Scene p m s) m b
--- trigger gid n goStrict = mkListener gid n goStrict'
---   where
---     goStrict' e = case JE.fromJSR e of
---         Nothing -> pure Nothing
---         Just e' -> Just <$> goStrict e'
-
 
 -- Creates a callback that is injected into the engine processing:
 -- * DOM listener is generated
@@ -91,16 +63,48 @@ data MkCallback1 a next where
 instance Functor (MkCallback1 a) where
     fmap f (MkCallback1 goStrict goLazy g) = MkCallback1 goStrict (f . goLazy) (f . g)
 
--- methodT' :: (r -> (a -> m ()) -> s -> m ()) -> MethodT r m a
--- methodT' = readrT' . (delegateT' .)
-
--- | Create callbacks and add it to this state's dlist of listeners.
--- NB. You probably want ot use 'trigger' instead since most React callbacks
+-- | Create a callback and add it to this state's dlist of listeners.
+-- NB. You probably want to use 'trigger' instead since most React callbacks
 -- generate a 'Notice'.
--- Only the "ref" callback generate 'EventTarget' in which case you would want
+-- Only the "ref" callback generate 'EventTarget' or 'ComponentRef' in which case you would want
 -- to use 'withRef' instead.
--- A 'Rerender' command for this widget is automatically added when  triggered.
 mkListener ::
+    ( NFData a
+    , AsFacet (MkCallback1 a (StateT w m ())) x
+    , Monad m
+    )
+    => GadgetId
+    -> J.JSString
+    -> (JE.JSRep -> IO (Maybe a))
+    -> (a -> StateT w m b)
+    -> StateT w m ()
+    -> MethodT w x s m b
+mkListener gid n goStrict goLazy extra = do
+    Traversal my <- ask
+    lift $ delegateT' $ \fire -> do
+        let goLazy' a = (goLazy a >>= fire) *> extra
+            msg = MkCallback1 goStrict goLazy' $ \cb -> do
+                let addListener = over _listeners (`DL.snoc` (n, cb))
+                my._plan._gadgets.at gid %= (Just . addListener . fromMaybe newGadget)
+        zoom my (post1' msg)
+
+-- | A 'trigger' where all event info is dropped and the given value is fired.
+trigger' ::
+    ( AsFacet (MkCallback1 () (StateT w m ())) x
+    , AsFacet Rerender x
+    , Monad m
+    )
+    => GadgetId
+    -> J.JSString
+    -> b
+    -> MethodT w x s m b
+trigger' gid n b = do
+    Traversal my <- ask
+    mkListener gid n (const $ pure (Just ())) (const $ pure b) (zoom my rerender)
+
+-- | Create callback for 'Notice' and add it to this state's dlist of listeners.
+-- Also adds a 'Rerender' command at the end of the callback
+trigger ::
     ( NFData a
     , AsFacet (MkCallback1 a (StateT w m ())) x
     , AsFacet Rerender x
@@ -108,36 +112,27 @@ mkListener ::
     )
     => GadgetId
     -> J.JSString
-    -> (JE.JSRep -> IO (Maybe a))
+    -> (Notice -> IO a)
     -> (a -> StateT w m b)
-    -> MethodT (ReifiedTraversal' w (Scene x s)) (StateT w m) b
-mkListener gid n goStrict goLazy = do
+    -> MethodT w x s m b
+trigger gid n goStrict goLazy = do
     Traversal my <- ask
-    lift $ delegateT' $ \fire -> do
-        let goLazy' a = (goLazy a >>= fire) *> zoom my rerender
-            msg = MkCallback1 goStrict goLazy' $ \cb ->
-                my._plan._gadgets.at gid %= id
-        zoom my (post1' msg)
+    mkListener gid n goStrict' goLazy (zoom my rerender)
+  where
+    goStrict' e = case JE.fromJSR e of
+        Nothing -> pure Nothing
+        Just e' -> Just <$> goStrict e'
 
-    -- goLazy a >>= k
-    -- -- The contination monad is used to allow do nation to compose the continuation
-    -- -- to pass into MkCallback1.
-    -- -- The final monad must be a "ContT m ()" so that it can betrivially run with 'pure'
-    -- (`runContT` pure) $ do
-    --     cb <- ContT $ post1' . MkCallback1 goStrict goLazy'
-    --     let addListener = over _listeners (`DL.snoc` (n, cb))
-    --     lift $ _plan._gadgets.at gid %= (Just . addListener . fromMaybe newGadget)
-
--- -- | This adds a ReactJS "ref" callback and MonadReactor effect to assign the ref into an EventTarget
--- -- in the plan
--- withRef ::
-    --     ( MonadReactor m
-    --     )
-    --     => GadgetId
-    --     -> MethodT (Scene p m s) m ()
-    -- withRef i = mkListener i "ref" (pure . Just) id
-    --     >>= hdlRef
-    --   where
-    --     -- hdlRef :: SceneHandler p s m (EventTarget) (Which '[])
-    --     hdlRef j = readrT' $ \(Obj{..}) ->
---         lift $ doModifyIORef' self (my._plan._refs.at i .~ Just j
+-- | This adds a ReactJS "ref" callback assign the ref into an EventTarget in the plan
+withRef ::
+        ( AsFacet (MkCallback1 JE.JSRep (StateT w m ())) x
+        , Monad m
+        )
+        => GadgetId
+        -> MethodT w x s m ()
+withRef gid = do
+    Traversal my <- ask
+    mkListener gid "ref" (pure . Just) (hdlRef my) (pure ())
+  where
+    hdlRef my j = let evt = JE.fromJSR j
+               in my._plan._gadgets.ix gid._targetRef .= evt

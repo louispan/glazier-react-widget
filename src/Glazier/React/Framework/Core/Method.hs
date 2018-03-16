@@ -1,15 +1,19 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 
 #if __GLASGOW_HASKELL__ < 802
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 #endif
 
-module Glazier.Core.Method where
+module Glazier.React.Framework.Core.Method where
 
+import Control.Lens
 import Control.Monad.Trans.Delegate
 import Control.Monad.Trans.Readr
+import Control.Monad.Trans.State.Strict
+import Glazier.React.Framework.Core.Model
 
-type MethodT r m a = ReadrT r (DelegateT m) a
+type MethodT w x s m a = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (StateT w m)) a
 
 -- pattern Method' :: ((a -> m ()) -> m ()) -> DelegateT m a
 -- pattern Method' f = DelegateT (ContT f)
@@ -17,10 +21,23 @@ type MethodT r m a = ReadrT r (DelegateT m) a
 -- #if __GLASGOW_HASKELL__ >= 802
 -- {-# COMPLETE ReadrT_ #-}
 -- #endif
+-- readMy :: (Traversal' w (Scene x s) -> DelegateT (StateT w m) a) -> MethodT w x s m a
+-- readMy f = do
+--     Traversal my <- ask
+--     lift $ f my
 
-methodT' :: (r -> (a -> m ()) -> m ()) -> MethodT r m a
-methodT' = readrT' . (delegateT' .)
+methodT' ::
+    (Traversal' w (Scene x s)
+    -> (a -> StateT w m ())
+    -> StateT w m ())
+    -> MethodT w x s m a
+-- methodT' = readrT' . (delegateT' .) . (. runTraversal)
+methodT' f = readrT' (\r -> delegateT' (f (runTraversal r)))
 
-runMethodT' :: MethodT r m a -> (r -> (a -> m ()) -> m ())
-runMethodT' = (runDelegateT' .) . runReadrT'
-
+runMethodT' ::
+    MethodT w x s m a
+    -> Traversal' w (Scene x s)
+    -> (a -> StateT w m ())
+    -> StateT w m ()
+-- runMethodT' = (runDelegateT' .) . runReadrT'
+runMethodT' x l = runDelegateT' (runReadrT' x (Traversal l))

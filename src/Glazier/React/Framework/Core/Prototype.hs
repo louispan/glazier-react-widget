@@ -19,12 +19,19 @@ module Glazier.React.Framework.Core.Prototype where
 
 import Control.Disposable as CD
 import Control.Lens
+import Control.Lens.Internal.Zoom
 import Control.Monad.Cont
+import Control.Monad.Reader
+import Control.Monad.State.Strict
+import Control.Monad.Trans.Delegate
+import Control.Monad.Trans.Readr
+import Control.Monad.Trans.Readr
 import Data.Semigroup
-import Data.Semigroup.Applicative
 import qualified GHC.Generics as G
 import Glazier.React
--- import Glazier.React.Framework.Core.Model
+import Glazier.React.Framework.Core.Display
+import Glazier.React.Framework.Core.Method
+import Glazier.React.Framework.Core.Model
 
 -- | Unforunately, because each widget contains callbacks
 -- that has to be cleaned manually, we can't just rely on the garbage collector.
@@ -35,45 +42,51 @@ import Glazier.React
 -- type Initializer x s m = (Widget x s m, MonadCont m)
 -- type Handler x s m = (Widget x s m, MonadCont m)
 
-data Prototype m c = Prototype
-    { display :: ReactMlT m ()
-    , finalizer :: Ap m CD.Disposable
-    , initializer :: m c
+data Prototype w x s m c = Prototype
+    { display :: Display x s m ()
+    , initializer :: MethodT w x s m c
     } deriving (G.Generic, Functor)
 
 makeLenses ''Prototype
 
 mapPrototype2 :: Monad m
-    => (m c1 -> m c2 -> m c3)
-    -> Prototype m c1 -> Prototype m c2 -> Prototype m c3
-mapPrototype2 f (Prototype dis1 fin1 ini1) (Prototype dis2 fin2 ini2) =
+    => (MethodT w x s m c1 -> MethodT w x s m c2 -> MethodT w x s m c3)
+    -> Prototype w x s m c1 -> Prototype w x s m c2 -> Prototype w x s m c3
+mapPrototype2 f (Prototype dis1 ini1) (Prototype dis2 ini2) =
     Prototype
     (dis1 <> dis2)
-    (fin1 <> fin2)
     (f ini1 ini2)
 
 ------------------------------------------
 
-instance Monad m => Applicative (Prototype m) where
-    pure a = Prototype mempty mempty (pure a)
+instance Monad m => Applicative (Prototype w x s m) where
+    pure a = Prototype mempty (pure a)
     (<*>) = mapPrototype2 (<*>)
 
 -- merge ContT together by pre-firing the left ContT's output.
 -- That is, the resultant ContT will fire the output twice.
-instance MonadCont m => Semigroup (Prototype m c) where
-    (<>) = mapPrototype2 (\x y -> callCC $ \k -> (x >>= k) *> y)
+instance Monad m => Semigroup (Prototype w x s m c) where
+    (<>) = mapPrototype2 (<>)
 
-instance MonadCont m => Monoid (Prototype m ()) where
-    mempty = Prototype mempty mempty (callCC $ \k -> k ())
-    mappend = mapPrototype2 (*>)
+instance Monad m => Monoid (Prototype w x s m ()) where
+    mempty = Prototype mempty mempty
+    mappend = mapPrototype2 (<>)
 
--- -- | Modify prototype's reading environment @s1@ inside a larger @s2@
--- magnifyPrototype :: Lens' s2 s1  -> Prototype p s1 m c -> Prototype p s2 m c
--- magnifyPrototype sl (Prototype disp fin ini) = Prototype
---     -- (enlargeBuilder fi (view sl) bld)
---     (magnify (editFrame sl) disp)
---     (magnify sl fin)
---     (magnify (to $ accessScene sl) ini)
+instance Monad m => EnlargeModel (Prototype w x a m r) where
+    type WithEnlargedModel (Prototype w x a m r) s = Prototype w x s m r
+    type EnlargingModel (Prototype w x a m r) = a
+    enlargeModel l (Prototype disp ini) = Prototype (enlargeModel l disp) (enlargeModel l ini)
+
+instance Monad m => EnlargePlan (Prototype w x s m r) where
+    type EnlargingPlanCommand (Prototype w x s m r) = x
+    enlargePlan l (Prototype disp ini) = Prototype (enlargePlan l disp) (enlargePlan l ini)
+
+
+-- magnifyMethod :: Monad m
+--     => LensLike' f s a -> MethodT w x s m c1 -> MethodT w x s m c1
+-- magnifyDisplay l disp = magnify (editScene l) disp
+
+--    (magnify (to $ \(Traversal t) -> Traversal (t . l)) ini)
 
 -- -- | Makes and initialzies a spec from a req.
 -- -- Used by prototypes that contain other archetypes.

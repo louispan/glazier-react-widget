@@ -8,14 +8,16 @@
 module Glazier.React.Framework.Core.Display where
 
 import Control.Lens
+import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.Trans.Readr
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Glazier.React
 import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
--- type Display x s m r = Widget x s m => ReactMlT m r
+type Display x s m = ReadrT (Scene x s) (ReactMlT m)
 
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------
@@ -23,27 +25,27 @@ import qualified JavaScript.Extras as JE
 -- | Convenience function to create an internactive dom element
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
 -- Memonic: the convenient listener version has a prime'.
-lf' :: MonadState (Scene x s) m
+lf' :: Monad m
     => GadgetId
     -> JE.JSRep -- ^ eg "div" or "input"
     -> (DL.DList JE.Property)
-    -> ReactMlT m ()
+    -> Display x s m ()
 lf' gid n props = do
-    ls <- lift $ use (_plan._gadgets.ix gid._listeners)
-    leaf ls n props
+    ls <- view (_plan._gadgets.ix gid._listeners)
+    lift $ leaf ls n props
 
 -- | Convenience function to create an internactive dom element
 -- using listenres obtained from the 'Frame' for a 'GadgetId'.
 -- Memonic: the convenient listener version has a prime'.
-bh' :: MonadState (Scene x s) m
+bh' :: Monad m
     => GadgetId
     -> JE.JSRep
     -> (DL.DList JE.Property)
-    -> ReactMlT m a
-    -> ReactMlT m a
+    -> ReactMlT m r
+    -> Display x s m r
 bh' gid n props childs = do
-    ls <- lift $ use (_plan._gadgets.ix gid._listeners)
-    branch ls n props childs
+    ls <- view (_plan._gadgets.ix gid._listeners)
+    lift $ branch ls n props childs
 
 
 -- Marks the current widget as dirty, and rerender is required

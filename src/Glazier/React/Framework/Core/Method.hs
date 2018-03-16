@@ -1,5 +1,8 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 #if __GLASGOW_HASKELL__ < 802
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
@@ -13,7 +16,13 @@ import Control.Monad.Trans.Readr
 import Control.Monad.Trans.State.Strict
 import Glazier.React.Framework.Core.Model
 
-type MethodT w x s m a = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (StateT w m)) a
+-- | The type for initializing and handling callbacks.
+-- @w@ world
+-- @x@ commands to execute
+-- @s@ actual model of widget
+-- @m@ inner monad
+-- @a@ return of monad
+type MethodT w x s m = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (StateT w m))
 
 -- pattern Method' :: ((a -> m ()) -> m ()) -> DelegateT m a
 -- pattern Method' f = DelegateT (ContT f)

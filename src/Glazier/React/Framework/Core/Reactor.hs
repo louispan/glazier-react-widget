@@ -1,7 +1,9 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -21,12 +23,14 @@ import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
+import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Proxy
 import Data.Tuple
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import Glazier.React
+import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model
 import Glazier.React.Framework.Core.Trigger
 import Glazier.React.Framework.Core.Window
@@ -104,38 +108,48 @@ maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 
 -- | Examples
 execReactor :: forall s x r m.
-    ( AsFacet QuitReactor x
-    , AsFacet Rerender x
+    ( MonadReader r m
+    , MonadIO m
     , AsFacet (MkCallback1 (State (Scene x s) ())) x
+    , AsFacet (MkEveryOnUpdatedCallback (State (Scene x s) ())) x
+    , AsFacet (MkOnceOnUpdatedCallback (State (Scene x s) ())) x
+    , AsFacet QuitReactor x
+    , AsFacet Rerender x
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     , HasItem' (Maybe (TMVar QuitReactor)) r
     , HasItem' (TMVar (Scene x s)) r
-    , MonadReader r m
-    , MonadIO m
     )
     => Proxy s -> (m () -> r -> IO ()) -> (DL.DList x -> m ()) -> x -> m ()
 execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec execQuitReactor x
+    maybeExec @(MkCallback1 (State (Scene x s) ())) (execMkCallback1 runExec exec) x
+    <|> maybeExec @(MkEveryOnUpdatedCallback (State (Scene x s) ())) execEveryOnUpdatedCallback x
+    <|> maybeExec @(MkOnceOnUpdatedCallback (State (Scene x s) ())) execOnceOnUpdatedCallback x
+    <|> maybeExec execQuitReactor x
     <|> maybeExec execRerender x
-    <|> maybeExec @(MkCallback1 (State (Scene x s) ())) (execMkCallback1 runExec exec) x
 
 -- | An example of using the execReactor itself to pass into @execMkCallback1@
 -- lazy haskell is awesome.
 execReactor' :: forall s x r m.
-    ( AsFacet QuitReactor x
-    , AsFacet Rerender x
+    ( MonadReader r m
+    , MonadIO m
     , AsFacet (MkCallback1 (State (Scene x s) ())) x
+    , AsFacet (MkEveryOnUpdatedCallback (State (Scene x s) ())) x
+    , AsFacet (MkOnceOnUpdatedCallback (State (Scene x s) ())) x
+    , AsFacet QuitReactor x
+    , AsFacet Rerender x
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     , HasItem' (Maybe (TMVar QuitReactor)) r
     , HasItem' (TMVar (Scene x s)) r
-    , MonadReader r m
-    , MonadIO m
     )
     => Proxy s -> (m () -> r -> IO ()) -> x -> m ()
 execReactor' p runExec x = execReactor p runExec (traverse_ (execReactor' p runExec)) x
 
 execQuitReactor ::
-    ( HasItem' (Maybe (TMVar QuitReactor)) r
-    , MonadReader r m
+    ( MonadReader r m
     , MonadIO m
+    , HasItem' (Maybe (TMVar QuitReactor)) r
     )
     => QuitReactor -> m ()
 execQuitReactor QuitReactor = do
@@ -153,9 +167,9 @@ execRerender (Rerender j i) = do
     pure mempty
 
 execMkCallback1 ::
-    ( HasItem' (TMVar (Scene x s)) r
-    , MonadReader r m
+    ( MonadReader r m
     , MonadIO m
+    , HasItem' (TMVar (Scene x s)) r
     )
     => (m () -> r -> IO ())
     -> (DL.DList x -> m ())
@@ -180,42 +194,33 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     -- Now execute any commands as a result of the adding the callback
     exec xs
 
--- execEveryOnUpdatedCallback ::
---     ( HasItem' (MVar (Scene x s)) r
---     , MonadReader r m
---     , MonadIO m
---     )
---     => (m () -> r -> IO ())
---     -> (DL.DList x -> m ())
---     -> MkEveryOnUpdatedCallback (State (Scene x s) ())
---     -> m ()
--- execEveryOnUpdatedCallback runExec exec (MkEveryOnUpdatedCallback pid k) = do
---     v <- view item' <$> ask
---     env <- ask
---     let f = handleEventM goStrict goLazy'
---         goLazy' ma = case ma of
---             -- trigger didn't produce anything useful
---             Nothing -> pure mempty
---             -- run state action using mvar
---             Just a -> do
---                 xs <- modifyMVar v $ \t -> swap <$> generalize (runStateT (goLazy a *> takeCommands) t)
---                 -- Now execute any commands as a result of the state processing
---                 runExec (exec xs) env
---     xs <- liftIO $ do
---         cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
---         -- Now pass the cb into the continuation
---         modifyMVar v $ \t -> swap <$> runStateT (hoist generalize (k cb) *> takeCommands) t
---     -- Now execute any commands as a result of the adding the callback
---     exec xs
+newtype EveryOnUpdated x s b = EveryOnUpdated (State (Scene x s) b)
+    deriving (G.Generic, Functor, Applicative, Monad)
 
--- doMkCallback goStrict goLazy = do
---     env <- ask
---     let goLazy' = (env &) . runReaderT . runIOReactor . goLazy
---     let f = Z.handleEventM goStrict goLazy'
---     liftIO $ do
---         cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
---         let d = CD.dispose cb in pure (d, cb)
+execEveryOnUpdatedCallback :: forall x s m r.
+    ( MonadReader r m
+    , MonadIO m
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
+    )
+    => MkEveryOnUpdatedCallback (State (Scene x s) ())
+    -> m ()
+execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid work) = do
+    v <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask
+    liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (EveryOnUpdated work)) . fromMaybe (pure ()))
 
+newtype OnceOnUpdated x s b = OnceOnUpdated (State (Scene x s) b)
+    deriving (G.Generic, Functor, Applicative, Monad)
+
+execOnceOnUpdatedCallback :: forall x s m r.
+    ( MonadReader r m
+    , MonadIO m
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
+    )
+    => MkOnceOnUpdatedCallback (State (Scene x s) ())
+    -> m ()
+execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid work) = do
+    v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
+    liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (OnceOnUpdated work)) . fromMaybe (pure ()))
 
 #ifdef __GHCJS__
 

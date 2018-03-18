@@ -58,6 +58,8 @@ packages:
   extra-dep: true
 - location: '/Users/louis/repo/hs/arrow-extras'
   extra-dep: true
+- location: '/Users/louis/repo/hs/stm-extras'
+  extra-dep: true
 # - location: '/Users/louis/repo/hs/parameterized'
 #   extra-dep: true
 # - location: '/Users/louis/repo/hs/alternators'

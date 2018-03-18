@@ -63,6 +63,8 @@ library
                      , profunctors >= 5.2
                      , reducers >= 3.12.1
                      , stm >= 2.4.4.1
+                     , stm >= 2.4.4.1
+                     , stm-extras >= 0.1.1.0
                      , tagged >= 0.8.5
                      , transformers >= 0.4
   default-language:    Haskell2010

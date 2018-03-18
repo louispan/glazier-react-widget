@@ -104,11 +104,24 @@ execReactor :: forall s x r m.
     , MonadReader r m
     , MonadIO m
     )
-    => Proxy s -> (DL.DList x -> m ()) -> (m () -> r -> IO ()) -> x -> m ()
-execReactor _ exec runExec x = fmap (fromMaybe mempty) $ runMaybeT $
+    => Proxy s -> (m () -> r -> IO ()) -> (DL.DList x -> m ()) -> x -> m ()
+execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
     maybeExec execQuitReactor x
     <|> maybeExec execRerender x
-    <|> maybeExec @(MkCallback1 (State (Scene x s) ())) (execMkCallback1 exec runExec) x
+    <|> maybeExec @(MkCallback1 (State (Scene x s) ())) (execMkCallback1 runExec exec) x
+
+-- | An example of using the execReactor itself to pass into @execMkCallback1@
+execReactor' :: forall s x r m.
+    ( AsFacet QuitReactor x
+    , AsFacet Rerender x
+    , AsFacet (MkCallback1 (State (Scene x s) ())) x
+    , HasItem' (Maybe (MVar QuitReactor)) r
+    , HasItem' (MVar (Scene x s)) r
+    , MonadReader r m
+    , MonadIO m
+    )
+    => Proxy s -> (m () -> r -> IO ()) -> x -> m ()
+execReactor' p runExec x = execReactor p runExec (traverse_ (execReactor' p runExec)) x
 
 execQuitReactor ::
     ( HasItem' (Maybe (MVar QuitReactor)) r
@@ -135,11 +148,11 @@ execMkCallback1 ::
     , MonadReader r m
     , MonadIO m
     )
-    => (DL.DList x -> m ())
-    -> (m () -> r -> IO ())
+    => (m () -> r -> IO ())
+    -> (DL.DList x -> m ())
     -> MkCallback1 (State (Scene x s) ())
     -> m ()
-execMkCallback1 exec runExec (MkCallback1 goStrict goLazy k) = do
+execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     v <- view item' <$> ask
     env <- ask
     let f = handleEventM goStrict goLazy'

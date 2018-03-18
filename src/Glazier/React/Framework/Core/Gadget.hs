@@ -36,18 +36,18 @@ type GadgetT w x s m = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (Stat
 --     Traversal my <- ask
 --     lift $ f my
 
-gadgetT' ::
+gadgetT ::
     (Traversal' w (Scene x s)
     -> (a -> StateT w m ())
     -> StateT w m ())
     -> GadgetT w x s m a
 -- methodT' = readrT' . (delegateT' .) . (. runTraversal)
-gadgetT' f = readrT' (\r -> delegateT' (f (runTraversal r)))
+gadgetT f = readrT' (\r -> delegateT' (f (runTraversal r)))
 
-runGadgetT' ::
+runGadgetT ::
     GadgetT w x s m a
     -> Traversal' w (Scene x s)
     -> (a -> StateT w m ())
     -> StateT w m ()
 -- runMethodT' = (runDelegateT' .) . runReadrT'
-runGadgetT' x l = runDelegateT' (runReadrT' x (Traversal l))
+runGadgetT x l = runDelegateT' (runReadrT' x (Traversal l))

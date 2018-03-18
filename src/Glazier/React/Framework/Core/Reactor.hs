@@ -16,6 +16,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified Data.DList as DL
+import Data.Foldable
 import Data.Maybe
 import Data.Tuple
 import qualified GHCJS.Foreign.Callback as J
@@ -53,7 +54,7 @@ runReactor ini exec s = do
     v <- view item' <$> ask
     -- run through the app initialization
     -- let init = runGadgetT appGadget id (const $ pure ())
-    xs <- liftIO $ modifyMVar v $ \t -> swap <$> runStateT (hoist generalize ini *> takeCommands) t
+    xs <- liftIO $ modifyMVar v $ \t -> swap <$> generalize (runStateT (ini *> takeCommands) t)
     -- now go through and evaluate the commands
     -- This will include making callbacks which will execute on other threads
     -- completely consume all commands
@@ -84,32 +85,28 @@ takeCommands = do
     _commands .= mempty
     pure xs
 
--- | Continuously executes the commands until there are no more commands created
-execCommands ::
-    ( MonadReader env m
-    , MonadIO m
-    )
-    => (DL.DList x -> m (DL.DList x)) -> DL.DList x -> m ()
-execCommands exec xs = do
-    xs' <- exec xs
-    case DL.toList xs' of
-        [] -> pure ()
-        ys -> execCommands exec (DL.fromList ys)
+execListReactor :: Applicative m => (x -> m ()) -> DL.DList x -> m ()
+execListReactor = traverse_
 
 -- | Examples
-
 execReactor ::
     ( AsFacet QuitReactor x
     , AsFacet Rerender x
-    , HasItem' (Maybe (MVar QuitReactor)) env
+    , AsFacet (MkCallback1 a (State (Scene x s) ())) x
+    , HasItem' (Maybe (MVar QuitReactor)) r
+    , HasItem' (MVar (Scene x s)) r
+    , MonadReader r m
+    , MonadIO m
     )
-    => env -> x -> IO ()
-execReactor env x = fmap (fromMaybe mempty) $ runMaybeT $ (`runReaderT` env) $
+    => (DL.DList x -> m ()) -> (m () -> r -> IO ()) -> x -> m ()
+    -- => x -> m ()
+execReactor exec runExec x = fmap (fromMaybe mempty) $ runMaybeT $
     tryExec execQuitReactor x
     <|> tryExec execRerender x
+    <|> tryExec (execMkCallback1 exec runExec) x
  where
-    tryExec :: (Monad m, AsFacet a x, Alternative m) => (a -> m b) -> x -> m b
-    tryExec k y = k =<< maybe empty pure (preview facet y)
+    tryExec :: (Monad m, AsFacet a x) => (a -> m b) -> x -> MaybeT m b
+    tryExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 
 execQuitReactor ::
     ( HasItem' (Maybe (MVar QuitReactor)) r
@@ -149,7 +146,7 @@ execMkCallback1 exec runExec (MkCallback1 goStrict goLazy k) = do
             Nothing -> pure mempty
             -- run state action using mvar
             Just a -> do
-                xs <- modifyMVar v $ \t -> swap <$> runStateT (hoist generalize (goLazy a) *> takeCommands) t
+                xs <- modifyMVar v $ \t -> swap <$> generalize (runStateT (goLazy a *> takeCommands) t)
                 -- Now execute any commands as a result of the state processing
                 runExec (exec xs) env
     xs <- liftIO $ do

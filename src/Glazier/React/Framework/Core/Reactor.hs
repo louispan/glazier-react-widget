@@ -2,6 +2,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Glazier.React.Framework.Core.Reactor where
@@ -18,6 +20,7 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
 import Data.Maybe
+import Data.Proxy
 import Data.Tuple
 import qualified GHCJS.Foreign.Callback as J
 import Glazier.React
@@ -88,25 +91,24 @@ takeCommands = do
 execListReactor :: Applicative m => (x -> m ()) -> DL.DList x -> m ()
 execListReactor = traverse_
 
+maybeExec :: forall a x m b. (Monad m, AsFacet a x) => (a -> m b) -> x -> MaybeT m b
+maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
+
 -- | Examples
-execReactor ::
+execReactor :: forall s x r m.
     ( AsFacet QuitReactor x
     , AsFacet Rerender x
-    , AsFacet (MkCallback1 a (State (Scene x s) ())) x
+    , AsFacet (MkCallback1 (State (Scene x s) ())) x
     , HasItem' (Maybe (MVar QuitReactor)) r
     , HasItem' (MVar (Scene x s)) r
     , MonadReader r m
     , MonadIO m
     )
-    => (DL.DList x -> m ()) -> (m () -> r -> IO ()) -> x -> m ()
-    -- => x -> m ()
-execReactor exec runExec x = fmap (fromMaybe mempty) $ runMaybeT $
-    tryExec execQuitReactor x
-    <|> tryExec execRerender x
-    <|> tryExec (execMkCallback1 exec runExec) x
- where
-    tryExec :: (Monad m, AsFacet a x) => (a -> m b) -> x -> MaybeT m b
-    tryExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
+    => Proxy s -> (DL.DList x -> m ()) -> (m () -> r -> IO ()) -> x -> m ()
+execReactor _ exec runExec x = fmap (fromMaybe mempty) $ runMaybeT $
+    maybeExec execQuitReactor x
+    <|> maybeExec execRerender x
+    <|> maybeExec @(MkCallback1 (State (Scene x s) ())) (execMkCallback1 exec runExec) x
 
 execQuitReactor ::
     ( HasItem' (Maybe (MVar QuitReactor)) r
@@ -135,7 +137,7 @@ execMkCallback1 ::
     )
     => (DL.DList x -> m ())
     -> (m () -> r -> IO ())
-    -> MkCallback1 a (State (Scene x s) ())
+    -> MkCallback1 (State (Scene x s) ())
     -> m ()
 execMkCallback1 exec runExec (MkCallback1 goStrict goLazy k) = do
     v <- view item' <$> ask

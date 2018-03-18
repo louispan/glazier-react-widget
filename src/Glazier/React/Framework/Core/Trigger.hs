@@ -21,6 +21,7 @@ import Control.Monad.Trans.Delegate
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Maybe
+import Data.Typeable
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
@@ -55,16 +56,15 @@ import qualified JavaScript.Extras as JE
 -- ?? Does providing a Traversal lens really work?
 -- - need to test
 -- ?? How to zoom the Plan? Same thing, Reader of traversal to current plan
-data MkCallback1 a next where
+data MkCallback1 next where
     MkCallback1 :: NFData a
         => (JE.JSRep -> IO (Maybe a))
         -> (a -> next)
         -> (J.Callback (J.JSVal -> IO ()) -> next)
-        -> MkCallback1 a next
+        -> MkCallback1 next
 
-instance Functor (MkCallback1 a) where
+instance Functor MkCallback1 where
     fmap f (MkCallback1 goStrict goLazy g) = MkCallback1 goStrict (f . goLazy) (f . g)
-
 
 -- | The engine should use the given id and add the stateful action @next@
 -- to the onUpdated callback of the react component.
@@ -76,13 +76,13 @@ instance Functor (MkCallback1 a) where
 -- clear the stored state actions
 -- save the new state
 -- process any commands generated.
-data MkOnceOnUpdatedCallback w next =
+data MkOnceOnUpdatedCallback next =
     MkOnceOnUpdatedCallback PlanId next
         deriving Functor
 
 -- | Similar to 'MkOnceOnUpdatedCallback' except the state action
 -- gets added to a separate map which doesn't get cleared.
-data MkEveryOnUpdatedCallback w next =
+data MkEveryOnUpdatedCallback next =
     MkEveryOnUpdatedCallback PlanId next
         deriving Functor
 
@@ -93,7 +93,7 @@ data MkEveryOnUpdatedCallback w next =
 -- to use 'withRef' instead.
 mkListener ::
     ( NFData a
-    , AsFacet (MkCallback1 a (StateT w m ())) x
+    , AsFacet (MkCallback1 (StateT w m ())) x
     , Monad m
     )
     => GizmoId
@@ -113,7 +113,7 @@ mkListener gid n goStrict goLazy extra = do
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
 trigger' ::
-    ( AsFacet (MkCallback1 () (StateT w m ())) x
+    ( AsFacet (MkCallback1 (StateT w m ())) x
     , AsFacet Rerender x
     , Monad m
     )
@@ -129,7 +129,7 @@ trigger' gid n b = do
 -- Also adds a 'Rerender' command at the end of the callback
 trigger ::
     ( NFData a
-    , AsFacet (MkCallback1 a (StateT w m ())) x
+    , AsFacet (MkCallback1 (StateT w m ())) x
     , AsFacet Rerender x
     , Monad m
     )
@@ -148,7 +148,7 @@ trigger gid n goStrict goLazy = do
 
 -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget in the plan
 withRef ::
-        ( AsFacet (MkCallback1 JE.JSRep (StateT w m ())) x
+        ( AsFacet (MkCallback1 (StateT w m ())) x
         , Monad m
         )
         => GizmoId

@@ -21,7 +21,6 @@ import Control.Monad.Trans.Delegate
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Maybe
-import Data.Typeable
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
@@ -52,10 +51,6 @@ import qualified JavaScript.Extras as JE
 -- (getting the state from the ref, etc)
 -- using the last continuation arg
 -- THen save the state back into the ref + command processing
---
--- ?? Does providing a Traversal lens really work?
--- - need to test
--- ?? How to zoom the Plan? Same thing, Reader of traversal to current plan
 data MkCallback1 next where
     MkCallback1 :: NFData a
         => (JE.JSRep -> IO (Maybe a))
@@ -86,7 +81,7 @@ data MkEveryOnUpdatedCallback next =
     MkEveryOnUpdatedCallback PlanId next
         deriving Functor
 
--- | Create a callback and add it to this state's dlist of listeners.
+-- | Create a callback and add it to this gizmo's dlist of listeners.
 -- NB. You probably want to use 'trigger' instead since most React callbacks
 -- generate a 'Notice'.
 -- Only the "ref" callback generate 'EventTarget' or 'ComponentRef' in which case you would want
@@ -125,7 +120,7 @@ trigger' gid n b = do
     Traversal my <- ask
     mkListener gid n (const $ pure (Just ())) (const $ pure b) (zoom my rerender)
 
--- | Create callback for 'Notice' and add it to this state's dlist of listeners.
+-- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
 -- Also adds a 'Rerender' command at the end of the callback
 trigger ::
     ( NFData a
@@ -146,7 +141,8 @@ trigger gid n goStrict goLazy = do
         Nothing -> pure Nothing
         Just e' -> Just <$> goStrict e'
 
--- | This adds a ReactJS "ref" callback assign the ref into an EventTarget in the plan
+-- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
+-- gizmo in the plan
 withRef ::
         ( AsFacet (MkCallback1 (StateT w m ())) x
         , Monad m
@@ -159,3 +155,4 @@ withRef gid = do
   where
     hdlRef my j = let evt = JE.fromJSR j
                in my._plan._gizmos.ix gid._targetRef .= evt
+

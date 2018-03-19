@@ -10,7 +10,7 @@ module Glazier.React.Framework.Core.Window where
 import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.State
-import Control.Monad.Trans.Readr
+import Control.Monad.Trans.RWSs.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Glazier.React
@@ -18,17 +18,12 @@ import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model
 import qualified JavaScript.Extras as JE
 
-type WindowT x s m = ReadrT (Scene x s) (ReactMlT m)
+type WindowT x s m = RWSsT (Scene x s) () (DL.DList ReactMarkup) m
+
+type Window x s = WindowT x s Identity
 
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------
--- | Create a dom element without children.
--- Memenoic: short for 'leaf'
-lf :: Monad m
-    => JE.JSRep
-    -> (DL.DList JE.Property)
-    -> WindowT x s m ()
-lf n props = lift $ leaf [] n props
 
 -- | Interactive version of 'lf' using listeners obtained from the 'Plan' for a 'GizmoId'.
 lf' :: Monad m
@@ -38,18 +33,7 @@ lf' :: Monad m
     -> WindowT x s m ()
 lf' gid n props = do
     ls <- view (_plan._gizmos.ix gid._listeners)
-    lift $ leaf ls n props
-
--- | Create a dom element with children.
--- Memenoic: short for 'branch'
-bh :: Monad m
-    => JE.JSRep
-    -> (DL.DList JE.Property)
-    -> WindowT x s m r
-    -> WindowT x s m r
-bh n props childs = do
-    r <- ask
-    lift $ branch [] n props (runReadrT' childs r)
+    leaf ls n props
 
 -- | Interactive version of 'bh'
 bh' :: Monad m
@@ -60,8 +44,7 @@ bh' :: Monad m
     -> WindowT x s m r
 bh' gid n props childs = do
     ls <- view (_plan._gizmos.ix gid._listeners)
-    r <- ask
-    lift $ branch ls n props (runReadrT' childs r)
+    branch ls n props childs
 
 -- Marks the current widget as dirty, and rerender is required
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Core.Trigger.trigger'

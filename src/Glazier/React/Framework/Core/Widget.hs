@@ -57,12 +57,12 @@ instance Monad m => Applicative (Widget w x s m) where
 
 -- merge ContT together by pre-firing the left ContT's output.
 -- That is, the resultant ContT will fire the output twice.
-instance Monad m => Semigroup (Widget w x s m c) where
+instance (Semigroup c, Monad m) => Semigroup (Widget w x s m c) where
     (<>) = mapWidget2 (<>)
 
-instance Monad m => Monoid (Widget w x s m ()) where
+instance (Monoid c, Monad m) => Monoid (Widget w x s m c) where
     mempty = Widget mempty mempty
-    mappend = mapWidget2 (<>)
+    mappend = mapWidget2 mappend
 
 instance Monad m => EnlargeModel (Widget w x a m r) where
     type WithEnlargedModel (Widget w x a m r) s = Widget w x s m r
@@ -76,6 +76,11 @@ instance Monad m => EnlargePlan (Widget w x s m r) where
 -- This means that its 'dirty' state and 'Rerender' is isolated from other 'Widget's
 archetype :: Monad m => PlanId -> Widget w x s m r -> Widget w x s m r
 archetype pid = enlargePlan (_plans.ix pid)
+
+data MkArchetype w x s = MkArchetype
+    PlanId
+    (ReifiedTraversal' w (Scene x s))
+    (Window x s ())
 
 -- magnifyMethod :: Monad m
 --     => LensLike' f s a -> MethodT w x s m c1 -> MethodT w x s m c1

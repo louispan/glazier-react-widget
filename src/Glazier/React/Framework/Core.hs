@@ -3,7 +3,8 @@ module Glazier.React.Framework.Core
       -- module Glazier.Core
     -- , module Glazier.React.Framework.Core.Archetype
     module Control.Monad.Trans.Delegate
-    , module Control.Monad.Trans.Readr
+    , module Control.Monad.Trans.Readers
+    , module Control.Monad.Trans.RWSs.Strict
     , module Glazier.React.Framework.Core.Gadget
     , module Glazier.React.Framework.Core.MkId
     , module Glazier.React.Framework.Core.Model
@@ -16,7 +17,8 @@ module Glazier.React.Framework.Core
 -- import Glazier.Core
 -- import Glazier.React.Framework.Core.Archetype
 import Control.Monad.Trans.Delegate
-import Control.Monad.Trans.Readr
+import Control.Monad.Trans.Readers
+import Control.Monad.Trans.RWSs.Strict
 import Glazier.React.Framework.Core.Gadget
 import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model

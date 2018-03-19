@@ -12,7 +12,7 @@ module Glazier.React.Framework.Core.Gadget where
 
 import Control.Lens
 import Control.Monad.Trans.Delegate
-import Control.Monad.Trans.Readr
+import Control.Monad.Trans.Readers
 import Control.Monad.Trans.State.Strict
 import Glazier.React.Framework.Core.Model
 
@@ -22,13 +22,14 @@ import Glazier.React.Framework.Core.Model
 -- @s@ actual model of widget
 -- @m@ inner monad
 -- @a@ return of monad
-type GadgetT w x s m = ReadrT (ReifiedTraversal' w (Scene x s)) (DelegateT (StateT w m))
+type GadgetT w x s m = ReadersT (ReifiedTraversal' w (Scene x s)) (DelegateT (StateT w m))
+type Gadget w x s = GadgetT w x s Identity
 
 -- pattern Method' :: ((a -> m ()) -> m ()) -> DelegateT m a
 -- pattern Method' f = DelegateT (ContT f)
 
 -- #if __GLASGOW_HASKELL__ >= 802
--- {-# COMPLETE ReadrT_ #-}
+-- {-# COMPLETE ReadersT_ #-}
 -- #endif
 
 -- readMy :: (Traversal' w (Scene x s) -> DelegateT (StateT w m) a) -> MethodT w x s m a
@@ -42,12 +43,12 @@ gadgetT ::
     -> StateT w m ())
     -> GadgetT w x s m a
 -- methodT' = readrT' . (delegateT' .) . (. runTraversal)
-gadgetT f = readrT' (\r -> delegateT' (f (runTraversal r)))
+gadgetT f = readersT' (\r -> delegateT' (f (runTraversal r)))
 
 runGadgetT ::
     GadgetT w x s m a
     -> Traversal' w (Scene x s)
     -> (a -> StateT w m ())
     -> StateT w m ()
--- runMethodT' = (runDelegateT' .) . runReadrT'
-runGadgetT x l = runDelegateT' (runReadrT' x (Traversal l))
+-- runMethodT' = (runDelegateT' .) . runReadersT'
+runGadgetT x l = runDelegateT' (runReadersT' x (Traversal l))

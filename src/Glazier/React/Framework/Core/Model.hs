@@ -122,7 +122,7 @@ instance CD.Dispose ShimListeners where
 data Plan = Plan
     -- a react "ref" to the javascript instance of ReactComponent
     -- so that react "componentRef.setState()" can be called.
-    { planIdn :: PlanId
+    { planId :: PlanId
     , componentRef :: Maybe ComponentRef
     , shimListeners :: Maybe ShimListeners
     -- This is the previous "react state"

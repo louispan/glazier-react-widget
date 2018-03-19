@@ -26,13 +26,13 @@ import Data.Foldable
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Proxy
-import Data.Tuple
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import Glazier.React
 import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model
 import Glazier.React.Framework.Core.Trigger
+import Glazier.React.Framework.Core.Widget
 import Glazier.React.Framework.Core.Window
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
@@ -53,11 +53,26 @@ data QuitReactor = QuitReactor
 --     , scene :: Scene x s
 --     } deriving (G.Generic)
 
+runFrame :: TMVar (Scene x s) -> TVar (Scene x s) -> State (Scene x s) () -> STM (DL.DList x)
+runFrame world frame action = do
+    t <- takeTMVar world
+    let (xs, t') = runState (action *> takeCommands) t
+    putTMVar world t'
+    writeTVar frame t'
+    pure xs
+  where
+    takeCommands :: State (Scene x s) (DL.DList x)
+    takeCommands = do
+        xs <- use _commands
+        _commands .= mempty
+        pure xs
+
 -- | env must contain empty MVar of state
 runReactor ::
     ( MonadIO m
     , MonadReader r m
     , HasItem' (TMVar (Scene x s)) r
+    , HasItem' (TVar (Scene x s)) r
     , HasItem' (Maybe (TMVar QuitReactor)) r
     )
     => State (Scene x s) ()
@@ -66,10 +81,11 @@ runReactor ::
     -> m s
 runReactor ini exec s = do
     -- get state var
-    v <- view item' <$> ask
+    world <- view item' <$> ask
+    frame <- view item' <$> ask
     -- run through the app initialization
     -- let init = runGadgetT appGadget id (const $ pure ())
-    xs <- liftIO $ atomically $ modifyTMVar v $ \t -> swap <$> generalize (runStateT (ini *> takeCommands) t)
+    xs <- liftIO $ atomically $ runFrame world frame ini
     -- now go through and evaluate the commands
     -- This will include making callbacks which will execute on other threads
     -- completely consume all commands
@@ -84,7 +100,7 @@ runReactor ini exec s = do
         Just q -> do
             QuitReactor <- liftIO $ atomically $ takeTMVar q
             -- get the disposables for the plan retrieve the final state
-            (ds, s'') <- liftIO $ atomically $ takeTMVar v >>= \t -> fmap model <$> runStateT planDisposables t
+            (ds, s'') <- liftIO $ atomically $ takeTMVar world >>= \t -> fmap model <$> runStateT planDisposables t
             -- Now cleanup the resources allocated on initialize
             -- This means JS callbacks will now result in exceptions
             liftIO $ fromMaybe (pure ()) (CD.runDisposable ds)
@@ -93,12 +109,6 @@ runReactor ini exec s = do
   where
     planDisposables :: Monad m => StateT (Scene x s) m CD.Disposable
     planDisposables = CD.dispose <$> use _plan
-
-takeCommands :: Monad m => StateT (Scene x s) m (DL.DList x)
-takeCommands = do
-    xs <- use _commands
-    _commands .= mempty
-    pure xs
 
 execListReactor :: Applicative m => (x -> m ()) -> DL.DList x -> m ()
 execListReactor = traverse_
@@ -119,6 +129,7 @@ execReactor :: forall s x r m.
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     , HasItem' (Maybe (TMVar QuitReactor)) r
     , HasItem' (TMVar (Scene x s)) r
+    , HasItem' (TVar (Scene x s)) r
     )
     => Proxy s -> (m () -> r -> IO ()) -> (DL.DList x -> m ()) -> x -> m ()
 execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
@@ -142,6 +153,7 @@ execReactor' :: forall s x r m.
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     , HasItem' (Maybe (TMVar QuitReactor)) r
     , HasItem' (TMVar (Scene x s)) r
+    , HasItem' (TVar (Scene x s)) r
     )
     => Proxy s -> (m () -> r -> IO ()) -> x -> m ()
 execReactor' p runExec x = execReactor p runExec (traverse_ (execReactor' p runExec)) x
@@ -170,13 +182,15 @@ execMkCallback1 ::
     ( MonadReader r m
     , MonadIO m
     , HasItem' (TMVar (Scene x s)) r
+    , HasItem' (TVar (Scene x s)) r
     )
     => (m () -> r -> IO ())
     -> (DL.DList x -> m ())
     -> MkCallback1 (State (Scene x s) ())
     -> m ()
 execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
-    v <- view item' <$> ask
+    world <- view item' <$> ask
+    frame <- view item' <$> ask
     env <- ask
     let f = handleEventM goStrict goLazy'
         goLazy' ma = case ma of
@@ -184,13 +198,13 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
             Nothing -> pure mempty
             -- run state action using mvar
             Just a -> do
-                xs <- atomically $ modifyTMVar v $ \t -> swap <$> generalize (runStateT (goLazy a *> takeCommands) t)
+                xs <- atomically $ runFrame world frame (goLazy a)
                 -- Now execute any commands as a result of the state processing
                 runExec (exec xs) env
     xs <- liftIO $ do
         cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
         -- Now pass the cb into the continuation
-        atomically $ modifyTMVar v $ \t -> swap <$> runStateT (hoist generalize (k cb) *> takeCommands) t
+        atomically $ runFrame world frame (k cb)
     -- Now execute any commands as a result of the adding the callback
     exec xs
 
@@ -221,6 +235,36 @@ execOnceOnUpdatedCallback :: forall x s m r.
 execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid work) = do
     v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
     liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (OnceOnUpdated work)) . fromMaybe (pure ()))
+
+-- execMkArchetype ::
+--     ( MonadReader r m
+--     , MonadIO m
+--     , HasItem' (TVar (Scene x s)) r
+--     )
+--     => MkArchetype (Scene x s) x' s'
+--     -> m ()
+-- execMkArchetype (MkArchetype (Traversal my) wind) = do
+--     frame <- view item' <$> ask
+--     let rnd = liftIO $ do
+--         frm <- atomically $ readTVar frame
+--         runRWSsT' wind frm mempty
+
+--     rndCb <- J.syncCallback' rnd
+--     liftIO . atomically $ do
+--         ls <- preview (my._plan._shimListeners._Just) <$> readTMVar v
+--         case ls of
+--             -- Programming error: but don't do anything if shims have already been created
+--             Just _ -> pure ()
+--             Nothing -> pure ()
+
+--     pure ()
+
+
+
+
+
+
+
 
 #ifdef __GHCJS__
 

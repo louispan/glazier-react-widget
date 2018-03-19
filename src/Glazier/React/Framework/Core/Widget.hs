@@ -78,7 +78,6 @@ archetype :: Monad m => PlanId -> Widget w x s m r -> Widget w x s m r
 archetype pid = enlargePlan (_plans.ix pid)
 
 data MkArchetype w x s = MkArchetype
-    PlanId
     (ReifiedTraversal' w (Scene x s))
     (Window x s ())
 

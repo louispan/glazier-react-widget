@@ -16,8 +16,8 @@ import Control.DeepSeq
 import Control.Lens
 import Control.Monad.Cont
 import Control.Monad.Reader
-import Control.Monad.State.Strict
 import Control.Monad.Trans.Delegate
+import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Maybe
@@ -88,18 +88,18 @@ data MkEveryOnUpdatedCallback next =
 -- to use 'withRef' instead.
 mkListener ::
     ( NFData a
-    , AsFacet (MkCallback1 (StateT w m ())) x
+    , AsFacet (MkCallback1 (StatesT w m ())) x
     , Monad m
     )
     => GizmoId
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
-    -> (a -> StateT w m b)
-    -> StateT w m ()
+    -> (a -> StatesT w m b)
+    -> StatesT w m ()
     -> GadgetT w x s m b
 mkListener gid n goStrict goLazy extra = do
     Traversal my <- ask
-    lift $ delegateT' $ \fire -> do
+    lift $ delegateT $ \fire -> do
         let goLazy' a = (goLazy a >>= fire) *> extra
             msg = MkCallback1 goStrict goLazy' $ \cb -> do
                 let addListener = over _listeners (`DL.snoc` (n, cb))
@@ -108,7 +108,7 @@ mkListener gid n goStrict goLazy extra = do
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
 trigger' ::
-    ( AsFacet (MkCallback1 (StateT w m ())) x
+    ( AsFacet (MkCallback1 (StatesT w m ())) x
     , AsFacet Rerender x
     , Monad m
     )
@@ -124,14 +124,14 @@ trigger' gid n b = do
 -- Also adds a 'Rerender' command at the end of the callback
 trigger ::
     ( NFData a
-    , AsFacet (MkCallback1 (StateT w m ())) x
+    , AsFacet (MkCallback1 (StatesT w m ())) x
     , AsFacet Rerender x
     , Monad m
     )
     => GizmoId
     -> J.JSString
     -> (Notice -> IO a)
-    -> (a -> StateT w m b)
+    -> (a -> StatesT w m b)
     -> GadgetT w x s m b
 trigger gid n goStrict goLazy = do
     Traversal my <- ask
@@ -144,7 +144,7 @@ trigger gid n goStrict goLazy = do
 -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
 -- gizmo in the plan
 withRef ::
-        ( AsFacet (MkCallback1 (StateT w m ())) x
+        ( AsFacet (MkCallback1 (StatesT w m ())) x
         , Monad m
         )
         => GizmoId

@@ -18,16 +18,19 @@ import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Morph
 import Control.Monad.Reader
-import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.RWSs.Strict
+import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Proxy
+import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
+import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.Core.MkId
 import Glazier.React.Framework.Core.Model
@@ -53,15 +56,15 @@ data QuitReactor = QuitReactor
 --     , scene :: Scene x s
 --     } deriving (G.Generic)
 
-runFrame :: TMVar (Scene x s) -> TVar (Scene x s) -> State (Scene x s) () -> STM (DL.DList x)
+runFrame :: TMVar (Scene x s) -> TVar (Scene x s) -> States (Scene x s) () -> STM (DL.DList x)
 runFrame world frame action = do
     t <- takeTMVar world
-    let (xs, t') = runState (action *> takeCommands) t
+    let (xs, t') = runStates (action *> takeCommands) t
     putTMVar world t'
     writeTVar frame t'
     pure xs
   where
-    takeCommands :: State (Scene x s) (DL.DList x)
+    takeCommands :: States (Scene x s) (DL.DList x)
     takeCommands = do
         xs <- use _commands
         _commands .= mempty
@@ -75,7 +78,7 @@ runReactor ::
     , HasItem' (TVar (Scene x s)) r
     , HasItem' (Maybe (TMVar QuitReactor)) r
     )
-    => State (Scene x s) ()
+    => States (Scene x s) ()
     -> (DL.DList x -> m ())
     -> s
     -> m s
@@ -94,20 +97,20 @@ runReactor ini exec s = do
     quit <- view item' <$> ask
     case quit of
         -- The app never quits, so don't cleanup anything
-        -- pretend to return the initialState
+        -- pretend to return the initialStates
         Nothing -> pure s
         -- This app quits, so we need to cleanup
         Just q -> do
             QuitReactor <- liftIO $ atomically $ takeTMVar q
             -- get the disposables for the plan retrieve the final state
-            (ds, s'') <- liftIO $ atomically $ takeTMVar world >>= \t -> fmap model <$> runStateT planDisposables t
+            (ds, s'') <- liftIO $ atomically $ takeTMVar world >>= \t -> fmap model <$> runStatesT planDisposables t
             -- Now cleanup the resources allocated on initialize
             -- This means JS callbacks will now result in exceptions
             liftIO $ fromMaybe (pure ()) (CD.runDisposable ds)
             pure s''
 
   where
-    planDisposables :: Monad m => StateT (Scene x s) m CD.Disposable
+    planDisposables :: Monad m => StatesT (Scene x s) m CD.Disposable
     planDisposables = CD.dispose <$> use _plan
 
 execListReactor :: Applicative m => (x -> m ()) -> DL.DList x -> m ()
@@ -120,9 +123,9 @@ maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 execReactor :: forall s x r m.
     ( MonadReader r m
     , MonadIO m
-    , AsFacet (MkCallback1 (State (Scene x s) ())) x
-    , AsFacet (MkEveryOnUpdatedCallback (State (Scene x s) ())) x
-    , AsFacet (MkOnceOnUpdatedCallback (State (Scene x s) ())) x
+    , AsFacet (MkCallback1 (States (Scene x s) ())) x
+    , AsFacet (MkEveryOnUpdatedCallback (States (Scene x s) ())) x
+    , AsFacet (MkOnceOnUpdatedCallback (States (Scene x s) ())) x
     , AsFacet QuitReactor x
     , AsFacet Rerender x
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
@@ -133,9 +136,9 @@ execReactor :: forall s x r m.
     )
     => Proxy s -> (m () -> r -> IO ()) -> (DL.DList x -> m ()) -> x -> m ()
 execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec @(MkCallback1 (State (Scene x s) ())) (execMkCallback1 runExec exec) x
-    <|> maybeExec @(MkEveryOnUpdatedCallback (State (Scene x s) ())) execEveryOnUpdatedCallback x
-    <|> maybeExec @(MkOnceOnUpdatedCallback (State (Scene x s) ())) execOnceOnUpdatedCallback x
+    maybeExec @(MkCallback1 (States (Scene x s) ())) (execMkCallback1 runExec exec) x
+    <|> maybeExec @(MkEveryOnUpdatedCallback (States (Scene x s) ())) execEveryOnUpdatedCallback x
+    <|> maybeExec @(MkOnceOnUpdatedCallback (States (Scene x s) ())) execOnceOnUpdatedCallback x
     <|> maybeExec execQuitReactor x
     <|> maybeExec execRerender x
 
@@ -144,9 +147,9 @@ execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
 execReactor' :: forall s x r m.
     ( MonadReader r m
     , MonadIO m
-    , AsFacet (MkCallback1 (State (Scene x s) ())) x
-    , AsFacet (MkEveryOnUpdatedCallback (State (Scene x s) ())) x
-    , AsFacet (MkOnceOnUpdatedCallback (State (Scene x s) ())) x
+    , AsFacet (MkCallback1 (States (Scene x s) ())) x
+    , AsFacet (MkEveryOnUpdatedCallback (States (Scene x s) ())) x
+    , AsFacet (MkOnceOnUpdatedCallback (States (Scene x s) ())) x
     , AsFacet QuitReactor x
     , AsFacet Rerender x
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
@@ -175,7 +178,7 @@ execRerender ::
     )
     => Rerender -> m ()
 execRerender (Rerender j i) = do
-    liftIO $ js_setComponentState (JE.fromProperties [("frameNum", JE.toJSR i)]) j
+    liftIO $ js_setComponentStates (JE.fromProperties [("frameNum", JE.toJSR i)]) j
     pure mempty
 
 execMkCallback1 ::
@@ -186,7 +189,7 @@ execMkCallback1 ::
     )
     => (m () -> r -> IO ())
     -> (DL.DList x -> m ())
-    -> MkCallback1 (State (Scene x s) ())
+    -> MkCallback1 (States (Scene x s) ())
     -> m ()
 execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     world <- view item' <$> ask
@@ -208,56 +211,86 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     -- Now execute any commands as a result of the adding the callback
     exec xs
 
-newtype EveryOnUpdated x s b = EveryOnUpdated (State (Scene x s) b)
-    deriving (G.Generic, Functor, Applicative, Monad)
+newtype EveryOnUpdated x s b = EveryOnUpdated (States (Scene x s) b)
+    deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execEveryOnUpdatedCallback :: forall x s m r.
     ( MonadReader r m
     , MonadIO m
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     )
-    => MkEveryOnUpdatedCallback (State (Scene x s) ())
+    => MkEveryOnUpdatedCallback (States (Scene x s) ())
     -> m ()
 execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid work) = do
     v <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask
     liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (EveryOnUpdated work)) . fromMaybe (pure ()))
 
-newtype OnceOnUpdated x s b = OnceOnUpdated (State (Scene x s) b)
-    deriving (G.Generic, Functor, Applicative, Monad)
+newtype OnceOnUpdated x s b = OnceOnUpdated (States (Scene x s) b)
+    deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execOnceOnUpdatedCallback :: forall x s m r.
     ( MonadReader r m
     , MonadIO m
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     )
-    => MkOnceOnUpdatedCallback (State (Scene x s) ())
+    => MkOnceOnUpdatedCallback (States (Scene x s) ())
     -> m ()
 execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid work) = do
     v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
     liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (OnceOnUpdated work)) . fromMaybe (pure ()))
 
--- execMkArchetype ::
---     ( MonadReader r m
---     , MonadIO m
---     , HasItem' (TVar (Scene x s)) r
---     )
---     => MkArchetype (Scene x s) x' s'
---     -> m ()
--- execMkArchetype (MkArchetype (Traversal my) wind) = do
---     frame <- view item' <$> ask
---     let rnd = liftIO $ do
---         frm <- atomically $ readTVar frame
---         runRWSsT' wind frm mempty
+execMkShimListeners :: forall x s m r x' s'.
+    ( MonadReader r m
+    , MonadIO m
+    , HasItem' (TMVar (Scene x s)) r
+    , HasItem' (TVar (Scene x s)) r
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
+    )
+    => (m () -> r -> IO ())
+    -> (DL.DList x -> m ())
+    -> MkShimListeners (Scene x s) x' s'
+    -> m ()
+execMkShimListeners runExec exec (MkShimListeners pid (Traversal my) wind) = do
+    world <- view item' <$> ask
+    frame <- view item' <$> ask
+    env <- ask
+    onceOnUpdated <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
+    everyOnUpdated <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask
+    let doRender = do
+            frm <- atomically $ preview my <$> readTVar frame
+            case frm of
+                Nothing -> pure J.nullRef
+                Just frm' -> let (as, _) = execRWSs wind frm' mempty
+                            in JE.toJS <$> toElement as
+        doRef j = atomically $ do
+            let c = JE.fromJS j
+            modifyTMVar_ world $ pure . (my._plan._componentRef .~ c)
+        doUpdated = do
+            -- get the once only action to run and clear it
+            OnceOnUpdated o <- atomically $ maybeModifyTMVar onceOnUpdated $ \as -> do
+                let o = preview (ix pid) as
+                case o of
+                    Nothing -> pure (Nothing, mempty)
+                    Just o' -> pure (Just $ as & at pid .~ Nothing, o')
+            -- get the onEveryUpdated action
+            EveryOnUpdated e <- atomically $ (view $ ix pid) <$> readTMVar everyOnUpdated
+            -- Now execute any commands as a result of the state processing
+            xs <- atomically $ runFrame world frame (e *> o)
+            runExec (exec xs) env
+    renderCb <- liftIO $ J.syncCallback' doRender
+    refCb <- liftIO $ J.syncCallback1 J.ContinueAsync doRef
+    updatedCb <- liftIO $ J.syncCallback J.ContinueAsync doUpdated
+    liftIO . atomically $ maybeModifyTMVar_ world $ \w -> do
+        let ls = preview (my._plan._shimListeners) w
+        case ls of
+            -- plan doesn't exit
+            Nothing -> pure Nothing
+            -- shim listeners already created
+            Just (Just _) -> pure Nothing
+            Just Nothing -> pure . Just $ w & my._plan._shimListeners .~
+                (Just $ ShimListeners renderCb updatedCb refCb)
 
---     rndCb <- J.syncCallback' rnd
---     liftIO . atomically $ do
---         ls <- preview (my._plan._shimListeners._Just) <$> readTMVar v
---         case ls of
---             -- Programming error: but don't do anything if shims have already been created
---             Just _ -> pure ()
---             Nothing -> pure ()
-
---     pure ()
 
 
 
@@ -269,12 +302,12 @@ execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid work) = do
 #ifdef __GHCJS__
 
 foreign import javascript unsafe
-  "if ($2 && $2['setState']) { $2['setState']($1); }"
-  js_setComponentState :: JO.Object -> ComponentRef -> IO ()
+  "if ($2 && $2['setStates']) { $2['setStates']($1); }"
+  js_setComponentStates :: JO.Object -> ComponentRef -> IO ()
 
 #else
 
-js_setComponentState :: JO.Object -> ComponentRef -> IO ()
-js_setComponentState _ _ = pure ()
+js_setComponentStates :: JO.Object -> ComponentRef -> IO ()
+js_setComponentStates _ _ = pure ()
 
 #endif

@@ -122,8 +122,7 @@ instance CD.Dispose ShimListeners where
 data Plan = Plan
     -- a react "ref" to the javascript instance of ReactComponent
     -- so that react "componentRef.setState()" can be called.
-    { planId :: PlanId
-    , componentRef :: Maybe ComponentRef
+    { componentRef :: Maybe ComponentRef
     , shimListeners :: Maybe ShimListeners
     -- This is the previous "react state"
     , previousFrameNum :: Int
@@ -156,9 +155,11 @@ instance CD.Dispose Plan where
         <> (foldMap CD.dispose (gizmos pln))
         <> (foldMap CD.dispose (plans pln))
 
-newPlan :: PlanId -> Plan
-newPlan i = Plan
-    i
+newPlan :: Plan
+newPlan = Plan
+-- newPlan :: PlanId -> Plan
+-- newPlan i = Plan
+    -- i
     Nothing
     Nothing
     0

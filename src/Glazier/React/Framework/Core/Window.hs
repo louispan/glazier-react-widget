@@ -8,7 +8,6 @@
 module Glazier.React.Framework.Core.Window where
 
 import Control.Lens
-import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Trans.RWSs.Strict
 import Data.Diverse.Lens

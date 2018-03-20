@@ -77,7 +77,8 @@ instance Monad m => EnlargePlan (Widget w x s m r) where
 archetype :: Monad m => PlanId -> Widget w x s m r -> Widget w x s m r
 archetype pid = enlargePlan (_plans.ix pid)
 
-data MkArchetype w x s = MkArchetype
+data MkShimListeners w x s = MkShimListeners
+    PlanId
     (ReifiedTraversal' w (Scene x s))
     (Window x s ())
 

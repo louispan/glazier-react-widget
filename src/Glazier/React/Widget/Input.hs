@@ -18,7 +18,7 @@ module Glazier.React.Widget.Input (
     , indeterminateCheckboxInput
     ) where
 
-import Control.Applicative.Esoteric
+-- import Control.Applicative.Esoteric
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.Cont
@@ -50,14 +50,10 @@ import qualified JavaScript.Extras as JE
 -- Warning: This widget listens to onChange and will update the model value with the DOM input value.
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
-textInput ::
-    ( MonadReactor m
-    , MonadJS m
-    )
-    => GadgetId
-    -> Prototype p J.JSString m ()
+textInput :: GizmoId
+    -> Widget w J.JSString x ()
 textInput gid = mempty
-    { display = \s -> lf' gid s "input"
+    { window = \s -> lf' gid s "input"
         [ ("key", JE.toJSR . reactKey $ s ^. _plan)
         -- "value" cannot be used as React will take over as a controlled component.
         -- The defaultValue only sets the *initial* DOM value
@@ -68,18 +64,19 @@ textInput gid = mempty
         -- is updated under the hood in onInitialized
         , ("defaultValue", JE.toJSR $ s ^. _model)
         ]
-    , initializer = withRef gid
-        ^*> onInitialized
-        ^*> (trigger' gid "onChange" () >>= hdlChange)
+    , gadget = withRef gid
+        *> onInitialized
+        *> (trigger' gid "onChange" () >>= hdlChange)
     }
   where
 
     -- | Add setting the DOM input value after every render as this is the only
     -- way to change that setting.
     onInitialized ::
-        ( MonadReactor m
-        , MonadJS m
-        ) => MethodT (Scene p m J.JSString) m ()
+        ( AsFacet SetProperty x
+        , AsFacet GetProperty x
+        , AsFacet (MkEveryOnUpdatedCallback' x s) x
+        ) => Gadget w (Scene J.JSString) x ()
     onInitialized = do
         this <- ask
         lift $ lift $ addEveryOnUpdated this (go this)
@@ -151,64 +148,64 @@ estimateSelectionRange before after start end =
 
 ----------------------------------------
 
--- | This provide a prototype of a checkbox input but without a builder.
--- Instead a lens to the CheckboxInput is used, and the user of this widget
--- is responsible for making the entire model.
-checkboxInput :: ( MonadReactor m)
-    => GadgetId
-    -> Prototype p Bool m ()
-checkboxInput gid = mempty
-    { display = \s -> lf' gid s "input"
-        [ ("key", JE.toJSR . reactKey $ s ^. _plan)
-        , ("type", "checkbox")
-        , ("checked", JE.toJSR $ s ^. _model)
-        ]
-    , initializer = withRef gid
-        ^*> (trigger' gid "onChange" () >>= hdlChange)
-    }
+-- -- | This provide a prototype of a checkbox input but without a builder.
+-- -- Instead a lens to the CheckboxInput is used, and the user of this widget
+-- -- is responsible for making the entire model.
+-- checkboxInput :: ( MonadReactor m)
+--     => GadgetId
+--     -> Prototype p Bool m ()
+-- checkboxInput gid = mempty
+--     { display = \s -> lf' gid s "input"
+--         [ ("key", JE.toJSR . reactKey $ s ^. _plan)
+--         , ("type", "checkbox")
+--         , ("checked", JE.toJSR $ s ^. _model)
+--         ]
+--     , initializer = withRef gid
+--         ^*> (trigger' gid "onChange" () >>= hdlChange)
+--     }
 
-  where
-    hdlChange :: (MonadReactor m)
-        => a -> MethodT (Scene p m Bool) m ()
-    hdlChange _ = readrT' $ \this@Obj{..} -> do
-        lift $ do
-            doModifyIORef' self (my._model %~ not)
-            dirty this
+--   where
+--     hdlChange :: (MonadReactor m)
+--         => a -> MethodT (Scene p m Bool) m ()
+--     hdlChange _ = readrT' $ \this@Obj{..} -> do
+--         lift $ do
+--             doModifyIORef' self (my._model %~ not)
+--             dirty this
 
-data IndeterminateCheckboxInput = IndeterminateCheckboxInput
-    { checked :: Bool
-    , indeterminate :: Bool
-    } deriving G.Generic
+-- data IndeterminateCheckboxInput = IndeterminateCheckboxInput
+--     { checked :: Bool
+--     , indeterminate :: Bool
+--     } deriving G.Generic
 
-makeLenses_ ''IndeterminateCheckboxInput
+-- makeLenses_ ''IndeterminateCheckboxInput
 
--- | This provide a prototype of a checkbox input but without a builder.
--- Instead a lens to the CheckboxInput is used, and the user of this widget
--- is responsible for making the entire model.
-indeterminateCheckboxInput ::
-    ( MonadReactor m
-    , MonadJS m
-    )
-    => GadgetId
-    -> Prototype p IndeterminateCheckboxInput m ()
-indeterminateCheckboxInput gid = magnifyPrototype _checked (checkboxInput gid)
-    & _initializer %~ (^*> onInitialized)
-  where
-    -- | Add setting the indeterminate after every dirty as this is the only
-    -- way to change that setting.
-    onInitialized ::
-        ( MonadReactor m
-        , MonadJS m
-        ) => MethodT (Scene p m IndeterminateCheckboxInput) m ()
-    onInitialized = readrT' $ \this@Obj{..} -> do
-         lift $ addEveryOnUpdated this (go this)
-      where
-        go Obj{..} = do
-            me <- doReadIORef self
-            let j = me ^. my._plan._refs.at gid
-            case j of
-                Nothing -> pure ()
-                Just j' -> j' & doSetProperty
-                    ( "indeterminate"
-                    , JE.toJSR $ me ^. my._model._indeterminate
-                    )
+-- -- | This provide a prototype of a checkbox input but without a builder.
+-- -- Instead a lens to the CheckboxInput is used, and the user of this widget
+-- -- is responsible for making the entire model.
+-- indeterminateCheckboxInput ::
+--     ( MonadReactor m
+--     , MonadJS m
+--     )
+--     => GadgetId
+--     -> Prototype p IndeterminateCheckboxInput m ()
+-- indeterminateCheckboxInput gid = magnifyPrototype _checked (checkboxInput gid)
+--     & _initializer %~ (^*> onInitialized)
+--   where
+--     -- | Add setting the indeterminate after every dirty as this is the only
+--     -- way to change that setting.
+--     onInitialized ::
+--         ( MonadReactor m
+--         , MonadJS m
+--         ) => MethodT (Scene p m IndeterminateCheckboxInput) m ()
+--     onInitialized = readrT' $ \this@Obj{..} -> do
+--          lift $ addEveryOnUpdated this (go this)
+--       where
+--         go Obj{..} = do
+--             me <- doReadIORef self
+--             let j = me ^. my._plan._refs.at gid
+--             case j of
+--                 Nothing -> pure ()
+--                 Just j' -> j' & doSetProperty
+--                     ( "indeterminate"
+--                     , JE.toJSR $ me ^. my._model._indeterminate
+--                     )

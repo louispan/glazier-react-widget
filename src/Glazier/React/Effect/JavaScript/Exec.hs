@@ -26,7 +26,7 @@ execGetProperty ::
     , HasItem' (TVar (Scene x s)) r
     )
     => (DL.DList x -> m ())
-    -> GetProperty (States (Scene x s) ())
+    -> GetProperty' x s
     -> m ()
 execGetProperty exec (GetProperty n j k) = do
     world <- view item' <$> ask

@@ -38,15 +38,14 @@ import qualified JavaScript.Extras as JE
 -- to use 'withRef' instead.
 mkListener ::
     ( NFData a
-    , AsFacet (MkCallback1 (StatesT w m ())) x
-    , Monad m
+    , AsFacet (MkCallback1 (States w ())) x
     )
     => GizmoId
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
-    -> (a -> StatesT w m b)
-    -> StatesT w m ()
-    -> GadgetT w x s m b
+    -> (a -> States w b)
+    -> States w ()
+    -> Gadget w x s b
 mkListener gid n goStrict goLazy extra = do
     Traversal my <- ask
     lift $ delegateT $ \fire -> do
@@ -59,14 +58,13 @@ mkListener gid n goStrict goLazy extra = do
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
 trigger' ::
-    ( AsFacet (MkCallback1 (StatesT w m ())) x
+    ( AsFacet (MkCallback1 (States w ())) x
     , AsFacet Rerender x
-    , Monad m
     )
     => GizmoId
     -> J.JSString
     -> b
-    -> GadgetT w x s m b
+    -> Gadget w x s b
 trigger' gid n b = do
     Traversal my <- ask
     -- Add a rerender for this widget at the every end
@@ -76,15 +74,14 @@ trigger' gid n b = do
 -- Also adds a 'Rerender' command at the end of the callback
 trigger ::
     ( NFData a
-    , AsFacet (MkCallback1 (StatesT w m ())) x
+    , AsFacet (MkCallback1 (States w ())) x
     , AsFacet Rerender x
-    , Monad m
     )
     => GizmoId
     -> J.JSString
     -> (Notice -> IO a)
-    -> (a -> StatesT w m b)
-    -> GadgetT w x s m b
+    -> (a -> States w b)
+    -> Gadget w x s b
 trigger gid n goStrict goLazy = do
     Traversal my <- ask
     -- Add a rerender for this widget at the every end
@@ -97,11 +94,10 @@ trigger gid n goStrict goLazy = do
 -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
 -- gizmo in the plan
 withRef ::
-        ( AsFacet (MkCallback1 (StatesT w m ())) x
-        , Monad m
+        ( AsFacet (MkCallback1 (States w ())) x
         )
         => GizmoId
-        -> GadgetT w x s m ()
+        -> Gadget w x s ()
 withRef gid = do
     Traversal my <- ask
     mkListener gid "ref" (pure . Just) (hdlRef my) (pure ())

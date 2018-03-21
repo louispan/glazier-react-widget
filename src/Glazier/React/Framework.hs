@@ -5,6 +5,7 @@ module Glazier.React.Framework
     module Control.Monad.Trans.Delegate
     , module Control.Monad.Trans.Readers
     , module Control.Monad.Trans.RWSs.Strict
+    , module Control.Monad.Trans.States.Strict
     , module Glazier.React.Framework.Gadget
     , module Glazier.React.Framework.MkId
     , module Glazier.React.Framework.Reactor
@@ -20,6 +21,7 @@ module Glazier.React.Framework
 import Control.Monad.Trans.Delegate
 import Control.Monad.Trans.Readers
 import Control.Monad.Trans.RWSs.Strict
+import Control.Monad.Trans.States.Strict
 import Glazier.React.Framework.Gadget
 import Glazier.React.Framework.MkId
 import Glazier.React.Framework.Reactor

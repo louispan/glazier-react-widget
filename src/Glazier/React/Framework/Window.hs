@@ -23,22 +23,20 @@ type Window x s = WindowT x s Identity
 ----------------------------------------------------------------------------------
 
 -- | Interactive version of 'lf' using listeners obtained from the 'Plan' for a 'GizmoId'.
-lf' :: Monad m
-    => GizmoId
+lf' :: GizmoId
     -> JE.JSRep -- ^ eg "div" or "input"
     -> (DL.DList JE.Property)
-    -> WindowT x s m ()
+    -> Window x s ()
 lf' gid n props = do
     ls <- view (_plan._gizmos.ix gid._listeners)
     leaf ls n props
 
 -- | Interactive version of 'bh'
-bh' :: Monad m
-    => GizmoId
+bh' :: GizmoId
     -> JE.JSRep
     -> (DL.DList JE.Property)
-    -> WindowT x s m r
-    -> WindowT x s m r
+    -> Window x s r
+    -> Window x s r
 bh' gid n props childs = do
     ls <- view (_plan._gizmos.ix gid._listeners)
     branch ls n props childs
@@ -46,7 +44,7 @@ bh' gid n props childs = do
 -- | Use this to create a display for a top level 'Gadget'
 -- Eg. the result of a 'Widget' that has the Window rendering function
 -- inserted into 'Glazier.React.Framework.Core.Widget.MkShimListeners'.
-shimWindow :: Monad m => WindowT x s m ()
+shimWindow :: Window x s ()
 shimWindow = do
     ls <- view (_plan._shimListeners)
     case ls of

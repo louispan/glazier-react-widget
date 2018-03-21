@@ -12,6 +12,7 @@ module Glazier.React.Framework.Reactor where
 import Control.DeepSeq
 import Control.Lens
 import Control.Monad.State
+import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -70,6 +71,8 @@ data MkCallback1 next where
 instance Functor MkCallback1 where
     fmap f (MkCallback1 goStrict goLazy g) = MkCallback1 goStrict (f . goLazy) (f . g)
 
+type MkCallback1' x s = MkCallback1 (States (Scene x s) ())
+
 -----------------------------------------------------------------
 
 -- | The engine should use the given id and add the stateful action @next@
@@ -86,6 +89,8 @@ data MkOnceOnUpdatedCallback next =
     MkOnceOnUpdatedCallback PlanId next
         deriving Functor
 
+type MkOnceOnUpdatedCallback' x s = MkOnceOnUpdatedCallback (States (Scene x s) ())
+
 -----------------------------------------------------------------
 
 -- | Similar to 'MkOnceOnUpdatedCallback' except the state action
@@ -93,6 +98,8 @@ data MkOnceOnUpdatedCallback next =
 data MkEveryOnUpdatedCallback next =
     MkEveryOnUpdatedCallback PlanId next
         deriving Functor
+
+type MkEveryOnUpdatedCallback' x s = MkEveryOnUpdatedCallback (States (Scene x s) ())
 
 -- | Make the ShimListeners for this 'Plan' 'ShimListeners' using the given
 -- 'Window' rendering function.

@@ -34,16 +34,16 @@ import Glazier.React.Framework.Window
 -- type Initializer x s m = (Widget x s m, MonadCont m)
 -- type Handler x s m = (Widget x s m, MonadCont m)
 
-data Widget w x s m c = Widget
-    { window :: WindowT x s m ()
-    , gadget :: GadgetT w x s m c
+data Widget w x s c = Widget
+    { window :: Window x s ()
+    , gadget :: Gadget w x s c
     } deriving (G.Generic, Functor)
 
 makeLenses ''Widget
 
-mapWidget2 :: Monad m
-    => (GadgetT w x s m c1 -> GadgetT w x s m c2 -> GadgetT w x s m c3)
-    -> Widget w x s m c1 -> Widget w x s m c2 -> Widget w x s m c3
+mapWidget2 ::
+    (Gadget w x s c1 -> Gadget w x s c2 -> Gadget w x s c3)
+    -> Widget w x s c1 -> Widget w x s c2 -> Widget w x s c3
 mapWidget2 f (Widget dis1 ini1) (Widget dis2 ini2) =
     Widget
     (dis1 <> dis2)
@@ -51,30 +51,30 @@ mapWidget2 f (Widget dis1 ini1) (Widget dis2 ini2) =
 
 ------------------------------------------
 
-instance Monad m => Applicative (Widget w x s m) where
+instance Applicative (Widget w x s) where
     pure a = Widget mempty (pure a)
     (<*>) = mapWidget2 (<*>)
 
 -- merge ContT together by pre-firing the left ContT's output.
 -- That is, the resultant ContT will fire the output twice.
-instance (Semigroup c, Monad m) => Semigroup (Widget w x s m c) where
+instance (Semigroup c) => Semigroup (Widget w x s c) where
     (<>) = mapWidget2 (<>)
 
-instance (Monoid c, Monad m) => Monoid (Widget w x s m c) where
+instance (Monoid c) => Monoid (Widget w x s c) where
     mempty = Widget mempty mempty
     mappend = mapWidget2 mappend
 
-instance Monad m => EnlargeModel (Widget w x a m c) where
-    type WithEnlargedModel (Widget w x a m c) s = Widget w x s m c
-    type EnlargingModel (Widget w x a m c) = a
+instance EnlargeModel (Widget w x a c) where
+    type WithEnlargedModel (Widget w x a c) s = Widget w x s c
+    type EnlargingModel (Widget w x a c) = a
     enlargeModel l (Widget disp ini) = Widget (enlargeModel l disp) (enlargeModel l ini)
 
-instance Monad m => EnlargePlan (Widget w x s m c) where
+instance EnlargePlan (Widget w x s c) where
     enlargePlan l (Widget disp ini) = Widget (enlargePlan l disp) (enlargePlan l ini)
 
 -- | Wrap a gadget inside another 'ShimComponent' with its own 'Plan'
 -- This results in a 'Widget' that can be composed with other 'Widgets'
-toShim :: Monad m => PlanId -> GadgetT w x s m c -> Widget w x s m c
+toShim :: PlanId -> Gadget w x s c -> Widget w x s c
 toShim pid gad = Widget (enlargePlan (_plans.ix pid) shimWindow) (enlargePlan (_plans.ix pid) gad)
 
 -- magnifyMethod :: Monad m

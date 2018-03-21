@@ -185,7 +185,7 @@ execMkCallback1 ::
     )
     => (m () -> r -> IO ())
     -> (DL.DList x -> m ())
-    -> MkCallback1 (States (Scene x s) ())
+    -> MkCallback1' x s
     -> m ()
 execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     world <- view item' <$> ask
@@ -216,7 +216,7 @@ execOnceOnUpdatedCallback :: forall x s m r.
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     )
-    => MkOnceOnUpdatedCallback (States (Scene x s) ())
+    => MkOnceOnUpdatedCallback' x s
     -> m ()
 execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid work) = do
     v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
@@ -232,7 +232,7 @@ execEveryOnUpdatedCallback :: forall x s m r.
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     )
-    => MkEveryOnUpdatedCallback (States (Scene x s) ())
+    => MkEveryOnUpdatedCallback' x s
     -> m ()
 execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid work) = do
     v <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask

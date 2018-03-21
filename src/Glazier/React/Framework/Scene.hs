@@ -120,9 +120,12 @@ instance CD.Dispose ShimListeners where
 
 -- | Interactivity data for a react component
 data Plan = Plan
+    -- Plan rquires planId for 'Glazier.React.Framework.Reactor.MkOnceOnUpdatedCallback'
+    -- and 'Glazier.React.Framework.Reactor.MkEveryOnUpdatedCallback'
+    { planId :: PlanId
     -- a react "ref" to the javascript instance of ReactComponent
     -- so that react "componentRef.setState()" can be called.
-    { componentRef :: Maybe ComponentRef
+    , componentRef :: Maybe ComponentRef
     , shimListeners :: Maybe ShimListeners
     -- This is the previous "react state"
     , previousFrameNum :: Int
@@ -155,11 +158,9 @@ instance CD.Dispose Plan where
         <> (foldMap CD.dispose (gizmos pln))
         <> (foldMap CD.dispose (plans pln))
 
-newPlan :: Plan
-newPlan = Plan
--- newPlan :: PlanId -> Plan
--- newPlan i = Plan
-    -- i
+newPlan :: PlanId -> Plan
+newPlan i = Plan
+    i
     Nothing
     Nothing
     0

@@ -17,6 +17,7 @@ import Control.Concurrent.STM.TMVar.Extras
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Reader
+import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.RWSs.Strict
 import Control.Monad.Trans.States.Strict
@@ -51,6 +52,8 @@ maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 -- It is expected that @m@ is a @MonadReader r m@
 runReactor ::
     ( HasItem' (Maybe (TMVar QuitReactor)) env
+    , MonadIO n
+    , MonadState Int n
     )
     => States (Scene x s) ()
     -> (TMVar (Scene x s) -> TVar (Scene x s) -> env -> r)
@@ -58,39 +61,41 @@ runReactor ::
     -> (DL.DList x -> m ())
     -> env
     -> s
-    -> IO s
+    -> n s
 runReactor ini addEnv runExec exec env s = do
     -- make state var
-    let s' = Scene mempty newPlan s
-    world <- newTMVarIO s'
-    frame <- newTVarIO s'
-    -- run through the app initialization
-    xs <- atomically $ runFrame world frame ini
-    -- now go through and evaluate the commands
-    -- This will include making callbacks which will execute on other threads
-    -- completely consume all commands
-    runExec (exec xs) (addEnv world frame env)
-    -- we have finished initializing, wait for the @quit@ command before cleanup
-    let quit = view item' env
-    case quit of
-        -- The app never quits, so don't cleanup anything
-        -- return the initialized state
-        Nothing -> do
-            s'' <- atomically $ model <$> readTMVar world
-            pure s''
-        -- This app quits, so we need to cleanup
-        Just q -> do
-            QuitReactor <- liftIO $ atomically $ takeTMVar q
-            -- get the disposables for the plan retrieve the final state
-            (ds, s'') <- liftIO $ atomically $ do
-                t <- takeTMVar world
-                fmap model <$> runStatesT planDisposables t
-            -- Now cleanup the resources allocated on initialize
-            -- This means JS listener callbacks will now result in exceptions
-            -- so should only be done after the reactComponents have been removed
-            -- from the DOM.
-            liftIO $ fromMaybe (pure ()) (CD.runDisposable ds)
-            pure s''
+    pid <- mkPlanId "App"
+    let s' = Scene mempty (newPlan pid) s
+    liftIO $ do
+        world <- newTMVarIO s'
+        frame <-    newTVarIO s'
+        -- run through the app initialization
+        xs <- atomically $ runFrame world frame ini
+        -- now go through and evaluate the commands
+        -- This will include making callbacks which will execute on other threads
+        -- completely consume all commands
+        runExec (exec xs) (addEnv world frame env)
+        -- we have finished initializing, wait for the @quit@ command before cleanup
+        let quit = view item' env
+        case quit of
+            -- The app never quits, so don't cleanup anything
+            -- return the initialized state
+            Nothing -> do
+                s'' <- atomically $ model <$> readTMVar world
+                pure s''
+            -- This app quits, so we need to cleanup
+            Just q -> do
+                QuitReactor <- atomically $ takeTMVar q
+                -- get the disposables for the plan retrieve the final state
+                (ds, s'') <- atomically $ do
+                    t <- takeTMVar world
+                    fmap model <$> runStatesT planDisposables t
+                -- Now cleanup the resources allocated on initialize
+                -- This means JS listener callbacks will now result in exceptions
+                -- so should only be done after the reactComponents have been removed
+                -- from the DOM.
+                fromMaybe (pure ()) (CD.runDisposable ds)
+                pure s''
   where
     planDisposables :: Monad m => StatesT (Scene x s) m CD.Disposable
     planDisposables = CD.dispose <$> use _plan

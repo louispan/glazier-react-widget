@@ -3,7 +3,7 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Glazier.React.Widget.Action.KeyDownKey where
+module Glazier.React.Action.KeyDownKey where
 
 import Control.DeepSeq
 import Control.Monad.Trans

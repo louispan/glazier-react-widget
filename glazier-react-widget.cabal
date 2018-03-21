@@ -20,17 +20,19 @@ library
                        Glazier.React.Framework.Gadget
                        Glazier.React.Framework.MkId
                        Glazier.React.Framework.MkId.Internal
-                       Glazier.React.Framework.Model
                        Glazier.React.Framework.Reactor
-                       Glazier.React.Framework.Reactor.Executor
+                       Glazier.React.Framework.Reactor.Exec
+                       Glazier.React.Framework.Scene
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget
                        Glazier.React.Framework.Window
-                       Glazier.React.Widget.Action
-                       Glazier.React.Widget.Action.KeyDownKey
-                      --  Glazier.React.Widget.Executor
-                      --  Glazier.React.Widget.Executor.HTMLElement
-                      --  Glazier.React.Widget.Executor.JavaScript
+                       Glazier.React.Action
+                       Glazier.React.Action.KeyDownKey
+                       Glazier.React.Effect
+                       Glazier.React.Effect.HTMLElement
+                       Glazier.React.Effect.HTMLElement.Exec
+                       Glazier.React.Effect.JavaScript
+                       Glazier.React.Effect.JavaScript.Exec
                       --  Glazier.React.Widget.Input
                       --  Glazier.React.Widget.Pile
                       --  Glazier.React.Widget.Pile.Glam

@@ -14,7 +14,7 @@ import Control.Lens
 import Control.Monad.Trans.Delegate
 import Control.Monad.Trans.Readers
 import Control.Monad.Trans.States.Strict
-import Glazier.React.Framework.Model
+import Glazier.React.Framework.Scene
 
 -- | The type for initializing and handling callbacks.
 -- @w@ world

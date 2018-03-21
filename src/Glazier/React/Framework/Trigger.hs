@@ -25,8 +25,8 @@ import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.Gadget
 import Glazier.React.Framework.MkId
-import Glazier.React.Framework.Model
 import Glazier.React.Framework.Reactor
+import Glazier.React.Framework.Scene
 import qualified JavaScript.Extras as JE
 
 ------------------------------------------------------
@@ -52,10 +52,10 @@ mkListener gid n goStrict goLazy extra = do
     lift $ delegateT $ \fire -> do
         -- Add extra command producting state actions at the end
         let goLazy' a = (goLazy a >>= fire) *> extra
-            msg = MkCallback1 goStrict goLazy' $ \cb -> do
+            cmd = MkCallback1 goStrict goLazy' $ \cb -> do
                 let addListener = over _listeners (`DL.snoc` (n, cb))
                 my._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
-        zoom my (post1' msg)
+        zoom my (post1' cmd)
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
 trigger' ::

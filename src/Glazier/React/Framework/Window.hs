@@ -12,7 +12,7 @@ import Control.Monad.Trans.RWSs.Strict
 import qualified Data.DList as DL
 import Glazier.React
 import Glazier.React.Framework.MkId
-import Glazier.React.Framework.Model
+import Glazier.React.Framework.Scene
 import qualified JavaScript.Extras as JE
 
 type WindowT x s m = RWSsT (Scene x s) () (DL.DList ReactMarkup) m

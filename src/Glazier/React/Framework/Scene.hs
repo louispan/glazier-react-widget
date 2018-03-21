@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 
-module Glazier.React.Framework.Model where
+module Glazier.React.Framework.Scene where
 
 import qualified Control.Disposable as CD
 import Control.Lens
@@ -253,8 +253,8 @@ post1' = post1 . review facet
 ----------------------------------------------------------------------------------
 
 -- Marks the current widget as dirty, and rerender is required
--- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Core.Trigger.trigger'
--- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Core.Trigger.trigger'
+-- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Trigger.trigger'
+-- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Trigger.trigger'
 -- will not result in a rerender for the other widget.
 dirty :: MonadState (Scene x s) m => m ()
 dirty = _plan._currentFrameNum %= JE.safeModularIncrement
@@ -269,14 +269,6 @@ dirty = _plan._currentFrameNum %= JE.safeModularIncrement
 
 
 ----------------------------------------------------------------------------------
-
-class EnlargeModel c where
-    type WithEnlargedModel c s
-    type EnlargingModel c
-    enlargeModel :: Traversal' s (EnlargingModel c) -> c -> WithEnlargedModel c s
-
-class EnlargePlan c where
-    enlargePlan :: Traversal' Plan Plan -> c -> c
 
 -- | Magnfiy the reader environment of 'MethodT'
 editMyModel :: Traversal' s a -> ReifiedTraversal' w (Scene x s) -> ReifiedTraversal' w (Scene x a)
@@ -301,6 +293,27 @@ enlargeMyPlan ::
     )
     => Traversal' Plan Plan -> m c -> n c
 enlargeMyPlan l = magnify (to (editMyPlan l))
+
+enlargeSceneModel ::
+    ( Magnify m n (Scene x a) (Scene x s)
+    , Functor (Magnified m c)
+    )
+    => LensLike' (Magnified m c) s a -> m c -> n c
+enlargeSceneModel l = magnify (editSceneModel l)
+
+enlargeScenePlan ::
+    ( Magnify m n (Scene x s) (Scene x s)
+    , Functor (Magnified m c)
+    )
+    => LensLike' (Magnified m c) Plan Plan -> m c -> n c
+enlargeScenePlan l = magnify (editScenePlan l)
+
+--------------------------------------
+
+class EnlargeModel c where
+    type WithEnlargedModel c s
+    type EnlargingModel c
+    enlargeModel :: Traversal' s (EnlargingModel c) -> c -> WithEnlargedModel c s
 
 instance EnlargeModel ((->) (ReifiedTraversal' w (Scene x a)) r ) where
     type WithEnlargedModel ((->) (ReifiedTraversal' w (Scene x a))r ) s = (->) (ReifiedTraversal' w (Scene x s)) r
@@ -339,21 +352,6 @@ instance (Monoid u, Monad m) => EnlargeModel (RL.RWST (ReifiedTraversal' w (Scen
 
 --------------------------------------
 
-enlargeSceneModel ::
-    ( Magnify m n (Scene x a) (Scene x s)
-    , Functor (Magnified m c)
-    )
-    => LensLike' (Magnified m c) s a -> m c -> n c
-enlargeSceneModel l = magnify (editSceneModel l)
-
-enlargeScenePlan ::
-    ( Magnify m n (Scene x s) (Scene x s)
-    , Functor (Magnified m c)
-    )
-    => LensLike' (Magnified m c) Plan Plan -> m c -> n c
-enlargeScenePlan l = magnify (editScenePlan l)
-
-
 instance Monoid r => EnlargeModel ((->) (Scene x a) r) where
     type WithEnlargedModel ((->) (Scene x a) r) s = (->) (Scene x s) r
     type EnlargingModel ((->) (Scene x a) r) = a
@@ -390,6 +388,9 @@ instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RL.RWST (Scene x a) u t 
     enlargeModel = enlargeSceneModel
 
 --------------------------------------
+
+class EnlargePlan c where
+    enlargePlan :: Traversal' Plan Plan -> c -> c
 
 instance EnlargePlan ((->) (ReifiedTraversal' w (Scene x s)) r) where
     enlargePlan = enlargeMyPlan

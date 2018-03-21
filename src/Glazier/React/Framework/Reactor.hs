@@ -17,7 +17,7 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.MkId
-import Glazier.React.Framework.Model
+import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
 import qualified JavaScript.Extras as JE
 

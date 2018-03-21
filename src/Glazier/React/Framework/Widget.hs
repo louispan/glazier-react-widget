@@ -22,7 +22,7 @@ import Data.Semigroup
 import qualified GHC.Generics as G
 import Glazier.React.Framework.Gadget
 import Glazier.React.Framework.MkId
-import Glazier.React.Framework.Model
+import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
 
 -- | Unforunately, because each widget contains callbacks

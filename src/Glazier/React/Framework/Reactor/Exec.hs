@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Glazier.React.Framework.Reactor.Executor where
+module Glazier.React.Framework.Reactor.Exec where
 
 import Control.Applicative
 import Control.Concurrent.STM
@@ -32,8 +32,8 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.MkId
-import Glazier.React.Framework.Model
 import Glazier.React.Framework.Reactor
+import Glazier.React.Framework.Scene
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 
@@ -111,8 +111,8 @@ runFrame world frame action = do
 
 -- Create a executor for all the core commands required by the framework
 execReactor :: forall s x r m.
-    ( MonadReader r m
-    , MonadIO m
+    ( MonadIO m
+    , MonadReader r m
     , AsFacet (MkCallback1 (States (Scene x s) ())) x
     , AsFacet (MkEveryOnUpdatedCallback (States (Scene x s) ())) x
     , AsFacet (MkOnceOnUpdatedCallback (States (Scene x s) ())) x
@@ -135,8 +135,8 @@ execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
 -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
 -- NB. This tied executor *only* runs the Reactor effects.
 reactorExecutor :: forall s x r m.
-    ( MonadReader r m
-    , MonadIO m
+    ( MonadIO m
+    , MonadReader r m
     , AsFacet (MkCallback1 (States (Scene x s) ())) x
     , AsFacet (MkEveryOnUpdatedCallback (States (Scene x s) ())) x
     , AsFacet (MkOnceOnUpdatedCallback (States (Scene x s) ())) x
@@ -154,8 +154,8 @@ reactorExecutor p runExec x = execReactor p runExec (traverse_ (reactorExecutor 
 -----------------------------------------------------------------
 
 execQuitReactor ::
-    ( MonadReader r m
-    , MonadIO m
+    ( MonadIO m
+    , MonadReader r m
     , HasItem' (Maybe (TMVar QuitReactor)) r
     )
     => QuitReactor -> m ()
@@ -178,8 +178,8 @@ execRerender (Rerender j i) = do
 -----------------------------------------------------------------
 
 execMkCallback1 ::
-    ( MonadReader r m
-    , MonadIO m
+    ( MonadIO m
+    , MonadReader r m
     , HasItem' (TMVar (Scene x s)) r
     , HasItem' (TVar (Scene x s)) r
     )
@@ -197,14 +197,13 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
             Nothing -> pure mempty
             -- run state action using mvar
             Just a -> do
+                -- Apply to result to the world state, and execute any produced commands
                 xs <- atomically $ runFrame world frame (goLazy a)
-                -- Now execute any commands as a result of the state processing
                 runExec (exec xs) env
+    -- Apply to result to the world state, and execute any produced commands
     xs <- liftIO $ do
         cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
-        -- Now pass the cb into the continuation
         atomically $ runFrame world frame (k cb)
-    -- Now execute any commands as a result of the adding the callback
     exec xs
 
 -----------------------------------------------------------------
@@ -213,8 +212,8 @@ newtype OnceOnUpdated x s b = OnceOnUpdated (States (Scene x s) b)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execOnceOnUpdatedCallback :: forall x s m r.
-    ( MonadReader r m
-    , MonadIO m
+    ( MonadIO m
+    , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     )
     => MkOnceOnUpdatedCallback (States (Scene x s) ())
@@ -229,8 +228,8 @@ newtype EveryOnUpdated x s b = EveryOnUpdated (States (Scene x s) b)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execEveryOnUpdatedCallback :: forall x s m r.
-    ( MonadReader r m
-    , MonadIO m
+    ( MonadIO m
+    , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     )
     => MkEveryOnUpdatedCallback (States (Scene x s) ())
@@ -241,9 +240,10 @@ execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid work) = do
 
 -----------------------------------------------------------------
 
+-- | Making multiple MkShimListeners for the same plan is a silent error and will be ignored.
 execMkShimListeners :: forall x s m r x' s'.
-    ( MonadReader r m
-    , MonadIO m
+    ( MonadIO m
+    , MonadReader r m
     , HasItem' (TMVar (Scene x s)) r
     , HasItem' (TVar (Scene x s)) r
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r

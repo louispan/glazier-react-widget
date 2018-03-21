@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Glazier.React.Framework.Core.MkId.Internal where
+module Glazier.React.Framework.MkId.Internal where
 
 import Control.Monad.State
 import qualified Data.JSString as J

@@ -15,15 +15,15 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Glazier.React.Framework.Core.Widget where
+module Glazier.React.Framework.Widget where
 
 import Control.Lens
 import Data.Semigroup
 import qualified GHC.Generics as G
-import Glazier.React.Framework.Core.Gadget
-import Glazier.React.Framework.Core.MkId
-import Glazier.React.Framework.Core.Model
-import Glazier.React.Framework.Core.Window
+import Glazier.React.Framework.Gadget
+import Glazier.React.Framework.MkId
+import Glazier.React.Framework.Model
+import Glazier.React.Framework.Window
 
 -- | Unforunately, because each widget contains callbacks
 -- that has to be cleaned manually, we can't just rely on the garbage collector.
@@ -64,23 +64,18 @@ instance (Monoid c, Monad m) => Monoid (Widget w x s m c) where
     mempty = Widget mempty mempty
     mappend = mapWidget2 mappend
 
-instance Monad m => EnlargeModel (Widget w x a m r) where
-    type WithEnlargedModel (Widget w x a m r) s = Widget w x s m r
-    type EnlargingModel (Widget w x a m r) = a
+instance Monad m => EnlargeModel (Widget w x a m c) where
+    type WithEnlargedModel (Widget w x a m c) s = Widget w x s m c
+    type EnlargingModel (Widget w x a m c) = a
     enlargeModel l (Widget disp ini) = Widget (enlargeModel l disp) (enlargeModel l ini)
 
-instance Monad m => EnlargePlan (Widget w x s m r) where
+instance Monad m => EnlargePlan (Widget w x s m c) where
     enlargePlan l (Widget disp ini) = Widget (enlargePlan l disp) (enlargePlan l ini)
 
--- | Wrap this widget inside another 'ShimComponent' with its own 'Plan'
--- This means that its 'dirty' state and 'Rerender' is isolated from other 'Widget's
-archetype :: Monad m => PlanId -> Widget w x s m r -> Widget w x s m r
-archetype pid = enlargePlan (_plans.ix pid)
-
-data MkShimListeners w x s = MkShimListeners
-    PlanId
-    (ReifiedTraversal' w (Scene x s))
-    (Window x s ())
+-- | Wrap a gadget inside another 'ShimComponent' with its own 'Plan'
+-- This results in a 'Widget' that can be composed with other 'Widgets'
+toShim :: Monad m => PlanId -> GadgetT w x s m c -> Widget w x s m c
+toShim pid gad = Widget (enlargePlan (_plans.ix pid) shimWindow) (enlargePlan (_plans.ix pid) gad)
 
 -- magnifyMethod :: Monad m
 --     => LensLike' f s a -> MethodT w x s m c1 -> MethodT w x s m c1

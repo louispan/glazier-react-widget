@@ -8,13 +8,13 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 #endif
 
-module Glazier.React.Framework.Core.Gadget where
+module Glazier.React.Framework.Gadget where
 
 import Control.Lens
 import Control.Monad.Trans.Delegate
 import Control.Monad.Trans.Readers
 import Control.Monad.Trans.States.Strict
-import Glazier.React.Framework.Core.Model
+import Glazier.React.Framework.Model
 
 -- | The type for initializing and handling callbacks.
 -- @w@ world

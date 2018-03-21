@@ -17,21 +17,20 @@ library
   hs-source-dirs:      src
   exposed-modules:
                        Glazier.React.Framework
-                      --  Glazier.React.Framework.Action
-                      --  Glazier.React.Framework.Action.KeyDownKey
-                       Glazier.React.Framework.Core
-                      --  Glazier.React.Framework.Core.Archetype
-                       Glazier.React.Framework.Core.Gadget
-                       Glazier.React.Framework.Core.MkId
-                       Glazier.React.Framework.Core.MkId.Internal
-                       Glazier.React.Framework.Core.Model
-                       Glazier.React.Framework.Core.Reactor
-                       Glazier.React.Framework.Core.Trigger
-                       Glazier.React.Framework.Core.Widget
-                       Glazier.React.Framework.Core.Window
-                      --  Glazier.React.Framework.Effect
-                      --  Glazier.React.Framework.Effect.MonadHTMLElement
-                      --  Glazier.React.Framework.Effect.MonadJS
+                       Glazier.React.Framework.Gadget
+                       Glazier.React.Framework.MkId
+                       Glazier.React.Framework.MkId.Internal
+                       Glazier.React.Framework.Model
+                       Glazier.React.Framework.Reactor
+                       Glazier.React.Framework.Reactor.Executor
+                       Glazier.React.Framework.Trigger
+                       Glazier.React.Framework.Widget
+                       Glazier.React.Framework.Window
+                       Glazier.React.Widget.Action
+                       Glazier.React.Widget.Action.KeyDownKey
+                      --  Glazier.React.Widget.Executor
+                      --  Glazier.React.Widget.Executor.HTMLElement
+                      --  Glazier.React.Widget.Executor.JavaScript
                       --  Glazier.React.Widget.Input
                       --  Glazier.React.Widget.Pile
                       --  Glazier.React.Widget.Pile.Glam

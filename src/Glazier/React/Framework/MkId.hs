@@ -1,4 +1,4 @@
-module Glazier.React.Framework.Core.MkId
+module Glazier.React.Framework.MkId
     ( GizmoId -- constructor not exported
     , PlanId -- constructor not exported
     , mkId
@@ -7,4 +7,4 @@ module Glazier.React.Framework.Core.MkId
     )
     where
 
-import Glazier.React.Framework.Core.MkId.Internal
+import Glazier.React.Framework.MkId.Internal

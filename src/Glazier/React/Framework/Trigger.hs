@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Core.Trigger where
+module Glazier.React.Framework.Trigger where
 
 import Control.DeepSeq
 import Control.Lens
@@ -21,65 +21,15 @@ import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Maybe
-import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
-import Glazier.React.Framework.Core.Gadget
-import Glazier.React.Framework.Core.MkId
-import Glazier.React.Framework.Core.Model
-import Glazier.React.Framework.Core.Window
+import Glazier.React.Framework.Gadget
+import Glazier.React.Framework.MkId
+import Glazier.React.Framework.Model
+import Glazier.React.Framework.Reactor
 import qualified JavaScript.Extras as JE
 
 ------------------------------------------------------
-
--- | Creates a callback that is injected into the engine processing:
--- * DOM listener is generated
--- * The strict part of the callback is invoked
--- * If the result is nothing, finish
--- * Else, world state ('Scene' without 'commands', ie treating commands like Writer)
---  is retrieved from a ref
--- * The provided traversal is used to zoom the state
--- * If the state is Nothing, finish
--- * Else, the lazy part of the callback (ie the bind function for the state monad)
--- is invoked with the result from the strict callback,
--- using the state retrieved with 'commands' set to memtpy.
--- * The state ref is updated with the changed state.
--- * The 'commands' of the state is collected.
--- * Each of the 'commands' is processed, which may further modify the state.
---
--- After creating the above callback, re-run the monad
--- (getting the state from the ref, etc)
--- using the last continuation arg
--- THen save the state back into the ref + command processing
-data MkCallback1 next where
-    MkCallback1 :: NFData a
-        => (JE.JSRep -> IO (Maybe a))
-        -> (a -> next)
-        -> (J.Callback (J.JSVal -> IO ()) -> next)
-        -> MkCallback1 next
-
-instance Functor MkCallback1 where
-    fmap f (MkCallback1 goStrict goLazy g) = MkCallback1 goStrict (f . goLazy) (f . g)
-
--- | The engine should use the given id and add the stateful action @next@
--- to the onUpdated callback of the react component.
--- That is the engine should store a map of state actions for this react component in a var.
--- Then the onUpdated callback of a react component can:
--- read the var to get the currently stored state action for this react component
--- read the current state from the var
--- apply the stored state actions to the state
--- clear the stored state actions
--- save the new state
--- process any commands generated.
-data MkOnceOnUpdatedCallback next =
-    MkOnceOnUpdatedCallback PlanId next
-        deriving Functor
-
--- | Similar to 'MkOnceOnUpdatedCallback' except the state action
--- gets added to a separate map which doesn't get cleared.
-data MkEveryOnUpdatedCallback next =
-    MkEveryOnUpdatedCallback PlanId next
-        deriving Functor
 
 -- | Create a callback and add it to this gizmo's dlist of listeners.
 -- NB. You probably want to use 'trigger' instead since most React callbacks
@@ -100,6 +50,7 @@ mkListener ::
 mkListener gid n goStrict goLazy extra = do
     Traversal my <- ask
     lift $ delegateT $ \fire -> do
+        -- Add extra command producting state actions at the end
         let goLazy' a = (goLazy a >>= fire) *> extra
             msg = MkCallback1 goStrict goLazy' $ \cb -> do
                 let addListener = over _listeners (`DL.snoc` (n, cb))
@@ -118,6 +69,7 @@ trigger' ::
     -> GadgetT w x s m b
 trigger' gid n b = do
     Traversal my <- ask
+    -- Add a rerender for this widget at the every end
     mkListener gid n (const $ pure (Just ())) (const $ pure b) (zoom my rerender)
 
 -- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
@@ -135,6 +87,7 @@ trigger ::
     -> GadgetT w x s m b
 trigger gid n goStrict goLazy = do
     Traversal my <- ask
+    -- Add a rerender for this widget at the every end
     mkListener gid n goStrict' goLazy (zoom my rerender)
   where
     goStrict' e = case JE.fromJSR e of

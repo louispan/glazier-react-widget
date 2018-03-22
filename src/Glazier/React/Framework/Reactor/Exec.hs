@@ -43,26 +43,27 @@ maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 
 -- | Given an initializing state action, and an executor (eg. 'reactorExecutor'),
 -- initialize and exec the resulting commands generated.
--- Then wait until @TMVar QuitReactor@ is not empty
--- before cleaning up callbacks stored in the @Plan@,
--- and then return with the latest state.
--- If @Maybe (TMVar QuitReactor)@ is Nothing
--- then runReactor will never cleanup, so after initalizing,
--- it will return the the initialized state.
+-- It will create @TMVar (Scene x s)@ that will contain the world state
+-- and a @TVar (Scene x s)@ with copy the latest state
+-- (for non-blocking reads and rendering) and add it to the environment
+-- using the given @addEnv@
+-- NB. It the responsibility of the caller of this function to call 'disposableWorld'
+-- when the application is finished.
 -- It is expected that @m@ is a @MonadReader r m@
-runReactor ::
-    ( HasItem' (Maybe (TMVar QuitReactor)) env
-    , MonadIO n
+-- You can also use the @TMVar (Scene x s)@ to modify the world state in other threads
+-- from other events (remember to update @TVar (Scene x s) with any changes).
+initReactor ::
+    ( MonadIO n
     , MonadState Int n
     )
-    => States (Scene x s) ()
+    => StatesT (Scene x s) STM ()
     -> (TMVar (Scene x s) -> TVar (Scene x s) -> env -> r)
     -> (m () -> r -> IO ())
     -> (DL.DList x -> m ())
     -> env
     -> s
-    -> n s
-runReactor ini addEnv runExec exec env s = do
+    -> n ()
+initReactor ini addEnv runExec exec env s = do
     -- make state var
     pid <- mkPlanId "App"
     let s' = Scene mempty (newPlan pid) s
@@ -70,45 +71,37 @@ runReactor ini addEnv runExec exec env s = do
         world <- newTMVarIO s'
         frame <-    newTVarIO s'
         -- run through the app initialization
-        xs <- atomically $ runFrame world frame ini
+        xs <- atomically $ runAction world frame ini
         -- now go through and evaluate the commands
         -- This will include making callbacks which will execute on other threads
         -- completely consume all commands
         runExec (exec xs) (addEnv world frame env)
-        -- we have finished initializing, wait for the @quit@ command before cleanup
-        let quit = view item' env
-        case quit of
-            -- The app never quits, so don't cleanup anything
-            -- return the initialized state
-            Nothing -> do
-                s'' <- atomically $ model <$> readTMVar world
-                pure s''
-            -- This app quits, so we need to cleanup
-            Just q -> do
-                QuitReactor <- atomically $ takeTMVar q
-                -- get the disposables for the plan retrieve the final state
-                (ds, s'') <- atomically $ do
-                    t <- takeTMVar world
-                    fmap model <$> runStatesT planDisposables t
-                -- Now cleanup the resources allocated on initialize
-                -- This means JS listener callbacks will now result in exceptions
-                -- so should only be done after the reactComponents have been removed
-                -- from the DOM.
-                fromMaybe (pure ()) (CD.runDisposable ds)
-                pure s''
+
+-- | Get the 'CD.Disposable' required to cleanup the world
+-- without modifying the world.
+-- NB. Because other theads may modify the world, this is only
+-- guaranteed to contain all the required disposables if other threads have stopped.
+-- After cleanup the JS listener callbacks will now result in exceptions
+-- so cleanup should only be done after the reactComponents have been removed
+-- from the DOM.
+disposableWorld :: TMVar (Scene x s) -> STM CD.Disposable
+disposableWorld world = do
+    -- get the disposables for the plan retrieve the final state
+    t <- readTMVar world
+    evalStatesT planDisposables t
   where
     planDisposables :: Monad m => StatesT (Scene x s) m CD.Disposable
     planDisposables = CD.dispose <$> use _plan
 
-runFrame :: TMVar (Scene x s) -> TVar (Scene x s) -> States (Scene x s) () -> STM (DL.DList x)
-runFrame world frame action = do
+-- | Upate the world 'TMVar' and backbuffer 'TVar' with a given action, and return the commands produced.
+runAction :: TMVar (Scene x s) -> TVar (Scene x s) -> StatesT (Scene x s) STM () -> STM (DL.DList x)
+runAction world frame action = do
     t <- takeTMVar world
-    let (xs, t') = runStates (action *> takeCommands) t
+    (xs, t') <- runStatesT (action *> takeCommands) t
     putTMVar world t'
     writeTVar frame t'
     pure xs
   where
-    takeCommands :: States (Scene x s) (DL.DList x)
     takeCommands = do
         xs <- use _commands
         _commands .= mempty
@@ -118,23 +111,20 @@ runFrame world frame action = do
 execReactor :: forall s x r m.
     ( MonadIO m
     , MonadReader r m
-    , AsFacet (MkCallback1 (States (Scene x s) ())) x
-    , AsFacet (MkEveryOnUpdatedCallback (States (Scene x s) ())) x
-    , AsFacet (MkOnceOnUpdatedCallback (States (Scene x s) ())) x
-    , AsFacet QuitReactor x
+    , AsFacet (MkCallback1' (Scene x s)) x
+    , AsFacet (MkEveryOnUpdatedCallback' (Scene x s)) x
+    , AsFacet (MkOnceOnUpdatedCallback' (Scene x s)) x
     , AsFacet Rerender x
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
-    , HasItem' (Maybe (TMVar QuitReactor)) r
     , HasItem' (TMVar (Scene x s)) r
     , HasItem' (TVar (Scene x s)) r
     )
     => Proxy s -> (m () -> r -> IO ()) -> (DL.DList x -> m ()) -> x -> m ()
 execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec @(MkCallback1 (States (Scene x s) ())) (execMkCallback1 runExec exec) x
-    <|> maybeExec @(MkEveryOnUpdatedCallback (States (Scene x s) ())) execEveryOnUpdatedCallback x
-    <|> maybeExec @(MkOnceOnUpdatedCallback (States (Scene x s) ())) execOnceOnUpdatedCallback x
-    <|> maybeExec execQuitReactor x
+    maybeExec @(MkCallback1' (Scene x s)) (execMkCallback1 runExec exec) x
+    <|> maybeExec @(MkEveryOnUpdatedCallback' (Scene x s)) execEveryOnUpdatedCallback x
+    <|> maybeExec @(MkOnceOnUpdatedCallback' (Scene x s)) execOnceOnUpdatedCallback x
     <|> maybeExec execRerender x
 
 -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
@@ -142,33 +132,17 @@ execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
 reactorExecutor :: forall s x r m.
     ( MonadIO m
     , MonadReader r m
-    , AsFacet (MkCallback1 (States (Scene x s) ())) x
-    , AsFacet (MkEveryOnUpdatedCallback (States (Scene x s) ())) x
-    , AsFacet (MkOnceOnUpdatedCallback (States (Scene x s) ())) x
-    , AsFacet QuitReactor x
+    , AsFacet (MkCallback1' (Scene x s)) x
+    , AsFacet (MkEveryOnUpdatedCallback' (Scene x s)) x
+    , AsFacet (MkOnceOnUpdatedCallback' (Scene x s)) x
     , AsFacet Rerender x
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
-    , HasItem' (Maybe (TMVar QuitReactor)) r
     , HasItem' (TMVar (Scene x s)) r
     , HasItem' (TVar (Scene x s)) r
     )
     => Proxy s -> (m () -> r -> IO ()) -> x -> m ()
 reactorExecutor p runExec x = execReactor p runExec (traverse_ (reactorExecutor p runExec)) x
-
------------------------------------------------------------------
-
-execQuitReactor ::
-    ( MonadIO m
-    , MonadReader r m
-    , HasItem' (Maybe (TMVar QuitReactor)) r
-    )
-    => QuitReactor -> m ()
-execQuitReactor QuitReactor = do
-    quit <- view item' <$> ask
-    case quit of
-        Nothing -> pure ()
-        Just q -> liftIO $ atomically $ void $ tryPutTMVar q QuitReactor
 
 -----------------------------------------------------------------
 
@@ -190,7 +164,7 @@ execMkCallback1 ::
     )
     => (m () -> r -> IO ())
     -> (DL.DList x -> m ())
-    -> MkCallback1' x s
+    -> MkCallback1' (Scene x s)
     -> m ()
 execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     world <- view item' <$> ask
@@ -203,17 +177,17 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
             -- run state action using mvar
             Just a -> do
                 -- Apply to result to the world state, and execute any produced commands
-                xs <- atomically $ runFrame world frame (goLazy a)
+                xs <- atomically $ runAction world frame (goLazy a)
                 runExec (exec xs) env
     -- Apply to result to the world state, and execute any produced commands
     xs <- liftIO $ do
         cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
-        atomically $ runFrame world frame (k cb)
+        atomically $ runAction world frame (k cb)
     exec xs
 
 -----------------------------------------------------------------
 
-newtype OnceOnUpdated x s b = OnceOnUpdated (States (Scene x s) b)
+newtype OnceOnUpdated x s b = OnceOnUpdated (StatesT (Scene x s) STM b)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execOnceOnUpdatedCallback :: forall x s m r.
@@ -221,15 +195,15 @@ execOnceOnUpdatedCallback :: forall x s m r.
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     )
-    => MkOnceOnUpdatedCallback' x s
+    => MkOnceOnUpdatedCallback' (Scene x s)
     -> m ()
-execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid work) = do
+execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid action) = do
     v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
-    liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (OnceOnUpdated work)) . fromMaybe (pure ()))
+    liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (OnceOnUpdated action)) . fromMaybe (pure ()))
 
 -----------------------------------------------------------------
 
-newtype EveryOnUpdated x s b = EveryOnUpdated (States (Scene x s) b)
+newtype EveryOnUpdated x s b = EveryOnUpdated (StatesT (Scene x s) STM b)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execEveryOnUpdatedCallback :: forall x s m r.
@@ -237,11 +211,11 @@ execEveryOnUpdatedCallback :: forall x s m r.
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     )
-    => MkEveryOnUpdatedCallback' x s
+    => MkEveryOnUpdatedCallback' (Scene x s)
     -> m ()
-execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid work) = do
+execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid action) = do
     v <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask
-    liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (EveryOnUpdated work)) . fromMaybe (pure ()))
+    liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (EveryOnUpdated action)) . fromMaybe (pure ()))
 
 -----------------------------------------------------------------
 
@@ -264,6 +238,7 @@ execMkShimListeners runExec exec (MkShimListeners pid (Traversal my) wind) = do
     env <- ask
     onceOnUpdated <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
     everyOnUpdated <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask
+    -- render reads from the backbuffer 'TVar' so it doesn't block
     let doRender = do
             frm <- atomically $ preview my <$> readTVar frame
             case frm of
@@ -283,7 +258,7 @@ execMkShimListeners runExec exec (MkShimListeners pid (Traversal my) wind) = do
             -- get the onEveryUpdated action
             EveryOnUpdated e <- atomically $ (view $ ix pid) <$> readTMVar everyOnUpdated
             -- Now execute any commands as a result of the state processing
-            xs <- atomically $ runFrame world frame (e *> o)
+            xs <- atomically $ runAction world frame (e *> o)
             runExec (exec xs) env
     renderCb <- liftIO $ J.syncCallback' doRender
     refCb <- liftIO $ J.syncCallback1 J.ContinueAsync doRef

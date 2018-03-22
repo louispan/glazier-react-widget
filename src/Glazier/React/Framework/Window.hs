@@ -25,7 +25,7 @@ type Window x s = WindowT x s Identity
 -- | Interactive version of 'lf' using listeners obtained from the 'Plan' for a 'GizmoId'.
 lf' :: GizmoId
     -> JE.JSRep -- ^ eg "div" or "input"
-    -> (DL.DList JE.Property)
+    -> DL.DList JE.Property
     -> Window x s ()
 lf' gid n props = do
     ls <- view (_plan._gizmos.ix gid._listeners)
@@ -34,7 +34,7 @@ lf' gid n props = do
 -- | Interactive version of 'bh'
 bh' :: GizmoId
     -> JE.JSRep
-    -> (DL.DList JE.Property)
+    -> DL.DList JE.Property
     -> Window x s r
     -> Window x s r
 bh' gid n props childs = do

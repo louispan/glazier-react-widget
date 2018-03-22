@@ -66,7 +66,7 @@ textInput gid = mempty
         ]
     , gadget = withRef gid
         *> onInitialized
-        *> (trigger' gid "onChange" () >>= hdlChange)
+        -- *> (trigger' gid "onChange" () >>= hdlChange)
     }
   where
 
@@ -75,17 +75,20 @@ textInput gid = mempty
     onInitialized ::
         ( AsFacet SetProperty x
         , AsFacet GetProperty x
-        , AsFacet (MkEveryOnUpdatedCallback' x s) x
+        , AsFacet (MkEveryOnUpdatedCallback' w) x
         ) => Gadget w (Scene J.JSString) x ()
     onInitialized = do
-        this <- ask
-        lift $ lift $ addEveryOnUpdated this (go this)
+        Traversal my <- ask
+        zoom my $ do
+            pid <- use (_plan._planId)
+            post1' MkEveryOnUpdatedCallback pid (go my)
       where
-        go Obj{..} = do
+        go my = zoom my $ do
             me <- doReadIORef self
             let s = me ^. my._model
             void $ runMaybeT $ do
-                j <- MaybeT $ pure $ me ^. my._plan._refs.at gid
+                j <- MaybeT $ preuse (_plan._gizmos.ix gid._targetRef._Just)
+
                 start <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionStart" j)
                 end <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionEnd" j)
                 v <- MaybeT $ JE.fromJSR <$> (doGetProperty "value" j)
@@ -94,17 +97,17 @@ textInput gid = mempty
                 lift $ j & doSetProperty ("selectionStart", JE.toJSR a)
                 lift $ j & doSetProperty ("selectionEnd", JE.toJSR b)
 
-    hdlChange ::
-        ( MonadReactor m, MonadJS m
-        ) => a -> MethodT (Scene p m J.JSString) m ()
-    hdlChange _ = readrT' $ \Obj{..} -> do
-        lift $ void $ runMaybeT $ do
-            me <- lift $ doReadIORef self
-            j <- MaybeT $ pure $ me ^. my._plan._refs.at gid
-            v <- lift $ (fromMaybe J.empty . JE.fromJSR) <$> (doGetProperty "value" j)
-            lift $ doModifyIORef' self (my._model .~ v)
-            -- Don't mark input as dirty since changing model
-            -- does not change the DOM input value.
+    -- hdlChange ::
+    --     ( MonadReactor m, MonadJS m
+    --     ) => a -> MethodT (Scene p m J.JSString) m ()
+    -- hdlChange _ = readrT' $ \Obj{..} -> do
+    --     lift $ void $ runMaybeT $ do
+    --         me <- lift $ doReadIORef self
+    --         j <- MaybeT $ pure $ me ^. my._plan._refs.at gid
+    --         v <- lift $ (fromMaybe J.empty . JE.fromJSR) <$> (doGetProperty "value" j)
+    --         lift $ doModifyIORef' self (my._model .~ v)
+    --         -- Don't mark input as dirty since changing model
+    --         -- does not change the DOM input value.
 
 
 -- This returns an greedy selection range for a new string based

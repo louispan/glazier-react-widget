@@ -9,6 +9,7 @@
 
 module Glazier.React.Framework.Reactor where
 
+import Control.Concurrent.STM
 import Control.DeepSeq
 import Control.Lens
 import Control.Monad.State
@@ -24,9 +25,6 @@ import qualified JavaScript.Extras as JE
 
 -----------------------------------------------------------------
 
-data QuitReactor = QuitReactor
-
------------------------------------------------------------------
 data Rerender = Rerender ComponentRef Int
 
 rerender :: (AsFacet Rerender x, MonadState (Scene x s) m) => m ()
@@ -71,7 +69,7 @@ data MkCallback1 next where
 instance Functor MkCallback1 where
     fmap f (MkCallback1 goStrict goLazy g) = MkCallback1 goStrict (f . goLazy) (f . g)
 
-type MkCallback1' x s = MkCallback1 (States (Scene x s) ())
+type MkCallback1' w = MkCallback1 (StatesT w STM ())
 
 -----------------------------------------------------------------
 
@@ -89,7 +87,7 @@ data MkOnceOnUpdatedCallback next =
     MkOnceOnUpdatedCallback PlanId next
         deriving Functor
 
-type MkOnceOnUpdatedCallback' x s = MkOnceOnUpdatedCallback (States (Scene x s) ())
+type MkOnceOnUpdatedCallback' w = MkOnceOnUpdatedCallback (StatesT w STM ())
 
 -----------------------------------------------------------------
 
@@ -99,7 +97,7 @@ data MkEveryOnUpdatedCallback next =
     MkEveryOnUpdatedCallback PlanId next
         deriving Functor
 
-type MkEveryOnUpdatedCallback' x s = MkEveryOnUpdatedCallback (States (Scene x s) ())
+type MkEveryOnUpdatedCallback' w = MkEveryOnUpdatedCallback (StatesT w STM ())
 
 -- | Make the ShimListeners for this 'Plan' 'ShimListeners' using the given
 -- 'Window' rendering function.
@@ -109,3 +107,6 @@ data MkShimListeners w x s = MkShimListeners
     PlanId
     (ReifiedTraversal' w (Scene x s))
     (Window x s ())
+
+-- | Spawn a thread to run the stm until it succeeds
+data ForkAction w = ForkAction (StatesT w STM ())

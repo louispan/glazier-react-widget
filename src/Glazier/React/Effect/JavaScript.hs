@@ -2,6 +2,7 @@
 
 module Glazier.React.Effect.JavaScript where
 
+import Control.Concurrent.STM
 import qualified GHCJS.Types as J
 import Glazier.React.Framework
 import qualified JavaScript.Extras as JE
@@ -14,7 +15,7 @@ data GetProperty next where
     GetProperty :: JE.ToJS j
         => J.JSString -> j -> (JE.JSRep -> next) -> GetProperty next
 
-type GetProperty' x s = GetProperty (States (Scene x s) ())
+type GetProperty' w = GetProperty (StatesT w STM ())
 
 instance Functor GetProperty where
     fmap f (GetProperty a b c) = GetProperty a b (f . c)

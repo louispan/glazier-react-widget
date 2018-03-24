@@ -16,7 +16,7 @@ import Control.DeepSeq
 import Control.Lens
 import Control.Monad.Cont
 import Control.Monad.Reader
-import Control.Monad.Trans.Delegate
+import Control.Monad.Trans.MCont
 import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
@@ -38,17 +38,18 @@ import qualified JavaScript.Extras as JE
 -- to use 'withRef' instead.
 mkListener ::
     ( NFData a
-    , AsFacet (MkCallback1 (States w ())) x
+    , AsFacet (MkCallback1 (StatesT w m ())) x
+    , Monad m
     )
     => GizmoId
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
-    -> (a -> States w b)
-    -> States w ()
-    -> Gadget w x s b
+    -> (a -> StatesT w m b)
+    -> StatesT w m ()
+    -> GadgetT w x s m b
 mkListener gid n goStrict goLazy extra = do
     Traversal my <- ask
-    lift $ delegateT $ \fire -> do
+    lift $ mContT' $ \fire -> do
         -- Add extra command producting state actions at the end
         let goLazy' a = (goLazy a >>= fire) *> extra
             cmd = MkCallback1 goStrict goLazy' $ \cb -> do
@@ -58,13 +59,14 @@ mkListener gid n goStrict goLazy extra = do
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
 trigger' ::
-    ( AsFacet (MkCallback1 (States w ())) x
+    ( AsFacet (MkCallback1 (StatesT w m ())) x
     , AsFacet Rerender x
+    , Monad m
     )
     => GizmoId
     -> J.JSString
     -> b
-    -> Gadget w x s b
+    -> GadgetT w x s m b
 trigger' gid n b = do
     Traversal my <- ask
     -- Add a rerender for this widget at the every end
@@ -74,14 +76,15 @@ trigger' gid n b = do
 -- Also adds a 'Rerender' command at the end of the callback
 trigger ::
     ( NFData a
-    , AsFacet (MkCallback1 (States w ())) x
+    , AsFacet (MkCallback1 (StatesT w m ())) x
     , AsFacet Rerender x
+    , Monad m
     )
     => GizmoId
     -> J.JSString
     -> (Notice -> IO a)
-    -> (a -> States w b)
-    -> Gadget w x s b
+    -> (a -> StatesT w m b)
+    -> GadgetT w x s m b
 trigger gid n goStrict goLazy = do
     Traversal my <- ask
     -- Add a rerender for this widget at the every end
@@ -94,10 +97,11 @@ trigger gid n goStrict goLazy = do
 -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
 -- gizmo in the plan
 withRef ::
-        ( AsFacet (MkCallback1 (States w ())) x
+        ( AsFacet (MkCallback1 (StatesT w m ())) x
+        , Monad m
         )
         => GizmoId
-        -> Gadget w x s ()
+        -> GadgetT w x s m ()
 withRef gid = do
     Traversal my <- ask
     mkListener gid "ref" (pure . Just) (hdlRef my) (pure ())

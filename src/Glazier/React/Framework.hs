@@ -2,7 +2,7 @@ module Glazier.React.Framework
     (
       -- module Glazier.Core
     -- , module Glazier.React.Framework.Core.Archetype
-    module Control.Monad.Trans.Delegate
+    module Control.Monad.Trans.Conts
     , module Control.Monad.Trans.Readers
     , module Control.Monad.Trans.RWSs.Strict
     , module Control.Monad.Trans.States.Strict
@@ -18,7 +18,7 @@ module Glazier.React.Framework
 
 -- import Glazier.Core
 -- import Glazier.React.Framework.Core.Archetype
-import Control.Monad.Trans.Delegate
+import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Readers
 import Control.Monad.Trans.RWSs.Strict
 import Control.Monad.Trans.States.Strict

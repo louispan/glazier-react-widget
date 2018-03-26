@@ -59,17 +59,12 @@ rerender = do
 -- (getting the state from the ref, etc)
 -- using the last continuation arg
 -- THen save the state back into the ref + command processing
-data MkCallback1 next where
+data MkCallback1 w where
     MkCallback1 :: NFData a
         => (JE.JSRep -> IO (Maybe a))
-        -> (a -> next)
-        -> (J.Callback (J.JSVal -> IO ()) -> next)
-        -> MkCallback1 next
-
-instance Functor MkCallback1 where
-    fmap f (MkCallback1 goStrict goLazy g) = MkCallback1 goStrict (f . goLazy) (f . g)
-
-type MkCallback1' w = MkCallback1 (StatesT w STM ())
+        -> (a -> States w ())
+        -> (J.Callback (J.JSVal -> IO ()) -> States w ())
+        -> MkCallback1 w
 
 -----------------------------------------------------------------
 
@@ -83,21 +78,15 @@ type MkCallback1' w = MkCallback1 (StatesT w STM ())
 -- clear the stored state actions
 -- save the new state
 -- process any commands generated.
-data MkOnceOnUpdatedCallback next =
-    MkOnceOnUpdatedCallback PlanId next
-        deriving Functor
-
-type MkOnceOnUpdatedCallback' w = MkOnceOnUpdatedCallback (StatesT w STM ())
+data MkOnceOnUpdatedCallback w =
+    MkOnceOnUpdatedCallback PlanId (States w ())
 
 -----------------------------------------------------------------
 
 -- | Similar to 'MkOnceOnUpdatedCallback' except the state action
 -- gets added to a separate map which doesn't get cleared.
-data MkEveryOnUpdatedCallback next =
-    MkEveryOnUpdatedCallback PlanId next
-        deriving Functor
-
-type MkEveryOnUpdatedCallback' w = MkEveryOnUpdatedCallback (StatesT w STM ())
+data MkEveryOnUpdatedCallback w =
+    MkEveryOnUpdatedCallback PlanId (States w ())
 
 -- | Make the ShimListeners for this 'Plan' 'ShimListeners' using the given
 -- 'Window' rendering function.
@@ -109,4 +98,4 @@ data MkShimListeners w x s = MkShimListeners
     (Window x s ())
 
 -- | Spawn a thread to run the stm until it succeeds
-data ForkAction w = ForkAction (StatesT w STM ())
+data ForkSTMAction a w = ForkAction (STM a) (a -> States w ())

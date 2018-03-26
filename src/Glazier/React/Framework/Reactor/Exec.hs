@@ -56,7 +56,7 @@ initReactor ::
     ( MonadIO n
     , MonadState Int n
     )
-    => StatesT (Scene x s) STM ()
+    => States (Scene x s) ()
     -> (TMVar (Scene x s) -> TVar (Scene x s) -> env -> r)
     -> (m () -> r -> IO ())
     -> (DL.DList x -> m ())
@@ -94,10 +94,10 @@ disposableWorld world = do
     planDisposables = CD.dispose <$> use _plan
 
 -- | Upate the world 'TMVar' and backbuffer 'TVar' with a given action, and return the commands produced.
-runAction :: TMVar (Scene x s) -> TVar (Scene x s) -> StatesT (Scene x s) STM () -> STM (DL.DList x)
+runAction :: TMVar (Scene x s) -> TVar (Scene x s) -> States (Scene x s) () -> STM (DL.DList x)
 runAction world frame action = do
     t <- takeTMVar world
-    (xs, t') <- runStatesT (action *> takeCommands) t
+    let (xs, t') = runStates (action *> takeCommands) t
     putTMVar world t'
     writeTVar frame t'
     pure xs
@@ -111,9 +111,9 @@ runAction world frame action = do
 execReactor :: forall s x r m.
     ( MonadIO m
     , MonadReader r m
-    , AsFacet (MkCallback1' (Scene x s)) x
-    , AsFacet (MkEveryOnUpdatedCallback' (Scene x s)) x
-    , AsFacet (MkOnceOnUpdatedCallback' (Scene x s)) x
+    , AsFacet (MkCallback1 (Scene x s)) x
+    , AsFacet (MkEveryOnUpdatedCallback (Scene x s)) x
+    , AsFacet (MkOnceOnUpdatedCallback (Scene x s)) x
     , AsFacet Rerender x
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
@@ -122,9 +122,9 @@ execReactor :: forall s x r m.
     )
     => Proxy s -> (m () -> r -> IO ()) -> (DL.DList x -> m ()) -> x -> m ()
 execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec @(MkCallback1' (Scene x s)) (execMkCallback1 runExec exec) x
-    <|> maybeExec @(MkEveryOnUpdatedCallback' (Scene x s)) execEveryOnUpdatedCallback x
-    <|> maybeExec @(MkOnceOnUpdatedCallback' (Scene x s)) execOnceOnUpdatedCallback x
+    maybeExec @(MkCallback1 (Scene x s)) (execMkCallback1 runExec exec) x
+    <|> maybeExec @(MkEveryOnUpdatedCallback (Scene x s)) execEveryOnUpdatedCallback x
+    <|> maybeExec @(MkOnceOnUpdatedCallback (Scene x s)) execOnceOnUpdatedCallback x
     <|> maybeExec execRerender x
 
 -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
@@ -132,9 +132,9 @@ execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
 reactorExecutor :: forall s x r m.
     ( MonadIO m
     , MonadReader r m
-    , AsFacet (MkCallback1' (Scene x s)) x
-    , AsFacet (MkEveryOnUpdatedCallback' (Scene x s)) x
-    , AsFacet (MkOnceOnUpdatedCallback' (Scene x s)) x
+    , AsFacet (MkCallback1 (Scene x s)) x
+    , AsFacet (MkEveryOnUpdatedCallback (Scene x s)) x
+    , AsFacet (MkOnceOnUpdatedCallback (Scene x s)) x
     , AsFacet Rerender x
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
@@ -164,7 +164,7 @@ execMkCallback1 ::
     )
     => (m () -> r -> IO ())
     -> (DL.DList x -> m ())
-    -> MkCallback1' (Scene x s)
+    -> MkCallback1 (Scene x s)
     -> m ()
 execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     world <- view item' <$> ask
@@ -187,7 +187,7 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
 
 -----------------------------------------------------------------
 
-newtype OnceOnUpdated x s b = OnceOnUpdated (StatesT (Scene x s) STM b)
+newtype OnceOnUpdated x s b = OnceOnUpdated (States (Scene x s) b)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execOnceOnUpdatedCallback :: forall x s m r.
@@ -195,7 +195,7 @@ execOnceOnUpdatedCallback :: forall x s m r.
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
     )
-    => MkOnceOnUpdatedCallback' (Scene x s)
+    => MkOnceOnUpdatedCallback (Scene x s)
     -> m ()
 execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid action) = do
     v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
@@ -203,7 +203,7 @@ execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid action) = do
 
 -----------------------------------------------------------------
 
-newtype EveryOnUpdated x s b = EveryOnUpdated (StatesT (Scene x s) STM b)
+newtype EveryOnUpdated x s b = EveryOnUpdated (States (Scene x s) b)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
 execEveryOnUpdatedCallback :: forall x s m r.
@@ -211,7 +211,7 @@ execEveryOnUpdatedCallback :: forall x s m r.
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
     )
-    => MkEveryOnUpdatedCallback' (Scene x s)
+    => MkEveryOnUpdatedCallback (Scene x s)
     -> m ()
 execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid action) = do
     v <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask

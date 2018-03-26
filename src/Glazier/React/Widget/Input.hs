@@ -23,6 +23,7 @@ import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.Cont
 import Control.Monad.Reader
+import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
@@ -51,7 +52,7 @@ import qualified JavaScript.Extras as JE
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput :: GizmoId
-    -> Widget w J.JSString x ()
+    -> Widget w J.JSString x STM ()
 textInput gid = mempty
     { window = \s -> lf' gid s "input"
         [ ("key", JE.toJSR . reactKey $ s ^. _plan)
@@ -76,14 +77,14 @@ textInput gid = mempty
         ( AsFacet SetProperty x
         , AsFacet GetProperty x
         , AsFacet (MkEveryOnUpdatedCallback' w) x
-        ) => Gadget w (Scene J.JSString) x ()
+        ) => GadgetT w (Scene J.JSString) x STM ()
     onInitialized = do
         Traversal my <- ask
-        zoom my $ do
+        lift $ lift $ zoom my $ do
             pid <- use (_plan._planId)
             post1' MkEveryOnUpdatedCallback pid (go my)
       where
-        go my = zoom my $ do
+        go =
             me <- doReadIORef self
             let s = me ^. my._model
             void $ runMaybeT $ do

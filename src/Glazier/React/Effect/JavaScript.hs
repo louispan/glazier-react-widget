@@ -15,7 +15,7 @@ data GetProperty next where
     GetProperty :: JE.ToJS j
         => J.JSString -> j -> (JE.JSRep -> next) -> GetProperty next
 
-type GetProperty' w = GetProperty (StatesT w STM ())
+type GetProperty' w = GetProperty (States w ())
 
 instance Functor GetProperty where
     fmap f (GetProperty a b c) = GetProperty a b (f . c)

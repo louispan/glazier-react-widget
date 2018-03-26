@@ -11,7 +11,7 @@
 module Glazier.React.Framework.Gadget where
 
 import Control.Lens
-import Control.Monad.Trans.MCont
+import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Readers
 import Control.Monad.Trans.States.Strict
 import Glazier.React.Framework.Scene
@@ -22,7 +22,7 @@ import Glazier.React.Framework.Scene
 -- @s@ actual model of widget
 -- @m@ inner monad
 -- @a@ return of monad
-type GadgetT w x s m = ReadersT (ReifiedTraversal' w (Scene x s)) (MContT () (StatesT w m))
+type GadgetT w x s m = ReadersT (ReifiedTraversal' w (Scene x s)) (ContsT () (StatesT w m))
 type Gadget w x s = GadgetT w x s Identity
 
 -- pattern Method' :: ((a -> m ()) -> m ()) -> DelegateT m a
@@ -37,38 +37,34 @@ type Gadget w x s = GadgetT w x s Identity
 --     Traversal my <- ask
 --     lift $ f my
 
+-- gadgetT ::
+--     (Traversal' w (Scene x s)
+--     -> (StatesT w m a -> StatesT w m ())
+--     -> StatesT w m ())
+--     -> GadgetT w x s m a
+-- -- methodT' = readrT' . (delegateT' .) . (. runTraversal)
+-- gadgetT f = readersT (\r -> MContT (f (runTraversal r)))
+
 gadgetT ::
     (Traversal' w (Scene x s)
-    -> (StatesT w m a -> StatesT w m ())
-    -> StatesT w m ())
-    -> GadgetT w x s m a
--- methodT' = readrT' . (delegateT' .) . (. runTraversal)
-gadgetT f = readersT (\r -> MContT (f (runTraversal r)))
-
-gadgetT' ::
-    Monad m
-    => (Traversal' w (Scene x s)
     -> (a -> StatesT w m ())
     -> StatesT w m ())
     -> GadgetT w x s m a
--- methodT' = readrT' . (delegateT' .) . (. runTraversal)
-gadgetT' f = readersT (\r -> mContT' (f (runTraversal r)))
+gadgetT f = readersT (\r -> contsT (f (runTraversal r)))
+
+-- runGadgetT ::
+--     GadgetT w x s m a
+--     -> Traversal' w (Scene x s)
+--     -> (StatesT w m a -> StatesT w m ())
+--     -> StatesT w m ()
+-- -- runMethodT' = (runDelegateT' .) . runReadersT'
+-- runGadgetT x l = runMContT (runReadersT x (Traversal l))
 
 runGadgetT ::
     GadgetT w x s m a
     -> Traversal' w (Scene x s)
-    -> (StatesT w m a -> StatesT w m ())
-    -> StatesT w m ()
--- runMethodT' = (runDelegateT' .) . runReadersT'
-runGadgetT x l = runMContT (runReadersT x (Traversal l))
-
-runGadgetT' ::
-    Monad m
-    => GadgetT w x s m a
-    -> Traversal' w (Scene x s)
     -> (a -> StatesT w m ())
     -> StatesT w m ()
--- runMethodT' = (runDelegateT' .) . runReadersT'
-runGadgetT' x l = runMContT' (runReadersT x (Traversal l))
+runGadgetT x l = runContsT (runReadersT x (Traversal l))
 
 

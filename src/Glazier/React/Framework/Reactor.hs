@@ -92,10 +92,11 @@ data MkEveryOnUpdatedCallback w =
 -- 'Window' rendering function.
 -- The original window should be dropped and the 'Widget' reduced to just a
 -- 'Gadget' to emphasis the fact that the 'Window' was used.
-data MkShimListeners w x s = MkShimListeners
+data MkShimListeners w = MkShimListeners
     PlanId
-    (ReifiedTraversal' w (Scene x s))
-    (Window x s ())
+    (ReifiedTraversal' w Plan)
+    (Window' w ())
 
 -- | Spawn a thread to run the stm until it succeeds
-data ForkSTMAction a w = ForkAction (STM a) (a -> States w ())
+data ForkSTMAction w where
+    ForkSTMAction :: STM a -> (a -> States w ()) -> ForkSTMAction w

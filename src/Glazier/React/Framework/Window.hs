@@ -15,9 +15,12 @@ import Glazier.React.Framework.MkId
 import Glazier.React.Framework.Scene
 import qualified JavaScript.Extras as JE
 
-type WindowT x s m = RWSsT (Scene x s) () (DL.DList ReactMarkup) m
+type WindowT' w m = RWSsT w () (DL.DList ReactMarkup) m
+type WindowT x s m = WindowT' (Scene x s) m
 
+type Window' w = WindowT' w Identity
 type Window x s = WindowT x s Identity
+
 
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------

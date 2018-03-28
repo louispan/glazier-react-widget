@@ -202,7 +202,7 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
 newtype OnceOnUpdated c t a = OnceOnUpdated (States (Scenario c t) a)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
-execOnceOnUpdatedCallback :: forall c t m r.
+execOnceOnUpdatedCallback :: forall t c r m.
     ( MonadIO m
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
@@ -218,7 +218,7 @@ execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid action) = do
 newtype EveryOnUpdated c t a = EveryOnUpdated (States (Scenario c t) a)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
-execEveryOnUpdatedCallback :: forall c t m r.
+execEveryOnUpdatedCallback :: forall t c r m.
     ( MonadIO m
     , MonadReader r m
     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
@@ -232,7 +232,7 @@ execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid action) = do
 -----------------------------------------------------------------
 
 -- | Making multiple MkShimListeners for the same plan is a silent error and will be ignored.
-execMkShimListeners :: forall c t m r.
+execMkShimListeners :: forall t c r m.
     ( MonadIO m
     , MonadReader r m
     , HasItem' (TMVar (Scenario c t)) r
@@ -244,7 +244,7 @@ execMkShimListeners :: forall c t m r.
     -> (DL.DList c -> m ())
     -> MkShimListeners c t
     -> m ()
-execMkShimListeners runExec exec (MkShimListeners pid (Traversal myPlan) wind) = do
+execMkShimListeners runExec exec (MkShimListeners pid (Traversal myPlan) rndr) = do
     world <- view item' <$> ask
     frame <- view item' <$> ask
     env <- ask
@@ -253,7 +253,7 @@ execMkShimListeners runExec exec (MkShimListeners pid (Traversal myPlan) wind) =
     -- render reads from the backbuffer 'TVar' so it doesn't block
     let doRender = do
             frm <- atomically $ readTVar frame
-            let (as, _) = execRWSs wind frm mempty
+            let (as, _) = execRWSs rndr frm mempty
             JE.toJS <$> toElement as
         doRef j = atomically $ do
             let c = JE.fromJS j
@@ -283,7 +283,7 @@ execMkShimListeners runExec exec (MkShimListeners pid (Traversal myPlan) wind) =
             Just Nothing -> pure . Just $ w & myPlan._shimListeners .~
                 (Just $ ShimListeners renderCb updatedCb refCb)
 
-execForkSTMAction :: forall c t m r.
+execForkSTMAction :: forall t c r m.
     ( MonadIO m
     , MonadReader r m
     , HasItem' (TMVar (Scenario c t)) r

@@ -6,17 +6,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Widget.Input (
-    -- * Text input
-    textInput
-    -- * Checkbox input
-    , checkboxInput
-    , IndeterminateCheckboxInput(..)
-    , indeterminateCheckboxInput
-    ) where
+module Glazier.React.Widget.Input where --(
+    -- -- * Text input
+    -- textInput
+    -- -- * Checkbox input
+    -- , checkboxInput
+    -- , IndeterminateCheckboxInput(..)
+    -- , indeterminateCheckboxInput
+    -- ) where
 
 -- import Control.Applicative.Esoteric
 import Control.Lens
@@ -26,10 +27,12 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
+import Data.Diverse.Lens
 import qualified Data.JSString as J
 import Data.Maybe
 import qualified GHC.Generics as G
 import Glazier.React
+import Glazier.React.Effect.JavaScript
 import Glazier.React.Framework
 import qualified JavaScript.Extras as JE
 
@@ -51,20 +54,27 @@ import qualified JavaScript.Extras as JE
 -- Warning: This widget listens to onChange and will update the model value with the DOM input value.
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
-textInput :: GizmoId
-    -> Widget w J.JSString x STM ()
-textInput gid = mempty
-    { window = \s -> lf' gid s "input"
-        [ ("key", JE.toJSR . reactKey $ s ^. _plan)
-        -- "value" cannot be used as React will take over as a controlled component.
-        -- The defaultValue only sets the *initial* DOM value
-        -- The user will need to modify reactKey if they want
-        -- react to actually rerender, since React will not do anything
-        -- even if defaultValue changes.
-        -- But hopefully this is not necessary as the DOM inpt value
-        -- is updated under the hood in onInitialized
-        , ("defaultValue", JE.toJSR $ s ^. _model)
-        ]
+textInput :: forall w x.
+    ( AsFacet (MkCallback1 w) x
+    , AsFacet (GetProperty w) x
+    , AsFacet (MkEveryOnUpdatedCallback w) x
+    )
+    => GizmoId
+    -> Widget w x J.JSString ()
+textInput gid = dummy
+    { window = do
+        s <- ask
+        lf' gid "input"
+            [ ("key", JE.toJSR gid)
+            -- "value" cannot be used as React will take over as a controlled component.
+            -- The defaultValue only sets the *initial* DOM value
+            -- The user will need to modify reactKey if they want
+            -- react to actually rerender, since React will not do anything
+            -- even if defaultValue changes.
+            -- But hopefully this is not necessary as the DOM inpt value
+            -- is updated under the hood in onInitialized
+            , ("defaultValue", JE.toJSR $ s ^. _model)
+            ]
     , gadget = withRef gid
         *> onInitialized
         -- *> (trigger' gid "onChange" () >>= hdlChange)
@@ -74,29 +84,38 @@ textInput gid = mempty
     -- | Add setting the DOM input value after every render as this is the only
     -- way to change that setting.
     onInitialized ::
-        ( AsFacet SetProperty x
-        , AsFacet GetProperty x
-        , AsFacet (MkEveryOnUpdatedCallback' w) x
-        ) => GadgetT w (Scene J.JSString) x STM ()
+        (
+            -- AsFacet SetProperty x
+        AsFacet (GetProperty w) x
+        , AsFacet (MkEveryOnUpdatedCallback w) x
+        ) => Gadget w x J.JSString ()
     onInitialized = do
         Traversal my <- ask
         lift $ lift $ zoom my $ do
             pid <- use (_plan._planId)
-            post1' MkEveryOnUpdatedCallback pid (go my)
+            post1' $ MkEveryOnUpdatedCallback pid (go (Traversal my))
       where
-        go =
-            me <- doReadIORef self
-            let s = me ^. my._model
-            void $ runMaybeT $ do
-                j <- MaybeT $ preuse (_plan._gizmos.ix gid._targetRef._Just)
+        -- go (Traversal my) = void $ runMaybeT $ do
+        --     j <- MaybeT $ preuse (my._plan._gizmos.ix gid._targetRef._Just)
+        --     lift $ (`runContT` pure) $ do
+        --         start <- ContT $ zoom my . post1' . GetProperty "selectionStart" j
+        --         pure ()
 
-                start <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionStart" j)
-                end <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionEnd" j)
-                v <- MaybeT $ JE.fromJSR <$> (doGetProperty "value" j)
-                let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                lift $ j & doSetProperty ("value", JE.toJSR s)
-                lift $ j & doSetProperty ("selectionStart", JE.toJSR a)
-                lift $ j & doSetProperty ("selectionEnd", JE.toJSR b)
+        go (Traversal my) = void $ runMaybeT $ do
+            j <- MaybeT $ preuse (my._plan._gizmos.ix gid._targetRef._Just)
+            lift $ zoom my $ post1' $ GetProperty @w "selectionStart" j (const $ pure ())
+
+            --     -- pure ()
+            --     lift $ zoom my $ pure ()
+                -- post1' $ GetProperty @w "selectionStart" j undefined
+
+            -- start <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionStart" j)
+            -- end <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionEnd" j)
+            -- v <- MaybeT $ JE.fromJSR <$> (doGetProperty "value" j)
+            -- let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
+            -- lift $ j & doSetProperty ("value", JE.toJSR s)
+            -- lift $ j & doSetProperty ("selectionStart", JE.toJSR a)
+            -- lift $ j & doSetProperty ("selectionEnd", JE.toJSR b)
 
     -- hdlChange ::
     --     ( MonadReactor m, MonadJS m

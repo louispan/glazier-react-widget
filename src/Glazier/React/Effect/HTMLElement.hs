@@ -12,8 +12,10 @@ import Glazier.React.Framework
 data Focus = Focus EventTarget
 
 focusRef ::
-    ( MonadState (Scene x s) m
-    , AsFacet Focus x
+    ( HasPlan s
+    , HasCommands c s
+    , MonadState s m
+    , AsFacet Focus c
     )
     => GizmoId -> m ()
 focusRef gid = do
@@ -25,8 +27,10 @@ focusRef gid = do
 data Blur = Blur EventTarget
 
 blurRef ::
-    ( MonadState (Scene x s) m
-    , AsFacet Blur x
+    ( HasPlan s
+    , HasCommands c s
+    , MonadState s m
+    , AsFacet Blur c
     )
     => GizmoId -> m ()
 blurRef gid = do

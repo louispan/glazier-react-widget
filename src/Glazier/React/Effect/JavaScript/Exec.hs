@@ -21,11 +21,11 @@ execSetProperty (SetProperty prop j) = liftIO $ JE.setProperty prop j
 execGetProperty ::
     ( MonadIO m
     , MonadReader r m
-    , HasItem' (TMVar (Scene x s)) r
-    , HasItem' (TVar (Scene x s)) r
+    , HasItem' (TMVar (Scenario c t)) r
+    , HasItem' (TVar (Scene t)) r
     )
-    => (DL.DList x -> m ())
-    -> GetProperty (Scene x s)
+    => (DL.DList c -> m ())
+    -> GetProperty c t
     -> m ()
 execGetProperty exec (GetProperty n j k) = do
     world <- view item' <$> ask

@@ -16,10 +16,10 @@ import Glazier.React.Framework.Scene
 import qualified JavaScript.Extras as JE
 
 type WindowT' w m = RWSsT w () (DL.DList ReactMarkup) m
-type WindowT x s m = WindowT' (Scene x s) m
+type WindowT s m = WindowT' (Scene s) m
 
 type Window' w = WindowT' w Identity
-type Window x s = WindowT x s Identity
+type Window s = WindowT s Identity
 
 
 -- type SceneDisplay x s r = Display (Scene x s) r
@@ -29,7 +29,7 @@ type Window x s = WindowT x s Identity
 lf' :: GizmoId
     -> JE.JSRep -- ^ eg "div" or "input"
     -> DL.DList JE.Property
-    -> Window x s ()
+    -> Window s ()
 lf' gid n props = do
     ls <- view (_plan._gizmos.ix gid._listeners)
     leaf ls n props
@@ -38,8 +38,8 @@ lf' gid n props = do
 bh' :: GizmoId
     -> JE.JSRep
     -> DL.DList JE.Property
-    -> Window x s r
-    -> Window x s r
+    -> Window s r
+    -> Window s r
 bh' gid n props childs = do
     ls <- view (_plan._gizmos.ix gid._listeners)
     branch ls n props childs
@@ -47,7 +47,7 @@ bh' gid n props childs = do
 -- | Use this to create a display for a top level 'Gadget'
 -- Eg. the result of a 'Widget' that has the Window rendering function
 -- inserted into 'Glazier.React.Framework.Core.Widget.MkShimListeners'.
-shimWindow :: Window x s ()
+shimWindow :: Window s ()
 shimWindow = do
     ls <- view (_plan._shimListeners)
     case ls of

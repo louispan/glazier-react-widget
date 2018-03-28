@@ -4,7 +4,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -57,26 +56,26 @@ initReactor ::
     ( MonadIO n
     , MonadState Int n
     )
-    => States (Scene x s) ()
-    -> (TMVar (Scene x s) -> TVar (Scene x s) -> env -> r)
+    => States (Scenario c t) ()
+    -> (TMVar (Scenario c t) -> TVar (Scene t) -> env -> r)
     -> (m () -> r -> IO ())
-    -> (DL.DList x -> m ())
+    -> (DL.DList c -> m ())
     -> env
-    -> s
+    -> t
     -> n ()
-initReactor ini addEnv runExec exec env s = do
+initReactor ini addEnv runExec exec env t = do
     -- make state var
     pid <- mkPlanId "App"
-    let s' = Scene mempty (newPlan pid) s
+    let t' = Scenario mempty (Scene (newPlan pid) t)
     liftIO $ do
-        world <- newTMVarIO s'
-        frame <-    newTVarIO s'
+        world <- newTMVarIO t'
+        frame <- newTVarIO (t' ^. _scene)
         -- run through the app initialization
-        xs <- atomically $ runAction world frame ini
+        cs <- atomically $ runAction world frame ini
         -- now go through and evaluate the commands
         -- This will include making callbacks which will execute on other threads
         -- completely consume all commands
-        runExec (exec xs) (addEnv world frame env)
+        runExec (exec cs) (addEnv world frame env)
 
 -- | Get the 'CD.Disposable' required to cleanup the world
 -- without modifying the world.
@@ -85,28 +84,28 @@ initReactor ini addEnv runExec exec env s = do
 -- After cleanup the JS listener callbacks will now result in exceptions
 -- so cleanup should only be done after the reactComponents have been removed
 -- from the DOM.
-disposableWorld :: TMVar (Scene x s) -> STM CD.Disposable
+disposableWorld :: TMVar (Scenario c t) -> STM CD.Disposable
 disposableWorld world = do
     -- get the disposables for the plan retrieve the final state
     t <- readTMVar world
     evalStatesT planDisposables t
   where
-    planDisposables :: Monad m => StatesT (Scene x s) m CD.Disposable
+    planDisposables :: Monad m => StatesT (Scenario c t) m CD.Disposable
     planDisposables = CD.dispose <$> use _plan
 
 -- | Upate the world 'TMVar' and backbuffer 'TVar' with a given action, and return the commands produced.
-runAction :: TMVar (Scene x s) -> TVar (Scene x s) -> States (Scene x s) () -> STM (DL.DList x)
+runAction :: TMVar (Scenario c t) -> TVar (Scene t) -> States (Scenario c t) () -> STM (DL.DList c)
 runAction world frame action = do
     t <- takeTMVar world
-    let (xs, t') = runStates (action *> takeCommands) t
+    let (cs, t') = runStates (action *> takeCommands) t
     putTMVar world t'
-    writeTVar frame t'
-    pure xs
+    writeTVar frame (t' ^. _scene)
+    pure cs
   where
     takeCommands = do
-        xs <- use _commands
+        cs <- use _commands
         _commands .= mempty
-        pure xs
+        pure cs
 
 -- newtype Wack = Wack (Which '[MkCallback1 (Scene Wack Int)])
 -- type Wack w = Which '[MkCallback1 (Scene w Int)]
@@ -115,47 +114,47 @@ runAction world frame action = do
 --     facet = iso unWock Wock . facet
 
 -- Create a executor for all the core commands required by the framework
-execReactor :: forall s x r m.
+execReactor :: forall t c r m.
     ( MonadIO m
     , MonadReader r m
-    , AsFacet Rerender x
-    , AsFacet (MkCallback1 (Scene x s)) x
-    , AsFacet (MkEveryOnUpdatedCallback (Scene x s)) x
-    , AsFacet (MkOnceOnUpdatedCallback (Scene x s)) x
-    , AsFacet (MkShimListeners (Scene x s)) x
-    , AsFacet (ForkSTMAction (Scene x s)) x
-    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
-    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
-    , HasItem' (TMVar (Scene x s)) r
-    , HasItem' (TVar (Scene x s)) r
+    , AsFacet Rerender c
+    , AsFacet (MkCallback1 c t) c
+    , AsFacet (MkEveryOnUpdatedCallback c t) c
+    , AsFacet (MkOnceOnUpdatedCallback c t) c
+    , AsFacet (MkShimListeners c t) c
+    , AsFacet (ForkSTMAction c t) c
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
+    , HasItem' (TMVar (Scenario c t)) r
+    , HasItem' (TVar (Scene t)) r
     )
-    => Proxy s -> (m () -> r -> IO ()) -> (DL.DList x -> m ()) -> x -> m ()
-execReactor _ runExec exec x = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec execRerender x
-    <|> maybeExec @(MkCallback1 (Scene x s)) (execMkCallback1 runExec exec) x
-    <|> maybeExec @(MkEveryOnUpdatedCallback (Scene x s)) execEveryOnUpdatedCallback x
-    <|> maybeExec @(MkOnceOnUpdatedCallback (Scene x s)) execOnceOnUpdatedCallback x
-    <|> maybeExec @(MkShimListeners (Scene x s)) (execMkShimListeners runExec exec) x
-    <|> maybeExec @(ForkSTMAction (Scene x s)) (execForkSTMAction runExec exec) x
+    => Proxy t -> (m () -> r -> IO ()) -> (DL.DList c -> m ()) -> c -> m ()
+execReactor _ runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
+    maybeExec execRerender c
+    <|> maybeExec @(MkCallback1 c t) (execMkCallback1 runExec exec) c
+    <|> maybeExec @(MkEveryOnUpdatedCallback c t) execEveryOnUpdatedCallback c
+    <|> maybeExec @(MkOnceOnUpdatedCallback c t) execOnceOnUpdatedCallback c
+    <|> maybeExec @(MkShimListeners c t) (execMkShimListeners runExec exec) c
+    <|> maybeExec @(ForkSTMAction c t) (execForkSTMAction runExec exec) c
 
 -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
 -- NB. This tied executor *only* runs the Reactor effects.
-reactorExecutor :: forall s x r m.
+reactorExecutor :: forall t c r m.
     ( MonadIO m
     , MonadReader r m
-    , AsFacet Rerender x
-    , AsFacet (MkCallback1 (Scene x s)) x
-    , AsFacet (MkEveryOnUpdatedCallback (Scene x s)) x
-    , AsFacet (MkOnceOnUpdatedCallback (Scene x s)) x
-    , AsFacet (MkShimListeners (Scene x s)) x
-    , AsFacet (ForkSTMAction (Scene x s)) x
-    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
-    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
-    , HasItem' (TMVar (Scene x s)) r
-    , HasItem' (TVar (Scene x s)) r
+    , AsFacet Rerender c
+    , AsFacet (MkCallback1 c t) c
+    , AsFacet (MkEveryOnUpdatedCallback c t) c
+    , AsFacet (MkOnceOnUpdatedCallback c t) c
+    , AsFacet (MkShimListeners c t) c
+    , AsFacet (ForkSTMAction c t) c
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
+    , HasItem' (TMVar (Scenario c t)) r
+    , HasItem' (TVar (Scene t)) r
     )
-    => Proxy s -> (m () -> r -> IO ()) -> x -> m ()
-reactorExecutor p runExec x = execReactor p runExec (traverse_ (reactorExecutor p runExec)) x
+    => Proxy t -> (m () -> r -> IO ()) -> c -> m ()
+reactorExecutor p runExec c = execReactor p runExec (traverse_ (reactorExecutor p runExec)) c
 
 -----------------------------------------------------------------
 
@@ -172,12 +171,12 @@ execRerender (Rerender j i) = do
 execMkCallback1 ::
     ( MonadIO m
     , MonadReader r m
-    , HasItem' (TMVar (Scene x s)) r
-    , HasItem' (TVar (Scene x s)) r
+    , HasItem' (TMVar (Scenario c t)) r
+    , HasItem' (TVar (Scene t)) r
     )
     => (m () -> r -> IO ())
-    -> (DL.DList x -> m ())
-    -> MkCallback1 (Scene x s)
+    -> (DL.DList c -> m ())
+    -> MkCallback1 c t
     -> m ()
 execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
     world <- view item' <$> ask
@@ -200,57 +199,57 @@ execMkCallback1 runExec exec (MkCallback1 goStrict goLazy k) = do
 
 -----------------------------------------------------------------
 
-newtype OnceOnUpdated x s b = OnceOnUpdated (States (Scene x s) b)
+newtype OnceOnUpdated c t a = OnceOnUpdated (States (Scenario c t) a)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
-execOnceOnUpdatedCallback :: forall x s m r.
+execOnceOnUpdatedCallback :: forall c t m r.
     ( MonadIO m
     , MonadReader r m
-    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
     )
-    => MkOnceOnUpdatedCallback (Scene x s)
+    => MkOnceOnUpdatedCallback c t
     -> m ()
 execOnceOnUpdatedCallback (MkOnceOnUpdatedCallback pid action) = do
-    v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
+    v <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated c t ())))) <$> ask
     liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (OnceOnUpdated action)) . fromMaybe (pure ()))
 
 -----------------------------------------------------------------
 
-newtype EveryOnUpdated x s b = EveryOnUpdated (States (Scene x s) b)
+newtype EveryOnUpdated c t a = EveryOnUpdated (States (Scenario c t) a)
     deriving (G.Generic, Functor, Applicative, Monad, Semigroup, Monoid)
 
-execEveryOnUpdatedCallback :: forall x s m r.
+execEveryOnUpdatedCallback :: forall c t m r.
     ( MonadIO m
     , MonadReader r m
-    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
     )
-    => MkEveryOnUpdatedCallback (Scene x s)
+    => MkEveryOnUpdatedCallback c t
     -> m ()
 execEveryOnUpdatedCallback (MkEveryOnUpdatedCallback pid action) = do
-    v <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask
+    v <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated c t ())))) <$> ask
     liftIO . atomically . modifyTMVar_ v $ pure . over (at pid) (Just . (*> (EveryOnUpdated action)) . fromMaybe (pure ()))
 
 -----------------------------------------------------------------
 
 -- | Making multiple MkShimListeners for the same plan is a silent error and will be ignored.
-execMkShimListeners :: forall x s m r.
+execMkShimListeners :: forall c t m r.
     ( MonadIO m
     , MonadReader r m
-    , HasItem' (TMVar (Scene x s)) r
-    , HasItem' (TVar (Scene x s)) r
-    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated x s ()))) r
-    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated x s ()))) r
+    , HasItem' (TMVar (Scenario c t)) r
+    , HasItem' (TVar (Scene t)) r
+    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
+    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
     )
     => (m () -> r -> IO ())
-    -> (DL.DList x -> m ())
-    -> MkShimListeners (Scene x s)
+    -> (DL.DList c -> m ())
+    -> MkShimListeners c t
     -> m ()
 execMkShimListeners runExec exec (MkShimListeners pid (Traversal myPlan) wind) = do
     world <- view item' <$> ask
     frame <- view item' <$> ask
     env <- ask
-    onceOnUpdated <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated x s ())))) <$> ask
-    everyOnUpdated <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated x s ())))) <$> ask
+    onceOnUpdated <- view (item' @(TMVar (M.Map PlanId (OnceOnUpdated c t ())))) <$> ask
+    everyOnUpdated <- view (item' @(TMVar (M.Map PlanId (EveryOnUpdated c t ())))) <$> ask
     -- render reads from the backbuffer 'TVar' so it doesn't block
     let doRender = do
             frm <- atomically $ readTVar frame
@@ -284,15 +283,15 @@ execMkShimListeners runExec exec (MkShimListeners pid (Traversal myPlan) wind) =
             Just Nothing -> pure . Just $ w & myPlan._shimListeners .~
                 (Just $ ShimListeners renderCb updatedCb refCb)
 
-execForkSTMAction :: forall x s m r.
+execForkSTMAction :: forall c t m r.
     ( MonadIO m
     , MonadReader r m
-    , HasItem' (TMVar (Scene x s)) r
-    , HasItem' (TVar (Scene x s)) r
+    , HasItem' (TMVar (Scenario c t)) r
+    , HasItem' (TVar (Scene t)) r
     )
     => (m () -> r -> IO ())
-    -> (DL.DList x -> m ())
-    -> ForkSTMAction (Scene x s)
+    -> (DL.DList c -> m ())
+    -> ForkSTMAction c t
     -> m ()
 execForkSTMAction runExec exec (ForkSTMAction m k) = do
     world <- view item' <$> ask

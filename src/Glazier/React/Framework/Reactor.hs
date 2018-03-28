@@ -27,7 +27,7 @@ import qualified JavaScript.Extras as JE
 
 data Rerender = Rerender ComponentRef Int
 
-rerender :: (AsFacet Rerender x, MonadState (Scene x s) m) => m ()
+rerender :: (HasPlan s, HasCommands c s, AsFacet Rerender c, MonadState s m) => m ()
 rerender = do
     c <- use (_plan._currentFrameNum)
     p <- use (_plan._previousFrameNum)
@@ -59,12 +59,12 @@ rerender = do
 -- (getting the state from the ref, etc)
 -- using the last continuation arg
 -- THen save the state back into the ref + command processing
-data MkCallback1 w where
+data MkCallback1 c t where
     MkCallback1 :: NFData a
         => (JE.JSRep -> IO (Maybe a))
-        -> (a -> States w ())
-        -> (J.Callback (J.JSVal -> IO ()) -> States w ())
-        -> MkCallback1 w
+        -> (a -> States (Scenario c t) ())
+        -> (J.Callback (J.JSVal -> IO ()) -> States (Scenario c t) ())
+        -> MkCallback1 c t
 
 -----------------------------------------------------------------
 
@@ -78,25 +78,25 @@ data MkCallback1 w where
 -- clear the stored state actions
 -- save the new state
 -- process any commands generated.
-data MkOnceOnUpdatedCallback w =
-    MkOnceOnUpdatedCallback PlanId (States w ())
+data MkOnceOnUpdatedCallback c t =
+    MkOnceOnUpdatedCallback PlanId (States (Scenario c t) ())
 
 -----------------------------------------------------------------
 
 -- | Similar to 'MkOnceOnUpdatedCallback' except the state action
 -- gets added to a separate map which doesn't get cleared.
-data MkEveryOnUpdatedCallback w =
-    MkEveryOnUpdatedCallback PlanId (States w ())
+data MkEveryOnUpdatedCallback c t =
+    MkEveryOnUpdatedCallback PlanId (States (Scenario c t) ())
 
 -- | Make the ShimListeners for this 'Plan' 'ShimListeners' using the given
 -- 'Window' rendering function.
 -- The original window should be dropped and the 'Widget' reduced to just a
 -- 'Gadget' to emphasis the fact that the 'Window' was used.
-data MkShimListeners w = MkShimListeners
+data MkShimListeners c t = MkShimListeners
     PlanId
-    (ReifiedTraversal' w Plan)
-    (Window' w ())
+    (ReifiedTraversal' (Scenario c t) Plan)
+    (Window t ())
 
 -- | Spawn a thread to run the stm until it succeeds
-data ForkSTMAction w where
-    ForkSTMAction :: STM a -> (a -> States w ()) -> ForkSTMAction w
+data ForkSTMAction c t where
+    ForkSTMAction :: STM a -> (a -> States (Scenario c t) ()) -> ForkSTMAction c t

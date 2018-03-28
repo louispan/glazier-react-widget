@@ -34,16 +34,16 @@ import Glazier.React.Framework.Window
 -- type Initializer x s m = (Widget x s m, MonadCont m)
 -- type Handler x s m = (Widget x s m, MonadCont m)
 
-data Widget w x s c = Widget
-    { window :: Window x s ()
-    , gadget :: Gadget w x s c
+data Widget c t s a = Widget
+    { window :: Window s ()
+    , gadget :: Gadget c t s a
     } deriving (G.Generic, Functor)
 
 makeLenses ''Widget
 
 mapWidget2 ::
-    (Gadget w x s c1 -> Gadget w x s c2 -> Gadget w x s c3)
-    -> Widget w x s c1 -> Widget w x s c2 -> Widget w x s c3
+    (Gadget c t s a1 -> Gadget c t s a2 -> Gadget c t s a3)
+    -> Widget c t s a1 -> Widget c t s a2 -> Widget c t s a3
 mapWidget2 f (Widget dis1 ini1) (Widget dis2 ini2) =
     Widget
     (dis1 <> dis2)
@@ -51,31 +51,40 @@ mapWidget2 f (Widget dis1 ini1) (Widget dis2 ini2) =
 
 ------------------------------------------
 
-instance Applicative (Widget w x s) where
+instance Applicative (Widget c t s) where
     pure a = Widget mempty (pure a)
     (<*>) = mapWidget2 (<*>)
 
 -- merge ContT together by pre-firing the left ContT's output.
 -- That is, the resultant ContT will fire the output twice.
-instance (Semigroup c) => Semigroup (Widget w x s c) where
+instance (Semigroup a) => Semigroup (Widget c t s a) where
     (<>) = mapWidget2 (<>)
 
-instance (Monoid c) => Monoid (Widget w x s c) where
+instance (Monoid a) => Monoid (Widget c t s a) where
     mempty = Widget mempty mempty
     mappend = mapWidget2 mappend
 
-instance EnlargeModel (Widget w x a c) where
-    type WithEnlargedModel (Widget w x a c) s = Widget w x s c
-    type EnlargingModel (Widget w x a c) = a
-    enlargeModel l (Widget disp ini) = Widget (enlargeModel l disp) (enlargeModel l ini)
+-- dummy :: Widget c t s ()
+-- dummy = mempty
 
-instance EnlargePlan (Widget w x s c) where
-    enlargePlan l (Widget disp ini) = Widget (enlargePlan l disp) (enlargePlan l ini)
+-- instance EnlargeModel (Widget w x a c) where
+--     type WithEnlargedModel (Widget w x a c) s = Widget w x s c
+--     type EnlargingModel (Widget w x a c) = a
+
+enlargeModel :: Traversal' s' s -> Widget c t s a -> Widget c t s' a
+enlargeModel l (Widget disp ini) = Widget (magnifyModel l disp) (magnifyMyModel l ini)
+--     enlargeModel l (Widget disp ini) = Widget (enlargeModel l disp) (enlargeModel l ini)
+
+enlargePlan :: Traversal' Plan Plan -> Widget c t s a -> Widget c t s a
+enlargePlan l (Widget disp ini) = Widget (magnifyPlan l disp) (magnifyMyPlan l ini)
+
+-- instance EnlargePlan (Widget w x s c) where
+--     enlargePlan l (Widget disp ini) = Widget (enlargePlan l disp) (enlargePlan l ini)
 
 -- | Wrap a gadget inside another 'ShimComponent' with its own 'Plan'
 -- This results in a 'Widget' that can be composed with other 'Widgets'
-toShim :: PlanId -> Gadget w x s c -> Widget w x s c
-toShim pid gad = Widget (enlargePlan (_plans.ix pid) shimWindow) (enlargePlan (_plans.ix pid) gad)
+toShim :: PlanId -> Gadget c t s a -> Widget c t s a
+toShim pid gad = Widget (magnifyPlan (_plans.ix pid) shimWindow) (magnifyMyPlan (_plans.ix pid) gad)
 
 -- magnifyMethod :: Monad m
 --     => LensLike' f s a -> MethodT w x s m c1 -> MethodT w x s m c1

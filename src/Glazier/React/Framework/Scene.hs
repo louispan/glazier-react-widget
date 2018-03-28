@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -22,12 +23,6 @@ import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.RWS
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.Readers
-import qualified Control.Monad.Trans.RWS.Lazy as RL
-import qualified Control.Monad.Trans.RWS.Strict as RS
-import qualified Control.Monad.Trans.RWSs.Lazy as RsL
-import qualified Control.Monad.Trans.RWSs.Strict as RsS
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.Map.Strict as M
@@ -139,11 +134,6 @@ data Plan = Plan
     -- , disposeOnRemoved :: CD.Disposable
     --  Things to dispose on updated
     , disposeOnUpdated :: CD.Disposable
-    -- FIXME: To be handled by the engine like Callbacks
-    -- additional actions to take after every dirty
-    -- , everyOnUpdated :: DL.DList x
-    --  -- additional actions to take after a dirty
-    -- , onceOnUpdated :: DL.DList x
     -- interactivity data for child DOM elements
     , gizmos :: M.Map GizmoId Gizmo
     -- interactivity data for child react components
@@ -174,54 +164,88 @@ newPlan i = Plan
 
 
 -- | A 'Scene' contains interactivity data for all widgets as well as the model data.
-data Scene x s =  Scene
+data Scene s =  Scene
     -- commands could be in a writer monad, but then you can't get
     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
-    { commands :: DL.DList x
-    , plan :: Plan
-    , model :: s
+    { scenePlan :: Plan
+    , sceneModel :: s
     } deriving (G.Generic)
 
-_commands :: Lens' (Scene x s) (DL.DList x)
-_commands = lens commands (\s a -> s { commands = a})
+-- _model :: Lens (Scene s) (Scene s') s s'
+-- _model = lens model (\s a -> s { model = a})
 
-_plan :: Lens' (Scene x s) Plan
-_plan = lens plan (\s a -> s { plan = a})
+class HasModel t where
+    _model :: Lens (t s) (t s') s s'
 
-_model :: Lens (Scene x s) (Scene x s') s s'
-_model = lens model (\s a -> s { model = a})
+instance HasModel Scene where
+    _model = lens sceneModel (\s a -> s { sceneModel = a})
 
--- class HasScene c x s | c -> x s where
---     _scene :: Lens' c (Scene x s)
+-- _plan :: Lens' (Scene s) Plan
+-- _plan = lens plan (\s a -> s { plan = a})
 
--- instance HasScene (Scene x s) x s where
---     _scene = id
+class HasPlan t where
+    _plan :: Lens' t Plan
 
--- data Frame x w =  Frame
---     -- commands could be in a writer monad, but then you can't get
---     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
---     { commands :: DL.DList x
---     , world :: w
---     } deriving (G.Generic)
+instance HasPlan (Scene s) where
+    _plan = lens scenePlan (\s a -> s { scenePlan = a })
 
--- _world :: Lens' (Frame x s) s
--- _world = lens world (\s a -> s { world = a})
+class HasScene t where
+    _scene :: Lens (t s) (t s') (Scene s) (Scene s')
 
--- editWorld :: Lens' s' s -> Lens' (Scene x s') (Scene x s)
--- editWorld l = lens
---     (\s' -> s' & _model %~ (view l))
---     (\s' a -> a & _model %~ (\s -> (model s') & l .~ s))
+instance HasScene Scene where
+    _scene = id
 
+-- | A 'Scene' contains interactivity data for all widgets as well as the model data.
+data Scenario c s = Scenario
+    -- commands could be in a writer monad, but then you can't get
+    -- a MonadWriter with ContT, but you can have a MonadState with ContT.
+    { commands :: DL.DList c
+    , scene :: Scene s
+    } deriving (G.Generic)
 
-editSceneModel :: Functor f => LensLike' f s a -> LensLike' f (Scene x s) (Scene x a)
-editSceneModel l safa s = (\s' -> s { model = s'} ) <$> l afa' (model s)
+-- _commands :: Lens' (Scenario x s) (DL.DList x)
+-- _commands = lens commands (\s a -> s { commands = a})
+
+class HasCommands c t | t -> c where
+    _commands :: Lens' t (DL.DList c)
+
+instance HasCommands c (Scenario c s) where
+    _commands = lens commands (\s a -> s { commands = a})
+
+instance HasScene (Scenario c) where
+    _scene = lens scene (\s a -> s { scene = a})
+
+instance HasPlan (Scenario c s) where
+    _plan = _scene._plan
+
+instance HasModel (Scenario c) where
+    _model = _scene._model
+
+-- instance HasModel (Scenario x) where
+--     _model = lens sceneModel (\s a -> s { sceneModel = a})
+
+-- _scene :: Lens (Scenario x s) (Scenario x s') (Scene s) (Scene s')
+-- _scene = lens scene (\s a -> s { scene = a})
+
+editModel :: (Functor f, HasModel t) => LensLike' f s a -> LensLike' f (t s) (t a)
+editModel l safa s = (\s' -> s & _model .~ s' ) <$> l afa' (s ^. _model)
   where
-    afa' a = model <$> safa (s { model = a})
+    afa' a = (view _model) <$> safa (s & _model .~ a)
 
-editScenePlan :: Functor f => LensLike' f Plan Plan -> LensLike' f (Scene x s) (Scene x s)
-editScenePlan l safa s = (\s' -> s { plan = s'} ) <$> l afa' (plan s)
+editPlan :: (Functor f, HasPlan t) => LensLike' f Plan Plan -> LensLike' f t t
+editPlan l safa s = (\s' -> s & _plan .~ s') <$> l afa' (s ^. _plan)
   where
-    afa' a = plan <$> safa (s { plan = a})
+    afa' a = (view _plan) <$> safa (s & _plan .~ a)
+
+-- editSceneModel :: Functor f => LensLike' f s a -> LensLike' f (Scene s) (Scene a)
+-- editSceneModel l safa s = (\s' -> s { model = s'} ) <$> l afa' (model s)
+--   where
+--     afa' a = model <$> safa (s { model = a})
+
+-- editScenePlan :: Functor f => LensLike' f Plan Plan -> LensLike' f (Scene s) (Scene s)
+-- editScenePlan l safa s = (\s' -> s { plan = s'} ) <$> l afa' (plan s)
+--   where
+--     afa' a = plan <$> safa (s { plan = a})
 
 ----------------------------------------------------------------------------------
 
@@ -242,13 +266,13 @@ editScenePlan l safa s = (\s' -> s { plan = s'} ) <$> l afa' (plan s)
 ----------------------------------------------------------------------------------
 
 -- | post a command to be interpreted at the end of the frame
-post :: (MonadState (Scene x s) m) => DL.DList x -> m ()
-post xs = _commands %= (<> xs)
+post :: (HasCommands c s, MonadState s m) => DL.DList c -> m ()
+post cs = _commands %= (<> cs)
 
-post1 :: (MonadState (Scene x s) m) => x -> m ()
-post1 x = _commands %= (`DL.snoc` x)
+post1 :: (HasCommands c s, MonadState s m) => c -> m ()
+post1 c = _commands %= (`DL.snoc` c)
 
-post1' :: (AsFacet c x, MonadState (Scene x s) m) => c -> m ()
+post1' :: (AsFacet c' c, HasCommands c s, MonadState s m) => c' -> m ()
 post1' = post1 . review facet
 
 ----------------------------------------------------------------------------------
@@ -257,182 +281,178 @@ post1' = post1 . review facet
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Trigger.trigger'
 -- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Trigger.trigger'
 -- will not result in a rerender for the other widget.
-dirty :: MonadState (Scene x s) m => m ()
+dirty :: (HasPlan s, MonadState s m) => m ()
 dirty = _plan._currentFrameNum %= JE.safeModularIncrement
-
--- -- Add an action to run once after the next render
--- addOnceOnUpdated :: MonadState (Scene x s) m => x -> m ()
--- addOnceOnUpdated x = _plan._onceOnUpdated %= (`DL.snoc` x)
-
--- -- Add an action to run after every render
--- addEveryOnUpdated :: MonadState (Scene x s) m => x -> m ()
--- addEveryOnUpdated x = _plan._everyOnUpdated %= (`DL.snoc` x)
-
 
 ----------------------------------------------------------------------------------
 
--- | Magnfiy the reader environment of 'MethodT'
-editMyModel :: Traversal' s a -> ReifiedTraversal' w (Scene x s) -> ReifiedTraversal' w (Scene x a)
-editMyModel l (Traversal t) = Traversal (t . (editSceneModel l))
+editMyModel :: (HasModel t) => Traversal' s a -> ReifiedTraversal' w (t s) -> ReifiedTraversal' w (t a)
+editMyModel l (Traversal t) = Traversal (t . (editModel l))
+-- editMyModel :: Traversal' s a -> ReifiedTraversal' w (Scene s) -> ReifiedTraversal' w (Scene a)
+-- editMyModel l (Traversal t) = Traversal (t . (editSceneModel l))
 
 -- | Using a 'Traversal'' from a bigger plan to a contained plan,
 -- convert a 'Traversal'' from the world to a bigger scene
 -- to a 'Traversal'' from the world to the smaller scene.
-editMyPlan :: Traversal' Plan Plan -> ReifiedTraversal' w (Scene x s) -> ReifiedTraversal' w (Scene x s)
-editMyPlan l (Traversal t) = Traversal (t . (editScenePlan l))
+editMyPlan :: (HasPlan t) => Traversal' Plan Plan -> ReifiedTraversal' w t -> ReifiedTraversal' w t
+editMyPlan l (Traversal t) = Traversal (t . (editPlan l))
 
-enlargeMyModel ::
-    ( Magnify m n (ReifiedTraversal' w (Scene x a)) (ReifiedTraversal' w (Scene x s))
+magnifyMyModel ::
+    ( HasModel t
+    , Magnify m n (ReifiedTraversal' w (t a)) (ReifiedTraversal' w (t s))
     , Contravariant (Magnified m c)
     )
     => Traversal' s a -> m c -> n c
-enlargeMyModel l = magnify (to (editMyModel l))
+magnifyMyModel l = magnify (to (editMyModel l))
 
-enlargeMyPlan ::
-    ( Magnify m n (ReifiedTraversal' w (Scene x s)) (ReifiedTraversal' w (Scene x s))
+magnifyMyPlan ::
+    ( HasPlan t
+    , Magnify m n (ReifiedTraversal' w t) (ReifiedTraversal' w t)
     , Contravariant (Magnified m c)
     )
     => Traversal' Plan Plan -> m c -> n c
-enlargeMyPlan l = magnify (to (editMyPlan l))
+magnifyMyPlan l = magnify (to (editMyPlan l))
 
-enlargeSceneModel ::
-    ( Magnify m n (Scene x a) (Scene x s)
+magnifyModel ::
+    ( HasModel t
+    , Magnify m n (t a) (t s)
     , Functor (Magnified m c)
     )
     => LensLike' (Magnified m c) s a -> m c -> n c
-enlargeSceneModel l = magnify (editSceneModel l)
+magnifyModel l = magnify (editModel l)
 
-enlargeScenePlan ::
-    ( Magnify m n (Scene x s) (Scene x s)
+magnifyPlan ::
+    ( HasPlan t
+    , Magnify m n t t
     , Functor (Magnified m c)
     )
     => LensLike' (Magnified m c) Plan Plan -> m c -> n c
-enlargeScenePlan l = magnify (editScenePlan l)
+magnifyPlan l = magnify (editPlan l)
 
 --------------------------------------
 
-class EnlargeModel c where
-    type WithEnlargedModel c s
-    type EnlargingModel c
-    enlargeModel :: Traversal' s (EnlargingModel c) -> c -> WithEnlargedModel c s
+-- class EnlargeModel c where
+--     type WithEnlargedModel c s
+--     type EnlargingModel c
+--     enlargeModel :: Traversal' s (EnlargingModel c) -> c -> WithEnlargedModel c s
 
-instance EnlargeModel ((->) (ReifiedTraversal' w (Scene x a)) r ) where
-    type WithEnlargedModel ((->) (ReifiedTraversal' w (Scene x a))r ) s = (->) (ReifiedTraversal' w (Scene x s)) r
-    type EnlargingModel ((->) (ReifiedTraversal' w (Scene x a))r ) = a
-    enlargeModel = enlargeMyModel
+-- instance EnlargeModel ((->) (ReifiedTraversal' w (Scene x a)) r ) where
+--     type WithEnlargedModel ((->) (ReifiedTraversal' w (Scene x a))r ) s = (->) (ReifiedTraversal' w (Scene x s)) r
+--     type EnlargingModel ((->) (ReifiedTraversal' w (Scene x a))r ) = a
+--     enlargeModel = enlargeMyModel
 
-instance Monad m => EnlargeModel (ReadersT (ReifiedTraversal' w (Scene x a)) m r) where
-    type WithEnlargedModel (ReadersT (ReifiedTraversal' w (Scene x a)) m r) s = ReadersT (ReifiedTraversal' w (Scene x s)) m r
-    type EnlargingModel (ReadersT (ReifiedTraversal' w (Scene x a)) m r) = a
-    enlargeModel = enlargeMyModel
+-- instance Monad m => EnlargeModel (ReadersT (ReifiedTraversal' w (Scene x a)) m r) where
+--     type WithEnlargedModel (ReadersT (ReifiedTraversal' w (Scene x a)) m r) s = ReadersT (ReifiedTraversal' w (Scene x s)) m r
+--     type EnlargingModel (ReadersT (ReifiedTraversal' w (Scene x a)) m r) = a
+--     enlargeModel = enlargeMyModel
 
-instance Monad m => EnlargeModel (ReaderT (ReifiedTraversal' w (Scene x a)) m r) where
-    type WithEnlargedModel (ReaderT (ReifiedTraversal' w (Scene x a)) m r) s = ReaderT (ReifiedTraversal' w (Scene x s)) m r
-    type EnlargingModel (ReaderT (ReifiedTraversal' w (Scene x a)) m r) = a
-    enlargeModel = enlargeMyModel
+-- instance Monad m => EnlargeModel (ReaderT (ReifiedTraversal' w (Scene x a)) m r) where
+--     type WithEnlargedModel (ReaderT (ReifiedTraversal' w (Scene x a)) m r) s = ReaderT (ReifiedTraversal' w (Scene x s)) m r
+--     type EnlargingModel (ReaderT (ReifiedTraversal' w (Scene x a)) m r) = a
+--     enlargeModel = enlargeMyModel
 
-instance (Monoid u, Monad m) => EnlargeModel (RsS.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) where
-    type WithEnlargedModel (RsS.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) s = RsS.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r
-    type EnlargingModel (RsS.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) = a
-    enlargeModel = enlargeMyModel
+-- instance (Monoid u, Monad m) => EnlargeModel (RsS.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) where
+--     type WithEnlargedModel (RsS.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) s = RsS.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r
+--     type EnlargingModel (RsS.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) = a
+--     enlargeModel = enlargeMyModel
 
-instance (Monoid u, Monad m) => EnlargeModel (RsL.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) where
-    type WithEnlargedModel (RsL.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) s = RsL.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r
-    type EnlargingModel (RsL.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) = a
-    enlargeModel = enlargeMyModel
+-- instance (Monoid u, Monad m) => EnlargeModel (RsL.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) where
+--     type WithEnlargedModel (RsL.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) s = RsL.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r
+--     type EnlargingModel (RsL.RWSsT (ReifiedTraversal' w (Scene x a)) u t m r) = a
+--     enlargeModel = enlargeMyModel
 
-instance (Monoid u, Monad m) => EnlargeModel (RS.RWST (ReifiedTraversal' w (Scene x a)) u t m r) where
-    type WithEnlargedModel (RS.RWST (ReifiedTraversal' w (Scene x a)) u t m r) s = RS.RWST (ReifiedTraversal' w (Scene x s)) u t m r
-    type EnlargingModel (RS.RWST (ReifiedTraversal' w (Scene x a)) u t m r) = a
-    enlargeModel = enlargeMyModel
+-- instance (Monoid u, Monad m) => EnlargeModel (RS.RWST (ReifiedTraversal' w (Scene x a)) u t m r) where
+--     type WithEnlargedModel (RS.RWST (ReifiedTraversal' w (Scene x a)) u t m r) s = RS.RWST (ReifiedTraversal' w (Scene x s)) u t m r
+--     type EnlargingModel (RS.RWST (ReifiedTraversal' w (Scene x a)) u t m r) = a
+--     enlargeModel = enlargeMyModel
 
-instance (Monoid u, Monad m) => EnlargeModel (RL.RWST (ReifiedTraversal' w (Scene x a)) u t m r) where
-    type WithEnlargedModel (RL.RWST (ReifiedTraversal' w (Scene x a)) u t m r) s = RL.RWST (ReifiedTraversal' w (Scene x s)) u t m r
-    type EnlargingModel (RL.RWST (ReifiedTraversal' w (Scene x a)) u t m r) = a
-    enlargeModel = enlargeMyModel
+-- instance (Monoid u, Monad m) => EnlargeModel (RL.RWST (ReifiedTraversal' w (Scene x a)) u t m r) where
+--     type WithEnlargedModel (RL.RWST (ReifiedTraversal' w (Scene x a)) u t m r) s = RL.RWST (ReifiedTraversal' w (Scene x s)) u t m r
+--     type EnlargingModel (RL.RWST (ReifiedTraversal' w (Scene x a)) u t m r) = a
+--     enlargeModel = enlargeMyModel
 
---------------------------------------
+-- --------------------------------------
 
-instance Monoid r => EnlargeModel ((->) (Scene x a) r) where
-    type WithEnlargedModel ((->) (Scene x a) r) s = (->) (Scene x s) r
-    type EnlargingModel ((->) (Scene x a) r) = a
-    enlargeModel = enlargeSceneModel
+-- instance Monoid r => EnlargeModel ((->) (Scene x a) r) where
+--     type WithEnlargedModel ((->) (Scene x a) r) s = (->) (Scene x s) r
+--     type EnlargingModel ((->) (Scene x a) r) = a
+--     enlargeModel = enlargeSceneModel
 
-instance (Monoid r, Monad m) => EnlargeModel (ReadersT (Scene x a) m r) where
-    type WithEnlargedModel (ReadersT (Scene x a) m r) s = ReadersT (Scene x s) m r
-    type EnlargingModel (ReadersT (Scene x a) m r) = a
-    enlargeModel = enlargeSceneModel
+-- instance (Monoid r, Monad m) => EnlargeModel (ReadersT (Scene x a) m r) where
+--     type WithEnlargedModel (ReadersT (Scene x a) m r) s = ReadersT (Scene x s) m r
+--     type EnlargingModel (ReadersT (Scene x a) m r) = a
+--     enlargeModel = enlargeSceneModel
 
-instance (Monoid r, Monad m) => EnlargeModel (ReaderT (Scene x a) m r) where
-    type WithEnlargedModel (ReaderT (Scene x a) m r) s = ReaderT (Scene x s) m r
-    type EnlargingModel (ReaderT (Scene x a) m r) = a
-    enlargeModel = enlargeSceneModel
+-- instance (Monoid r, Monad m) => EnlargeModel (ReaderT (Scene x a) m r) where
+--     type WithEnlargedModel (ReaderT (Scene x a) m r) s = ReaderT (Scene x s) m r
+--     type EnlargingModel (ReaderT (Scene x a) m r) = a
+--     enlargeModel = enlargeSceneModel
 
-instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RsS.RWSsT (Scene x a) u t m r) where
-    type WithEnlargedModel (RsS.RWSsT (Scene x a) u t m r) s = RsS.RWSsT (Scene x s) u t m r
-    type EnlargingModel (RsS.RWSsT (Scene x a) u t m r) = a
-    enlargeModel = enlargeSceneModel
+-- instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RsS.RWSsT (Scene x a) u t m r) where
+--     type WithEnlargedModel (RsS.RWSsT (Scene x a) u t m r) s = RsS.RWSsT (Scene x s) u t m r
+--     type EnlargingModel (RsS.RWSsT (Scene x a) u t m r) = a
+--     enlargeModel = enlargeSceneModel
 
-instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RsL.RWSsT (Scene x a) u t m r) where
-    type WithEnlargedModel (RsL.RWSsT (Scene x a) u t m r) s = RsL.RWSsT (Scene x s) u t m r
-    type EnlargingModel (RsL.RWSsT (Scene x a) u t m r) = a
-    enlargeModel = enlargeSceneModel
+-- instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RsL.RWSsT (Scene x a) u t m r) where
+--     type WithEnlargedModel (RsL.RWSsT (Scene x a) u t m r) s = RsL.RWSsT (Scene x s) u t m r
+--     type EnlargingModel (RsL.RWSsT (Scene x a) u t m r) = a
+--     enlargeModel = enlargeSceneModel
 
-instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RS.RWST (Scene x a) u t m r) where
-    type WithEnlargedModel (RS.RWST (Scene x a) u t m r) s = RS.RWST (Scene x s) u t m r
-    type EnlargingModel (RS.RWST (Scene x a) u t m r) = a
-    enlargeModel = enlargeSceneModel
+-- instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RS.RWST (Scene x a) u t m r) where
+--     type WithEnlargedModel (RS.RWST (Scene x a) u t m r) s = RS.RWST (Scene x s) u t m r
+--     type EnlargingModel (RS.RWST (Scene x a) u t m r) = a
+--     enlargeModel = enlargeSceneModel
 
-instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RL.RWST (Scene x a) u t m r) where
-    type WithEnlargedModel (RL.RWST (Scene x a) u t m r) s = RL.RWST (Scene x s) u t m r
-    type EnlargingModel (RL.RWST (Scene x a) u t m r) = a
-    enlargeModel = enlargeSceneModel
+-- instance (Monoid r, Monoid u, Monad m) => EnlargeModel (RL.RWST (Scene x a) u t m r) where
+--     type WithEnlargedModel (RL.RWST (Scene x a) u t m r) s = RL.RWST (Scene x s) u t m r
+--     type EnlargingModel (RL.RWST (Scene x a) u t m r) = a
+--     enlargeModel = enlargeSceneModel
 
---------------------------------------
+-- --------------------------------------
 
-class EnlargePlan c where
-    enlargePlan :: Traversal' Plan Plan -> c -> c
+-- class EnlargePlan c where
+--     enlargePlan :: Traversal' Plan Plan -> c -> c
 
-instance EnlargePlan ((->) (ReifiedTraversal' w (Scene x s)) r) where
-    enlargePlan = enlargeMyPlan
+-- instance EnlargePlan ((->) (ReifiedTraversal' w (Scene x s)) r) where
+--     enlargePlan = enlargeMyPlan
 
-instance Monad m => EnlargePlan (ReadersT (ReifiedTraversal' w (Scene x s)) m r) where
-    enlargePlan = enlargeMyPlan
+-- instance Monad m => EnlargePlan (ReadersT (ReifiedTraversal' w (Scene x s)) m r) where
+--     enlargePlan = enlargeMyPlan
 
-instance Monad m => EnlargePlan (ReaderT (ReifiedTraversal' w (Scene x s)) m r) where
-    enlargePlan = enlargeMyPlan
+-- instance Monad m => EnlargePlan (ReaderT (ReifiedTraversal' w (Scene x s)) m r) where
+--     enlargePlan = enlargeMyPlan
 
-instance (Monoid u, Monad m) => EnlargePlan (RsS.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r) where
-    enlargePlan = enlargeMyPlan
+-- instance (Monoid u, Monad m) => EnlargePlan (RsS.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r) where
+--     enlargePlan = enlargeMyPlan
 
-instance (Monoid u, Monad m) => EnlargePlan (RsL.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r) where
-    enlargePlan = enlargeMyPlan
+-- instance (Monoid u, Monad m) => EnlargePlan (RsL.RWSsT (ReifiedTraversal' w (Scene x s)) u t m r) where
+--     enlargePlan = enlargeMyPlan
 
-instance (Monoid u, Monad m) => EnlargePlan (RS.RWST (ReifiedTraversal' w (Scene x s)) u t m r) where
-    enlargePlan = enlargeMyPlan
+-- instance (Monoid u, Monad m) => EnlargePlan (RS.RWST (ReifiedTraversal' w (Scene x s)) u t m r) where
+--     enlargePlan = enlargeMyPlan
 
-instance (Monoid u, Monad m)  => EnlargePlan (RL.RWST (ReifiedTraversal' w (Scene x s)) u t m r) where
-    enlargePlan = enlargeMyPlan
+-- instance (Monoid u, Monad m)  => EnlargePlan (RL.RWST (ReifiedTraversal' w (Scene x s)) u t m r) where
+--     enlargePlan = enlargeMyPlan
 
---------------------------------------
+-- --------------------------------------
 
-instance Monoid r => EnlargePlan ((->) (Scene x s) r) where
-    enlargePlan = enlargeScenePlan
+-- instance Monoid r => EnlargePlan ((->) (Scene x s) r) where
+--     enlargePlan = enlargeScenePlan
 
-instance (Monoid r, Monad m) => EnlargePlan (ReadersT (Scene x s) m r) where
-    enlargePlan = enlargeScenePlan
+-- instance (Monoid r, Monad m) => EnlargePlan (ReadersT (Scene x s) m r) where
+--     enlargePlan = enlargeScenePlan
 
-instance (Monoid r, Monad m) => EnlargePlan (ReaderT (Scene x s) m r) where
-    enlargePlan = enlargeScenePlan
+-- instance (Monoid r, Monad m) => EnlargePlan (ReaderT (Scene x s) m r) where
+--     enlargePlan = enlargeScenePlan
 
-instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RsS.RWSsT (Scene x s) u t m r) where
-    enlargePlan = enlargeScenePlan
+-- instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RsS.RWSsT (Scene x s) u t m r) where
+--     enlargePlan = enlargeScenePlan
 
-instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RsL.RWSsT (Scene x s) u t m r) where
-    enlargePlan = enlargeScenePlan
+-- instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RsL.RWSsT (Scene x s) u t m r) where
+--     enlargePlan = enlargeScenePlan
 
-instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RS.RWST (Scene x s) u t m r) where
-    enlargePlan = enlargeScenePlan
+-- instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RS.RWST (Scene x s) u t m r) where
+--     enlargePlan = enlargeScenePlan
 
-instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RL.RWST (Scene x s) u t m r) where
-    enlargePlan = enlargeScenePlan
+-- instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RL.RWST (Scene x s) u t m r) where
+--     enlargePlan = enlargeScenePlan

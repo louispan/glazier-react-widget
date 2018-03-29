@@ -31,6 +31,7 @@ import Data.Proxy
 import Data.Semigroup
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
+import qualified GHCJS.Foreign.Export as J
 import Glazier.React
 import Glazier.React.Framework.MkId
 import Glazier.React.Framework.Reactor
@@ -113,48 +114,48 @@ runAction world frame action = do
 -- instance (AsFacet a (Wack Wock)) => AsFacet a Wock where
 --     facet = iso unWock Wock . facet
 
--- Create a executor for all the core commands required by the framework
-execReactor :: forall t c r m.
-    ( MonadIO m
-    , MonadReader r m
-    , AsFacet Rerender c
-    , AsFacet (MkCallback1 c t) c
-    , AsFacet (MkEveryOnUpdatedCallback c t) c
-    , AsFacet (MkOnceOnUpdatedCallback c t) c
-    , AsFacet (MkShimListeners c t) c
-    , AsFacet (ForkSTMAction c t) c
-    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
-    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
-    , HasItem' (TMVar (Scenario c t)) r
-    , HasItem' (TVar (Scene t)) r
-    )
-    => Proxy t -> (m () -> r -> IO ()) -> (DL.DList c -> m ()) -> c -> m ()
-execReactor _ runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec execRerender c
-    <|> maybeExec @(MkCallback1 c t) (execMkCallback1 runExec exec) c
-    <|> maybeExec @(MkEveryOnUpdatedCallback c t) execEveryOnUpdatedCallback c
-    <|> maybeExec @(MkOnceOnUpdatedCallback c t) execOnceOnUpdatedCallback c
-    <|> maybeExec @(MkShimListeners c t) (execMkShimListeners runExec exec) c
-    <|> maybeExec @(ForkSTMAction c t) (execForkSTMAction runExec exec) c
+-- -- Create a executor for all the core commands required by the framework
+-- execReactor :: forall t c r m.
+--     ( MonadIO m
+--     , MonadReader r m
+--     , AsFacet (Rerender c) c
+--     , AsFacet (MkCallback1 c t) c
+--     , AsFacet (MkEveryOnUpdatedCallback c t) c
+--     , AsFacet (MkOnceOnUpdatedCallback c t) c
+--     , AsFacet (MkShimListeners c t) c
+--     , AsFacet (ForkSTMAction c t) c
+--     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
+--     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
+--     , HasItem' (TMVar (Scenario c t)) r
+--     , HasItem' (TVar (Scene t)) r
+--     )
+--     => Proxy t -> (m () -> r -> IO ()) -> (DL.DList c -> m ()) -> c -> m ()
+-- execReactor _ runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
+--     maybeExec execRerender c
+--     <|> maybeExec @(MkCallback1 c t) (execMkCallback1 runExec exec) c
+--     <|> maybeExec @(MkEveryOnUpdatedCallback c t) execEveryOnUpdatedCallback c
+--     <|> maybeExec @(MkOnceOnUpdatedCallback c t) execOnceOnUpdatedCallback c
+--     <|> maybeExec @(MkShimListeners c t) (execMkShimListeners runExec exec) c
+--     <|> maybeExec @(ForkSTMAction c t) (execForkSTMAction runExec exec) c
 
--- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
--- NB. This tied executor *only* runs the Reactor effects.
-reactorExecutor :: forall t c r m.
-    ( MonadIO m
-    , MonadReader r m
-    , AsFacet Rerender c
-    , AsFacet (MkCallback1 c t) c
-    , AsFacet (MkEveryOnUpdatedCallback c t) c
-    , AsFacet (MkOnceOnUpdatedCallback c t) c
-    , AsFacet (MkShimListeners c t) c
-    , AsFacet (ForkSTMAction c t) c
-    , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
-    , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
-    , HasItem' (TMVar (Scenario c t)) r
-    , HasItem' (TVar (Scene t)) r
-    )
-    => Proxy t -> (m () -> r -> IO ()) -> c -> m ()
-reactorExecutor p runExec c = execReactor p runExec (traverse_ (reactorExecutor p runExec)) c
+-- -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
+-- -- NB. This tied executor *only* runs the Reactor effects.
+-- reactorExecutor :: forall t c r m.
+--     ( MonadIO m
+--     , MonadReader r m
+--     , AsFacet (Rerender c) c
+--     , AsFacet (MkCallback1 c t) c
+--     , AsFacet (MkEveryOnUpdatedCallback c t) c
+--     , AsFacet (MkOnceOnUpdatedCallback c t) c
+--     , AsFacet (MkShimListeners c t) c
+--     , AsFacet (ForkSTMAction c t) c
+--     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
+--     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
+--     , HasItem' (TMVar (Scenario c t)) r
+--     , HasItem' (TVar (Scene t)) r
+--     )
+--     => Proxy t -> (m () -> r -> IO ()) -> c -> m ()
+-- reactorExecutor p runExec c = execReactor p runExec (traverse_ (reactorExecutor p runExec)) c
 
 -----------------------------------------------------------------
 
@@ -162,9 +163,11 @@ execRerender ::
     ( MonadIO m
     )
     => Rerender -> m ()
-execRerender (Rerender j i) = do
-    liftIO $ js_setComponentStates (JE.fromProperties [("frameNum", JE.toJSR i)]) j
-    pure mempty
+execRerender (Rerender j p) = liftIO $ do
+    -- This export is automatically cleaned up in ShimComponent
+    -- react lifecycle handling.
+    x <- J.export p
+    js_setShimComponentFrame j x
 
 -----------------------------------------------------------------
 
@@ -305,12 +308,12 @@ execForkSTMAction runExec exec (ForkSTMAction m k) = do
 #ifdef __GHCJS__
 
 foreign import javascript unsafe
-  "if ($2 && $2['setStates']) { $2['setStates']($1); }"
-  js_setComponentStates :: JO.Object -> ComponentRef -> IO ()
+  "if ($1 && $1['setFrame']) { $1['setFrame']($2); }"
+  js_setShimComponentFrame :: ComponentRef -> J.Export a -> IO ()
 
 #else
 
-js_setComponentStates :: JO.Object -> ComponentRef -> IO ()
-js_setComponentStates _ _ = pure ()
+js_setShimComponentFrame :: ComponentRef -> J.Export a -> IO ()
+js_setShimComponentFrame _ _ = pure ()
 
 #endif

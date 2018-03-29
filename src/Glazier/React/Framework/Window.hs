@@ -15,8 +15,7 @@ import Glazier.React.Framework.MkId
 import Glazier.React.Framework.Scene
 import qualified JavaScript.Extras as JE
 
-type WindowT s m = WindowT' (Scene s) m
-
+type WindowT s m = RWSsT (Scene s) () (DL.DList ReactMarkup) m
 type Window s = WindowT s Identity
 
 
@@ -42,19 +41,19 @@ bh' gid n props childs = do
     ls <- view (_plan._gizmos.ix gid._listeners)
     branch ls n props childs
 
--- | Use this to create a display for a top level 'Gadget'
--- Eg. the result of a 'Widget' that has the Window rendering function
--- inserted into 'Glazier.React.Framework.Core.Widget.MkShimListeners'.
-shimWindow :: Window s ()
-shimWindow = do
-    ls <- view (_plan._shimListeners)
-    case ls of
-        Nothing -> pure ()
-        Just (ShimListeners renderCb updatedCb refCb) ->
-            -- These are the callbacks on the 'ShimComponent'
-            -- See jsbits/react.js
-            leaf [] shimComponent
-                [ ("render", JE.toJSR renderCb)
-                , ("updated", JE.toJSR updatedCb)
-                , ("ref", JE.toJSR refCb)
-                ]
+-- -- | Use this to create a display for a top level 'Gadget'
+-- -- Eg. the result of a 'Widget' that has the Window rendering function
+-- -- inserted into 'Glazier.React.Framework.Core.Widget.MkShimListeners'.
+-- shimWindow :: Window s ()
+-- shimWindow = do
+--     ls <- view (_plan._shimListeners)
+--     case ls of
+--         Nothing -> pure ()
+--         Just (ShimListeners renderCb updatedCb refCb) ->
+--             -- These are the callbacks on the 'ShimComponent'
+--             -- See jsbits/react.js
+--             leaf [] shimComponent
+--                 [ ("render", JE.toJSR renderCb)
+--                 , ("updated", JE.toJSR updatedCb)
+--                 , ("ref", JE.toJSR refCb)
+--                 ]

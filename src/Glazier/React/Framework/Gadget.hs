@@ -22,8 +22,9 @@ import Glazier.React.Framework.Scene
 -- @s@ actual model of widget
 -- @m@ inner monad
 -- @a@ return of monad
-type GadgetT c t s m = ReadersT (ReifiedTraversal' (Scenario c t) (Scenario c s)) (ContsT () (StatesT (Scenario c t) m))
-type Gadget c t s = GadgetT c t s Identity
+
+type GadgetT c p s m = ReadersT (Obj' c p s) (ContsT () (StatesT (Scenario c p) m))
+type Gadget c p s = GadgetT c p s Identity
 
 -- pattern Method' :: ((a -> m ()) -> m ()) -> DelegateT m a
 -- pattern Method' f = DelegateT (ContT f)
@@ -46,11 +47,11 @@ type Gadget c t s = GadgetT c t s Identity
 -- gadgetT f = readersT (\r -> MContT (f (runTraversal r)))
 
 gadgetT ::
-    (Traversal' (Scenario c t) (Scenario c s)
-    -> (a -> StatesT (Scenario c t) m ())
-    -> StatesT (Scenario c t) m ())
-    -> GadgetT c t s m a
-gadgetT f = readersT (\r -> contsT (f (runTraversal r)))
+    (Obj' c p s
+        -> (a -> StatesT (Scenario c p) m ())
+        -> StatesT (Scenario c p) m ())
+    -> GadgetT c p s m a
+gadgetT f = readersT (\r -> contsT (f r))
 
 -- runGadgetT ::
 --     GadgetT w x s m a
@@ -61,10 +62,10 @@ gadgetT f = readersT (\r -> contsT (f (runTraversal r)))
 -- runGadgetT x l = runMContT (runReadersT x (Traversal l))
 
 runGadgetT ::
-    GadgetT c t s m a
-    -> Traversal' (Scenario c t) (Scenario c s)
-    -> (a -> StatesT (Scenario c t) m ())
-    -> StatesT (Scenario c t) m ()
-runGadgetT x l = runContsT (runReadersT x (Traversal l))
+    GadgetT c p s m a
+    -> Obj' c p s
+    -> (a -> StatesT (Scenario c p) m ())
+    -> StatesT (Scenario c p) m ()
+runGadgetT x l = runContsT (runReadersT x l)
 
 

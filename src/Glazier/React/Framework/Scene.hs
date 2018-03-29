@@ -19,6 +19,7 @@
 
 module Glazier.React.Framework.Scene where
 
+import Control.Concurrent.STM
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
@@ -30,6 +31,7 @@ import Data.Maybe
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
+import Glazier.Core.Obj
 import Glazier.React
 import Glazier.React.Framework.MkId
 import qualified JavaScript.Extras as JE
@@ -155,9 +157,6 @@ newPlan i = Plan
     Nothing
     0
     0
-    -- mempty
-    -- mempty
-    -- mempty
     mempty
     mempty
     mempty
@@ -266,14 +265,20 @@ editPlan l safa s = (\s' -> s & _plan .~ s') <$> l afa' (s ^. _plan)
 ----------------------------------------------------------------------------------
 
 -- | post a command to be interpreted at the end of the frame
-post :: (HasCommands c s, MonadState s m) => DL.DList c -> m ()
-post cs = _commands %= (<> cs)
+-- post :: (HasCommands c s, MonadState s m) => DL.DList c -> m ()
+-- post cs = _commands %= (<> cs)
 
-post1 :: (HasCommands c s, MonadState s m) => c -> m ()
-post1 c = _commands %= (`DL.snoc` c)
+-- post1 :: (HasCommands c s, MonadState s m) => c -> m ()
+-- post1 c = _commands %= (`DL.snoc` c)
 
-post1' :: (AsFacet c' c, HasCommands c s, MonadState s m) => c' -> m ()
-post1' = post1 . review facet
+post1 :: (AsFacet c' c, HasCommands c s, MonadState s m) => c' -> m ()
+post1 c = _commands %= (`DL.snoc` (review facet c))
+
+-- | Useful for avoiding type annotations for higher order commands with
+-- a type variable to @c@
+post1' :: (AsFacet (c' c) c, HasCommands c s, MonadState s m) => c' c -> m ()
+post1' = post1
+
 
 ----------------------------------------------------------------------------------
 
@@ -286,47 +291,67 @@ dirty = _plan._currentFrameNum %= JE.safeModularIncrement
 
 ----------------------------------------------------------------------------------
 
-editMyModel :: (HasModel t) => Traversal' s a -> ReifiedTraversal' w (t s) -> ReifiedTraversal' w (t a)
-editMyModel l (Traversal t) = Traversal (t . (editModel l))
--- editMyModel :: Traversal' s a -> ReifiedTraversal' w (Scene s) -> ReifiedTraversal' w (Scene a)
--- editMyModel l (Traversal t) = Traversal (t . (editSceneModel l))
+-- editMyModel :: (HasModel s) => Traversal' b a -> Traversal' p (s b) -> Traversal' p (s a)
+-- editMyModel l t = t . (editModel l)
 
 -- | Using a 'Traversal'' from a bigger plan to a contained plan,
 -- convert a 'Traversal'' from the world to a bigger scene
 -- to a 'Traversal'' from the world to the smaller scene.
-editMyPlan :: (HasPlan t) => Traversal' Plan Plan -> ReifiedTraversal' w t -> ReifiedTraversal' w t
-editMyPlan l (Traversal t) = Traversal (t . (editPlan l))
+-- editMyPlan :: (HasPlan s) => Traversal' Plan Plan -> Traversal' p s -> Traversal' p s
+-- editMyPlan l t = t . (editPlan l)
 
-magnifyMyModel ::
-    ( HasModel t
-    , Magnify m n (ReifiedTraversal' w (t a)) (ReifiedTraversal' w (t s))
-    , Contravariant (Magnified m c)
-    )
-    => Traversal' s a -> m c -> n c
-magnifyMyModel l = magnify (to (editMyModel l))
+type Obj' c p s = Obj TVar (Scenario c p) (Scenario c s)
 
-magnifyMyPlan ::
-    ( HasPlan t
-    , Magnify m n (ReifiedTraversal' w t) (ReifiedTraversal' w t)
-    , Contravariant (Magnified m c)
+accessObjModel :: Traversal' b a -> Obj' c p b -> Obj' c p a
+accessObjModel l = access (editModel l)
+
+accessObjPlan :: Traversal' Plan Plan -> Obj' c p s -> Obj' c p s
+accessObjPlan l = access (editPlan l)
+
+-- magnifyMyModel ::
+--     ( HasModel s
+--     , Magnify m n (ReifiedTraversal' w (s a)) (ReifiedTraversal' w (s b))
+--     , Contravariant (Magnified m r)
+--     )
+--     => Traversal' s a -> m r -> n r
+-- magnifyMyModel l = magnify (to (editMyModel l))
+
+-- magnifyMyPlan ::
+--     ( HasPlan s
+--     , Magnify m n (ReifiedTraversal' w s) (ReifiedTraversal' w s)
+--     , Contravariant (Magnified m r)
+--     )
+--     => Traversal' Plan Plan -> m r -> n r
+-- magnifyMyPlan l = magnify (to (editMyPlan l))
+
+magnifyObjModel ::
+    ( Magnify m n (Obj' c p a) (Obj' c p b)
+    , Contravariant (Magnified m r)
     )
-    => Traversal' Plan Plan -> m c -> n c
-magnifyMyPlan l = magnify (to (editMyPlan l))
+    => Traversal' b a -> m r -> n r
+magnifyObjModel l = magnify (to (accessObjModel l))
+
+magnifyObjPlan ::
+    ( Magnify m n (Obj' c p a) (Obj' c p a)
+    , Contravariant (Magnified m r)
+    )
+    => Traversal' Plan Plan -> m r -> n r
+magnifyObjPlan l = magnify (to (accessObjPlan l))
 
 magnifyModel ::
-    ( HasModel t
-    , Magnify m n (t a) (t s)
-    , Functor (Magnified m c)
+    ( HasModel s
+    , Magnify m n (s a) (s b)
+    , Functor (Magnified m r)
     )
-    => LensLike' (Magnified m c) s a -> m c -> n c
+    => LensLike' (Magnified m r) b a -> m r -> n r
 magnifyModel l = magnify (editModel l)
 
 magnifyPlan ::
-    ( HasPlan t
-    , Magnify m n t t
-    , Functor (Magnified m c)
+    ( HasPlan s
+    , Magnify m n s s
+    , Functor (Magnified m r)
     )
-    => LensLike' (Magnified m c) Plan Plan -> m c -> n c
+    => LensLike' (Magnified m r) Plan Plan -> m r -> n r
 magnifyPlan l = magnify (editPlan l)
 
 --------------------------------------

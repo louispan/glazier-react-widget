@@ -22,7 +22,7 @@ focusRef gid = do
     t <- preuse (_plan._gizmos.ix gid._targetRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> post1' (Focus t')
+        Just t' -> post1 (Focus t')
 
 data Blur = Blur EventTarget
 
@@ -37,4 +37,4 @@ blurRef gid = do
     t <- preuse (_plan._gizmos.ix gid._targetRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> post1' (Blur t')
+        Just t' -> post1 (Blur t')

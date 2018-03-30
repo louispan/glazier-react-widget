@@ -88,6 +88,7 @@ import qualified JavaScript.Extras as JE
 
 
 -- | Interactivity for a particular DOM element.
+-- type Listener = (J.JSString, J.Callback (J.JSVal -> IO ()))
 data Gizmo = Gizmo
     { targetRef :: Maybe EventTarget
     , listeners :: DL.DList Listener
@@ -103,8 +104,8 @@ newGizmo = Gizmo Nothing mempty
 
 data ShimListeners = ShimListeners
     -- render function of the ReactComponent
-    { onRender :: J.Callback (IO J.JSVal)
-    -- Run the on updated handlers below
+    { onRender :: J.Callback (J.JSVal -> IO J.JSVal)
+    -- Run the doOnUpdated in the plan
     , onUpdated :: J.Callback (IO ())
     -- updates the componenRef
     , onRef :: J.Callback (J.JSVal -> IO ())
@@ -119,10 +120,10 @@ instance CD.Dispose ShimListeners where
 data Plan = Plan
     -- Plan rquires planId for 'Glazier.React.Framework.Reactor.MkOnceOnUpdatedCallback'
     -- and 'Glazier.React.Framework.Reactor.MkEveryOnUpdatedCallback'
-    { planId :: PlanId
+    -- { planId :: PlanId
     -- a react "ref" to the javascript instance of ReactComponent
     -- so that react "componentRef.setState()" can be called.
-    , componentRef :: Maybe ComponentRef
+    { componentRef :: Maybe ComponentRef
     , shimListeners :: Maybe ShimListeners
     -- This is the previous "react state"
     , previousFrameNum :: Int
@@ -134,6 +135,7 @@ data Plan = Plan
       -- cannot be hidden inside afterOnUpdated, as this also needs to be used
       -- when finalizing
     -- , disposeOnRemoved :: CD.Disposable
+    , doOnUpdated :: IO ()
     --  Things to dispose on updated
     , disposeOnUpdated :: CD.Disposable
     -- interactivity data for child DOM elements
@@ -150,13 +152,13 @@ instance CD.Dispose Plan where
         <> (foldMap CD.dispose (gizmos pln))
         <> (foldMap CD.dispose (plans pln))
 
-newPlan :: PlanId -> Plan
-newPlan i = Plan
-    i
+newPlan :: Plan
+newPlan = Plan
     Nothing
     Nothing
     0
     0
+    (pure ())
     mempty
     mempty
     mempty

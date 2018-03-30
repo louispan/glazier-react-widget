@@ -68,64 +68,33 @@ rerender = do
         _ -> pure ()
 
 -----------------------------------------------------------------
-
--- | Creates a callback that is injected into the engine processing:
--- * DOM listener is generated
--- * The strict part of the callback is invoked
--- * If the result is nothing, finish
--- * Else, world state ('Scene' without 'commands', ie treating commands like Writer)
---  is retrieved from a ref
--- * The provided traversal is used to zoom the state
--- * If the state is Nothing, finish
--- * Else, the lazy part of the callback (ie the bind function for the state monad)
--- is invoked with the result from the strict callback,
--- using the state retrieved with 'commands' set to memtpy.
--- * The state ref is updated with the changed state.
--- * The 'commands' of the state is collected.
--- * Each of the 'commands' is processed, which may further modify the state.
---
--- After creating the above callback, re-run the monad
--- (getting the state from the ref, etc)
--- using the last continuation arg
--- THen save the state back into the ref + command processing
-data MkCallback1 c p where
+data MkCallback1 c where
     MkCallback1 :: NFData a
-        => (JE.JSRep -> IO (Maybe a))
-        -> (a -> States (Scenario c p) ())
-        -> (J.Callback (J.JSVal -> IO ()) -> States (Scenario c p) ())
-        -> MkCallback1 c p
+        => TVar Plan
+        -> TVar s
+        -> (JE.JSRep -> IO (Maybe a))
+        -> (a -> States (Scenario c s) ())
+        -> (J.Callback (J.JSVal -> IO ()) -> States (Scenario c s) ())
+        -> MkCallback1 c
+
+data MkTick c where
+    MkTick ::
+        TVar Plan
+        -> TVar s
+        -> (States (Scenario c s) ())
+        -> (IO () -> States (Scenario c s) ())
+        -> MkTick c
 
 -----------------------------------------------------------------
-
--- | The engine should use the given id and add the stateful action @next@
--- to the onUpdated callback of the react component.
--- That is the engine should store a map of state actions for this react component in a var.
--- Then the onUpdated callback of a react component can:
--- read the var to get the currently stored state action for this react component
--- read the current state from the var
--- apply the stored state actions to the state
--- clear the stored state actions
--- save the new state
--- process any commands generated.
-data MkOnceOnUpdatedCallback c t =
-    MkOnceOnUpdatedCallback PlanId (States (Scenario c t) ())
-
------------------------------------------------------------------
-
--- | Similar to 'MkOnceOnUpdatedCallback' except the state action
--- gets added to a separate map which doesn't get cleared.
-data MkEveryOnUpdatedCallback c t =
-    MkEveryOnUpdatedCallback PlanId (States (Scenario c t) ())
 
 -- | Make the ShimListeners for this 'Plan' 'ShimListeners' using the given
 -- 'Window' rendering function.
 -- The original window should be dropped and the 'Widget' reduced to just a
 -- 'Gadget' to emphasis the fact that the 'Window' was used.
-data MkShimListeners c t = MkShimListeners
-    PlanId
-    (ReifiedTraversal' (Scenario c t) Plan)
-    (Window t ())
-
--- | Spawn a thread to run the stm until it succeeds
-data ForkSTMAction c t where
-    ForkSTMAction :: STM a -> (a -> States (Scenario c t) ()) -> ForkSTMAction c t
+data MkShimListeners where
+    MkShimListeners ::
+        Typeable s
+        => TVar Plan
+        -> TVar s
+        -> (Window s ())
+        -> MkShimListeners

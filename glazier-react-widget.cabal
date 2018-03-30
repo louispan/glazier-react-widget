@@ -22,6 +22,7 @@ library
                        Glazier.React.Framework.MkId.Internal
                        Glazier.React.Framework.Reactor
                        Glazier.React.Framework.Reactor.Exec
+                       Glazier.React.Framework.Obj
                        Glazier.React.Framework.Scene
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget
@@ -52,7 +53,7 @@ library
                      , dlist >= 0.8
                     --  , esoteric-extras >= 0.0.1
                     --  , generic-lens >= 0.5.1.0
-                     , glazier >= 1.0
+                    --  , glazier >= 1.0
                      , glazier-react >= 0.7
                      , javascript-extras >= 0.4.0.0
                      , lens >= 4

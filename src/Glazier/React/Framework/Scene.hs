@@ -31,9 +31,9 @@ import Data.Maybe
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
-import Glazier.Core.Obj
 import Glazier.React
 import Glazier.React.Framework.MkId
+import Glazier.React.Framework.Obj
 import qualified JavaScript.Extras as JE
 
 -- In order to remove effects we need to change to use State monad
@@ -282,13 +282,6 @@ post1' = post1
 
 ----------------------------------------------------------------------------------
 
--- Marks the current widget as dirty, and rerender is required
--- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Trigger.trigger'
--- This means calling 'dirty' on other widgets from a different widget's 'Glazier.React.Framework.Trigger.trigger'
--- will not result in a rerender for the other widget.
-dirty :: (HasPlan s, MonadState s m) => m ()
-dirty = _plan._currentFrameNum %= JE.safeModularIncrement
-
 ----------------------------------------------------------------------------------
 
 -- editMyModel :: (HasModel s) => Traversal' b a -> Traversal' p (s b) -> Traversal' p (s a)
@@ -300,13 +293,34 @@ dirty = _plan._currentFrameNum %= JE.safeModularIncrement
 -- editMyPlan :: (HasPlan s) => Traversal' Plan Plan -> Traversal' p s -> Traversal' p s
 -- editMyPlan l t = t . (editPlan l)
 
-type Obj' c p s = Obj TVar (Scenario c p) (Scenario c s)
+type ModelObj p s = Obj TVar p s
 
-accessObjModel :: Traversal' b a -> Obj' c p b -> Obj' c p a
-accessObjModel l = access (editModel l)
+class HasModelObj p c | c -> p where
+    _modelObj :: Lens (c s) (c s') (ModelObj p s) (ModelObj p s')
 
-accessObjPlan :: Traversal' Plan Plan -> Obj' c p s -> Obj' c p s
-accessObjPlan l = access (editPlan l)
+data SceneObj p s =  SceneObj
+    { scenePlanObj :: Obj TVar Plan Plan
+    , sceneModelObj :: Obj TVar p s
+    } deriving (G.Generic)
+
+instance HasModelObj p (SceneObj p)  where
+    _modelObj = lens sceneModelObj (\s a -> s { sceneModelObj = a})
+
+type PlanObj = Obj TVar Plan Plan
+
+class HasPlanObj c where
+    _planObj :: Lens' c PlanObj
+
+instance HasPlanObj (SceneObj p s)  where
+    _planObj = lens scenePlanObj (\s a -> s { scenePlanObj = a})
+
+-- type Obj' c p s = Obj TVar (Scenario c p) (Scenario c s)
+
+-- accessObjModel :: Traversal' b a -> Obj' c p b -> Obj' c p a
+-- accessObjModel l = access (editModel l)
+
+-- accessObjPlan :: Traversal' Plan Plan -> Obj' c p s -> Obj' c p s
+-- accessObjPlan l = access (editPlan l)
 
 -- magnifyMyModel ::
 --     ( HasModel s
@@ -324,19 +338,33 @@ accessObjPlan l = access (editPlan l)
 --     => Traversal' Plan Plan -> m r -> n r
 -- magnifyMyPlan l = magnify (to (editMyPlan l))
 
+-- magnifyObjModel ::
+--     ( Magnify m n (ModelObj p a) (ModelObj p b)
+--     , Contravariant (Magnified m r)
+--     )
+--     => Traversal' b a -> m r -> n r
+-- magnifyObjModel l = magnify (to (access l))
+
 magnifyObjModel ::
-    ( Magnify m n (Obj' c p a) (Obj' c p b)
+    ( Magnify m n (SceneObj p a) (SceneObj p b)
     , Contravariant (Magnified m r)
     )
     => Traversal' b a -> m r -> n r
-magnifyObjModel l = magnify (to (accessObjModel l))
+magnifyObjModel l = magnify (to (_modelObj %~ access l))
+
+-- magnifyObjPlan ::
+--     ( Magnify m n (Obj' c p a) (Obj' c p a)
+--     , Contravariant (Magnified m r)
+--     )
+--     => Traversal' Plan Plan -> m r -> n r
+-- magnifyObjPlan l = magnify (to (accessObjPlan l))
 
 magnifyObjPlan ::
-    ( Magnify m n (Obj' c p a) (Obj' c p a)
+    ( Magnify m n (SceneObj p a) (SceneObj p a)
     , Contravariant (Magnified m r)
     )
     => Traversal' Plan Plan -> m r -> n r
-magnifyObjPlan l = magnify (to (accessObjPlan l))
+magnifyObjPlan l = magnify (to (_planObj %~ access l))
 
 magnifyModel ::
     ( HasModel s

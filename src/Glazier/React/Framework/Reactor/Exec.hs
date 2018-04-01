@@ -170,28 +170,27 @@ tickState planVar modelVar tick = do
 
 -----------------------------------------------------------------
 
--- execMkCallback1 ::
---     ( MonadIO m
---     )
---     => (m () -> IO ())
---     -> (DL.DList c -> m ())
---     -> MkCallback1 c
---     -> m ()
--- execMkCallback1 runExec exec (MkCallback1 planVar modelVar goStrict goLazy k) = do
---     let f = handleEventM goStrict goLazy'
---         goLazy' ma = case ma of
---             -- trigger didn't produce anything useful
---             Nothing -> pure mempty
---             -- run state action using mvar
---             Just a -> do
---                 -- Apply to result to the world state, and execute any produced commands
---                 xs <- atomically $ tickState planVar modelVar (goLazy a)
---                 runExec (exec xs)
---     -- Apply to result to the continuation, and execute any produced commands
---     xs <- liftIO $ do
---         cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
---         atomically $ tickState planVar modelVar (k cb)
---     exec xs
+execMkTick1 ::
+    ( MonadIO m
+    )
+    => (m () -> IO ())
+    -> (DL.DList c -> m ())
+    -> MkTick1 c
+    -> m ()
+execMkTick1 runExec exec (MkTick1 planVar modelVar goStrict goLazy k) = do
+    -- create the IO action to run given the runExec and exec
+    let f = handleEventM goStrict goLazy'
+        goLazy' ma = case ma of
+            -- trigger didn't produce anything useful
+            Nothing -> pure mempty
+            -- run state action using mvar
+            Just a -> do
+                -- Apply to result to the world state, and execute any produced commands
+                xs <- atomically $ tickState planVar modelVar (goLazy a)
+                runExec (exec xs)
+    -- Apply to result to the continuation, and execute any produced commands
+    xs <- liftIO $ atomically $ tickState planVar modelVar (k f)
+    exec xs
 
 execMkTick ::
     ( MonadIO m
@@ -201,12 +200,12 @@ execMkTick ::
     -> MkTick c
     -> m ()
 execMkTick runExec exec (MkTick planVar modelVar tick k) = do
+    -- create the IO action to run given the runExec and exec
     let f = do
             xs <- atomically $ tickState planVar modelVar tick
             runExec (exec xs)
     -- Apply to result to the continuation, and execute any produced commands
-    xs <- liftIO $ do
-        atomically $ tickState planVar modelVar (k f)
+    xs <- liftIO $ atomically $ tickState planVar modelVar (k f)
     exec xs
 
 
@@ -260,7 +259,7 @@ execMkShimListeners (MkShimListeners planVar modelVar rndr) = do
                 hdl <- atomically $ do
                         pln <- readTVar planVar
                         pure $ view (_gizmos.ix gid._listeners.ix n) pln
-                hdl j
+                hdl (JE.JSRep j)
 
 
     renderCb <- liftIO $ J.syncCallback1' doRender

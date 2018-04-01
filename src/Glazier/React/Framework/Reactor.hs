@@ -74,7 +74,7 @@ data MkTick1 c where
         -> TVar s
         -> (JE.JSRep -> IO (Maybe a))
         -> (a -> States (Scenario c s) ())
-        -> ((J.JSVal -> IO ()) -> States (Scenario c s) ())
+        -> ((JE.JSRep -> IO ()) -> States (Scenario c s) ())
         -> MkTick1 c
 
 data MkTick c where

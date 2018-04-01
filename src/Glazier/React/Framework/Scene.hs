@@ -91,7 +91,7 @@ import qualified JavaScript.Extras as JE
 data Gizmo = Gizmo
     { targetRef :: Maybe EventTarget
     -- (name of event, context of event)
-    , listeners :: M.Map J.JSString (J.JSVal -> IO ())
+    , listeners :: M.Map J.JSString (JE.JSRep -> IO ())
     } deriving (G.Generic)
 
 makeLenses_ ''Gizmo

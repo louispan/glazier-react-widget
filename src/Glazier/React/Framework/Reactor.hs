@@ -68,14 +68,14 @@ rerender = do
         _ -> pure ()
 
 -----------------------------------------------------------------
-data MkCallback1 c where
-    MkCallback1 :: NFData a
+data MkTick1 c where
+    MkTick1 :: NFData a
         => TVar Plan
         -> TVar s
         -> (JE.JSRep -> IO (Maybe a))
         -> (a -> States (Scenario c s) ())
-        -> (J.Callback (J.JSVal -> IO ()) -> States (Scenario c s) ())
-        -> MkCallback1 c
+        -> ((J.JSVal -> IO ()) -> States (Scenario c s) ())
+        -> MkTick1 c
 
 data MkTick c where
     MkTick ::

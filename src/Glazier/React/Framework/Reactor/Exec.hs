@@ -35,9 +35,11 @@ import qualified GHCJS.Foreign.Export as J
 import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.MkId
+import Glazier.React.Framework.MkId.Internal
 import Glazier.React.Framework.Reactor
 import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
+import qualified JavaScript.Array as JA
 import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 import Unsafe.Coerce
@@ -168,28 +170,28 @@ tickState planVar modelVar tick = do
 
 -----------------------------------------------------------------
 
-execMkCallback1 ::
-    ( MonadIO m
-    )
-    => (m () -> IO ())
-    -> (DL.DList c -> m ())
-    -> MkCallback1 c
-    -> m ()
-execMkCallback1 runExec exec (MkCallback1 planVar modelVar goStrict goLazy k) = do
-    let f = handleEventM goStrict goLazy'
-        goLazy' ma = case ma of
-            -- trigger didn't produce anything useful
-            Nothing -> pure mempty
-            -- run state action using mvar
-            Just a -> do
-                -- Apply to result to the world state, and execute any produced commands
-                xs <- atomically $ tickState planVar modelVar (goLazy a)
-                runExec (exec xs)
-    -- Apply to result to the continuation, and execute any produced commands
-    xs <- liftIO $ do
-        cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
-        atomically $ tickState planVar modelVar (k cb)
-    exec xs
+-- execMkCallback1 ::
+--     ( MonadIO m
+--     )
+--     => (m () -> IO ())
+--     -> (DL.DList c -> m ())
+--     -> MkCallback1 c
+--     -> m ()
+-- execMkCallback1 runExec exec (MkCallback1 planVar modelVar goStrict goLazy k) = do
+--     let f = handleEventM goStrict goLazy'
+--         goLazy' ma = case ma of
+--             -- trigger didn't produce anything useful
+--             Nothing -> pure mempty
+--             -- run state action using mvar
+--             Just a -> do
+--                 -- Apply to result to the world state, and execute any produced commands
+--                 xs <- atomically $ tickState planVar modelVar (goLazy a)
+--                 runExec (exec xs)
+--     -- Apply to result to the continuation, and execute any produced commands
+--     xs <- liftIO $ do
+--         cb <- J.syncCallback1 J.ContinueAsync (f . JE.JSRep)
+--         atomically $ tickState planVar modelVar (k cb)
+--     exec xs
 
 execMkTick ::
     ( MonadIO m
@@ -244,10 +246,27 @@ execMkShimListeners (MkShimListeners planVar modelVar rndr) = do
             let (mrkup, _) = execRWSs rndr s mempty
             JE.toJS <$> toElement mrkup
         doRef j = atomically $ modifyTVar' planVar (_componentRef .~ JE.fromJS j)
-        doUpdated = join (atomically $ doOnUpdated <$> readTVar planVar)
+        doUpdated = join . atomically $ doOnUpdated <$> readTVar planVar
+        doListener ctx j = void $ runMaybeT $ do
+            (gid, n) <- MaybeT $ pure $ do
+                ctx' <- JE.fromJS ctx
+                case JA.toList ctx' of
+                        [gid', n'] -> do
+                            gid'' <- GizmoId <$> JE.fromJS gid'
+                            n'' <- JE.fromJS n'
+                            Just (gid'', n'')
+                        _ -> Nothing
+            lift $ do
+                hdl <- atomically $ do
+                        pln <- readTVar planVar
+                        pure $ view (_gizmos.ix gid._listeners.ix n) pln
+                hdl j
+
+
     renderCb <- liftIO $ J.syncCallback1' doRender
     refCb <- liftIO $ J.syncCallback1 J.ContinueAsync doRef
     updatedCb <- liftIO $ J.syncCallback J.ContinueAsync doUpdated
+    listenerCb <- liftIO $ J.syncCallback2 J.ContinueAsync doListener
     liftIO $ atomically $ do
         pln <- readTVar planVar
         let ls = pln ^. _shimListeners
@@ -255,7 +274,7 @@ execMkShimListeners (MkShimListeners planVar modelVar rndr) = do
             -- shim listeners already created
             Just _ -> pure ()
             Nothing -> writeTVar planVar $ pln & _shimListeners .~
-                (Just $ ShimListeners renderCb updatedCb refCb)
+                (Just $ ShimListeners renderCb updatedCb refCb listenerCb)
 
 
 #ifdef __GHCJS__

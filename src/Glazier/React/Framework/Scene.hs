@@ -86,18 +86,15 @@ import qualified JavaScript.Extras as JE
 --   - run commands, retrying forever the ones that fail.
 --   - command transactions should be small if possible
 
-
 -- | Interactivity for a particular DOM element.
 -- type Listener = (J.JSString, J.Callback (J.JSVal -> IO ()))
 data Gizmo = Gizmo
     { targetRef :: Maybe EventTarget
-    , listeners :: DL.DList Listener
+    -- (name of event, context of event)
+    , listeners :: M.Map J.JSString (J.JSVal -> IO ())
     } deriving (G.Generic)
 
 makeLenses_ ''Gizmo
-
-instance CD.Dispose Gizmo where
-    dispose (Gizmo _ ls) = foldMap (CD.dispose . snd) ls
 
 newGizmo :: Gizmo
 newGizmo = Gizmo Nothing mempty
@@ -109,12 +106,15 @@ data ShimListeners = ShimListeners
     , onUpdated :: J.Callback (IO ())
     -- updates the componenRef
     , onRef :: J.Callback (J.JSVal -> IO ())
+    -- all listeners use the same entry function, just a different
+    -- first arg context.
+    , onListener :: J.Callback (J.JSVal -> J.JSVal -> IO ())
     } deriving (G.Generic)
 
 makeLenses_ ''ShimListeners
 
 instance CD.Dispose ShimListeners where
-    dispose (ShimListeners a b c) = CD.dispose a <> CD.dispose b <> CD.dispose c
+    dispose (ShimListeners a b c d) = CD.dispose a <> CD.dispose b <> CD.dispose c <> CD.dispose d
 
 -- | Interactivity data for a react component
 data Plan = Plan
@@ -149,7 +149,6 @@ makeLenses_ ''Plan
 instance CD.Dispose Plan where
     dispose pln = fromMaybe mempty (CD.dispose <$> (shimListeners pln))
         <> (disposeOnUpdated pln)
-        <> (foldMap CD.dispose (gizmos pln))
         <> (foldMap CD.dispose (plans pln))
 
 newPlan :: Plan
@@ -511,3 +510,13 @@ magnifyPlan l = magnify (editPlan l)
 
 -- instance (Monoid r, Monoid u, Monad m) => EnlargePlan (RL.RWST (Scene x s) u t m r) where
 --     enlargePlan = enlargeScenePlan
+
+
+-- | converts a list of (JSString, Listener) to properties
+-- by binding the listener context, and combining the callbacks
+-- with the same name
+-- listenerProperties :: [(J.JSString, Listener)] -> [JE.Property]
+-- listenerProperties ls = M.toList $ M.fromListWith js_combineFunction1 ls'
+--   where
+--     ls' = fmap bindListenerContext <$> ls
+

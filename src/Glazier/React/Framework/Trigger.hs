@@ -84,20 +84,29 @@ mkTick1_ l gid n goStrict goLazy extra = do
         post1' cmd
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
--- trigger' ::
---     ( AsFacet (MkCallback1 c t) c
---     , AsFacet Rerender c
---     )
---     => GizmoId
---     -> J.JSString
---     -> b
---     -> Gadget c t s b
--- trigger' gid n b = do
---     Traversal my <- ask
---     -- Add a rerender for this widget at the every end
---     mkTick1' gid n (const $ pure (Just ())) (const $ pure b) (zoom my rerender)
+trigger' ::
+    ( Typeable p
+    , AsFacet Rerender c
+    , AsFacet (MkTick1 c) c
+    )
+    => GizmoId
+    -> J.JSString
+    -> b
+    -> Gadget c p s b
+trigger' = trigger'_ _listeners
 
-trigger_ ::
+triggerOnce' ::
+    ( Typeable p
+    , AsFacet Rerender c
+    , AsFacet (MkTick1 c) c
+    )
+    => GizmoId
+    -> J.JSString
+    -> b
+    -> Gadget c p s b
+triggerOnce' = trigger'_ _oncelisteners
+
+trigger'_ ::
     ( Typeable p
     , AsFacet Rerender c
     , AsFacet (MkTick1 c) c
@@ -107,43 +116,71 @@ trigger_ ::
     -> J.JSString
     -> b
     -> Gadget c p s b
-trigger_ l gid n b = do
+trigger'_ l gid n b = do
     SceneObj planObj _ <- ask
     -- Add a rerender for this widget at the every end
     mkTick1_ l gid n (const $ pure (Just ())) (const $ pure b) (zoom (editPlan (my planObj)) rerender)
 
--- -- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
--- -- Also adds a 'Rerender' command at the end of the callback
--- trigger ::
---     ( NFData a
---     , AsFacet (MkCallback1 c t) c
---     , AsFacet Rerender c
---     )
---     => GizmoId
---     -> J.JSString
---     -> (Notice -> IO a)
---     -> (a -> States (Scenario c t) b)
---     -> Gadget c t s b
--- trigger gid n goStrict goLazy = do
---     Traversal my <- ask
---     -- Add a rerender for this widget at the every end
---     mkListener gid n goStrict' goLazy (zoom my rerender)
---   where
---     goStrict' e = case JE.fromJSR e of
---         Nothing -> pure Nothing
---         Just e' -> Just <$> goStrict e'
+-- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
+-- Also adds a 'Rerender' command at the end of the callback
+trigger ::
+    ( NFData a
+    , Typeable p
+    , AsFacet Rerender c
+    , AsFacet (MkTick1 c) c
+    )
+    => GizmoId
+    -> J.JSString
+    -> (Notice -> IO a)
+    -> (a -> States (Scenario c p) b)
+    -> Gadget c p s b
+trigger = trigger_ _listeners
 
--- -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
--- -- gizmo in the plan
--- withRef ::
---         ( AsFacet (MkCallback1 c t) c
---         )
---         => GizmoId
---         -> Gadget c t s ()
--- withRef gid = do
---     Traversal my <- ask
---     mkListener gid "ref" (pure . Just) (hdlRef my) (pure ())
---   where
---     hdlRef my j = let evt = JE.fromJSR j
---                in my._plan._gizmos.ix gid._targetRef .= evt
+triggerOnce ::
+    ( NFData a
+    , Typeable p
+    , AsFacet Rerender c
+    , AsFacet (MkTick1 c) c
+    )
+    => GizmoId
+    -> J.JSString
+    -> (Notice -> IO a)
+    -> (a -> States (Scenario c p) b)
+    -> Gadget c p s b
+triggerOnce = trigger_ _oncelisteners
+
+trigger_ ::
+    ( NFData a
+    , Typeable p
+    , AsFacet Rerender c
+    , AsFacet (MkTick1 c) c
+    )
+    => Lens' Gizmo (M.Map J.JSString (JE.JSRep -> IO ()))
+    -> GizmoId
+    -> J.JSString
+    -> (Notice -> IO a)
+    -> (a -> States (Scenario c p) b)
+    -> Gadget c p s b
+trigger_ l gid n goStrict goLazy = do
+    SceneObj planObj _ <- ask
+    -- Add a rerender for this widget at the every end
+    mkTick1_ l gid n goStrict' goLazy (zoom (editPlan (my planObj)) rerender)
+  where
+    goStrict' e = case JE.fromJSR e of
+        Nothing -> pure Nothing
+        Just e' -> Just <$> goStrict e'
+
+-- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
+-- gizmo in the plan
+withRef ::
+        ( AsFacet (MkTick1 c) c
+        )
+        => GizmoId
+        -> Gadget c t s ()
+withRef gid = do
+    SceneObj planObj _ <- ask
+    mkTick1 gid "ref" (pure . Just) (zoom (editPlan (my planObj)) . hdlRef) (pure ())
+  where
+    hdlRef j = let evt = JE.fromJSR j
+               in _plan._gizmos.ix gid._targetRef .= evt
 

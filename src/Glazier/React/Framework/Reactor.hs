@@ -87,14 +87,14 @@ data MkTick c where
 
 -----------------------------------------------------------------
 
--- | Make the ShimListeners for this 'Plan' 'ShimListeners' using the given
+-- | Make the 'ShimCallbacks' for this 'Plan' using the given
 -- 'Window' rendering function.
 -- The original window should be dropped and the 'Widget' reduced to just a
 -- 'Gadget' to emphasis the fact that the 'Window' was used.
-data MkShimListeners where
-    MkShimListeners ::
+data MkShimCallbacks where
+    MkShimCallbacks ::
         Typeable s
         => TVar Plan
         -> TVar s
         -> (Window s ())
-        -> MkShimListeners
+        -> MkShimCallbacks

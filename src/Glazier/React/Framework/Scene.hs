@@ -92,14 +92,15 @@ data Gizmo = Gizmo
     { targetRef :: Maybe EventTarget
     -- (name of event, context of event)
     , listeners :: M.Map J.JSString (JE.JSRep -> IO ())
+    , oncelisteners :: M.Map J.JSString (JE.JSRep -> IO ())
     } deriving (G.Generic)
 
 makeLenses_ ''Gizmo
 
 newGizmo :: Gizmo
-newGizmo = Gizmo Nothing mempty
+newGizmo = Gizmo Nothing mempty mempty
 
-data ShimListeners = ShimListeners
+data ShimCallbacks = ShimCallbacks
     -- render function of the ReactComponent
     { onRender :: J.Callback (J.JSVal -> IO J.JSVal)
     -- Run the doOnUpdated in the plan
@@ -108,13 +109,13 @@ data ShimListeners = ShimListeners
     , onRef :: J.Callback (J.JSVal -> IO ())
     -- all listeners use the same entry function, just a different
     -- first arg context.
-    , onListener :: J.Callback (J.JSVal -> J.JSVal -> IO ())
+    , onListen :: J.Callback (J.JSVal -> J.JSVal -> IO ())
     } deriving (G.Generic)
 
-makeLenses_ ''ShimListeners
+makeLenses_ ''ShimCallbacks
 
-instance CD.Dispose ShimListeners where
-    dispose (ShimListeners a b c d) = CD.dispose a <> CD.dispose b <> CD.dispose c <> CD.dispose d
+instance CD.Dispose ShimCallbacks where
+    dispose (ShimCallbacks a b c d) = CD.dispose a <> CD.dispose b <> CD.dispose c <> CD.dispose d
 
 -- | Interactivity data for a react component
 data Plan = Plan
@@ -124,7 +125,7 @@ data Plan = Plan
     -- a react "ref" to the javascript instance of ReactComponent
     -- so that react "componentRef.setState()" can be called.
     { componentRef :: Maybe ComponentRef
-    , shimListeners :: Maybe ShimListeners
+    , shimCallbacks :: Maybe ShimCallbacks
     -- This is the previous "react state"
     , previousFrameNum :: Int
     -- This the current "react state".
@@ -135,6 +136,7 @@ data Plan = Plan
       -- cannot be hidden inside afterOnUpdated, as this also needs to be used
       -- when finalizing
     -- , disposeOnRemoved :: CD.Disposable
+    , doOnceOnUpdated :: IO ()
     , doOnUpdated :: IO ()
     --  Things to dispose on updated
     , disposeOnUpdated :: CD.Disposable
@@ -147,7 +149,7 @@ data Plan = Plan
 makeLenses_ ''Plan
 
 instance CD.Dispose Plan where
-    dispose pln = fromMaybe mempty (CD.dispose <$> (shimListeners pln))
+    dispose pln = fromMaybe mempty (CD.dispose <$> (shimCallbacks pln))
         <> (disposeOnUpdated pln)
         <> (foldMap CD.dispose (plans pln))
 
@@ -157,7 +159,8 @@ newPlan = Plan
     Nothing
     0
     0
-    (pure ())
+    mempty
+    mempty
     mempty
     mempty
     mempty

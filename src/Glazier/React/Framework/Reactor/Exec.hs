@@ -224,12 +224,12 @@ execRerender (Rerender j p) = liftIO $ do
 -----------------------------------------------------------------
 
 -- | Making multiple MkShimListeners for the same plan is a silent error and will be ignored.
-execMkShimListeners ::
+execMkShimCallbacks ::
     ( MonadIO m
     )
-    => MkShimListeners
+    => MkShimCallbacks
     -> m ()
-execMkShimListeners (MkShimListeners planVar modelVar rndr) = do
+execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
     -- For efficiency, render uses the state exported into ShimComponent
     let doRender x = do
             -- unfortunately, GHCJS base doesn't provide a way to convert JSVal to Export
@@ -245,8 +245,14 @@ execMkShimListeners (MkShimListeners planVar modelVar rndr) = do
             let (mrkup, _) = execRWSs rndr s mempty
             JE.toJS <$> toElement mrkup
         doRef j = atomically $ modifyTVar' planVar (_componentRef .~ JE.fromJS j)
-        doUpdated = join . atomically $ doOnUpdated <$> readTVar planVar
-        doListener ctx j = void $ runMaybeT $ do
+        doUpdated = join . atomically $ do
+            pln <- readTVar planVar
+
+            let x = doOnceOnUpdated pln
+                y = doOnUpdated pln
+            writeTVar planVar (pln & _doOnceOnUpdated .~ mempty)
+            pure (x *> y)
+        doListen ctx j = void $ runMaybeT $ do
             (gid, n) <- MaybeT $ pure $ do
                 ctx' <- JE.fromJS ctx
                 case JA.toList ctx' of
@@ -258,22 +264,28 @@ execMkShimListeners (MkShimListeners planVar modelVar rndr) = do
             lift $ do
                 hdl <- atomically $ do
                         pln <- readTVar planVar
-                        pure $ view (_gizmos.ix gid._listeners.ix n) pln
+                        let ((x, y), pln') = pln & (_gizmos.ix gid) go
+                            go giz =
+                                let (x, giz') = giz & (_oncelisteners.ix n) <<.~ mempty
+                                    y = view (_listeners.ix n) giz
+                                in ((x, y), giz')
+                        writeTVar planVar pln'
+                        pure (x *> y)
                 hdl (JE.JSRep j)
 
 
     renderCb <- liftIO $ J.syncCallback1' doRender
     refCb <- liftIO $ J.syncCallback1 J.ContinueAsync doRef
     updatedCb <- liftIO $ J.syncCallback J.ContinueAsync doUpdated
-    listenerCb <- liftIO $ J.syncCallback2 J.ContinueAsync doListener
+    listenCb <- liftIO $ J.syncCallback2 J.ContinueAsync doListen
     liftIO $ atomically $ do
         pln <- readTVar planVar
-        let ls = pln ^. _shimListeners
+        let ls = pln ^. _shimCallbacks
         case ls of
             -- shim listeners already created
             Just _ -> pure ()
-            Nothing -> writeTVar planVar $ pln & _shimListeners .~
-                (Just $ ShimListeners renderCb updatedCb refCb listenerCb)
+            Nothing -> writeTVar planVar $ pln & _shimCallbacks .~
+                (Just $ ShimCallbacks renderCb updatedCb refCb listenCb)
 
 
 #ifdef __GHCJS__

@@ -30,7 +30,7 @@ type Window s = WindowT s Identity
 
 getListeners :: GizmoId -> Window s [JE.Property]
 getListeners gid = do
-    cb <- preview (_plan._shimListeners._Just._onListener)
+    cb <- preview (_plan._shimCallbacks._Just._onListen)
     case cb of
         Nothing -> pure mempty
         Just cb' -> do
@@ -64,10 +64,10 @@ bh' gid n props childs = do
 -- inserted into 'Glazier.React.Framework.Core.Widget.MkShimListeners'.
 shimWindow :: Window s ()
 shimWindow = do
-    ls <- view (_plan._shimListeners)
+    ls <- view (_plan._shimCallbacks)
     case ls of
         Nothing -> pure ()
-        Just (ShimListeners renderCb updatedCb refCb _) ->
+        Just (ShimCallbacks renderCb updatedCb refCb _) ->
             -- These are the callbacks on the 'ShimComponent'
             -- See jsbits/react.js
             leaf shimComponent

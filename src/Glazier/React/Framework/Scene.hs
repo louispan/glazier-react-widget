@@ -167,7 +167,7 @@ newPlan = Plan
 
 
 -- | A 'Scene' contains interactivity data for all widgets as well as the model data.
-data Scene s =  Scene
+data Scene s = Scene
     -- commands could be in a writer monad, but then you can't get
     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
     { scenePlan :: Plan

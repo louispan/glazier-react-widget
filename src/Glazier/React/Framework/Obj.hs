@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -10,14 +9,17 @@ import Control.Lens
 import GHC.Generics
 
 -- | naming convention:
--- foo this@(Obj self my) = do -- or use RecordWildcards
---     me <- readIORef self
+-- foo this@(Obj refer my) = do -- or use RecordWildcards
+--     me <- readIORef refer
 --     writeIORef ref (me & my.bar .~ 5)
 --     doSomethingElseWith this
-data Obj ref parent a = Obj { self :: ref parent, my :: Traversal' parent a }
+data Obj ref parent a = Obj { refer :: ref parent, my :: Traversal' parent a }
 
--- data Obj ref f parent a = Obj { self :: ref parent, my :: LensLike' f parent a }
---     deriving (Generic)
+_refer :: Lens' (Obj ref parent a) (ref parent)
+_refer = lens refer (\s a -> s { refer = a})
+
+_my :: Lens' (Obj ref parent a) (ReifiedTraversal' parent a)
+_my = lens (\(Obj _ a) -> Traversal a) (\s (Traversal a) -> s { my = a})
 
 -- | Tip: This can be used to 'magnify' 'MonadReader' with
 -- @magnify ('to' ('access' theLens)) theReader@
@@ -52,7 +54,7 @@ instance Generic (Obj ref p a) where
                 'True)
             (S1
                 ('MetaSel
-                    ('Just "this")
+                    ('Just "refer")
                     'NoSourceUnpackedness
                     'NoSourceStrictness
                     'DecidedLazy)

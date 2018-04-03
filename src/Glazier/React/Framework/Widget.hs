@@ -17,6 +17,7 @@
 
 module Glazier.React.Framework.Widget where
 
+import Control.Concurrent.STM
 import Control.Lens
 import Data.Semigroup
 import qualified GHC.Generics as G
@@ -70,8 +71,8 @@ enlargeModel :: Traversal' s' s -> Widget c p s a -> Widget c p s' a
 enlargeModel l (Widget disp ini) = Widget (magnifyModel l disp) (magnifyObjModel l ini)
 --     enlargeModel l (Widget disp ini) = Widget (enlargeModel l disp) (enlargeModel l ini)
 
-enlargePlan :: Traversal' Plan Plan -> Widget c p s a -> Widget c p s a
-enlargePlan l (Widget disp ini) = Widget (magnifyPlan l disp) (magnifyObjPlan l ini)
+-- enlargePlan :: Traversal' (TVar Plan) (TVar Plan) -> Widget c p s a -> Widget c p s a
+-- enlargePlan l (Widget disp ini) = Widget disp (magnifyObjPlan l ini)
 
 -- -- | Wrap a gadget inside another 'ShimComponent' with its own 'Plan'
 -- -- This results in a 'Widget' that can be composed with other 'Widgets'

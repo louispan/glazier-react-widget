@@ -10,6 +10,14 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Framework.Trigger where
+    -- ( mkTick1
+    -- , mkTick1Once
+    -- , trigger
+    -- , triggerOnce
+    -- , trigger'
+    -- , triggerOnce'
+    -- , withRef
+    -- ) where
 
 import Control.DeepSeq
 import Control.Lens
@@ -18,7 +26,6 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Conts
 import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
-import qualified Data.DList as DL
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Typeable
@@ -50,7 +57,7 @@ mkTick1 ::
     -> Gadget c p s b
 mkTick1 = mkTick1_ _listeners
 
-mkOnceTick1 ::
+mkTick1Once ::
     ( NFData a
     , AsFacet (MkTick1 c) c
     )
@@ -60,7 +67,7 @@ mkOnceTick1 ::
     -> (a -> States (Scenario c p) b)
     -> States (Scenario c p) ()
     -> Gadget c p s b
-mkOnceTick1 = mkTick1_ _oncelisteners
+mkTick1Once = mkTick1_ _oncelisteners
 
 mkTick1_ ::
     ( NFData a
@@ -74,13 +81,13 @@ mkTick1_ ::
     -> States (Scenario c p) ()
     -> Gadget c p s b
 mkTick1_ l gid n goStrict goLazy extra = do
-    SceneObj planObj modelObj <- ask
+    SceneObj pln mdl <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
         let goLazy' a = (goLazy a >>= fire) *> extra
-            cmd = MkTick1 (refer planObj) (refer modelObj) goStrict goLazy' $ \tick -> do
+            cmd = MkTick1 pln (ref mdl) goStrict goLazy' $ \tick -> do
                 let addListener = l.at n %~ (Just . (*> tick) . fromMaybe mempty)
-                _plan.my planObj._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
+                _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
         post1' cmd
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
@@ -116,10 +123,9 @@ trigger'_ ::
     -> J.JSString
     -> b
     -> Gadget c p s b
-trigger'_ l gid n b = do
-    SceneObj planObj _ <- ask
+trigger'_ l gid n b =
     -- Add a rerender for this widget at the every end
-    mkTick1_ l gid n (const $ pure (Just ())) (const $ pure b) (zoom (editPlan (my planObj)) rerender)
+    mkTick1_ l gid n (const $ pure (Just ())) (const $ pure b) rerender
 
 -- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
 -- Also adds a 'Rerender' command at the end of the callback
@@ -161,10 +167,9 @@ trigger_ ::
     -> (Notice -> IO a)
     -> (a -> States (Scenario c p) b)
     -> Gadget c p s b
-trigger_ l gid n goStrict goLazy = do
-    SceneObj planObj _ <- ask
+trigger_ l gid n goStrict goLazy =
     -- Add a rerender for this widget at the every end
-    mkTick1_ l gid n goStrict' goLazy (zoom (editPlan (my planObj)) rerender)
+    mkTick1_ l gid n goStrict' goLazy rerender
   where
     goStrict' e = case JE.fromJSR e of
         Nothing -> pure Nothing
@@ -177,10 +182,9 @@ withRef ::
         )
         => GizmoId
         -> Gadget c t s ()
-withRef gid = do
-    SceneObj planObj _ <- ask
-    mkTick1 gid "ref" (pure . Just) (zoom (editPlan (my planObj)) . hdlRef) (pure ())
+withRef gid =
+    mkTick1 gid "ref" (pure . Just) hdlRef (pure ())
   where
     hdlRef j = let evt = JE.fromJSR j
-               in _plan._gizmos.ix gid._targetRef .= evt
+               in _scene._plan._gizmos.ix gid._targetRef .= evt
 

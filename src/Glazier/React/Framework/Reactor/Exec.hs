@@ -93,7 +93,7 @@ disposableWorld world = do
     evalStatesT planDisposables t
   where
     planDisposables :: Monad m => StatesT (Scenario c t) m CD.Disposable
-    planDisposables = CD.dispose <$> use _plan
+    planDisposables = CD.dispose <$> use (_scene._plan)
 
 -- | Upate the world 'TMVar' and backbuffer 'TVar' with a given action, and return the commands produced.
 runAction :: TMVar (Scenario c t) -> TVar (Scene t) -> States (Scenario c t) () -> STM (DL.DList c)

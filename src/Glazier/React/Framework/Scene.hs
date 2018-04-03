@@ -143,7 +143,7 @@ data Plan = Plan
     -- interactivity data for child DOM elements
     , gizmos :: M.Map GizmoId Gizmo
     -- interactivity data for child react components
-    , plans :: M.Map PlanId Plan
+    , plans :: M.Map PlanId (TVar Plan)
     } deriving (G.Generic)
 
 makeLenses_ ''Plan
@@ -170,33 +170,34 @@ newPlan = Plan
 data Scene s = Scene
     -- commands could be in a writer monad, but then you can't get
     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
-    { scenePlan :: Plan
-    , sceneModel :: s
+    { plan :: Plan
+    , model :: s
     } deriving (G.Generic)
 
--- _model :: Lens (Scene s) (Scene s') s s'
--- _model = lens model (\s a -> s { model = a})
+_model :: Lens (Scene s) (Scene s') s s'
+_model = lens model (\s a -> s { model = a})
 
-class HasModel t where
-    _model :: Lens (t s) (t s') s s'
+_plan :: Lens' (Scene s) Plan
+_plan = lens plan (\s a -> s { plan = a})
 
-instance HasModel Scene where
-    _model = lens sceneModel (\s a -> s { sceneModel = a})
+-- class HasModel t where
+--     _model :: Lens (t s) (t s') s s'
 
--- _plan :: Lens' (Scene s) Plan
--- _plan = lens plan (\s a -> s { plan = a})
+-- instance HasModel Scene where
+--     _model = lens sceneModel (\s a -> s { sceneModel = a})
 
-class HasPlan t where
-    _plan :: Lens' t Plan
 
-instance HasPlan (Scene s) where
-    _plan = lens scenePlan (\s a -> s { scenePlan = a })
+-- class HasPlan t where
+--     _plan :: Lens' t Plan
 
-class HasScene t where
-    _scene :: Lens (t s) (t s') (Scene s) (Scene s')
+-- instance HasPlan (Scene s) where
+--     _plan = lens scenePlan (\s a -> s { scenePlan = a })
 
-instance HasScene Scene where
-    _scene = id
+-- class HasScene t where
+--     _scene :: Lens (t s) (t s') (Scene s) (Scene s')
+
+-- instance HasScene Scene where
+--     _scene = id
 
 -- | A 'Scene' contains interactivity data for all widgets as well as the model data.
 data Scenario c s = Scenario
@@ -206,39 +207,45 @@ data Scenario c s = Scenario
     , scene :: Scene s
     } deriving (G.Generic)
 
--- _commands :: Lens' (Scenario x s) (DL.DList x)
--- _commands = lens commands (\s a -> s { commands = a})
+_commands :: Lens' (Scenario c s) (DL.DList c)
+_commands = lens commands (\s a -> s { commands = a})
 
-class HasCommands c t | t -> c where
-    _commands :: Lens' t (DL.DList c)
+_scene :: Lens (Scenario x s) (Scenario x s') (Scene s) (Scene s')
+_scene = lens scene (\s a -> s { scene = a})
 
-instance HasCommands c (Scenario c s) where
-    _commands = lens commands (\s a -> s { commands = a})
+-- class HasCommands c t | t -> c where
+--     _commands :: Lens' t (DL.DList c)
 
-instance HasScene (Scenario c) where
-    _scene = lens scene (\s a -> s { scene = a})
+-- instance HasCommands c (Scenario c s) where
+--     _commands = lens commands (\s a -> s { commands = a})
 
-instance HasPlan (Scenario c s) where
-    _plan = _scene._plan
+-- instance HasScene (Scenario c) where
+--     _scene = lens scene (\s a -> s { scene = a})
 
-instance HasModel (Scenario c) where
-    _model = _scene._model
+-- instance HasPlan (Scenario c s) where
+--     _plan = _scene._plan
+
+-- instance HasModel (Scenario c) where
+--     _model = _scene._model
 
 -- instance HasModel (Scenario x) where
 --     _model = lens sceneModel (\s a -> s { sceneModel = a})
 
--- _scene :: Lens (Scenario x s) (Scenario x s') (Scene s) (Scene s')
--- _scene = lens scene (\s a -> s { scene = a})
-
-editModel :: (Functor f, HasModel t) => LensLike' f s a -> LensLike' f (t s) (t a)
-editModel l safa s = (\s' -> s & _model .~ s' ) <$> l afa' (s ^. _model)
+editSceneModel :: (Functor f) => LensLike' f s a -> LensLike' f (Scene s) (Scene a)
+editSceneModel l safa s = (\s' -> s & _model .~ s' ) <$> l afa' (s ^. _model)
   where
     afa' a = (view _model) <$> safa (s & _model .~ a)
 
-editPlan :: (Functor f, HasPlan t) => LensLike' f Plan Plan -> LensLike' f t t
-editPlan l safa s = (\s' -> s & _plan .~ s') <$> l afa' (s ^. _plan)
+editScenarioModel :: (Functor f) => LensLike' f s a -> LensLike' f (Scenario c s) (Scenario c a)
+editScenarioModel l safa s = (\s' -> s & _scene._model .~ s' ) <$> l afa' (s ^. _scene._model)
   where
-    afa' a = (view _plan) <$> safa (s & _plan .~ a)
+    afa' a = (view (_scene._model)) <$> safa (s & _scene._model .~ a)
+
+
+-- editPlan :: (Functor f, HasPlan t) => LensLike' f Plan Plan -> LensLike' f t t
+-- editPlan l safa s = (\s' -> s & _plan .~ s') <$> l afa' (s ^. _plan)
+--   where
+--     afa' a = (view _plan) <$> safa (s & _plan .~ a)
 
 -- editSceneModel :: Functor f => LensLike' f s a -> LensLike' f (Scene s) (Scene a)
 -- editSceneModel l safa s = (\s' -> s { model = s'} ) <$> l afa' (model s)
@@ -275,12 +282,12 @@ editPlan l safa s = (\s' -> s & _plan .~ s') <$> l afa' (s ^. _plan)
 -- post1 :: (HasCommands c s, MonadState s m) => c -> m ()
 -- post1 c = _commands %= (`DL.snoc` c)
 
-post1 :: (AsFacet c' c, HasCommands c s, MonadState s m) => c' -> m ()
+post1 :: (AsFacet c' c, MonadState (Scenario c s) m) => c' -> m ()
 post1 c = _commands %= (`DL.snoc` (review facet c))
 
 -- | Useful for avoiding type annotations for higher order commands with
 -- a type variable to @c@
-post1' :: (AsFacet (c' c) c, HasCommands c s, MonadState s m) => c' c -> m ()
+post1' :: (AsFacet (c' c) c, MonadState (Scenario c s) m) => c' c -> m ()
 post1' = post1
 
 
@@ -298,25 +305,37 @@ post1' = post1
 -- editMyPlan l t = t . (editPlan l)
 
 type ModelObj p s = Obj TVar p s
-
-class HasModelObj p c | c -> p where
-    _modelObj :: Lens (c s) (c s') (ModelObj p s) (ModelObj p s')
+-- type PlanObj = Obj TVar Plan Plan
 
 data SceneObj p s =  SceneObj
-    { scenePlanObj :: Obj TVar Plan Plan
-    , sceneModelObj :: Obj TVar p s
+    { planRef :: TVar Plan
+    , modelObj :: ModelObj p s
     } deriving (G.Generic)
 
-instance HasModelObj p (SceneObj p)  where
-    _modelObj = lens sceneModelObj (\s a -> s { sceneModelObj = a})
+_modelObj :: Lens (SceneObj p s) (SceneObj p s') (ModelObj p s) (ModelObj p s')
+_modelObj = lens modelObj (\s a -> s { modelObj = a})
 
-type PlanObj = Obj TVar Plan Plan
+_planRef :: Lens' (SceneObj p s) (TVar Plan)
+_planRef = lens planRef (\s a -> s { planRef = a})
 
-class HasPlanObj c where
-    _planObj :: Lens' c PlanObj
+-- askMyPlan :: (HasPlan t, Applicative f, Monad m) => ReadersT (SceneObj p s) m (LensLike' f t t)
+-- askMyPlan = (editPlan . my . planObj) <$> ask
 
-instance HasPlanObj (SceneObj p s)  where
-    _planObj = lens scenePlanObj (\s a -> s { scenePlanObj = a})
+-- askMyModel :: (HasModel t, Applicative f, Monad m) => ReadersT (SceneObj p s) m (LensLike' f (t p) (t s))
+-- askMyModel = (editModel . my . modelObj) <$> ask
+
+-- class HasModelObj p c | c -> p where
+--     _modelObj :: Lens (c s) (c s') (ModelObj p s) (ModelObj p s')
+
+-- instance HasModelObj p (SceneObj p)  where
+--     _modelObj = lens sceneModelObj (\s a -> s { sceneModelObj = a})
+
+
+-- class HasPlanObj c where
+--     _planObj :: Lens' c PlanObj
+
+-- instance HasPlanObj (SceneObj p s)  where
+--     _planObj = lens scenePlanObj (\s a -> s { scenePlanObj = a})
 
 -- type Obj' c p s = Obj TVar (Scenario c p) (Scenario c s)
 
@@ -363,28 +382,27 @@ magnifyObjModel l = magnify (to (_modelObj %~ access l))
 --     => Traversal' Plan Plan -> m r -> n r
 -- magnifyObjPlan l = magnify (to (accessObjPlan l))
 
-magnifyObjPlan ::
-    ( Magnify m n (SceneObj p a) (SceneObj p a)
-    , Contravariant (Magnified m r)
-    )
-    => Traversal' Plan Plan -> m r -> n r
-magnifyObjPlan l = magnify (to (_planObj %~ access l))
+-- magnifyObjPlan ::
+--     ( Magnify m n (SceneObj p a) (SceneObj p a)
+--     , Contravariant (Magnified m r)
+--     )
+--     => Traversal' Plan Plan -> m r -> n r
+-- magnifyObjPlan l = magnify (to (_planObj %~ access l))
 
 magnifyModel ::
-    ( HasModel s
-    , Magnify m n (s a) (s b)
+    ( Magnify m n (Scene a) (Scene b)
     , Functor (Magnified m r)
     )
     => LensLike' (Magnified m r) b a -> m r -> n r
-magnifyModel l = magnify (editModel l)
+magnifyModel l = magnify (editSceneModel l)
 
-magnifyPlan ::
-    ( HasPlan s
-    , Magnify m n s s
-    , Functor (Magnified m r)
-    )
-    => LensLike' (Magnified m r) Plan Plan -> m r -> n r
-magnifyPlan l = magnify (editPlan l)
+-- magnifyPlan ::
+--     ( HasPlan s
+--     , Magnify m n s s
+--     , Functor (Magnified m r)
+--     )
+--     => LensLike' (Magnified m r) Plan Plan -> m r -> n r
+-- magnifyPlan l = magnify (editPlan l)
 
 --------------------------------------
 

@@ -9,14 +9,14 @@ import Control.Lens
 import GHC.Generics
 
 -- | naming convention:
--- foo this@(Obj refer my) = do -- or use RecordWildcards
---     me <- readIORef refer
+-- foo this@(Obj var my) = do -- or use RecordWildcards
+--     me <- readIORef var
 --     writeIORef ref (me & my.bar .~ 5)
 --     doSomethingElseWith this
-data Obj ref parent a = Obj { refer :: ref parent, my :: Traversal' parent a }
+data Obj ref parent a = Obj { ref :: ref parent, my :: Traversal' parent a }
 
-_refer :: Lens' (Obj ref parent a) (ref parent)
-_refer = lens refer (\s a -> s { refer = a})
+_ref :: Lens' (Obj ref parent a) (ref parent)
+_ref = lens ref (\s a -> s { ref = a})
 
 _my :: Lens' (Obj ref parent a) (ReifiedTraversal' parent a)
 _my = lens (\(Obj _ a) -> Traversal a) (\s (Traversal a) -> s { my = a})
@@ -54,7 +54,7 @@ instance Generic (Obj ref p a) where
                 'True)
             (S1
                 ('MetaSel
-                    ('Just "refer")
+                    ('Just "ref")
                     'NoSourceUnpackedness
                     'NoSourceStrictness
                     'DecidedLazy)

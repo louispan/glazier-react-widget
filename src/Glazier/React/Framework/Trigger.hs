@@ -9,15 +9,15 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Framework.Trigger where
-    -- ( mkTick1
-    -- , mkTick1Once
-    -- , trigger
-    -- , triggerOnce
-    -- , trigger'
-    -- , triggerOnce'
-    -- , withRef
-    -- ) where
+module Glazier.React.Framework.Trigger
+    ( mkTick1
+    , mkTick1Once
+    , trigger
+    , triggerOnce
+    , trigger'
+    , triggerOnce'
+    , withRef
+    ) where
 
 import Control.DeepSeq
 import Control.Lens
@@ -88,7 +88,7 @@ mkTick1_ l gid n goStrict goLazy extra = do
             cmd = MkTick1 pln (ref mdl) goStrict goLazy' $ \tick -> do
                 let addListener = l.at n %~ (Just . (*> tick) . fromMaybe mempty)
                 _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
-        post1' cmd
+        post1 cmd
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
 trigger' ::
@@ -186,5 +186,5 @@ withRef gid =
     mkTick1 gid "ref" (pure . Just) hdlRef (pure ())
   where
     hdlRef j = let evt = JE.fromJSR j
-               in _scene._plan._gizmos.ix gid._targetRef .= evt
+            in _scene._plan._gizmos.ix gid._targetRef .= evt
 

@@ -44,8 +44,11 @@ import qualified JavaScript.Extras as JE
 import qualified JavaScript.Object as JO
 import Unsafe.Coerce
 
-maybeExec :: forall a x m b. (Monad m, AsFacet a x) => (a -> m b) -> x -> MaybeT m b
+maybeExec :: (Monad m, AsFacet a c) => (a -> m b) -> c -> MaybeT m b
 maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
+
+-- maybeExec' :: (Monad m, AsFacet (c' c) c) => (c' c -> m b) -> c -> MaybeT m b
+-- maybeExec' = maybeExec
 
 -- | Given an initializing state action, and an executor (eg. 'reactorExecutor'),
 -- initialize and exec the resulting commands generated.
@@ -69,7 +72,7 @@ initReactor ::
 initReactor ini addEnv runExec exec env t = do
     -- make state var
     -- pid <- mkPlanId "App"
-    let t' = Scenario mempty (Scene (newPlan) t)
+    let t' = Scenario mempty (Scene newPlan t)
     world <- newTMVarIO t'
     frame <- newTVarIO (t' ^. _scene)
     -- run through the app initialization
@@ -79,21 +82,21 @@ initReactor ini addEnv runExec exec env t = do
     -- completely consume all commands
     runExec (exec cs) (addEnv world frame env)
 
--- | Get the 'CD.Disposable' required to cleanup the world
--- without modifying the world.
--- NB. Because other theads may modify the world, this is only
--- guaranteed to contain all the required disposables if other threads have stopped.
--- After cleanup the JS listener callbacks will now result in exceptions
--- so cleanup should only be done after the reactComponents have been removed
--- from the DOM.
-disposableWorld :: TMVar (Scenario c t) -> STM CD.Disposable
-disposableWorld world = do
-    -- get the disposables for the plan retrieve the final state
-    t <- readTMVar world
-    evalStatesT planDisposables t
-  where
-    planDisposables :: Monad m => StatesT (Scenario c t) m CD.Disposable
-    planDisposables = CD.dispose <$> use (_scene._plan)
+-- -- | Get the 'CD.Disposable' required to cleanup the world
+-- -- without modifying the world.
+-- -- NB. Because other theads may modify the world, this is only
+-- -- guaranteed to contain all the required disposables if other threads have stopped.
+-- -- After cleanup the JS listener callbacks will now result in exceptions
+-- -- so cleanup should only be done after the reactComponents have been removed
+-- -- from the DOM.
+-- disposableWorld :: TMVar (Scenario c t) -> STM CD.Disposable
+-- disposableWorld world = do
+--     -- get the disposables for the plan retrieve the final state
+--     t <- readTMVar world
+--     evalStatesT planDisposables t
+--   where
+--     planDisposables :: Monad m => StatesT (Scenario c t) m CD.Disposable
+--     planDisposables = CD.dispose <$> use (_scene._plan)
 
 -- | Upate the world 'TMVar' and backbuffer 'TVar' with a given action, and return the commands produced.
 runAction :: TMVar (Scenario c t) -> TVar (Scene t) -> States (Scenario c t) () -> STM (DL.DList c)
@@ -125,29 +128,20 @@ tickState planVar modelVar tick = do
 -- instance (AsFacet a (Wack Wock)) => AsFacet a Wock where
 --     facet = iso unWock Wock . facet
 
--- -- Create a executor for all the core commands required by the framework
--- execReactor :: forall t c r m.
---     ( MonadIO m
---     , MonadReader r m
---     , AsFacet (Rerender c) c
---     , AsFacet (MkCallback1 c t) c
---     , AsFacet (MkEveryOnUpdatedCallback c t) c
---     , AsFacet (MkOnceOnUpdatedCallback c t) c
---     , AsFacet (MkShimListeners c t) c
---     , AsFacet (ForkSTMAction c t) c
---     , HasItem' (TMVar (M.Map PlanId (EveryOnUpdated c t ()))) r
---     , HasItem' (TMVar (M.Map PlanId (OnceOnUpdated c t ()))) r
---     , HasItem' (TMVar (Scenario c t)) r
---     , HasItem' (TVar (Scene t)) r
---     )
---     => Proxy t -> (m () -> r -> IO ()) -> (DL.DList c -> m ()) -> c -> m ()
--- execReactor _ runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
---     maybeExec execRerender c
---     <|> maybeExec @(MkCallback1 c t) (execMkCallback1 runExec exec) c
---     <|> maybeExec @(MkEveryOnUpdatedCallback c t) execEveryOnUpdatedCallback c
---     <|> maybeExec @(MkOnceOnUpdatedCallback c t) execOnceOnUpdatedCallback c
---     <|> maybeExec @(MkShimListeners c t) (execMkShimListeners runExec exec) c
---     <|> maybeExec @(ForkSTMAction c t) (execForkSTMAction runExec exec) c
+-- Create a executor for all the core commands required by the framework
+execReactor :: forall c s m.
+    ( MonadIO m
+    , AsFacet Rerender c
+    , AsFacet (MkTick1 c) c
+    , AsFacet (MkTick c) c
+    , AsFacet MkShimCallbacks c
+    )
+    => Proxy s -> (m () -> IO ()) -> (DL.DList c -> m ()) -> c -> m ()
+execReactor _ runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
+    maybeExec execRerender c
+    <|> maybeExec execMkShimCallbacks c
+    <|> maybeExec (execMkTick1 runExec exec) c
+    <|> maybeExec (execMkTick runExec exec) c
 
 -- -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
 -- -- NB. This tied executor *only* runs the Reactor effects.
@@ -266,9 +260,9 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
                         pln <- readTVar planVar
                         let ((x, y), pln') = pln & (_gizmos.ix gid) go
                             go giz =
-                                let (x, giz') = giz & (_oncelisteners.ix n) <<.~ mempty
-                                    y = view (_listeners.ix n) giz
-                                in ((x, y), giz')
+                                let (x', giz') = giz & (_oncelisteners.ix n) <<.~ mempty
+                                    y' = view (_listeners.ix n) giz
+                                in ((x', y'), giz')
                         writeTVar planVar pln'
                         pure (x *> y)
                 hdl (JE.JSRep j)

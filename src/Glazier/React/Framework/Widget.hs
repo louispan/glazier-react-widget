@@ -17,7 +17,6 @@
 
 module Glazier.React.Framework.Widget where
 
-import Control.Concurrent.STM
 import Control.Lens
 import Data.Semigroup
 import qualified GHC.Generics as G

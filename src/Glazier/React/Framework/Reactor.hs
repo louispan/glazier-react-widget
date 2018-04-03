@@ -17,7 +17,6 @@ import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import Data.Typeable
 import Glazier.React
-import Glazier.React.Framework.MkId
 import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
 import qualified JavaScript.Extras as JE

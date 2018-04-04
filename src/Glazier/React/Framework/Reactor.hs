@@ -1,8 +1,8 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
@@ -96,3 +96,13 @@ data ForkSTM c where
         -- Continuation to run when STM succeeds.
         -> (a -> States (Scenario c s) ())
         -> ForkSTM c
+
+wack ::
+    Monad m
+    => (forall b. STM b -> (b -> m ()) -> m ())
+    -> ((a -> m ()) -> m ())
+    -> (a -> m ()) -> m ()
+wack forkStm k fire =
+        forkStm newEmptyTMVar $ \v -> do
+            k $ \a -> forkStm (putTMVar v a) (const $ pure ())
+            forkStm (readTMVar v) fire

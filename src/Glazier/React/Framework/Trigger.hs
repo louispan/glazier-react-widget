@@ -81,11 +81,11 @@ mkTick1_ ::
     -> States (Scenario c p) ()
     -> Gadget c p s b
 mkTick1_ l gid n goStrict goLazy extra = do
-    SceneObj pln mdl <- ask
+    SceneObj planVar modelObj <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
         let goLazy' a = (goLazy a >>= fire) *> extra
-            cmd = MkTick1 pln (ref mdl) goStrict goLazy' $ \tick -> do
+            cmd = MkTick1 planVar (ref modelObj) goStrict goLazy' $ \tick -> do
                 let addListener = l.at n %~ (Just . (*> tick) . fromMaybe mempty)
                 _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
         post1 cmd

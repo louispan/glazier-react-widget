@@ -24,7 +24,6 @@ import qualified JavaScript.Extras as JE
 type WindowT s m = RWSsT (Scene s) () (DL.DList ReactMarkup) m
 type Window s = WindowT s Identity
 
-
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------
 

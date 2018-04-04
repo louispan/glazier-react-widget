@@ -23,8 +23,6 @@ import qualified JavaScript.Extras as JE
 
 -----------------------------------------------------------------
 
--- data RunDisposable = RunDisposable CD.Disposable
-
 data Rerender where
     Rerender :: Typeable p
         => ComponentRef
@@ -88,3 +86,13 @@ data MkShimCallbacks where
         -> TVar s
         -> (Window s ())
         -> MkShimCallbacks
+
+data ForkSTM c where
+    ForkSTM ::
+        TVar Plan
+        -> TVar s
+        -- blockable STM to fork
+        -> STM a
+        -- Continuation to run when STM succeeds.
+        -> (a -> States (Scenario c s) ())
+        -> ForkSTM c

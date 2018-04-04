@@ -11,34 +11,25 @@ module Glazier.React.Framework.Reactor.Exec where
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TMVar.Extras
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Reader
-import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.RWSs.Strict
 import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
-import qualified Data.Map.Strict as M
 import Data.Maybe
-import Data.Proxy
-import Data.Semigroup
-import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Foreign.Export as J
-import qualified GHCJS.Types as J
 import Glazier.React
-import Glazier.React.Framework.MkId
 import Glazier.React.Framework.MkId.Internal
 import Glazier.React.Framework.Reactor
 import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
 import qualified JavaScript.Array as JA
 import qualified JavaScript.Extras as JE
-import qualified JavaScript.Object as JO
 import Unsafe.Coerce
 
 maybeExec :: (Monad m, AsFacet a c) => (a -> m b) -> c -> MaybeT m b

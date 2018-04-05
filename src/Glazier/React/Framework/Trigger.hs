@@ -97,6 +97,11 @@ triggerOnUpdated_ ::
     -> Gadget c p s b
 triggerOnUpdated_ l go = mkUpdatedAction l go
 
+-- NB. This is trigged by react 'componentDidUpdate' and 'componentDidMount'
+-- so it is also called for the initial render.
+-- See jsbits/react.js hgr$shimComponent.
+-- These callbacks are called after the ref callback by React
+-- See https://reactjs.org/docs/refs-and-the-dom.html.
 triggerOnUpdated ::
     ( Typeable p
     , AsFacet (TickState c) c
@@ -116,8 +121,6 @@ triggerOnceOnUpdated ::
 triggerOnceOnUpdated = triggerOnUpdated_ (_1._Wrapped' @(Tagged "Once" _))
 
 -- | A 'trigger1' where all event info is dropped and the given value is fired.
--- Note: You can also add listeners to "componentDidUpdate" with 'trigger'.
--- It will be attached to the react component, not the gizmo.
 trigger ::
     ( Typeable p
     , AsFacet (TickState c) c

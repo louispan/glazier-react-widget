@@ -61,7 +61,7 @@ mkAction1 l gid n goStrict goLazy extra = do
         -- Add extra command producting state actions at the end
         let goLazy' a = command' $ TickState planVar (ref mdl) ((goLazy a >>= fire) *> extra)
             cmd = MkAction1 goStrict goLazy' $ \act ->
-                let addListener = _listeners2.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
+                let addListener = _listeners.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
                     addAction acts = acts & l %~ (*> act)
                 in command' $ TickState planVar (ref mdl) (_scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo))
         post1 cmd

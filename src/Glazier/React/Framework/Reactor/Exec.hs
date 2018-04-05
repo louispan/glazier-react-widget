@@ -78,17 +78,19 @@ tickState planVar modelVar tick = do
 execReactor ::
     ( MonadIO m
     , AsFacet Rerender c
-    , AsFacet (MkTick1 c) c
-    , AsFacet (MkTick c) c
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    , AsFacet (MkAction c) c
     , AsFacet MkShimCallbacks c
     , AsFacet CD.Disposable c
     )
     => (m () -> IO ()) -> (DL.DList c -> m ()) -> c -> m ()
 execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
     maybeExec execRerender c
+    <|> maybeExec (execTickState exec) c
+    <|> maybeExec (execMkAction1 runExec exec) c
+    <|> maybeExec (execMkAction runExec exec) c
     <|> maybeExec execMkShimCallbacks c
-    <|> maybeExec (execMkTick1 runExec exec) c
-    <|> maybeExec (execMkTick runExec exec) c
     <|> maybeExec execDisposable c
 
 -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
@@ -97,8 +99,9 @@ execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
 reactorExecutor ::
     ( MonadIO m
     , AsFacet Rerender c
-    , AsFacet (MkTick1 c) c
-    , AsFacet (MkTick c) c
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    , AsFacet (MkAction c) c
     , AsFacet MkShimCallbacks c
     , AsFacet CD.Disposable c
     )
@@ -145,44 +148,6 @@ execMkAction runExec exec (MkAction c k) = do
     let f = runExec . exec $ DL.singleton c
     -- Apply to result to the continuation, and execute any produced commands
     exec $ DL.singleton $ k f
-
-execMkTick1 ::
-    ( MonadIO m
-    )
-    => (m () -> IO ())
-    -> (DL.DList c -> m ())
-    -> MkTick1 c
-    -> m ()
-execMkTick1 runExec exec (MkTick1 planVar modelVar goStrict goLazy k) = do
-    -- create the IO action to run given the runExec and exec
-    let f = handleEventM goStrict goLazy'
-        goLazy' ma = case ma of
-            -- trigger didn't produce anything useful
-            Nothing -> pure mempty
-            -- run state action using mvar
-            Just a -> do
-                -- Apply to result to the world state, and execute any produced commands
-                xs <- atomically $ tickState planVar modelVar (goLazy a)
-                runExec (exec xs)
-    -- Apply to result to the continuation, and execute any produced commands
-    xs <- liftIO $ atomically $ tickState planVar modelVar (k f)
-    exec xs
-
-execMkTick ::
-    ( MonadIO m
-    )
-    => (m () -> IO ())
-    -> (DL.DList c -> m ())
-    -> MkTick c
-    -> m ()
-execMkTick runExec exec (MkTick planVar modelVar tick k) = do
-    -- create the IO action to run given the runExec and exec
-    let f = do
-            xs <- atomically $ tickState planVar modelVar tick
-            runExec (exec xs)
-    -- Apply to result to the continuation, and execute any produced commands
-    xs <- liftIO $ atomically $ tickState planVar modelVar (k f)
-    exec xs
 
 -----------------------------------------------------------------
 
@@ -239,8 +204,8 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
                         let (mhdl, gs') = at gid go (pln ^. _gizmos)
                             go mg = case mg of
                                     Nothing -> (Nothing, Nothing)
-                                    Just g -> let (ret, l) = at n go' (g ^. _listeners2)
-                                              in (ret, Just (g & _listeners2 .~ l))
+                                    Just g -> let (ret, l) = at n go' (g ^. _listeners)
+                                              in (ret, Just (g & _listeners .~ l))
                             go' ml = case ml of
                                     Nothing -> (Nothing, Nothing)
                                     Just ((`proxy` (Proxy @"Once")) -> x, y) ->

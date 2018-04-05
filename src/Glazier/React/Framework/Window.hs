@@ -35,7 +35,7 @@ getListeners gid = do
     case cb of
         Nothing -> pure mempty
         Just cb' -> do
-            ks <- view (_plan._gizmos.ix gid._listeners2.to M.keys)
+            ks <- view (_plan._gizmos.ix gid._listeners.to M.keys)
             let go k = (k, bindListenerContext (context k) cb')
             pure (go <$> ks)
   where

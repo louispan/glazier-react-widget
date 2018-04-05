@@ -112,14 +112,25 @@ reactorExecutor runExec = execReactor runExec
 
 -----------------------------------------------------------------
 
+execRerender ::
+    ( MonadIO m
+    )
+    => Rerender -> m ()
+execRerender (Rerender j p) = liftIO $ do
+    -- This export is automatically cleaned up in ShimComponent
+    -- react lifecycle handling.
+    x <- J.export p
+    js_setShimComponentFrame j x
+
 execTickState ::
     ( MonadIO m
+    , AsFacet Rerender c
     )
     => (DL.DList c -> m ())
     -> TickState c
     -> m ()
 execTickState exec (TickState planVar modelVar tick) = do
-    xs <- liftIO $ atomically $ tickState planVar modelVar tick
+    xs <- liftIO $ atomically $ tickState planVar modelVar (tick *> rerender)
     exec xs
 
 execMkAction1 ::
@@ -148,20 +159,6 @@ execMkAction runExec exec (MkAction c k) = do
     let f = runExec . exec $ DL.singleton c
     -- Apply to result to the continuation, and execute any produced commands
     exec $ DL.singleton $ k f
-
------------------------------------------------------------------
-
-execRerender ::
-    ( MonadIO m
-    )
-    => Rerender -> m ()
-execRerender (Rerender j p) = liftIO $ do
-    -- This export is automatically cleaned up in ShimComponent
-    -- react lifecycle handling.
-    x <- J.export p
-    js_setShimComponentFrame j x
-
------------------------------------------------------------------
 
 -- | Making multiple MkShimListeners for the same plan is a silent error and will be ignored.
 execMkShimCallbacks ::

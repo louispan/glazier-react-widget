@@ -12,8 +12,10 @@
 module Glazier.React.Framework.Trigger
     ( trigger
     , triggerOnce
-    , trigger'
-    , triggerOnce'
+    , trigger1
+    , triggerOnce1
+    , triggerOnUpdated
+    , triggerOnceOnUpdated
     , withRef
     ) where
 
@@ -43,8 +45,9 @@ import qualified JavaScript.Extras as JE
 -- generate a 'Notice'.
 -- Only the "ref" callback generate 'EventTarget' or 'ComponentRef' in which case you would want
 -- to use 'withRef' instead.
-mkAction1 ::
+mkTriggerAction1 ::
     ( NFData a
+    , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
@@ -53,79 +56,94 @@ mkAction1 ::
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
     -> (a -> States (Scenario c p) b)
-    -> States (Scenario c p) ()
     -> Gadget c p s b
-mkAction1 l gid n goStrict goLazy extra = do
+mkTriggerAction1 l gid n goStrict goLazy = do
     SceneObj planVar mdl <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
-        let goLazy' a = command' $ TickState planVar (ref mdl) ((goLazy a >>= fire) *> extra)
+        let goLazy' a = command' $ TickState planVar (ref mdl) (goLazy a >>= fire)
             cmd = MkAction1 goStrict goLazy' $ \act ->
-                let addListener = _listeners.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
+                let updateGizmo = _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
+                    addListener = _listeners.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
                     addAction acts = acts & l %~ (*> act)
-                in command' $ TickState planVar (ref mdl) (_scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo))
+                in command' $ TickState planVar (ref mdl) updateGizmo
         post1 cmd
 
--- | A 'trigger' where all event info is dropped and the given value is fired.
-trigger' ::
+mkUpdatedAction ::
     ( Typeable p
-    , AsFacet Rerender c
     , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
+    , AsFacet (MkAction c) c
     )
-    => GizmoId
-    -> J.JSString
-    -> b
+    => Lens' (Tagged "Once" (IO ()), Tagged "Every" (IO ())) (IO ())
+    -> States (Scenario c p) b
     -> Gadget c p s b
-trigger' = trigger'_ (_2._Wrapped' @(Tagged "Every" _))
+mkUpdatedAction l go = do
+    SceneObj planVar mdl <- ask
+    lift $ contsT $ \fire -> do
+        -- Add extra command producting state actions at the end
+        let go' = command' $ TickState planVar (ref mdl) (go >>= fire)
+            cmd = MkAction go' $ \act ->
+                let addListener = _scene._plan._doOnUpdated.l %= (*> act)
+                in command' $ TickState planVar (ref mdl) addListener
+        post1 cmd
 
-triggerOnce' ::
+triggerOnUpdated_ ::
     ( Typeable p
-    , AsFacet Rerender c
     , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
+    , AsFacet (MkAction c) c
     )
-    => GizmoId
-    -> J.JSString
-    -> b
+    => Lens' (Tagged "Once" (IO ()), Tagged "Every" (IO ())) (IO ())
+    -> States (Scenario c p) b
     -> Gadget c p s b
-triggerOnce' = trigger'_ (_1._Wrapped' @(Tagged "Once" _))
+triggerOnUpdated_ l go = mkUpdatedAction l go
 
-trigger'_ ::
+triggerOnUpdated ::
     ( Typeable p
-    , AsFacet Rerender c
     , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
+    , AsFacet (MkAction c) c
     )
-    => Lens' (Tagged "Once" (JE.JSRep -> IO ()), Tagged "Every" (JE.JSRep -> IO ())) (JE.JSRep -> IO ())
-    -> GizmoId
-    -> J.JSString
-    -> b
+    => States (Scenario c p) b
     -> Gadget c p s b
-trigger'_ l gid n b =
-    -- Add a rerender for this widget at the every end
-    mkAction1 l gid n (const $ pure (Just ())) (const $ pure b) rerender
+triggerOnUpdated = triggerOnUpdated_ (_2._Wrapped' @(Tagged "Every" _))
 
--- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
--- Also adds a 'Rerender' command at the end of the callback
+triggerOnceOnUpdated ::
+    ( Typeable p
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction c) c
+    )
+    => States (Scenario c p) b
+    -> Gadget c p s b
+triggerOnceOnUpdated = triggerOnUpdated_ (_1._Wrapped' @(Tagged "Once" _))
+
+-- | A 'trigger1' where all event info is dropped and the given value is fired.
+-- Note: You can also add listeners to "componentDidUpdate" with 'trigger'.
+-- It will be attached to the react component, not the gizmo.
 trigger ::
-    ( NFData a
-    , Typeable p
-    , AsFacet Rerender c
+    ( Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
     => GizmoId
     -> J.JSString
-    -> (Notice -> IO a)
-    -> (a -> States (Scenario c p) b)
+    -> States (Scenario c p) b
     -> Gadget c p s b
 trigger = trigger_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnce ::
+    ( Typeable p
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    )
+    => GizmoId
+    -> J.JSString
+    -> States (Scenario c p) b
+    -> Gadget c p s b
+triggerOnce = trigger_ (_1._Wrapped' @(Tagged "Once" _))
+
+-- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
+trigger1 ::
     ( NFData a
     , Typeable p
-    , AsFacet Rerender c
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
@@ -134,12 +152,24 @@ triggerOnce ::
     -> (Notice -> IO a)
     -> (a -> States (Scenario c p) b)
     -> Gadget c p s b
-triggerOnce = trigger_ (_1._Wrapped' @(Tagged "Once" _))
+trigger1 = trigger1_ (_2._Wrapped' @(Tagged "Every" _))
 
-trigger_ ::
+triggerOnce1 ::
     ( NFData a
     , Typeable p
-    , AsFacet Rerender c
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    )
+    => GizmoId
+    -> J.JSString
+    -> (Notice -> IO a)
+    -> (a -> States (Scenario c p) b)
+    -> Gadget c p s b
+triggerOnce1 = trigger1_ (_1._Wrapped' @(Tagged "Once" _))
+
+trigger1_ ::
+    ( NFData a
+    , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
@@ -149,25 +179,34 @@ trigger_ ::
     -> (Notice -> IO a)
     -> (a -> States (Scenario c p) b)
     -> Gadget c p s b
-trigger_ l gid n goStrict goLazy =
-    -- Add a rerender for this widget at the every end
-    mkAction1 l gid n goStrict' goLazy rerender
+trigger1_ l gid n goStrict goLazy = mkTriggerAction1 l gid n goStrict' goLazy
   where
     goStrict' e = case JE.fromJSR e of
         Nothing -> pure Nothing
         Just e' -> Just <$> goStrict e'
 
+trigger_ ::
+    ( Typeable p
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    )
+    => Lens' (Tagged "Once" (JE.JSRep -> IO ()), Tagged "Every" (JE.JSRep -> IO ())) (JE.JSRep -> IO ())
+    -> GizmoId
+    -> J.JSString
+    -> States (Scenario c p) b
+    -> Gadget c p s b
+trigger_ l gid n go = mkTriggerAction1 l gid n (const $ pure (Just ())) (const $ go)
+
 -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
 -- gizmo in the plan
 withRef ::
-    ( AsFacet (TickState c) c
+    ( Typeable p
+    , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
     => GizmoId
     -> Gadget c p s ()
-withRef gid =
-    mkAction1 (_2._Wrapped' @(Tagged "Every" _)) gid "ref" (pure . Just) hdlRef (pure ())
+withRef gid = mkTriggerAction1 (_2._Wrapped' @(Tagged "Every" _)) gid "ref" (pure . Just) hdlRef
   where
     hdlRef j = let evt = JE.fromJSR j
             in _scene._plan._gizmos.ix gid._targetRef .= evt
-

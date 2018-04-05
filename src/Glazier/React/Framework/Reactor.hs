@@ -56,9 +56,11 @@ rerender = do
         _ -> pure ()
 
 -----------------------------------------------------------------
+-- Automatically: check 'rerender' at the end of this state tick
 data TickState c where
     TickState ::
-        TVar Plan
+        Typeable s
+        => TVar Plan
         -> TVar s
         -> (States (Scenario c s) ())
         -> TickState c

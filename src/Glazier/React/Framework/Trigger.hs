@@ -28,6 +28,7 @@ import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.Map.Strict as M
 import Data.Maybe
+import Data.Tagged
 import Data.Typeable
 import qualified GHCJS.Types as J
 import Glazier.React
@@ -67,7 +68,7 @@ mkTick1Once ::
     -> (a -> States (Scenario c p) b)
     -> States (Scenario c p) ()
     -> Gadget c p s b
-mkTick1Once = mkTick1_ _oncelisteners
+mkTick1Once = mkTick1_ _onceListeners
 
 mkTick1_ ::
     ( NFData a
@@ -81,13 +82,36 @@ mkTick1_ ::
     -> States (Scenario c p) ()
     -> Gadget c p s b
 mkTick1_ l gid n goStrict goLazy extra = do
-    SceneObj planVar modelObj <- ask
+    SceneObj planVar mdl <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
         let goLazy' a = (goLazy a >>= fire) *> extra
-            cmd = MkTick1 planVar (ref modelObj) goStrict goLazy' $ \tick -> do
+            cmd = MkTick1 planVar (ref mdl) goStrict goLazy' $ \tick -> do
                 let addListener = l.at n %~ (Just . (*> tick) . fromMaybe mempty)
                 _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
+        post1 cmd
+
+mkAction1_ ::
+    ( NFData a
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    )
+    => Lens' (Tagged "Once" (JE.JSRep -> IO ()), Tagged "Every" (JE.JSRep -> IO ())) (JE.JSRep -> IO ())
+    -> GizmoId
+    -> J.JSString
+    -> (JE.JSRep -> IO (Maybe a))
+    -> (a -> States (Scenario c p) b)
+    -> States (Scenario c p) ()
+    -> Gadget c p s b
+mkAction1_ l gid n goStrict goLazy extra = do
+    SceneObj planVar mdl <- ask
+    lift $ contsT $ \fire -> do
+        -- Add extra command producting state actions at the end
+        let goLazy' a = wack2 $ TickState planVar (ref mdl) ((goLazy a >>= fire) *> extra)
+            cmd = MkAction1 goStrict goLazy' $ \act ->
+                let addListener = _listeners2.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
+                    addAction acts = acts & l %~ (*> act)
+                in wack2 $ TickState planVar (ref mdl) (_scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo))
         post1 cmd
 
 -- | A 'trigger' where all event info is dropped and the given value is fired.
@@ -111,7 +135,7 @@ triggerOnce' ::
     -> J.JSString
     -> b
     -> Gadget c p s b
-triggerOnce' = trigger'_ _oncelisteners
+triggerOnce' = trigger'_ _onceListeners
 
 trigger'_ ::
     ( Typeable p
@@ -153,7 +177,7 @@ triggerOnce ::
     -> (Notice -> IO a)
     -> (a -> States (Scenario c p) b)
     -> Gadget c p s b
-triggerOnce = trigger_ _oncelisteners
+triggerOnce = trigger_ _onceListeners
 
 trigger_ ::
     ( NFData a

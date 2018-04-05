@@ -10,7 +10,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -28,6 +27,7 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.Map.Strict as M
 import Data.Maybe
+import Data.Tagged
 import qualified GHC.Generics as G
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
@@ -92,13 +92,15 @@ data Gizmo = Gizmo
     { targetRef :: Maybe EventTarget
     -- (name of event, context of event)
     , listeners :: M.Map J.JSString (JE.JSRep -> IO ())
-    , oncelisteners :: M.Map J.JSString (JE.JSRep -> IO ())
+    , onceListeners :: M.Map J.JSString (JE.JSRep -> IO ())
+    , listeners2 :: M.Map J.JSString (Tagged "Once" (JE.JSRep -> IO ()), Tagged "Every" (JE.JSRep -> IO ()))
     } deriving (G.Generic)
 
 makeLenses_ ''Gizmo
 
 newGizmo :: Gizmo
-newGizmo = Gizmo Nothing mempty mempty
+newGizmo = Gizmo Nothing mempty mempty mempty
+
 
 data ShimCallbacks = ShimCallbacks
     -- render function of the ReactComponent
@@ -136,8 +138,7 @@ data Plan = Plan
       -- cannot be hidden inside afterOnUpdated, as this also needs to be used
       -- when finalizing
     -- , disposeOnRemoved :: CD.Disposable
-    , doOnceOnUpdated :: IO ()
-    , doOnUpdated :: IO ()
+    , doOnUpdated :: (Tagged "Once" (IO ()), Tagged "Every" (IO ()))
     --  Things to dispose on updated
     , disposeOnUpdated :: CD.Disposable
     -- interactivity data for child DOM elements
@@ -159,8 +160,7 @@ newPlan = Plan
     Nothing
     0
     0
-    mempty
-    mempty
+    (Tagged mempty, Tagged mempty)
     mempty
     mempty
     mempty
@@ -290,6 +290,11 @@ post1 c = _commands %= (`DL.snoc` (review facet c))
 post1' :: (AsFacet (c' c) c, MonadState (Scenario c s) m) => c' c -> m ()
 post1' = post1
 
+wack1 :: (AsFacet c' c) => c' -> c
+wack1 = review facet
+
+wack2 :: (AsFacet (c' c) c) => c' c -> c
+wack2 = review facet
 
 ----------------------------------------------------------------------------------
 

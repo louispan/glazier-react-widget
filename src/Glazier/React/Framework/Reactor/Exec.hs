@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Glazier.React.Framework.Reactor.Exec where
 
@@ -21,13 +22,14 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
 import Data.Maybe
+import Data.Proxy
+import Data.Tagged
 import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Foreign.Export as J
 import Glazier.React
 import Glazier.React.Framework.MkId.Internal
 import Glazier.React.Framework.Reactor
 import Glazier.React.Framework.Scene
-import Glazier.React.Framework.Window
 import qualified JavaScript.Array as JA
 import qualified JavaScript.Extras as JE
 import Unsafe.Coerce
@@ -52,8 +54,8 @@ initReactor exec s ini = do
     planVar <- liftIO $ newTVarIO newPlan
     modelVar <- liftIO $ newTVarIO s
     -- run through the app initialization, and execute any produced commands
-    xs <- liftIO . atomically $ tickState planVar modelVar ini
-    exec xs
+    cs <- liftIO . atomically $ tickState planVar modelVar ini
+    exec cs
     pure (planVar, modelVar)
 
 -- | Upate the world 'TVar' with the given action, and return the commands produced.
@@ -107,6 +109,43 @@ reactorExecutor runExec = execReactor runExec
 
 -----------------------------------------------------------------
 
+execTickState ::
+    ( MonadIO m
+    )
+    => (DL.DList c -> m ())
+    -> TickState c
+    -> m ()
+execTickState exec (TickState planVar modelVar tick) = do
+    xs <- liftIO $ atomically $ tickState planVar modelVar tick
+    exec xs
+
+execMkAction1 ::
+    (m () -> IO ())
+    -> (DL.DList c -> m ())
+    -> MkAction1 c
+    -> m ()
+execMkAction1 runExec exec (MkAction1 goStrict goLazy k) = do
+    -- create the IO action to run given the runExec and exec
+    let f = handleEventM goStrict goLazy'
+        goLazy' ma = case ma of
+            -- trigger didn't produce anything useful
+            Nothing -> pure mempty
+            -- get and run the command given the trigger
+            Just a -> runExec . exec . DL.singleton $ goLazy a
+    -- Apply to result to the continuation, and execute any produced commands
+    exec $ DL.singleton $ k f
+
+execMkAction ::
+    (m () -> IO ())
+    -> (DL.DList c -> m ())
+    -> MkAction c
+    -> m ()
+execMkAction runExec exec (MkAction c k) = do
+    -- create the IO action to run given the runExec and exec
+    let f = runExec . exec $ DL.singleton c
+    -- Apply to result to the continuation, and execute any produced commands
+    exec $ DL.singleton $ k f
+
 execMkTick1 ::
     ( MonadIO m
     )
@@ -145,7 +184,6 @@ execMkTick runExec exec (MkTick planVar modelVar tick k) = do
     xs <- liftIO $ atomically $ tickState planVar modelVar (k f)
     exec xs
 
-
 -----------------------------------------------------------------
 
 execRerender ::
@@ -183,10 +221,8 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
         doRef j = atomically $ modifyTVar' planVar (_componentRef .~ JE.fromJS j)
         doUpdated = join . atomically $ do
             pln <- readTVar planVar
-
-            let x = doOnceOnUpdated pln
-                y = doOnUpdated pln
-            writeTVar planVar (pln & _doOnceOnUpdated .~ mempty)
+            let ((`proxy` (Proxy @"Once")) -> x, (`proxy` (Proxy @"Every")) -> y) = doOnUpdated pln
+            writeTVar planVar (pln & _doOnUpdated._1 .~ (Tagged @"Once" mempty))
             pure (x *> y)
         doListen ctx j = void $ runMaybeT $ do
             (gid, n) <- MaybeT $ pure $ do
@@ -198,17 +234,23 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
                             Just (gid'', n'')
                         _ -> Nothing
             lift $ do
-                hdl <- atomically $ do
+                mhdl <- atomically $ do
                         pln <- readTVar planVar
-                        let ((x, y), pln') = pln & (_gizmos.ix gid) go
-                            go giz =
-                                let (x', giz') = giz & (_oncelisteners.ix n) <<.~ mempty
-                                    y' = view (_listeners.ix n) giz
-                                in ((x', y'), giz')
-                        writeTVar planVar pln'
-                        pure (x *> y)
-                hdl (JE.JSRep j)
-
+                        let (mhdl, gs') = at gid go (pln ^. _gizmos)
+                            go mg = case mg of
+                                    Nothing -> (Nothing, Nothing)
+                                    Just g -> let (ret, l) = at n go' (g ^. _listeners2)
+                                              in (ret, Just (g & _listeners2 .~ l))
+                            go' ml = case ml of
+                                    Nothing -> (Nothing, Nothing)
+                                    Just ((`proxy` (Proxy @"Once")) -> x, y) ->
+                                        ( Just (x *> (y `proxy` (Proxy @"Every")))
+                                        , Just (Tagged @"Once" mempty, y))
+                        writeTVar planVar (pln & _gizmos .~ gs')
+                        pure mhdl
+                case mhdl of
+                    Nothing -> pure ()
+                    Just hdl -> hdl (JE.JSRep j)
 
     renderCb <- liftIO $ J.syncCallback1' doRender
     refCb <- liftIO $ J.syncCallback1 J.ContinueAsync doRef
@@ -235,10 +277,10 @@ execForkSTM ::
     -> (DL.DList c -> m ())
     -> ForkSTM c
     -> m ()
-execForkSTM runExec exec (ForkSTM planVar modelVar go k) = liftIO $ void $ forkIO $ do
+execForkSTM runExec exec (ForkSTM go k) = liftIO $ void $ forkIO $ do
     a <- atomically go
-    xs <- atomically $ tickState planVar modelVar (k a)
-    liftIO $ runExec (exec xs)
+    let c = k a
+    liftIO . runExec . exec $ DL.singleton c
 
 #ifdef __GHCJS__
 

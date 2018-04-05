@@ -56,6 +56,27 @@ rerender = do
         _ -> pure ()
 
 -----------------------------------------------------------------
+data TickState c where
+    TickState ::
+        TVar Plan
+        -> TVar s
+        -> (States (Scenario c s) ())
+        -> TickState c
+
+data MkAction1 c where
+    MkAction1 :: NFData a
+        => (JE.JSRep -> IO (Maybe a))
+        -> (a -> c)
+        -> ((JE.JSRep -> IO ()) -> c)
+        -> MkAction1 c
+
+-- | Convert a command to an IO action
+data MkAction c where
+    MkAction ::
+        c
+        -> (IO () -> c)
+        -> MkAction c
+
 data MkTick1 c where
     MkTick1 :: NFData a
         => TVar Plan
@@ -87,22 +108,11 @@ data MkShimCallbacks where
         -> (Window s ())
         -> MkShimCallbacks
 
+
 data ForkSTM c where
     ForkSTM ::
-        TVar Plan
-        -> TVar s
         -- blockable STM to fork
-        -> STM a
+        STM a
         -- Continuation to run when STM succeeds.
-        -> (a -> States (Scenario c s) ())
+        -> (a -> c)
         -> ForkSTM c
-
-wack ::
-    Monad m
-    => (forall b. STM b -> (b -> m ()) -> m ())
-    -> ((a -> m ()) -> m ())
-    -> (a -> m ()) -> m ()
-wack forkStm k fire =
-        forkStm newEmptyTMVar $ \v -> do
-            k $ \a -> forkStm (putTMVar v a) (const $ pure ())
-            forkStm (readTMVar v) fire

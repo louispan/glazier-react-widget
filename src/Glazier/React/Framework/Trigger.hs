@@ -33,7 +33,6 @@ import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.Gadget
 import Glazier.React.Framework.MkId
-import Glazier.React.Framework.Obj
 import Glazier.React.Framework.Reactor
 import Glazier.React.Framework.Scene
 import qualified JavaScript.Extras as JE
@@ -58,15 +57,15 @@ mkTriggerAction1 ::
     -> (a -> States (Scenario c p) b)
     -> Gadget c p s b
 mkTriggerAction1 l gid n goStrict goLazy = do
-    SceneObj planVar mdl <- ask
+    SceneObj plnVar mdlVar _ <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
-        let goLazy' a = command' $ TickState planVar (ref mdl) (goLazy a >>= fire)
+        let goLazy' a = command' $ TickState plnVar mdlVar (goLazy a >>= fire)
             cmd = MkAction1 goStrict goLazy' $ \act ->
                 let updateGizmo = _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
                     addListener = _listeners.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
                     addAction acts = acts & l %~ (*> act)
-                in command' $ TickState planVar (ref mdl) updateGizmo
+                in command' $ TickState plnVar mdlVar updateGizmo
         post1 cmd
 
 mkUpdatedAction ::
@@ -78,13 +77,13 @@ mkUpdatedAction ::
     -> States (Scenario c p) b
     -> Gadget c p s b
 mkUpdatedAction l go = do
-    SceneObj planVar mdl <- ask
+    SceneObj plnVar mdlVar _ <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
-        let go' = command' $ TickState planVar (ref mdl) (go >>= fire)
+        let go' = command' $ TickState plnVar mdlVar (go >>= fire)
             cmd = MkAction go' $ \act ->
                 let addListener = _scene._plan._doOnUpdated.l %= (*> act)
-                in command' $ TickState planVar (ref mdl) addListener
+                in command' $ TickState plnVar mdlVar addListener
         post1 cmd
 
 triggerOnUpdated_ ::

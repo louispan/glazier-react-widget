@@ -33,7 +33,7 @@ import qualified GHCJS.Foreign.Callback as J
 import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.MkId
-import Glazier.React.Framework.Obj
+-- import Glazier.React.Framework.Obj
 import qualified JavaScript.Extras as JE
 
 -- In order to remove effects we need to change to use State monad
@@ -180,10 +180,8 @@ _plan = lens plan (\s a -> s { plan = a})
 
 -- class HasModel t where
 --     _model :: Lens (t s) (t s') s s'
-
 -- instance HasModel Scene where
 --     _model = lens sceneModel (\s a -> s { sceneModel = a})
-
 
 -- class HasPlan t where
 --     _plan :: Lens' t Plan
@@ -307,19 +305,26 @@ command' = command
 -- editMyPlan :: (HasPlan s) => Traversal' Plan Plan -> Traversal' p s -> Traversal' p s
 -- editMyPlan l t = t . (editPlan l)
 
-type ModelObj p s = Obj TVar p s
+-- type ModelObj p s = Obj TVar p s
 -- type PlanObj = Obj TVar Plan Plan
 
-data SceneObj p s =  SceneObj
-    { planRef :: TVar Plan
-    , modelObj :: ModelObj p s
-    } deriving (G.Generic)
+data SceneObj p s = SceneObj
+    { planVar ::TVar Plan
+    , modelVar ::TVar p
+    , self :: Traversal' p s
+    }
 
-_modelObj :: Lens (SceneObj p s) (SceneObj p s') (ModelObj p s) (ModelObj p s')
-_modelObj = lens modelObj (\s a -> s { modelObj = a})
+access :: Traversal' s a -> SceneObj p s -> SceneObj p a
+access l (SceneObj pln mdl s) = SceneObj pln mdl (s.l)
 
-_planRef :: Lens' (SceneObj p s) (TVar Plan)
-_planRef = lens planRef (\s a -> s { planRef = a})
+-- _planVar :: Lens' (SceneObj p s) (TVar Plan)
+-- _planVar = lens planVar (\s a -> s { planVar = a})
+
+-- _modelVar :: Lens' (SceneObj p s) (TVar s)
+-- _modelVar = lens modelVar (\s a -> s { modelVar = a})
+
+-- _self :: Lens (SceneObj p s) (ReifiedTraversal' p s) (ReifiedTraversal' p s')
+-- _self = lens (\(SceneObj _ _ a) -> Traversal a) (\(SceneObj x y _) (Traversal a) -> WackObj x y a)
 
 -- askMyPlan :: (HasPlan t, Applicative f, Monad m) => ReadersT (SceneObj p s) m (LensLike' f t t)
 -- askMyPlan = (editPlan . my . planObj) <$> ask
@@ -376,7 +381,7 @@ magnifyObjModel ::
     , Contravariant (Magnified m r)
     )
     => Traversal' b a -> m r -> n r
-magnifyObjModel l = magnify (to (_modelObj %~ access l))
+magnifyObjModel l = magnify (to (access l))
 
 -- magnifyObjPlan ::
 --     ( Magnify m n (Obj' c p a) (Obj' c p a)

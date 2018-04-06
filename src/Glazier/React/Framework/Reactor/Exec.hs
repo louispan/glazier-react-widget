@@ -53,21 +53,21 @@ initReactor ::
     -> States (Scenario c s) ()
     -> m (TVar Plan, TVar s)
 initReactor exec s ini = do
-    planVar <- liftIO $ newTVarIO newPlan
-    modelVar <- liftIO $ newTVarIO s
+    plnVar <- liftIO $ newTVarIO newPlan
+    mdlVar <- liftIO $ newTVarIO s
     -- run through the app initialization, and execute any produced commands
-    cs <- liftIO . atomically $ tickState planVar modelVar ini
+    cs <- liftIO . atomically $ tickState plnVar mdlVar ini
     exec (command' cs)
-    pure (planVar, modelVar)
+    pure (plnVar, mdlVar)
 
 -- | Upate the world 'TVar' with the given action, and return the commands produced.
 tickState :: TVar Plan -> TVar s -> States (Scenario c s) () -> STM (DL.DList c)
-tickState planVar modelVar tick = do
-    pln <- readTVar planVar
-    mdl <- readTVar modelVar
+tickState plnVar mdlVar tick = do
+    pln <- readTVar plnVar
+    mdl <- readTVar mdlVar
     let (Scenario cs (Scene pln' mdl')) = execStates tick (Scenario mempty (Scene pln mdl))
-    writeTVar modelVar mdl'
-    writeTVar planVar pln'
+    writeTVar mdlVar mdl'
+    writeTVar plnVar pln'
     pure cs
 
 -- type Wack w = Which '[Rerender, (), DL.DList w]
@@ -143,8 +143,8 @@ execTickState ::
     => (c -> m ())
     -> TickState c
     -> m ()
-execTickState exec (TickState planVar modelVar tick) = do
-    xs <- liftIO $ atomically $ tickState planVar modelVar (tick *> rerender)
+execTickState exec (TickState plnVar mdlVar tick) = do
+    xs <- liftIO $ atomically $ tickState plnVar mdlVar (tick *> rerender)
     exec (command' xs)
 
 execMkAction1 ::
@@ -179,7 +179,7 @@ execMkShimCallbacks ::
     MonadIO m
     => MkShimCallbacks
     -> m ()
-execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
+execMkShimCallbacks (MkShimCallbacks plnVar mdlVar rndr) = do
     -- For efficiency, render uses the state exported into ShimComponent
     let doRender x = do
             -- unfortunately, GHCJS base doesn't provide a way to convert JSVal to Export
@@ -187,18 +187,18 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
             s <- case ms of
                 -- fallback to reading from TVar
                 Nothing -> atomically $ do
-                    pln <- readTVar planVar
-                    mdl <- readTVar modelVar
+                    pln <- readTVar plnVar
+                    mdl <- readTVar mdlVar
                     pure (Scene pln mdl)
                 -- cached render export available
                 Just s -> pure s
             let (mrkup, _) = execRWSs rndr s mempty
             JE.toJS <$> toElement mrkup
-        doRef j = atomically $ modifyTVar' planVar (_componentRef .~ JE.fromJS j)
+        doRef j = atomically $ modifyTVar' plnVar (_componentRef .~ JE.fromJS j)
         doUpdated = join . atomically $ do
-            pln <- readTVar planVar
+            pln <- readTVar plnVar
             let ((`proxy` (Proxy @"Once")) -> x, (`proxy` (Proxy @"Every")) -> y) = doOnUpdated pln
-            writeTVar planVar (pln & _doOnUpdated._1 .~ (Tagged @"Once" mempty))
+            writeTVar plnVar (pln & _doOnUpdated._1 .~ (Tagged @"Once" mempty))
             pure (x *> y)
         doListen ctx j = void $ runMaybeT $ do
             (gid, n) <- MaybeT $ pure $ do
@@ -211,7 +211,7 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
                         _ -> Nothing
             lift $ do
                 mhdl <- atomically $ do
-                        pln <- readTVar planVar
+                        pln <- readTVar plnVar
                         let (mhdl, gs') = at gid go (pln ^. _gizmos)
                             go mg = case mg of
                                     Nothing -> (Nothing, Nothing)
@@ -222,7 +222,7 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
                                     Just ((`proxy` (Proxy @"Once")) -> x, y) ->
                                         ( Just (x *> (y `proxy` (Proxy @"Every")))
                                         , Just (Tagged @"Once" mempty, y))
-                        writeTVar planVar (pln & _gizmos .~ gs')
+                        writeTVar plnVar (pln & _gizmos .~ gs')
                         pure mhdl
                 case mhdl of
                     Nothing -> pure ()
@@ -233,12 +233,12 @@ execMkShimCallbacks (MkShimCallbacks planVar modelVar rndr) = do
     updatedCb <- liftIO $ J.syncCallback J.ContinueAsync doUpdated
     listenCb <- liftIO $ J.syncCallback2 J.ContinueAsync doListen
     liftIO $ atomically $ do
-        pln <- readTVar planVar
+        pln <- readTVar plnVar
         let ls = pln ^. _shimCallbacks
         case ls of
             -- shim listeners already created
             Just _ -> pure ()
-            Nothing -> writeTVar planVar $ pln & _shimCallbacks .~
+            Nothing -> writeTVar plnVar $ pln & _shimCallbacks .~
                 (Just $ ShimCallbacks renderCb updatedCb refCb listenCb)
 
 execDisposable ::

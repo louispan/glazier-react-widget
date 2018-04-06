@@ -54,13 +54,13 @@ import qualified JavaScript.Extras as JE
 -- Warning: This widget listens to onChange and will update the model value with the DOM input value.
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
-textInput :: forall w x.
-    ( AsFacet (MkCallback1 w) x
-    , AsFacet (GetProperty w) x
-    , AsFacet (MkEveryOnUpdatedCallback w) x
+textInput ::
+    ( AsFacet (MkAction1 c) c
+    , AsFacet (GetProperty c) c
+    , AsFacet (MkAction c) c
     )
     => GizmoId
-    -> Widget w x J.JSString ()
+    -> Widget c p J.JSString ()
 textInput gid = dummy
     { window = do
         s <- ask
@@ -86,9 +86,9 @@ textInput gid = dummy
     onInitialized ::
         (
             -- AsFacet SetProperty x
-        AsFacet (GetProperty w) x
-        , AsFacet (MkEveryOnUpdatedCallback w) x
-        ) => Gadget w x J.JSString ()
+          AsFacet (GetProperty c) c
+        , AsFacet (MkAction c) c
+        ) => Gadget c p J.JSString ()
     onInitialized = do
         Traversal my <- ask
         lift $ lift $ zoom my $ do

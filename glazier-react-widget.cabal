@@ -22,7 +22,6 @@ library
                        Glazier.React.Framework.MkId.Internal
                        Glazier.React.Framework.Reactor
                        Glazier.React.Framework.Reactor.Exec
-                       Glazier.React.Framework.Obj
                        Glazier.React.Framework.Scene
                        Glazier.React.Framework.Trigger
                        Glazier.React.Framework.Widget

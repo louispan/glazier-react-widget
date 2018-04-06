@@ -45,8 +45,10 @@ maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 -- return the TVars created.
 -- It is the responsiblity of the caller to 'CD.dispose' of the Plan when the app finishes.
 initReactor ::
-    MonadIO m
-    => (DL.DList c -> m ())
+    ( MonadIO m
+    , AsFacet (DL.DList c) c
+    )
+    => (c -> m ())
     -> s
     -> States (Scenario c s) ()
     -> m (TVar Plan, TVar s)
@@ -55,7 +57,7 @@ initReactor exec s ini = do
     modelVar <- liftIO $ newTVarIO s
     -- run through the app initialization, and execute any produced commands
     cs <- liftIO . atomically $ tickState planVar modelVar ini
-    exec cs
+    exec (command' cs)
     pure (planVar, modelVar)
 
 -- | Upate the world 'TVar' with the given action, and return the commands produced.
@@ -68,8 +70,7 @@ tickState planVar modelVar tick = do
     writeTVar planVar pln'
     pure cs
 
--- newtype Wack = Wack (Which '[MkCallback1 (Scene Wack Int)])
--- type Wack w = Which '[MkCallback1 (Scene w Int)]
+-- type Wack w = Which '[Rerender, (), DL.DList w]
 -- newtype Wock = Wock { unWock :: Wack Wock}
 -- instance (AsFacet a (Wack Wock)) => AsFacet a Wock where
 --     facet = iso unWock Wock . facet
@@ -77,6 +78,8 @@ tickState planVar modelVar tick = do
 -- Create a executor for all the core commands required by the framework
 execReactor ::
     ( MonadIO m
+    , AsFacet () c
+    , AsFacet (DL.DList c) c
     , AsFacet Rerender c
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
@@ -84,9 +87,11 @@ execReactor ::
     , AsFacet MkShimCallbacks c
     , AsFacet CD.Disposable c
     )
-    => (m () -> IO ()) -> (DL.DList c -> m ()) -> c -> m ()
+    => (m () -> IO ()) -> (c -> m ()) -> c -> m ()
 execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec execRerender c
+    maybeExec execUnit c
+    <|> maybeExec (execCommands runExec exec) c
+    <|> maybeExec execRerender c
     <|> maybeExec (execTickState exec) c
     <|> maybeExec (execMkAction1 runExec exec) c
     <|> maybeExec (execMkAction runExec exec) c
@@ -95,9 +100,10 @@ execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
 
 -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
 -- NB. This tied executor *only* runs the Reactor effects.
--- This version also 'traverse_' commands with parallel threads.
 reactorExecutor ::
     ( MonadIO m
+    , AsFacet () c
+    , AsFacet (DL.DList c) c
     , AsFacet Rerender c
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
@@ -107,10 +113,17 @@ reactorExecutor ::
     )
     => (m () -> IO ()) -> c -> m ()
 reactorExecutor runExec = execReactor runExec
-    (traverse_ $ liftIO . void . forkIO . runExec . reactorExecutor runExec)
+    (reactorExecutor runExec)
+    -- (traverse_ $ liftIO . void . forkIO . runExec . reactorExecutor runExec)
     -- (traverse_ (reactorExecutor runExec))
 
 -----------------------------------------------------------------
+execUnit :: Applicative m => () -> m ()
+execUnit = const $ pure ()
+
+-- execte a list of commands in parallel
+execCommands :: MonadIO m => (m () -> IO ()) -> (c -> m ()) -> DL.DList c -> m ()
+execCommands runExec exec = traverse_ (liftIO . void . forkIO . runExec . exec)
 
 execRerender ::
     ( MonadIO m
@@ -125,17 +138,18 @@ execRerender (Rerender j p) = liftIO $ do
 execTickState ::
     ( MonadIO m
     , AsFacet Rerender c
+    , AsFacet (DL.DList c) c
     )
-    => (DL.DList c -> m ())
+    => (c -> m ())
     -> TickState c
     -> m ()
 execTickState exec (TickState planVar modelVar tick) = do
     xs <- liftIO $ atomically $ tickState planVar modelVar (tick *> rerender)
-    exec xs
+    exec (command' xs)
 
 execMkAction1 ::
     (m () -> IO ())
-    -> (DL.DList c -> m ())
+    -> (c -> m ())
     -> MkAction1 c
     -> m ()
 execMkAction1 runExec exec (MkAction1 goStrict goLazy k) = do
@@ -145,20 +159,20 @@ execMkAction1 runExec exec (MkAction1 goStrict goLazy k) = do
             -- trigger didn't produce anything useful
             Nothing -> pure mempty
             -- get and run the command given the trigger
-            Just a -> runExec . exec . DL.singleton $ goLazy a
+            Just a -> runExec . exec $ goLazy a
     -- Apply to result to the continuation, and execute any produced commands
-    exec $ DL.singleton $ k f
+    exec $ k f
 
 execMkAction ::
     (m () -> IO ())
-    -> (DL.DList c -> m ())
+    -> (c -> m ())
     -> MkAction c
     -> m ()
 execMkAction runExec exec (MkAction c k) = do
     -- create the IO action to run given the runExec and exec
-    let f = runExec . exec $ DL.singleton c
+    let f = runExec $ exec c
     -- Apply to result to the continuation, and execute any produced commands
-    exec $ DL.singleton $ k f
+    exec $ k f
 
 -- | Making multiple MkShimListeners for the same plan is a silent error and will be ignored.
 execMkShimCallbacks ::
@@ -236,13 +250,13 @@ execDisposable = liftIO . fromMaybe mempty . CD.runDisposable
 execForkSTM ::
     MonadIO m
     => (m () -> IO ())
-    -> (DL.DList c -> m ())
+    -> (c -> m ())
     -> ForkSTM c
     -> m ()
 execForkSTM runExec exec (ForkSTM go k) = liftIO $ void $ forkIO $ do
     a <- atomically go
     let c = k a
-    liftIO . runExec . exec $ DL.singleton c
+    liftIO . runExec $ exec c
 
 #ifdef __GHCJS__
 

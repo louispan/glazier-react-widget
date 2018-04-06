@@ -2,9 +2,7 @@
 
 module Glazier.React.Effect.JavaScript where
 
-import Control.Concurrent.STM
 import qualified GHCJS.Types as J
-import Glazier.React.Framework
 import qualified JavaScript.Extras as JE
 
 data SetProperty where
@@ -13,11 +11,9 @@ data SetProperty where
 
 data GetProperty c where
     GetProperty :: JE.ToJS j
-        => TVar Plan
-        -> TVar s
-        -> J.JSString
+        => J.JSString
         -> j
-        -> (JE.JSRep -> States (Scenario c s) ())
+        -> (JE.JSRep -> c)
         -> GetProperty c
 
 

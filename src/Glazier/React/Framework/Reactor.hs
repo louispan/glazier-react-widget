@@ -93,7 +93,6 @@ data MkShimCallbacks where
         -> (Window s ())
         -> MkShimCallbacks
 
-
 data ForkSTM c where
     ForkSTM ::
         -- blockable STM to fork

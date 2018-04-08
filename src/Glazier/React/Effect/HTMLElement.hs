@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Glazier.React.Effect.HTMLElement where
@@ -34,3 +35,9 @@ blurRef gid = do
     case t of
         Nothing -> pure ()
         Just t' -> post . cmd $ Blur t'
+
+
+type AsHTMLElement c =
+    ( AsFacet Focus c
+    , AsFacet Blur c
+    )

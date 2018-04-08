@@ -78,13 +78,7 @@ tickState plnVar mdlVar tick = do
 -- Create a executor for all the core commands required by the framework
 execReactor ::
     ( MonadIO m
-    , AsFacet [c] c
-    , AsFacet Rerender c
-    , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
-    , AsFacet (MkAction c) c
-    , AsFacet MkShimCallbacks c
-    , AsFacet CD.Disposable c
+    , AsReactor c
     )
     => (m () -> IO ()) -> (c -> m ()) -> c -> m ()
 execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
@@ -100,13 +94,7 @@ execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
 -- NB. This tied executor *only* runs the Reactor effects.
 reactorExecutor ::
     ( MonadIO m
-    , AsFacet [c] c
-    , AsFacet Rerender c
-    , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
-    , AsFacet (MkAction c) c
-    , AsFacet MkShimCallbacks c
-    , AsFacet CD.Disposable c
+    , AsReactor c
     )
     => (m () -> IO ()) -> c -> m ()
 reactorExecutor runExec = execReactor runExec
@@ -242,16 +230,16 @@ execDisposable ::
     -> m ()
 execDisposable = liftIO . fromMaybe mempty . CD.runDisposable
 
-execForkSTM ::
-    MonadIO m
-    => (m () -> IO ())
-    -> (c -> m ())
-    -> ForkSTM c
-    -> m ()
-execForkSTM runExec exec (ForkSTM go k) = liftIO $ void $ forkIO $ do
-    a <- atomically go
-    let c = k a
-    liftIO . runExec $ exec c
+-- execForkSTM ::
+--     MonadIO m
+--     => (m () -> IO ())
+--     -> (c -> m ())
+--     -> ForkSTM c
+--     -> m ()
+-- execForkSTM runExec exec (ForkSTM go k) = liftIO $ void $ forkIO $ do
+--     a <- atomically go
+--     let c = k a
+--     liftIO . runExec $ exec c
 
 #ifdef __GHCJS__
 

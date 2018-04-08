@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
@@ -11,6 +12,7 @@ module Glazier.React.Framework.Reactor where
 
 import Control.Concurrent.STM
 import Control.DeepSeq
+import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.State
 import Control.Monad.Trans.States.Strict
@@ -93,10 +95,20 @@ data MkShimCallbacks where
         -> (Window s ())
         -> MkShimCallbacks
 
-data ForkSTM c where
-    ForkSTM ::
-        -- blockable STM to fork
-        STM a
-        -- Continuation to run when STM succeeds.
-        -> (a -> c)
-        -> ForkSTM c
+-- data ForkSTM c where
+--     ForkSTM ::
+--         -- blockable STM to fork
+--         STM a
+--         -- Continuation to run when STM succeeds.
+--         -> (a -> c)
+--         -> ForkSTM c
+
+type AsReactor c =
+    ( AsFacet [c] c
+    , AsFacet Rerender c
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    , AsFacet (MkAction c) c
+    , AsFacet MkShimCallbacks c
+    , AsFacet CD.Disposable c
+    )

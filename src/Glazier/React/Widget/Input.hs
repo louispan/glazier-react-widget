@@ -60,12 +60,8 @@ import qualified JavaScript.Extras as JE
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
     ( Typeable p
-    , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
-    , AsFacet (GetProperty c) c
-    , AsFacet SetProperty c
-    , AsFacet (MkAction c) c
-    , AsFacet [c] c
+    , AsReactor c
+    , AsJavascript c
     )
     => GizmoId
     -> Widget c p J.JSString ()
@@ -92,11 +88,8 @@ textInput gid = dummy
     -- | Modify the DOM input value after every render to match the model value
     onInitialized ::
         ( Typeable p
-        , AsFacet [c] c
-        , AsFacet (TickState c) c
-        , AsFacet (MkAction c) c
-        , AsFacet (GetProperty c) c
-        , AsFacet SetProperty c
+        , AsReactor c
+        , AsJavascript c
         )
         => Gadget c p J.JSString ()
     onInitialized = do

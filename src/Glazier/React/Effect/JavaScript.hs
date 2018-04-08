@@ -1,7 +1,10 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 
 module Glazier.React.Effect.JavaScript where
 
+import Data.Diverse.Lens
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
@@ -16,4 +19,7 @@ data GetProperty c where
         -> (JE.JSRep -> c)
         -> GetProperty c
 
-
+type AsJavascript c =
+    ( AsFacet SetProperty c
+    , AsFacet (GetProperty c) c
+    )

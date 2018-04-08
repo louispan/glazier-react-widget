@@ -28,8 +28,10 @@ import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
 import Data.Diverse.Lens
+import qualified Data.DList as DL
 import qualified Data.JSString as J
 import Data.Maybe
+import Data.Typeable
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
@@ -55,9 +57,14 @@ import qualified JavaScript.Extras as JE
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( AsFacet (MkAction1 c) c
+    ( Typeable p
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
     , AsFacet (GetProperty c) c
+    , AsFacet SetProperty c
     , AsFacet (MkAction c) c
+    , AsFacet () c
+    , AsFacet (DL.DList c) c
     )
     => GizmoId
     -> Widget c p J.JSString ()
@@ -84,26 +91,50 @@ textInput gid = dummy
     -- | Add setting the DOM input value after every render as this is the only
     -- way to change that setting.
     onInitialized ::
-        (
-            -- AsFacet SetProperty x
-          AsFacet (GetProperty c) c
+        ( Typeable p
+        , AsFacet (TickState c) c
+        , AsFacet (MkAction1 c) c
+        , AsFacet (GetProperty c) c
+        , AsFacet SetProperty c
         , AsFacet (MkAction c) c
-        ) => Gadget c p J.JSString ()
+        , AsFacet () c
+        , AsFacet (DL.DList c) c
+        )
+        => Gadget c p J.JSString ()
     onInitialized = do
-        Traversal my <- ask
-        lift $ lift $ zoom my $ do
-            pid <- use (_plan._planId)
-            post1' $ MkEveryOnUpdatedCallback pid (go (Traversal my))
-      where
-        -- go (Traversal my) = void $ runMaybeT $ do
-        --     j <- MaybeT $ preuse (my._plan._gizmos.ix gid._targetRef._Just)
-        --     lift $ (`runContT` pure) $ do
-        --         start <- ContT $ zoom my . post1' . GetProperty "selectionStart" j
-        --         pure ()
+        SceneObj plnVar mdlVar slf <- ask
+        triggerOnUpdated (go gid slf)
 
-        go (Traversal my) = void $ runMaybeT $ do
-            j <- MaybeT $ preuse (my._plan._gizmos.ix gid._targetRef._Just)
-            lift $ zoom my $ post1' $ GetProperty @w "selectionStart" j (const $ pure ())
+go ::
+    ( Typeable p
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    , AsFacet (GetProperty c) c
+    , AsFacet SetProperty c
+    , AsFacet (MkAction c) c
+    , AsFacet () c
+    , AsFacet (DL.DList c) c
+    )
+    => GizmoId
+    -> Traversal' p J.JSString
+    -> States (Scenario c p) ()
+go gid slf = void $ runMaybeT $ do
+        j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
+        let j' :: EventTarget
+            j' = j
+        s <- MaybeT $ preuse (_scene._model.slf)
+        let s' :: J.JSString
+            s' = s
+        lift $ post $ (`runCont` id) $ (>>= maybe (pure $ command ()) pure) $ runMaybeT $ do
+            start <- MaybeT . fmap JE.fromJSR . cont $ command' . GetProperty "selectionStart" j
+            end <- MaybeT . fmap JE.fromJSR . cont $ command' . GetProperty "selectionEnd" j
+            v <- MaybeT . fmap JE.fromJSR . cont $ command' . GetProperty "value" j
+            let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
+            pure (command' $ DL.fromList
+                [ command $ SetProperty ("value", JE.toJSR s) j
+                , command $ SetProperty ("selectionStart", JE.toJSR a) j
+                , command $ SetProperty ("selectionEnd", JE.toJSR b) j
+                ])
 
             --     -- pure ()
             --     lift $ zoom my $ pure ()

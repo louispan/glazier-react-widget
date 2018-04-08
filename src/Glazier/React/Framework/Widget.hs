@@ -63,8 +63,8 @@ instance (Monoid a) => Monoid (Widget c p s a) where
     mempty = Widget mempty mempty
     mappend = mapWidget2 mappend
 
--- dummy :: Widget c p s ()
--- dummy = mempty
+dummy :: Widget c p s ()
+dummy = mempty
 
 enlargeModel :: Traversal' s' s -> Widget c p s a -> Widget c p s' a
 enlargeModel l (Widget disp ini) = Widget (magnifyModel l disp) (magnifyObjModel l ini)

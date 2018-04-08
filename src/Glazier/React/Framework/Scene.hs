@@ -278,8 +278,11 @@ editScenarioModel l safa s = (\s' -> s & _scene._model .~ s' ) <$> l afa' (s ^. 
 -- post1 :: (HasCommands c s, MonadState s m) => c -> m ()
 -- post1 c = _commands %= (`DL.snoc` c)
 
+post :: (MonadState (Scenario c s) m) => c -> m ()
+post c = _commands %= (`DL.snoc` c)
+
 post1 :: (AsFacet c' c, MonadState (Scenario c s) m) => c' -> m ()
-post1 c = _commands %= (`DL.snoc` (command c))
+post1 = post . command
 
 -- | Useful for avoiding type annotations for higher order commands with
 -- a type variable to @c@

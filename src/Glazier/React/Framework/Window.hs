@@ -29,7 +29,7 @@ type WindowSTM s = WindowT s STM
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------
 
-getListeners :: GizmoId -> Window s [JE.Property]
+getListeners :: Monad m => GizmoId -> WindowT s m [JE.Property]
 getListeners gid = do
     cb <- preview (_plan._shimCallbacks._Just._onListen)
     case cb of
@@ -42,20 +42,24 @@ getListeners gid = do
     context k = JE.toJSR $ JA.fromList [JE.toJS gid, JE.toJS k]
 
 -- | Interactive version of 'lf' using listeners obtained from the 'Plan' for a 'GizmoId'.
-lf' :: GizmoId
+lf' ::
+    Monad m
+    => GizmoId
     -> JE.JSRep -- ^ eg "div" or "input"
     -> DL.DList JE.Property
-    -> Window s ()
+    -> WindowT s m ()
 lf' gid n props = do
     ls <- getListeners gid
     leaf n (props <> DL.fromList ls)
 
 -- | Interactive version of 'bh'
-bh' :: GizmoId
+bh' ::
+    Monad m
+    => GizmoId
     -> JE.JSRep
     -> DL.DList JE.Property
-    -> Window s r
-    -> Window s r
+    -> WindowT s m r
+    -> WindowT s m r
 bh' gid n props childs = do
     ls <- getListeners gid
     branch n (props <> DL.fromList ls) childs
@@ -63,7 +67,7 @@ bh' gid n props childs = do
 -- | Use this to create a display for a top level 'Gadget'
 -- Eg. the result of a 'Widget' that has the Window rendering function
 -- inserted into 'Glazier.React.Framework.Core.Widget.MkShimListeners'.
-shimWindow :: Window s ()
+shimWindow :: Monad m => WindowT s m ()
 shimWindow = do
     ls <- view (_plan._shimCallbacks)
     case ls of

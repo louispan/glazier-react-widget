@@ -10,6 +10,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
+{-# LANGUAGE NoMonomorphismRestriction #-}
+
 module Glazier.React.Widget.Input where --(
     -- -- * Text input
     -- textInput
@@ -63,8 +65,7 @@ textInput ::
     , AsFacet (GetProperty c) c
     , AsFacet SetProperty c
     , AsFacet (MkAction c) c
-    , AsFacet () c
-    , AsFacet (DL.DList c) c
+    , AsFacet [c] c
     )
     => GizmoId
     -> Widget c p J.JSString ()
@@ -88,65 +89,34 @@ textInput gid = dummy
     }
   where
 
-    -- | Add setting the DOM input value after every render as this is the only
-    -- way to change that setting.
+    -- | Modify the DOM input value after every render to match the model value
     onInitialized ::
         ( Typeable p
+        , AsFacet [c] c
         , AsFacet (TickState c) c
-        , AsFacet (MkAction1 c) c
+        , AsFacet (MkAction c) c
         , AsFacet (GetProperty c) c
         , AsFacet SetProperty c
-        , AsFacet (MkAction c) c
-        , AsFacet () c
-        , AsFacet (DL.DList c) c
         )
         => Gadget c p J.JSString ()
     onInitialized = do
-        SceneObj plnVar mdlVar slf <- ask
-        triggerOnUpdated (go gid slf)
-
-go ::
-    ( Typeable p
-    , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
-    , AsFacet (GetProperty c) c
-    , AsFacet SetProperty c
-    , AsFacet (MkAction c) c
-    , AsFacet () c
-    , AsFacet (DL.DList c) c
-    )
-    => GizmoId
-    -> Traversal' p J.JSString
-    -> States (Scenario c p) ()
-go gid slf = void $ runMaybeT $ do
-        j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
-        let j' :: EventTarget
-            j' = j
-        s <- MaybeT $ preuse (_scene._model.slf)
-        let s' :: J.JSString
-            s' = s
-        lift $ post $ (`runCont` id) $ (>>= maybe (pure $ command ()) pure) $ runMaybeT $ do
-            start <- MaybeT . fmap JE.fromJSR . cont $ command' . GetProperty "selectionStart" j
-            end <- MaybeT . fmap JE.fromJSR . cont $ command' . GetProperty "selectionEnd" j
-            v <- MaybeT . fmap JE.fromJSR . cont $ command' . GetProperty "value" j
-            let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-            pure (command' $ DL.fromList
-                [ command $ SetProperty ("value", JE.toJSR s) j
-                , command $ SetProperty ("selectionStart", JE.toJSR a) j
-                , command $ SetProperty ("selectionEnd", JE.toJSR b) j
-                ])
-
-            --     -- pure ()
-            --     lift $ zoom my $ pure ()
-                -- post1' $ GetProperty @w "selectionStart" j undefined
-
-            -- start <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionStart" j)
-            -- end <- MaybeT $ JE.fromJSR <$> (doGetProperty "selectionEnd" j)
-            -- v <- MaybeT $ JE.fromJSR <$> (doGetProperty "value" j)
-            -- let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-            -- lift $ j & doSetProperty ("value", JE.toJSR s)
-            -- lift $ j & doSetProperty ("selectionStart", JE.toJSR a)
-            -- lift $ j & doSetProperty ("selectionEnd", JE.toJSR b)
+        SceneObj _ _ slf <- ask
+        triggerOnUpdated $ void $ runMaybeT $ do
+            j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
+            s <- MaybeT $ preuse (_scene._model.slf)
+            -- Use @('runCont` id)@ to allow do notation for making the continuation
+            -- to put inside the commands.
+            -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
+            lift $ post $ (`runCont` id) $ runMaybeCmd $ do
+                start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
+                end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
+                v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
+                let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
+                pure . cmd' @[] $
+                    [ cmd $ SetProperty ("value", JE.toJSR s) j
+                    , cmd $ SetProperty ("selectionStart", JE.toJSR a) j
+                    , cmd $ SetProperty ("selectionEnd", JE.toJSR b) j
+                    ]
 
     -- hdlChange ::
     --     ( MonadReactor m, MonadJS m

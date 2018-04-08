@@ -52,7 +52,7 @@ rerender = do
         (True, Just comp') -> do
             _scene._plan._previousFrameNum .= c
             scn <- use _scene
-            post1 $ Rerender comp' scn
+            post . cmd $ Rerender comp' scn
         _ -> pure ()
 
 -----------------------------------------------------------------

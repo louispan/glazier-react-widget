@@ -46,7 +46,7 @@ maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 -- It is the responsiblity of the caller to 'CD.dispose' of the Plan when the app finishes.
 initReactor ::
     ( MonadIO m
-    , AsFacet (DL.DList c) c
+    , AsFacet [c] c
     )
     => (c -> m ())
     -> s
@@ -57,7 +57,7 @@ initReactor exec s ini = do
     mdlVar <- liftIO $ newTVarIO s
     -- run through the app initialization, and execute any produced commands
     cs <- liftIO . atomically $ tickState plnVar mdlVar ini
-    exec (command' cs)
+    exec (cmd' $ DL.toList cs)
     pure (plnVar, mdlVar)
 
 -- | Upate the world 'TVar' with the given action, and return the commands produced.
@@ -79,7 +79,7 @@ tickState plnVar mdlVar tick = do
 execReactor ::
     ( MonadIO m
     , AsFacet () c
-    , AsFacet (DL.DList c) c
+    , AsFacet [c] c
     , AsFacet Rerender c
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
@@ -103,7 +103,7 @@ execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
 reactorExecutor ::
     ( MonadIO m
     , AsFacet () c
-    , AsFacet (DL.DList c) c
+    , AsFacet [c] c
     , AsFacet Rerender c
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
@@ -122,7 +122,7 @@ execUnit :: Applicative m => () -> m ()
 execUnit = const $ pure ()
 
 -- execte a list of commands in parallel
-execCommands :: MonadIO m => (m () -> IO ()) -> (c -> m ()) -> DL.DList c -> m ()
+execCommands :: MonadIO m => (m () -> IO ()) -> (c -> m ()) -> [c] -> m ()
 execCommands runExec exec = traverse_ (liftIO . void . forkIO . runExec . exec)
 
 execRerender ::
@@ -138,14 +138,14 @@ execRerender (Rerender j p) = liftIO $ do
 execTickState ::
     ( MonadIO m
     , AsFacet Rerender c
-    , AsFacet (DL.DList c) c
+    , AsFacet [c] c
     )
     => (c -> m ())
     -> TickState c
     -> m ()
 execTickState exec (TickState plnVar mdlVar tick) = do
-    xs <- liftIO $ atomically $ tickState plnVar mdlVar (tick *> rerender)
-    exec (command' xs)
+    cs <- liftIO $ atomically $ tickState plnVar mdlVar (tick *> rerender)
+    exec (cmd' $ DL.toList cs)
 
 execMkAction1 ::
     (m () -> IO ())

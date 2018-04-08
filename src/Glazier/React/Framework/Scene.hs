@@ -23,6 +23,7 @@ import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.RWS
+import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.Map.Strict as M
@@ -271,31 +272,47 @@ editScenarioModel l safa s = (\s' -> s & _scene._model .~ s' ) <$> l afa' (s ^. 
 
 ----------------------------------------------------------------------------------
 
--- | post a command to be interpreted at the end of the frame
--- post :: (HasCommands c s, MonadState s m) => DL.DList c -> m ()
--- post cs = _commands %= (<> cs)
+-- -- | 'post' . 'cmd'
+-- postCmd :: (AsFacet c' c, MonadState (Scenario c s) m) => c' -> m ()
+-- postCmd = post . cmd
 
--- post1 :: (HasCommands c s, MonadState s m) => c -> m ()
--- post1 c = _commands %= (`DL.snoc` c)
+-- -- | A variation of 'post1' for commands with a type variable @c@,
+-- -- which should be commands that require a continuation.
+-- -- Ie. commands that "return" a value from running an effect.
+-- postCmd' :: (AsFacet (c' c) c, MonadState (Scenario c s) m) => c' c -> m ()
+-- postCmd' = post . cmd'
 
+-- Add a command to the list of commands for this state tick.
 post :: (MonadState (Scenario c s) m) => c -> m ()
 post c = _commands %= (`DL.snoc` c)
 
-post1 :: (AsFacet c' c, MonadState (Scenario c s) m) => c' -> m ()
-post1 = post . command
+-- | convert a request type to a command type.
+-- This is used for commands that doesn't have a continuation.
+-- Ie. commands that doesn't "returns" a value from running an effect.
+-- Use 'cmd'' for commands that require a continuation ("returns" a value).
+cmd :: (AsFacet c' c) => c' -> c
+cmd = review facet
 
--- | Useful for avoiding type annotations for higher order commands with
--- a type variable to @c@
-post1' :: (AsFacet (c' c) c, MonadState (Scenario c s) m) => c' c -> m ()
-post1' = post1
+-- | A variation of 'cmd' for commands with a type variable @c@,
+-- which should be commands that require a continuation.
+-- Ie. commands that "returns" a value from running an effect.
+-- 'cmd'' is usually used with with the 'Cont' monad to help
+-- create the continuation.
+--
+-- @
+-- post $ (`runCont` id) $ do
+--     a <- cont $ cmd' . GetSomething
+--     pure . cmd $ DoSomething (f a)
+-- @
+cmd' :: (AsFacet (c' c) c) => c' c -> c
+cmd' = cmd
 
-command :: (AsFacet c' c) => c' -> c
-command = review facet
+-- | runs a MaybeT over a monad that creates a command.
+runMaybeCmd :: (AsFacet [c] c, Monad m) => MaybeT m c -> m c
+runMaybeCmd m = (>>= maybe (pure $ cmd' @[] []) pure) $ runMaybeT m
 
-command' :: (AsFacet (c' c) c) => c' c -> c
-command' = command
-
-----------------------------------------------------------------------------------
+-- ccmd :: AsFacet (c' c) c => ((a -> c) -> c' c) -> Cont c a
+-- ccmd k = cont $ cmd' . k
 
 ----------------------------------------------------------------------------------
 

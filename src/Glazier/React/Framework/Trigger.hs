@@ -60,13 +60,12 @@ mkTriggerAction1 l gid n goStrict goLazy = do
     SceneObj plnVar mdlVar _ <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
-        let goLazy' a = command' $ TickState plnVar mdlVar (goLazy a >>= fire)
-            cmd = MkAction1 goStrict goLazy' $ \act ->
+        let goLazy' a = cmd' $ TickState plnVar mdlVar (goLazy a >>= fire)
+        post . cmd' $ MkAction1 goStrict goLazy' $ \act ->
                 let updateGizmo = _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
                     addListener = _listeners.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
                     addAction acts = acts & l %~ (*> act)
-                in command' $ TickState plnVar mdlVar updateGizmo
-        post1 cmd
+                in cmd' $ TickState plnVar mdlVar updateGizmo
 
 mkUpdatedAction ::
     ( Typeable p
@@ -80,11 +79,10 @@ mkUpdatedAction l go = do
     SceneObj plnVar mdlVar _ <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
-        let go' = command' $ TickState plnVar mdlVar (go >>= fire)
-            cmd = MkAction go' $ \act ->
+        let go' = cmd' $ TickState plnVar mdlVar (go >>= fire)
+        post . cmd' $ MkAction go' $ \act ->
                 let addListener = _scene._plan._doOnUpdated.l %= (*> act)
-                in command' $ TickState plnVar mdlVar addListener
-        post1 cmd
+                in cmd' $ TickState plnVar mdlVar addListener
 
 triggerOnUpdated_ ::
     ( Typeable p

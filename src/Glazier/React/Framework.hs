@@ -6,6 +6,7 @@ module Glazier.React.Framework
     , module Control.Monad.Trans.Readers
     , module Control.Monad.Trans.RWSs.Strict
     , module Control.Monad.Trans.States.Strict
+    , module Glazier.React.Framework.Concur
     , module Glazier.React.Framework.Gadget
     , module Glazier.React.Framework.MkId
     , module Glazier.React.Framework.Reactor
@@ -22,6 +23,7 @@ import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Readers
 import Control.Monad.Trans.RWSs.Strict
 import Control.Monad.Trans.States.Strict
+import Glazier.React.Framework.Concur
 import Glazier.React.Framework.Gadget
 import Glazier.React.Framework.MkId
 import Glazier.React.Framework.Reactor

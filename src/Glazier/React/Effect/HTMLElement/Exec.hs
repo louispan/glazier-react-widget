@@ -6,9 +6,21 @@
 
 module Glazier.React.Effect.HTMLElement.Exec where
 
+import Control.Applicative
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Maybe
 import Glazier.React
 import Glazier.React.Effect.HTMLElement
+import Glazier.React.Framework
+
+execHTMLElement ::
+    ( MonadIO m
+    , AsHTMLElement c
+    )
+    => c -> MaybeT m ()
+execHTMLElement c =
+   maybeExec execFocus c
+    <|> maybeExec execBlur c
 
 execFocus ::
     ( MonadIO m

@@ -75,13 +75,13 @@ tickState plnVar mdlVar tick = do
 -- instance (AsFacet a (Wack Wock)) => AsFacet a Wock where
 --     facet = iso unWock Wock . facet
 
--- Create a executor for all the core commands required by the framework
+-- | Create a executor for all the core commands required by the framework
 execReactor ::
     ( MonadIO m
     , AsReactor c
     )
-    => (m () -> IO ()) -> (c -> m ()) -> c -> m ()
-execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
+    => (m () -> IO ()) -> (c -> m ()) -> c -> MaybeT m ()
+execReactor runExec exec c =
     maybeExec (execCommands runExec exec) c
     <|> maybeExec execRerender c
     <|> maybeExec (execTickState exec) c
@@ -89,18 +89,18 @@ execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
     <|> maybeExec (execMkAction runExec exec) c
     <|> maybeExec execMkShimCallbacks c
     <|> maybeExec execDisposable c
+    <|> maybeExec (execForkSTM runExec exec) c
 
--- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
--- NB. This tied executor *only* runs the Reactor effects.
-reactorExecutor ::
-    ( MonadIO m
-    , AsReactor c
-    )
-    => (m () -> IO ()) -> c -> m ()
-reactorExecutor runExec = execReactor runExec
-    (reactorExecutor runExec)
-    -- (traverse_ $ liftIO . void . forkIO . runExec . reactorExecutor runExec)
-    -- (traverse_ (reactorExecutor runExec))
+-- -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
+-- -- NB. This tied executor *only* runs the Reactor effects.
+-- -- You would probably want to "tie" at least 'execReactor', 'execJavascript', 'execHtmlElement'
+-- reactorExecutor ::
+--     ( MonadIO m
+--     , AsReactor c
+--     )
+--     => (m () -> IO ()) -> c -> m ()
+-- reactorExecutor runExec = fmap (fromMaybe mempty) . runMaybeT .
+--     execReactor runExec (reactorExecutor runExec)
 
 -----------------------------------------------------------------
 
@@ -230,16 +230,16 @@ execDisposable ::
     -> m ()
 execDisposable = liftIO . fromMaybe mempty . CD.runDisposable
 
--- execForkSTM ::
---     MonadIO m
---     => (m () -> IO ())
---     -> (c -> m ())
---     -> ForkSTM c
---     -> m ()
--- execForkSTM runExec exec (ForkSTM go k) = liftIO $ void $ forkIO $ do
---     a <- atomically go
---     let c = k a
---     liftIO . runExec $ exec c
+execForkSTM ::
+    MonadIO m
+    => (m () -> IO ())
+    -> (c -> m ())
+    -> ForkSTM c
+    -> m ()
+execForkSTM runExec exec (ForkSTM go k) = liftIO $ void $ forkIO $ do
+    a <- atomically go
+    let c = k a
+    liftIO . runExec $ exec c
 
 #ifdef __GHCJS__
 

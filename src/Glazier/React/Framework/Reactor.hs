@@ -95,13 +95,18 @@ data MkShimCallbacks where
         -> (Window s ())
         -> MkShimCallbacks
 
--- data ForkSTM c where
---     ForkSTM ::
---         -- blockable STM to fork
---         STM a
---         -- Continuation to run when STM succeeds.
---         -> (a -> c)
---         -> ForkSTM c
+-- | Runs a blockable STM.
+-- The executor should never be blocked from executing the next command.
+-- Ie. the executor should always execute this STM in a concurrent thread just in case the STM blocks on
+-- commands *after* this 'RunSTM'.
+-- Eg. the STM reads from a channel will will be unblocked by a later STM.
+data ForkSTM c where
+    ForkSTM ::
+        -- blockable STM to run
+        STM a
+        -- Continuation to run when STM succeeds.
+        -> (a -> c)
+        -> ForkSTM c
 
 type AsReactor c =
     ( AsFacet [c] c
@@ -111,4 +116,5 @@ type AsReactor c =
     , AsFacet (MkAction c) c
     , AsFacet MkShimCallbacks c
     , AsFacet CD.Disposable c
+    , AsFacet (ForkSTM c) c
     )

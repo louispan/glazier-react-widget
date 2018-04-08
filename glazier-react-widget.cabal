@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src
   exposed-modules:
                        Glazier.React.Framework
+                       Glazier.React.Framework.Concur
                        Glazier.React.Framework.Gadget
                        Glazier.React.Framework.MkId
                        Glazier.React.Framework.MkId.Internal

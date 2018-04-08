@@ -107,12 +107,12 @@ textInput gid = dummy
             -- Use @('runCont` id)@ to allow do notation for making the continuation
             -- to put inside the commands.
             -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
-            lift $ post $ (`runCont` id) $ runMaybeCmd $ do
+            lift . post . (`runCont` id) . runMaybeCmd $ do
                 start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
                 end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
                 v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
                 let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                pure . cmd' @[] $
+                pure $ cmd' @[]
                     [ cmd $ SetProperty ("value", JE.toJSR s) j
                     , cmd $ SetProperty ("selectionStart", JE.toJSR a) j
                     , cmd $ SetProperty ("selectionEnd", JE.toJSR b) j

@@ -78,7 +78,6 @@ tickState plnVar mdlVar tick = do
 -- Create a executor for all the core commands required by the framework
 execReactor ::
     ( MonadIO m
-    , AsFacet () c
     , AsFacet [c] c
     , AsFacet Rerender c
     , AsFacet (TickState c) c
@@ -89,8 +88,7 @@ execReactor ::
     )
     => (m () -> IO ()) -> (c -> m ()) -> c -> m ()
 execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
-    maybeExec execUnit c
-    <|> maybeExec (execCommands runExec exec) c
+    maybeExec (execCommands runExec exec) c
     <|> maybeExec execRerender c
     <|> maybeExec (execTickState exec) c
     <|> maybeExec (execMkAction1 runExec exec) c
@@ -102,7 +100,6 @@ execReactor runExec exec c = fmap (fromMaybe mempty) $ runMaybeT $
 -- NB. This tied executor *only* runs the Reactor effects.
 reactorExecutor ::
     ( MonadIO m
-    , AsFacet () c
     , AsFacet [c] c
     , AsFacet Rerender c
     , AsFacet (TickState c) c
@@ -118,8 +115,6 @@ reactorExecutor runExec = execReactor runExec
     -- (traverse_ (reactorExecutor runExec))
 
 -----------------------------------------------------------------
-execUnit :: Applicative m => () -> m ()
-execUnit = const $ pure ()
 
 -- execte a list of commands in parallel
 execCommands :: MonadIO m => (m () -> IO ()) -> (c -> m ()) -> [c] -> m ()

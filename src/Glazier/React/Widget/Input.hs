@@ -27,8 +27,10 @@ import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.Cont
 import Control.Monad.Reader
+import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Maybe.Extras
 import qualified Data.Algorithm.Diff as D
 import Data.Diverse.Lens
 import qualified Data.DList as DL
@@ -103,7 +105,7 @@ textInput gid = dummy
     --         -- Use @('runCont` id)@ to allow do notation for making the continuation
     --         -- to put inside the commands.
     --         -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
-    --         lift . post . (`runCont` id) . runMaybeTCmd $ do
+    --         lift . post . evalCont . (`evalMaybeT` memptyCmd) $ do
     --             start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
     --             end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
     --             v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
@@ -130,7 +132,7 @@ textInput gid = dummy
             -- Use @('runCont` id)@ to allow do notation for making the continuation
             -- to put inside the commands.
             -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
-            lift . post . concurAsCmd . runMaybeTCmd $ do
+            lift . post . evalConcur . (`evalMaybeT` memptyCmd) $ do
                 start <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionStart" j
                 end <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionEnd" j
                 v <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "value" j

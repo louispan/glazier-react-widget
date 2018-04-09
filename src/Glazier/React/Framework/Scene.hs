@@ -24,7 +24,6 @@ import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.Cont
 import Control.Monad.RWS
-import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.Map.Strict as M
@@ -216,18 +215,14 @@ cmd = review facet
 cmd' :: (AsFacet (c' c) c) => c' c -> c
 cmd' = cmd
 
-emptyCmd :: AsFacet [c] c => c
-emptyCmd = cmd' @[] []
+memptyCmd :: AsFacet [c] c => c
+memptyCmd = cmd' @[] []
 
 cmds' :: AsFacet [c] c => [c] -> c
 cmds' = cmd' @[]
 
--- | runs a MaybeT over a monad that creates a command.
-runMaybeTCmd :: (AsFacet [c] c, Monad m) => MaybeT m c -> m c
-runMaybeTCmd m = runMaybeT m >>= maybe (pure emptyCmd) pure
-
-retrieve :: AsFacet (c' c) c => ((a -> c) -> c' c) -> Cont c a
-retrieve k = cont $ cmd' . k
+-- retrieve :: AsFacet (c' c) c => ((a -> c) -> c' c) -> Cont c a
+-- retrieve k = cont $ cmd' . k
 
 ----------------------------------------------------------------------------------
 

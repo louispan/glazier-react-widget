@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -11,6 +12,10 @@ import Control.Monad.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Glazier.React.Framework.Reactor
+
+type ConcurCmds =
+    '[ ForkConcur c
+    ]
 
 type AsConcur c =
     ( AsFacet (ForkConcur c) c

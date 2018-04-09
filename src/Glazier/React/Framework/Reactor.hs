@@ -49,10 +49,21 @@ cmd' = cmd
 memptyCmd :: AsFacet [c] c => c
 memptyCmd = cmd' @[] []
 
-cmds' :: AsFacet [c] c => [c] -> c
-cmds' = cmd' @[]
+cmds :: AsFacet [c] c => [c] -> c
+cmds = cmd' @[]
 
 -----------------------------------------------------------------
+
+type ReactorCmds c =
+    '[ [c]
+    , Rerender
+    , TickState c
+    , MkAction1 c
+    , MkAction c
+    , MkShimCallbacks
+    , CD.Disposable
+    , ForkSTM c
+    ]
 
 type AsReactor c =
     ( AsFacet [c] c

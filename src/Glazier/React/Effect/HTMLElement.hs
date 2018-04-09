@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Glazier.React.Effect.HTMLElement where
@@ -8,6 +9,16 @@ import Control.Monad.State
 import Data.Diverse.Lens
 import Glazier.React
 import Glazier.React.Framework
+
+type HTMLElementCmds =
+    '[ Focus
+    , Blur
+    ]
+
+type AsHTMLElement c =
+    ( AsFacet Focus c
+    , AsFacet Blur c
+    )
 
 -- Effects from methods in https://developeR.mozilla.org/en-US/docs/Web/API/HTMLElement
 data Focus = Focus EventTarget
@@ -35,9 +46,3 @@ blurRef gid = do
     case t of
         Nothing -> pure ()
         Just t' -> post . cmd $ Blur t'
-
-
-type AsHTMLElement c =
-    ( AsFacet Focus c
-    , AsFacet Blur c
-    )

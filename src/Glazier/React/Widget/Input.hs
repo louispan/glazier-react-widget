@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -38,6 +39,7 @@ import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
 import Glazier.React.Framework
+import Glazier.React.Framework.Concur
 import qualified JavaScript.Extras as JE
 
 ----------------------------------------
@@ -62,6 +64,7 @@ textInput ::
     ( Typeable p
     , AsReactor c
     , AsJavascript c
+    , AsFacet (RunConcur c) c
     )
     => GizmoId
     -> Widget c p J.JSString ()
@@ -85,11 +88,38 @@ textInput gid = dummy
     }
   where
 
+    -- -- | Modify the DOM input value after every render to match the model value
+    -- onInitialized ::
+    --     ( Typeable p
+    --     , AsReactor c
+    --     , AsJavascript c
+    --     )
+    --     => Gadget c p J.JSString ()
+    -- onInitialized = do
+    --     SceneObj _ _ slf <- ask
+    --     triggerOnUpdated $ void $ runMaybeT $ do
+    --         j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
+    --         s <- MaybeT $ preuse (_scene._model.slf)
+    --         -- Use @('runCont` id)@ to allow do notation for making the continuation
+    --         -- to put inside the commands.
+    --         -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
+    --         lift . post . (`runCont` id) . runMaybeTCmd $ do
+    --             start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
+    --             end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
+    --             v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
+    --             let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
+    --             pure $ cmd' @[]
+    --                 [ cmd $ SetProperty ("value", JE.toJSR s) j
+    --                 , cmd $ SetProperty ("selectionStart", JE.toJSR a) j
+    --                 , cmd $ SetProperty ("selectionEnd", JE.toJSR b) j
+    --                 ]
+
     -- | Modify the DOM input value after every render to match the model value
     onInitialized ::
         ( Typeable p
         , AsReactor c
         , AsJavascript c
+        , AsFacet (RunConcur c) c
         )
         => Gadget c p J.JSString ()
     onInitialized = do
@@ -100,10 +130,10 @@ textInput gid = dummy
             -- Use @('runCont` id)@ to allow do notation for making the continuation
             -- to put inside the commands.
             -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
-            lift . post . (`runCont` id) . runMaybeCmd $ do
-                start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
-                end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
-                v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
+            lift . post . concurAsCmd . runMaybeTCmd $ do
+                start <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionStart" j
+                end <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionEnd" j
+                v <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "value" j
                 let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
                 pure $ cmd' @[]
                     [ cmd $ SetProperty ("value", JE.toJSR s) j

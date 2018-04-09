@@ -76,6 +76,7 @@ type AsReactor c =
     , AsFacet (ForkSTM c) c
     )
 
+-- | Rerender a ShimComponent using the given state.
 data Rerender where
     Rerender :: Typeable p
         => ComponentRef
@@ -135,7 +136,7 @@ data MkAction1 c where
 -- | Make the 'ShimCallbacks' for this 'Plan' using the given
 -- 'Window' rendering function.
 -- The original window should be dropped and the 'Widget' reduced to just a
--- 'Gadget' to emphasis the fact that the 'Window' was used.
+-- 'Gadget' to emphasis the fact that the 'Window' was used up.
 data MkShimCallbacks where
     MkShimCallbacks ::
         Typeable s

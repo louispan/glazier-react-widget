@@ -38,12 +38,12 @@ data ForkConcur c where
 -- 'Control.Monad.Trans.evalCont' with 'evalConcur' and 'Control.Monad.Trans.cont' with 'concur'.
 --
 -- @
--- post . evalCont . (`evalMaybeT` memptyCmd) $ do
+-- evalCont . (`evalMaybeT` memptyCmd) $ do
 --     start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
 --     end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
 --     v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
 --     let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
---     pure $ cmd' @[]
+--     pure $ cmds
 --         [ cmd $ SetProperty ("value", JE.toJSR s) j
 --         , cmd $ SetProperty ("selectionStart", JE.toJSR a) j
 --         , cmd $ SetProperty ("selectionEnd", JE.toJSR b) j
@@ -53,12 +53,12 @@ data ForkConcur c where
 -- becomes
 --
 -- @
--- post . evalConcur . (`evalMaybeT` memptyCmd) $ do
+-- evalConcur . (`evalMaybeT` memptyCmd) $ do
 --     start <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionStart" j
 --     end <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionEnd" j
 --     v <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "value" j
 --     let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
---     pure $ cmd' @[]
+--     pure $ cmds
 --         [ cmd $ SetProperty ("value", JE.toJSR s) j
 --         , cmd $ SetProperty ("selectionStart", JE.toJSR a) j
 --         , cmd $ SetProperty ("selectionEnd", JE.toJSR b) j

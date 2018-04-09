@@ -104,7 +104,7 @@ execReactor runExec exec c =
 
 -----------------------------------------------------------------
 
--- execte a list of commands in parallel
+-- execte a list of commands concurrently
 execCommands :: MonadIO m => (m () -> IO ()) -> (c -> m ()) -> [c] -> m ()
 execCommands runExec exec = traverse_ (liftIO . void . forkIO . runExec . exec)
 

@@ -22,9 +22,7 @@ import Control.Concurrent.STM
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
-import Control.Monad.Cont
 import Control.Monad.RWS
-import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.Map.Strict as M
 import Data.Maybe
@@ -192,34 +190,6 @@ editScenarioModel l safa s = (\s' -> s & _scene._model .~ s' ) <$> l afa' (s ^. 
 -- Add a command to the list of commands for this state tick.
 post :: (MonadState (Scenario c s) m) => c -> m ()
 post c = _commands %= (`DL.snoc` c)
-
--- | convert a request type to a command type.
--- This is used for commands that doesn't have a continuation.
--- Ie. commands that doesn't "returns" a value from running an effect.
--- Use 'cmd'' for commands that require a continuation ("returns" a value).
-cmd :: (AsFacet c' c) => c' -> c
-cmd = review facet
-
--- | A variation of 'cmd' for commands with a type variable @c@,
--- which is usually commands that are containers of command,
--- or commands that require a continuation
--- Eg. commands that "returns" a value from running an effect.
--- 'cmd'' is usually used with with the 'Cont' monad to help
--- create the continuation.
---
--- @
--- post $ (`runCont` id) $ do
---     a <- cont $ cmd' . GetSomething
---     pure . cmd $ DoSomething (f a)
--- @
-cmd' :: (AsFacet (c' c) c) => c' c -> c
-cmd' = cmd
-
-memptyCmd :: AsFacet [c] c => c
-memptyCmd = cmd' @[] []
-
-cmds' :: AsFacet [c] c => [c] -> c
-cmds' = cmd' @[]
 
 -- retrieve :: AsFacet (c' c) c => ((a -> c) -> c' c) -> Cont c a
 -- retrieve k = cont $ cmd' . k

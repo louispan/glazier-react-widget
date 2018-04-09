@@ -6,6 +6,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Glazier.React.Framework.Reactor where
@@ -23,7 +24,46 @@ import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
 import qualified JavaScript.Extras as JE
 
+-- | convert a request type to a command type.
+-- This is used for commands that doesn't have a continuation.
+-- Ie. commands that doesn't "returns" a value from running an effect.
+-- Use 'cmd'' for commands that require a continuation ("returns" a value).
+cmd :: (AsFacet c' c) => c' -> c
+cmd = review facet
+
+-- | A variation of 'cmd' for commands with a type variable @c@,
+-- which is usually commands that are containers of command,
+-- or commands that require a continuation
+-- Eg. commands that "returns" a value from running an effect.
+-- 'cmd'' is usually used with with the 'Cont' monad to help
+-- create the continuation.
+--
+-- @
+-- post $ (`runCont` id) $ do
+--     a <- cont $ cmd' . GetSomething
+--     pure . cmd $ DoSomething (f a)
+-- @
+cmd' :: (AsFacet (c' c) c) => c' c -> c
+cmd' = cmd
+
+memptyCmd :: AsFacet [c] c => c
+memptyCmd = cmd' @[] []
+
+cmds' :: AsFacet [c] c => [c] -> c
+cmds' = cmd' @[]
+
 -----------------------------------------------------------------
+
+type AsReactor c =
+    ( AsFacet [c] c
+    , AsFacet Rerender c
+    , AsFacet (TickState c) c
+    , AsFacet (MkAction1 c) c
+    , AsFacet (MkAction c) c
+    , AsFacet MkShimCallbacks c
+    , AsFacet CD.Disposable c
+    , AsFacet (ForkSTM c) c
+    )
 
 data Rerender where
     Rerender :: Typeable p
@@ -57,8 +97,7 @@ rerender = do
             post . cmd $ Rerender comp' scn
         _ -> pure ()
 
------------------------------------------------------------------
--- Automatically: check 'rerender' at the end of this state tick
+-- The executor of this command must automatically check 'rerender' at the end of this state tick
 data TickState c where
     TickState ::
         Typeable s
@@ -67,13 +106,6 @@ data TickState c where
         -> (States (Scenario c s) ())
         -> TickState c
 
-data MkAction1 c where
-    MkAction1 :: NFData a
-        => (JE.JSRep -> IO (Maybe a))
-        -> (a -> c)
-        -> ((JE.JSRep -> IO ()) -> c)
-        -> MkAction1 c
-
 -- | Convert a command to an IO action
 data MkAction c where
     MkAction ::
@@ -81,7 +113,13 @@ data MkAction c where
         -> (IO () -> c)
         -> MkAction c
 
------------------------------------------------------------------
+-- | Convert a callback to a @JE.JSRep -> IO ()@
+data MkAction1 c where
+    MkAction1 :: NFData a
+        => (JE.JSRep -> IO (Maybe a))
+        -> (a -> c)
+        -> ((JE.JSRep -> IO ()) -> c)
+        -> MkAction1 c
 
 -- | Make the 'ShimCallbacks' for this 'Plan' using the given
 -- 'Window' rendering function.
@@ -107,14 +145,3 @@ data ForkSTM c where
         -- Continuation to run when STM succeeds.
         -> (a -> c)
         -> ForkSTM c
-
-type AsReactor c =
-    ( AsFacet [c] c
-    , AsFacet Rerender c
-    , AsFacet (TickState c) c
-    , AsFacet (MkAction1 c) c
-    , AsFacet (MkAction c) c
-    , AsFacet MkShimCallbacks c
-    , AsFacet CD.Disposable c
-    , AsFacet (ForkSTM c) c
-    )

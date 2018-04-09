@@ -17,7 +17,6 @@ library
   hs-source-dirs:      src
   exposed-modules:
                        Glazier.React.Framework
-                       Glazier.React.Framework.Concur
                        Glazier.React.Framework.Gadget
                        Glazier.React.Framework.MkId
                        Glazier.React.Framework.MkId.Internal
@@ -30,6 +29,8 @@ library
                        Glazier.React.Action
                        Glazier.React.Action.KeyDownKey
                        Glazier.React.Effect
+                       Glazier.React.Effect.Concur
+                       Glazier.React.Effect.Concur.Exec
                        Glazier.React.Effect.HTMLElement
                        Glazier.React.Effect.HTMLElement.Exec
                        Glazier.React.Effect.JavaScript

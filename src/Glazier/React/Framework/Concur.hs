@@ -10,7 +10,6 @@ import Control.Monad.State
 import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
-import Data.Semigroup
 import Glazier.React.Framework.Reactor
 import Glazier.React.Framework.Scene
 

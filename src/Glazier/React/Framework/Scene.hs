@@ -219,6 +219,9 @@ cmd' = cmd
 emptyCmd :: AsFacet [c] c => c
 emptyCmd = cmd' @[] []
 
+cmds' :: AsFacet [c] c => [c] -> c
+cmds' = cmd' @[]
+
 -- | runs a MaybeT over a monad that creates a command.
 runMaybeTCmd :: (AsFacet [c] c, Monad m) => MaybeT m c -> m c
 runMaybeTCmd m = runMaybeT m >>= maybe (pure emptyCmd) pure

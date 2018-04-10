@@ -118,6 +118,8 @@ execRerender (Rerender j p) = liftIO $ do
     x <- J.export p
     js_setShimComponentFrame j x
 
+-- FIXME: How to enforce FIFO for concurrent threads modifying the same TMVar?
+-- Otherwise we will get strange updates - ie an earlier update overriding later update.
 execTickState ::
     ( MonadIO m
     , AsFacet Rerender c

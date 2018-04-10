@@ -21,7 +21,7 @@ type AsHTMLElement c =
     )
 
 -- Effects from methods in https://developeR.mozilla.org/en-US/docs/Web/API/HTMLElement
-data Focus = Focus EventTarget
+data Focus = Focus EventTarget deriving Show
 
 focusRef ::
     ( MonadState (Scenario c s) m
@@ -34,7 +34,7 @@ focusRef gid = do
         Nothing -> pure ()
         Just t' -> post . cmd $ Focus t'
 
-data Blur = Blur EventTarget
+data Blur = Blur EventTarget deriving Show
 
 blurRef ::
     ( MonadState (Scenario c s) m

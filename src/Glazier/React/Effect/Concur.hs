@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -30,6 +31,10 @@ data ForkConcur c where
         Concur c a
         -> (a -> c)
         -> ForkConcur c
+
+instance Show (ForkConcur c) where
+    showsPrec d _ = showParen (d >= 11) $
+        showString "ForkConcur"
 
 -- | This monad is intended to be used with @ApplicativeDo@ to allow do noation
 -- for composing commands that can be run concurrently.

@@ -23,7 +23,6 @@ import Glazier.React
 import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
 import qualified JavaScript.Extras as JE
-import Safe
 
 -- | convert a request type to a command type.
 -- This is used for commands that doesn't have a continuation.
@@ -77,18 +76,20 @@ type AsReactor c =
 
 -- | Rerender a ShimComponent using the given state.
 data Rerender where
-    Rerender :: Typeable s
+    Rerender ::
+        -- Typeable to allow s to be 'GHCJS.Foreign.Export.export'ed
+        Typeable s
         => ComponentRef
         -> Scene s
         -> Rerender
 
 instance Show Rerender where
-    showsPrec d (Rerender _ (Scene p s)) = showParen
-        (d >= 11)
-        (showString "Rerender { plan = " . shows p
+    showsPrec d (Rerender j (Scene p s)) = showParen (d >= 11) $
+        showString "Rerender { "
+        . showString " componentRef = " . shows j
+        . showString ", plan = " . shows p
         . showString ", model :: " . shows (typeOf s)
         . showString "}"
-        )
 
 -- Marks the current widget as dirty, and rerender is required
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Trigger.trigger'
@@ -98,8 +99,8 @@ dirty :: (MonadState (Scenario c s) m) => m ()
 dirty = _scene._plan._currentFrameNum %= JE.safeModularIncrement
 
 rerender ::
-    ( Typeable s
-    , AsFacet Rerender c
+    ( AsFacet Rerender c
+    , Typeable s
     , MonadState (Scenario c s) m
     )
     => m ()
@@ -126,13 +127,11 @@ data TickState c where
         -> TickState c
 
 instance Show (TickState c) where
-    showsPrec d (TickState _ s _) = showParen
-        (d >= 11)
-        (showString "TickState { model :: "
+    showsPrec d (TickState _ s _) = showParen (d >= 11) $
+        showString "TickState { model :: "
         . (maybe (showChar '?') shows $ s ^? to typeOf -- TVar s
             . to typeRepArgs . ix 0) -- s
         . showString "}"
-        )
 
 -- | Convert a command to an IO action
 data MkAction c where
@@ -142,29 +141,20 @@ data MkAction c where
         -> MkAction c
 
 instance Show c => Show (MkAction c) where
-    showsPrec d (MkAction c _) = showParen
-        (d >= 11)
-        (showString "MkAction " . shows c)
+    showsPrec d (MkAction c _) = showParen (d >= 11) $
+        showString "MkAction " . shows c
 
 -- | Convert a callback to a @JE.JSRep -> IO ()@
 data MkAction1 c where
-    MkAction1 :: (Typeable a, NFData a)
+    MkAction1 :: (NFData a)
         => (JE.JSRep -> IO (Maybe a))
         -> (a -> c)
         -> ((JE.JSRep -> IO ()) -> c)
         -> MkAction1 c
 
 instance Show (MkAction1 c) where
-    showsPrec d (MkAction1 f _ _) = showParen
-        (d >= 11)
-        (showString "MkAction1 { event :: "
-        . (maybe (showChar '?') shows $ f ^? to typeOf -- (->) JSRep (IO (Maybe a))
-            . to typeRepArgs . ix 1 -- IO (Maybe a)
-            . to typeRepArgs . ix 0 -- Maybe a
-            . to typeRepArgs . ix 0) -- a
-        -- . (maybe (showChar '?') shows . headMay . typeRepArgs . (`atMay` 2) . typeRepArgs $ typeOf f)
-        . showString "}"
-        )
+    showsPrec d _ = showParen (d >= 11) $
+        showString "MkAction1"
 
 -- | Make the 'ShimCallbacks' for this 'Plan' using the given
 -- 'Window' rendering function.
@@ -179,13 +169,11 @@ data MkShimCallbacks where
         -> MkShimCallbacks
 
 instance Show MkShimCallbacks where
-    showsPrec d (MkShimCallbacks _ s _) = showParen
-        (d >= 11)
-        (showString "MkShimCallbacks { model :: "
+    showsPrec d (MkShimCallbacks _ s _) = showParen (d >= 11) $
+        showString "MkShimCallbacks { model :: "
         . (maybe (showChar '?') shows $ s ^? to typeOf -- TVar s
             . to typeRepArgs . ix 0) -- s
         . showString "}"
-        )
 
 -- | Runs a blockable STM.
 -- The executor should never be blocked from executing the next command.
@@ -201,10 +189,5 @@ data ForkSTM c where
         -> ForkSTM c
 
 instance Show (ForkSTM c) where
-    showsPrec d (ForkSTM ma _) = showParen
-        (d >= 11)
-        (showString "ForkSTM { event :: "
-        . (maybe (showChar '?') shows $ ma ^? to typeOf -- STM a
-            . to typeRepArgs . ix 0) -- a
-        . showString "}"
-        )
+    showsPrec d _ = showParen (d >= 11) $
+        showString "ForkSTM"

@@ -104,9 +104,14 @@ execReactor runExec exec c =
 
 -----------------------------------------------------------------
 
--- execte a list of commands concurrently
+-- execte a list of commands in serial.
+-- This is because Javascript is single threaded anyway, so it is more
+-- efficient to execuute "quick" commands single threaded.
+-- We'll let the individual executors of the commands decide if
+-- "slow" commands should be forked in a thread.
 execCommands :: MonadIO m => (m () -> IO ()) -> (c -> m ()) -> [c] -> m ()
-execCommands runExec exec = traverse_ (liftIO . void . forkIO . runExec . exec)
+execCommands runExec exec = traverse_ (liftIO . runExec . exec)
+-- execCommands runExec exec = traverse_ (liftIO . void . forkIO . runExec . exec)
 
 execRerender ::
     ( MonadIO m
@@ -119,7 +124,7 @@ execRerender (Rerender j p) = liftIO $ do
     js_setShimComponentFrame j x
 
 -- FIXME: How to enforce FIFO for concurrent threads modifying the same TMVar?
--- Otherwise we will get strange updates - ie an earlier update overriding later update.
+-- Otherwise we will get strange updates - eg an earlier update overriding later update.
 execTickState ::
     ( MonadIO m
     , AsFacet Rerender c

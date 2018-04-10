@@ -23,6 +23,7 @@ import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.RWS
+import Data.Diverse.Lens
 import qualified Data.DList as DL
 import qualified Data.Map.Strict as M
 import Data.Maybe
@@ -214,7 +215,7 @@ data SceneObj p s = SceneObj
     , self :: Traversal' p s
     }
 
-access :: Traversal' s a -> SceneObj p s -> SceneObj p a
+access :: forall p s a. Traversal' s a -> SceneObj p s -> SceneObj p a
 access l (SceneObj pln mdl s) = SceneObj pln mdl (s.l)
 
 magnifyObjModel ::
@@ -223,6 +224,14 @@ magnifyObjModel ::
     )
     => Traversal' b a -> m r -> n r
 magnifyObjModel l = magnify (to (access l))
+
+magnifyObjModelItem :: forall p a b proxy enva envb m n r.
+    ( HasItemTag SceneObj (SceneObj p b) (SceneObj p a) envb enva
+    , Magnify m n enva envb
+    , Contravariant (Magnified m r)
+    )
+    => proxy p -> Traversal' b a -> m r -> n r
+magnifyObjModelItem _ l = magnify (to (\env -> env & (itemTag @SceneObj) %~ (access @p l)))
 
 magnifyModel ::
     ( Magnify m n (Scene a) (Scene b)

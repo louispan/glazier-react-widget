@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Effect.Concur where
@@ -13,7 +14,7 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Glazier.React.Framework.Reactor
 
-type ConcurCmds =
+type ConcurCmds c =
     '[ ForkConcur c
     ]
 
@@ -38,7 +39,7 @@ data ForkConcur c where
 -- 'Control.Monad.Trans.evalCont' with 'evalConcur' and 'Control.Monad.Trans.cont' with 'concur'.
 --
 -- @
--- evalCont . (`evalMaybeT` memptyCmd) $ do
+-- evalCont . (`evalMaybeT` (cmd @[] [])) $ do
 --     start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
 --     end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
 --     v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
@@ -53,7 +54,7 @@ data ForkConcur c where
 -- becomes
 --
 -- @
--- evalConcur . (`evalMaybeT` memptyCmd) $ do
+-- evalConcur . (`evalMaybeT` (cmd @[] [])) $ do
 --     start <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionStart" j
 --     end <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "selectionEnd" j
 --     v <- MaybeT . fmap JE.fromJSR . concur $ cmd' . GetProperty "value" j
@@ -74,8 +75,8 @@ concur :: (AsFacet [c] c, AsFacet (ForkSTM c) c) => ((a -> c) -> c) -> Concur c 
 concur r = Concur $ do
     v <- lift newEmptyTMVar
     cs <- get
-    put $ cs `DL.snoc` (r (\a -> cmd' $ ForkSTM (putTMVar v a) (const memptyCmd)))
-    pure $ readTMVar v
+    put $ cs `DL.snoc` (r (\a -> cmd' $ ForkSTM (putTMVar v a) (const $ cmd' @[] [])))
+    pure $ takeTMVar v
 
 -- | Analogous to 'Control.Monad.Trans.evalCont'
 evalConcur :: AsFacet (ForkConcur c) c => Concur c c -> c
@@ -97,5 +98,5 @@ instance (AsFacet [c] c, AsFacet (ForkSTM c) c, AsFacet (ForkConcur c) c) => Mon
         v <- lift newEmptyTMVar
         put $ cs `DL.snoc` (cmd' $ ForkSTM m'
             (\a -> cmd' $ ForkConcur (k a)
-            (\b -> cmd' $ ForkSTM (putTMVar v b) (const memptyCmd))))
-        pure $ readTMVar v
+            (\b -> cmd' $ ForkSTM (putTMVar v b) (const $ cmd' @[] []))))
+        pure $ takeTMVar v

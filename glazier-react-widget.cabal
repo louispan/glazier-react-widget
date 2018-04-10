@@ -64,9 +64,9 @@ library
                      , mtl >= 2
                     --  , parameterized >= 0.5.0.0
                      , profunctors >= 5.2
-                     , reducers >= 3.12.1
-                     , stm >= 2.4.4.1
-                     , stm >= 2.4.4.1
+                     , reducers >= 3.12
+                     , safe >= 0.3
+                     , stm >= 2.4
                      , stm-extras >= 0.1.1.0
                      , tagged >= 0.8.5
                      , transformers >= 0.4

@@ -103,7 +103,7 @@ textInput gid = dummy
             -- Use @('runCont` id)@ to allow do notation for making the continuation
             -- to put inside the commands.
             -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
-            lift . post . evalCont . (`evalMaybeT` memptyCmd) $ do
+            lift . post . evalCont . (`evalMaybeT` (cmd' @[] [])) $ do
                 start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
                 end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
                 v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j

@@ -166,16 +166,16 @@ execMkShimCallbacks (MkShimCallbacks plnVar mdlVar rndr) = do
     -- For efficiency, render uses the state exported into ShimComponent
     let doRender x = do
             -- unfortunately, GHCJS base doesn't provide a way to convert JSVal to Export
-            ms <- J.derefExport (unsafeCoerce x)
-            s <- case ms of
+            mscn <- J.derefExport (unsafeCoerce x)
+            scn <- case mscn of
                 -- fallback to reading from TVar
                 Nothing -> atomically $ do
                     pln <- readTVar plnVar
                     mdl <- readTVar mdlVar
                     pure (Scene pln mdl)
                 -- cached render export available
-                Just s -> pure s
-            let (mrkup, _) = execRWSs rndr s mempty
+                Just scn -> pure scn
+            let (mrkup, _) = execRWSs rndr scn mempty
             JE.toJS <$> toElement mrkup
         doRef j = atomically $ modifyTVar' plnVar (_componentRef .~ JE.fromJS j)
         doUpdated = join . atomically $ do

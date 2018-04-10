@@ -46,6 +46,7 @@ import qualified JavaScript.Extras as JE
 -- to use 'withRef' instead.
 mkTriggerAction1 ::
     ( NFData a
+    , Typeable a
     , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
@@ -143,6 +144,7 @@ triggerOnce = trigger_ (_1._Wrapped' @(Tagged "Once" _))
 -- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
 trigger1 ::
     ( NFData a
+    , Typeable a
     , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
@@ -156,6 +158,7 @@ trigger1 = trigger1_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnce1 ::
     ( NFData a
+    , Typeable a
     , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
@@ -169,6 +172,7 @@ triggerOnce1 = trigger1_ (_1._Wrapped' @(Tagged "Once" _))
 
 trigger1_ ::
     ( NFData a
+    , Typeable a
     , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c

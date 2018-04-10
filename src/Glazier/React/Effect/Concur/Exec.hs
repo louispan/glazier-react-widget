@@ -30,7 +30,7 @@ execForkConcur ::
 execForkConcur runExec exec (ForkConcur (Concur m) k) = liftIO $ void $ forkIO $ do
     (ma, cs) <- atomically $ runStateT m mempty
     -- It is up to exec to executes the list concurrently or not.
-    liftIO . runExec $ exec (cmds $ DL.toList cs)
+    liftIO . runExec $ exec (cmd' $ DL.toList cs)
     -- Now run the blocking stm
     a <- atomically ma
     let c = k a

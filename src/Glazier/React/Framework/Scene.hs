@@ -105,6 +105,18 @@ instance CD.Dispose Plan where
         <> (disposeOnUpdated pln)
         <> (foldMap CD.dispose (plans pln))
 
+instance Show Plan where
+    showsPrec d pln = showParen
+        (d >= 11)
+        ( showString "Plan {" . showString "componentRef ? " . shows (isJust $ componentRef pln)
+        . showString ", " . showString "shimCallbacks ? " . shows (isJust $ shimCallbacks pln)
+        . showString ", " . showString "previousFrameNum = " . shows (previousFrameNum pln)
+        . showString ", " . showString "currentFrameNum = " . shows (currentFrameNum pln)
+        . showString ", " . showString "gizmoIds = " . showList (M.keys $ gizmos pln)
+        . showString ", " . showString "planIds = " . showList (M.keys $ gizmos pln)
+        . showString "}"
+        )
+
 newPlan :: Plan
 newPlan = Plan
     Nothing
@@ -124,7 +136,7 @@ data Scene s = Scene
     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
     { plan :: Plan
     , model :: s
-    } deriving (G.Generic)
+    } deriving (G.Generic, Show)
 
 _model :: Lens (Scene s) (Scene s') s s'
 _model = lens model (\s a -> s { model = a})
@@ -138,12 +150,12 @@ _plan = lens plan (\s a -> s { plan = a})
 data Scenario c s = Scenario
     -- commands could be in a writer monad, but then you can't get
     -- a MonadWriter with ContT, but you can have a MonadState with ContT.
-    { commands :: DL.DList c
+    { posted :: DL.DList c
     , scene :: Scene s
     } deriving (G.Generic)
 
-_commands :: Lens' (Scenario c s) (DL.DList c)
-_commands = lens commands (\s a -> s { commands = a})
+_posted :: Lens' (Scenario c s) (DL.DList c)
+_posted = lens posted (\s a -> s { posted = a})
 
 _scene :: Lens (Scenario x s) (Scenario x s') (Scene s) (Scene s')
 _scene = lens scene (\s a -> s { scene = a})
@@ -189,7 +201,7 @@ editScenarioModel l safa s = (\s' -> s & _scene._model .~ s' ) <$> l afa' (s ^. 
 
 -- Add a command to the list of commands for this state tick.
 post :: (MonadState (Scenario c s) m) => c -> m ()
-post c = _commands %= (`DL.snoc` c)
+post c = _posted %= (`DL.snoc` c)
 
 -- retrieve :: AsFacet (c' c) c => ((a -> c) -> c' c) -> Cont c a
 -- retrieve k = cont $ cmd' . k

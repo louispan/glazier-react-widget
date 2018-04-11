@@ -11,28 +11,27 @@ module Glazier.React.Framework.Reactor.Exec where
 
 import Control.Applicative
 import Control.Concurrent
-import Control.Concurrent.STM
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.Reader
+import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.RWSs.Strict
 import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Data.Foldable
+import Data.IORef
 import Data.Maybe
 import Data.Proxy
 import Data.Tagged
 import qualified GHCJS.Foreign.Callback as J
-import qualified GHCJS.Foreign.Export as J
 import Glazier.React
 import Glazier.React.Framework.MkId.Internal
 import Glazier.React.Framework.Reactor
 import Glazier.React.Framework.Scene
 import qualified JavaScript.Array as JA
 import qualified JavaScript.Extras as JE
-import Unsafe.Coerce
 
 maybeExec :: (Monad m, AsFacet a c) => (a -> m b) -> c -> MaybeT m b
 maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
@@ -42,8 +41,9 @@ maybeExec k y = maybe empty pure (preview facet y) >>= (lift <$> k)
 
 -- | Given an initializing state action, and an executor (eg. 'reactorExecutor'),
 -- initialize and exec the resulting commands generated, then
--- return the TVars created.
--- It is the responsiblity of the caller to 'CD.dispose' of the Plan when the app finishes.
+-- return the 'CD.Disposable' to dispose the handlers created,
+-- as well as an action to read the current state.
+-- It is the responsiblity of the caller run the 'CD.Disposable' when the app finishes.
 initReactor ::
     ( MonadIO m
     , AsFacet [c] c
@@ -51,24 +51,46 @@ initReactor ::
     => (c -> m ())
     -> s
     -> States (Scenario c s) ()
-    -> m (TVar Plan, TVar s)
+    -> m (CD.Disposable, IO s)
 initReactor exec s ini = do
-    plnVar <- liftIO $ newTVarIO newPlan
-    mdlVar <- liftIO $ newTVarIO s
+    frmRef <- liftIO $ newIORef (Scene newPlan s)
+    plnVar <- liftIO $ newMVar newPlan
+    mdlVar <- liftIO $ newMVar s
     -- run through the app initialization, and execute any produced commands
-    cs <- liftIO . atomically $ tickState plnVar mdlVar ini
+    cs <- liftIO $ tickState frmRef plnVar mdlVar ini
     exec (cmd' $ DL.toList cs)
-    pure (plnVar, mdlVar)
+    pure (CD.dispose plnVar, readMVar mdlVar)
 
 -- | Upate the world 'TVar' with the given action, and return the commands produced.
-tickState :: TVar Plan -> TVar s -> States (Scenario c s) () -> STM (DL.DList c)
-tickState plnVar mdlVar tick = do
-    pln <- readTVar plnVar
-    mdl <- readTVar mdlVar
+tickState :: IORef (Scene s) -> MVar Plan -> MVar s -> States (Scenario c s) () -> IO (DL.DList c)
+tickState scnRef plnVar mdlVar tick = do
+    mdl <- takeMVar mdlVar
+    -- execShimCallbacks may 'takeMVar' only the plan,
+    -- also plnVar may be shared with other 'Arena's
+    -- so use plnVar inside mdVar block to release the plnVar as quickly as possible.
+    pln <- takeMVar plnVar
     let (Scenario cs (Scene pln' mdl')) = execStates tick (Scenario mempty (Scene pln mdl))
-    writeTVar mdlVar mdl'
-    writeTVar plnVar pln'
+        (rndr, pln'') = runState rerender pln'
+
+    -- Update the back buffer
+    writeIORef scnRef (Scene pln'' mdl')
+    putMVar plnVar pln''
+    putMVar mdlVar mdl'
+    -- rerender if necessary
+    rndr
     pure cs
+
+rerender :: MonadState Plan m => m (IO ())
+rerender = do
+    c <- use (_currentFrameNum)
+    p <- use (_previousFrameNum)
+    comp <- use (_componentRef)
+    -- we are dirty
+    case (c /= p, comp) of
+        (True, Just j) -> do
+            _previousFrameNum .= c
+            pure (js_setShimComponentFrameNum j c)
+        _ -> pure (pure ())
 
 -- type Wack w = Which '[Rerender, (), DL.DList w]
 -- newtype Wock = Wock { unWock :: Wack Wock}
@@ -89,7 +111,6 @@ execReactor runExec exec c =
     <|> maybeExec (execMkAction runExec exec) c
     <|> maybeExec execMkShimCallbacks c
     <|> maybeExec execDisposable c
-    <|> maybeExec (execForkSTM runExec exec) c
 
 -- -- | An example of using the "tieing" 'execReactor' with itself. Lazy haskell is awesome.
 -- -- NB. This tied executor *only* runs the Reactor effects.
@@ -117,24 +138,27 @@ execRerender ::
     ( MonadIO m
     )
     => Rerender -> m ()
-execRerender (Rerender j p) = liftIO $ do
-    -- This export is automatically cleaned up in ShimComponent
-    -- react lifecycle handling.
-    x <- J.export p
-    js_setShimComponentFrame j x
+execRerender (Rerender scnRef plnVar mdlVar) = liftIO $ do
+    -- | 'tickState' and 'execRerender' are the only place where we 'takeMVar' the plan or model
+    -- So as long as we take and put in the correct order, we won't block.
+    mdl <- readMVar mdlVar
+    pln <- readMVar plnVar
+    let (rndr, pln') = runState rerender pln
+    writeIORef scnRef (Scene pln' mdl)
+    putMVar plnVar pln'
+    putMVar mdlVar mdl
+    rndr
 
--- FIXME: How to enforce FIFO for concurrent threads modifying the same TMVar?
--- Otherwise we will get strange updates - eg an earlier update overriding later update.
+-- | No need to run in a separate thread because it should never block for a significant amount of time.
 execTickState ::
     ( MonadIO m
-    , AsFacet Rerender c
     , AsFacet [c] c
     )
     => (c -> m ())
     -> TickState c
     -> m ()
-execTickState exec (TickState plnVar mdlVar tick) = do
-    cs <- liftIO $ atomically $ tickState plnVar mdlVar (tick *> rerender)
+execTickState exec (TickState scnRef plnVar mdlVar tick) = do
+    cs <- liftIO $ tickState scnRef plnVar mdlVar tick
     exec (cmd' $ DL.toList cs)
 
 execMkAction1 ::
@@ -169,26 +193,19 @@ execMkShimCallbacks ::
     MonadIO m
     => MkShimCallbacks
     -> m ()
-execMkShimCallbacks (MkShimCallbacks plnVar mdlVar rndr) = do
+execMkShimCallbacks (MkShimCallbacks scnRef plnVar rndr) = do
     -- For efficiency, render uses the state exported into ShimComponent
-    let doRender x = do
-            -- unfortunately, GHCJS base doesn't provide a way to convert JSVal to Export
-            mscn <- J.derefExport (unsafeCoerce x)
-            scn <- case mscn of
-                -- fallback to reading from TVar
-                Nothing -> atomically $ do
-                    pln <- readTVar plnVar
-                    mdl <- readTVar mdlVar
-                    pure (Scene pln mdl)
-                -- cached render export available
-                Just scn -> pure scn
+    let doRender = do
+            scn <- readIORef scnRef
             let (mrkup, _) = execRWSs rndr scn mempty
             JE.toJS <$> toElement mrkup
-        doRef j = atomically $ modifyTVar' plnVar (_componentRef .~ JE.fromJS j)
-        doUpdated = join . atomically $ do
-            pln <- readTVar plnVar
+        doRef j = do
+            pln <- takeMVar plnVar
+            putMVar plnVar (pln & _componentRef .~ JE.fromJS j)
+        doUpdated = join $ do
+            pln <- takeMVar plnVar
             let ((`proxy` (Proxy @"Once")) -> x, (`proxy` (Proxy @"Every")) -> y) = doOnUpdated pln
-            writeTVar plnVar (pln & _doOnUpdated._1 .~ (Tagged @"Once" mempty))
+            putMVar plnVar $ pln & _doOnUpdated._1 .~ (Tagged @"Once" mempty)
             pure (x *> y)
         doListen ctx j = void $ runMaybeT $ do
             (gid, n) <- MaybeT $ pure $ do
@@ -200,8 +217,8 @@ execMkShimCallbacks (MkShimCallbacks plnVar mdlVar rndr) = do
                             Just (gid'', n'')
                         _ -> Nothing
             lift $ do
-                mhdl <- atomically $ do
-                        pln <- readTVar plnVar
+                mhdl <- do
+                        pln <- takeMVar plnVar
                         let (mhdl, gs') = at gid go (pln ^. _gizmos)
                             go mg = case mg of
                                     Nothing -> (Nothing, Nothing)
@@ -212,23 +229,23 @@ execMkShimCallbacks (MkShimCallbacks plnVar mdlVar rndr) = do
                                     Just ((`proxy` (Proxy @"Once")) -> x, y) ->
                                         ( Just (x *> (y `proxy` (Proxy @"Every")))
                                         , Just (Tagged @"Once" mempty, y))
-                        writeTVar plnVar (pln & _gizmos .~ gs')
+                        putMVar plnVar (pln & _gizmos .~ gs')
                         pure mhdl
                 case mhdl of
                     Nothing -> pure ()
                     Just hdl -> hdl (JE.JSRep j)
 
-    renderCb <- liftIO $ J.syncCallback1' doRender
+    renderCb <- liftIO $ J.syncCallback' doRender
     refCb <- liftIO $ J.syncCallback1 J.ContinueAsync doRef
     updatedCb <- liftIO $ J.syncCallback J.ContinueAsync doUpdated
     listenCb <- liftIO $ J.syncCallback2 J.ContinueAsync doListen
-    liftIO $ atomically $ do
-        pln <- readTVar plnVar
+    liftIO $ do
+        pln <- takeMVar plnVar
         let ls = pln ^. _shimCallbacks
         case ls of
             -- shim listeners already created
-            Just _ -> pure ()
-            Nothing -> writeTVar plnVar $ pln & _shimCallbacks .~
+            Just _ -> putMVar plnVar pln
+            Nothing -> putMVar plnVar $ pln & _shimCallbacks .~
                 (Just $ ShimCallbacks renderCb updatedCb refCb listenCb)
 
 execDisposable ::
@@ -237,26 +254,15 @@ execDisposable ::
     -> m ()
 execDisposable = liftIO . fromMaybe mempty . CD.runDisposable
 
-execForkSTM ::
-    MonadIO m
-    => (m () -> IO ())
-    -> (c -> m ())
-    -> ForkSTM c
-    -> m ()
-execForkSTM runExec exec (ForkSTM go k) = liftIO $ void $ forkIO $ do
-    a <- atomically go
-    let c = k a
-    liftIO . runExec $ exec c
-
 #ifdef __GHCJS__
 
 foreign import javascript unsafe
-  "if ($1 && $1['setFrame']) { $1['setFrame']($2); }"
-  js_setShimComponentFrame :: ComponentRef -> J.Export a -> IO ()
+  "if ($1 && $1.setState({frameNum: $2}); }"
+  js_setShimComponentFrameNum :: ComponentRef -> Int -> IO ()
 
 #else
 
-js_setShimComponentFrame :: ComponentRef -> J.Export a -> IO ()
-js_setShimComponentFrame _ _ = pure ()
+js_setShimComponentFrameNum :: ComponentRef -> Int -> IO ()
+js_setShimComponentFrameNum _ _ = pure ()
 
 #endif

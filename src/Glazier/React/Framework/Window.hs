@@ -8,7 +8,6 @@
 
 module Glazier.React.Framework.Window where
 
-import Control.Concurrent.STM
 import Control.Lens
 import Control.Monad.Trans.RWSs.Strict
 import qualified Data.DList as DL
@@ -24,7 +23,6 @@ import qualified JavaScript.Extras as JE
 
 type WindowT s m = RWSsT (Scene s) () (DL.DList ReactMarkup) m
 type Window s = WindowT s Identity
-type WindowSTM s = WindowT s STM
 
 -- type SceneDisplay x s r = Display (Scene x s) r
 ----------------------------------------------------------------------------------

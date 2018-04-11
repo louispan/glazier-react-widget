@@ -28,7 +28,6 @@ import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
 import Data.Maybe
 import Data.Tagged
-import Data.Typeable
 import qualified GHCJS.Types as J
 import Glazier.React
 import Glazier.React.Framework.Gadget
@@ -46,7 +45,6 @@ import qualified JavaScript.Extras as JE
 -- to use 'withRef' instead.
 mkTriggerAction1 ::
     ( NFData a
-    , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
@@ -57,36 +55,34 @@ mkTriggerAction1 ::
     -> (a -> States (Scenario c p) b)
     -> Gadget c p s b
 mkTriggerAction1 l gid n goStrict goLazy = do
-    SceneObj plnVar mdlVar _ <- ask
+    Arena scnRef plnVar mdlVar _ <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
-        let goLazy' a = cmd' $ TickState plnVar mdlVar (goLazy a >>= fire)
+        let goLazy' a = cmd' $ TickState scnRef plnVar mdlVar (goLazy a >>= fire)
         post . cmd' $ MkAction1 goStrict goLazy' $ \act ->
                 let updateGizmo = _scene._plan._gizmos.at gid %= (Just . addListener . fromMaybe newGizmo)
                     addListener = _listeners.at n %~ (Just . addAction . fromMaybe (Tagged mempty, Tagged mempty))
                     addAction acts = acts & l %~ (*> act)
-                in cmd' $ TickState plnVar mdlVar updateGizmo
+                in cmd' $ TickState scnRef plnVar mdlVar updateGizmo
 
 mkUpdatedAction ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction c) c
     )
     => Lens' (Tagged "Once" (IO ()), Tagged "Every" (IO ())) (IO ())
     -> States (Scenario c p) b
     -> Gadget c p s b
 mkUpdatedAction l go = do
-    SceneObj plnVar mdlVar _ <- ask
+    Arena scnRef plnVar mdlVar _ <- ask
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
-        let go' = cmd' $ TickState plnVar mdlVar (go >>= fire)
+        let go' = cmd' $ TickState scnRef plnVar mdlVar (go >>= fire)
         post . cmd' $ MkAction go' $ \act ->
                 let addListener = _scene._plan._doOnUpdated.l %= (*> act)
-                in cmd' $ TickState plnVar mdlVar addListener
+                in cmd' $ TickState scnRef plnVar mdlVar addListener
 
 triggerOnUpdated_ ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction c) c
     )
     => Lens' (Tagged "Once" (IO ()), Tagged "Every" (IO ())) (IO ())
@@ -100,8 +96,7 @@ triggerOnUpdated_ l go = mkUpdatedAction l go
 -- These callbacks are called after the ref callback by React
 -- See https://reactjs.org/docs/refs-and-the-dom.html.
 triggerOnUpdated ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction c) c
     )
     => States (Scenario c p) b
@@ -109,8 +104,7 @@ triggerOnUpdated ::
 triggerOnUpdated = triggerOnUpdated_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnceOnUpdated ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction c) c
     )
     => States (Scenario c p) b
@@ -119,8 +113,7 @@ triggerOnceOnUpdated = triggerOnUpdated_ (_1._Wrapped' @(Tagged "Once" _))
 
 -- | A 'trigger1' where all event info is dropped and the given value is fired.
 trigger ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
     => GizmoId
@@ -130,8 +123,7 @@ trigger ::
 trigger = trigger_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnce ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
     => GizmoId
@@ -143,7 +135,6 @@ triggerOnce = trigger_ (_1._Wrapped' @(Tagged "Once" _))
 -- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
 trigger1 ::
     ( NFData a
-    , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
@@ -156,7 +147,6 @@ trigger1 = trigger1_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnce1 ::
     ( NFData a
-    , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
@@ -169,7 +159,6 @@ triggerOnce1 = trigger1_ (_1._Wrapped' @(Tagged "Once" _))
 
 trigger1_ ::
     ( NFData a
-    , Typeable p
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
@@ -186,8 +175,7 @@ trigger1_ l gid n goStrict goLazy = mkTriggerAction1 l gid n goStrict' goLazy
         Just e' -> Just <$> goStrict e'
 
 trigger_ ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
     => Lens' (Tagged "Once" (JE.JSRep -> IO ()), Tagged "Every" (JE.JSRep -> IO ())) (JE.JSRep -> IO ())
@@ -200,8 +188,7 @@ trigger_ l gid n go = mkTriggerAction1 l gid n (const $ pure (Just ())) (const $
 -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
 -- gizmo in the plan
 withRef ::
-    ( Typeable p
-    , AsFacet (TickState c) c
+    ( AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
     )
     => GizmoId

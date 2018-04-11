@@ -18,13 +18,14 @@
 
 module Glazier.React.Framework.Scene where
 
-import Control.Concurrent.STM
+import Control.Concurrent
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.RWS
 import Data.Diverse.Lens
 import qualified Data.DList as DL
+import Data.IORef
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Tagged
@@ -54,7 +55,7 @@ newGizmo = Gizmo Nothing mempty
 
 data ShimCallbacks = ShimCallbacks
     -- render function of the ReactComponent
-    { onRender :: J.Callback (J.JSVal -> IO J.JSVal)
+    { onRender :: J.Callback (IO J.JSVal)
     -- Run the doOnUpdated in the plan
     , onUpdated :: J.Callback (IO ())
     -- updates the componenRef
@@ -96,7 +97,7 @@ data Plan = Plan
     -- interactivity data for child DOM elements
     , gizmos :: M.Map GizmoId Gizmo
     -- interactivity data for child react components
-    , plans :: M.Map PlanId (TVar Plan)
+    , plans :: M.Map PlanId (MVar Plan)
     } deriving (G.Generic)
 
 makeLenses_ ''Plan
@@ -209,29 +210,46 @@ post c = _posted %= (`DL.snoc` c)
 
 ----------------------------------------------------------------------------------
 
-data SceneObj p s = SceneObj
-    { planVar ::TVar Plan
-    , modelVar ::TVar p
+-- | Using MVar to synchronizing because it guarantees FIFO wakeup
+-- which will help prevent old updates overriding new updates.
+-- NB. Different 'Arena' may have different modelVar, but share the same planVar.
+data Arena p s = Arena
+    { sceneRef :: IORef (Scene p)
+    , planVar :: MVar Plan
+    , modelVar :: MVar p
     , self :: Traversal' p s
     }
 
-access :: forall p s a. Traversal' s a -> SceneObj p s -> SceneObj p a
-access l (SceneObj pln mdl s) = SceneObj pln mdl (s.l)
+restage :: forall p s a. Traversal' s a -> Arena p s -> Arena p a
+restage l (Arena scn pln mdl s) = Arena scn pln mdl (s.l)
 
 magnifyObjModel ::
-    ( Magnify m n (SceneObj p a) (SceneObj p b)
+    ( Magnify m n (Arena p a) (Arena p b)
     , Contravariant (Magnified m r)
     )
     => Traversal' b a -> m r -> n r
-magnifyObjModel l = magnify (to (access l))
+magnifyObjModel l = magnify (to (restage l))
 
-magnifyObjModelItem :: forall p a b proxy enva envb m n r.
-    ( HasItemTag SceneObj (SceneObj p b) (SceneObj p a) envb enva
+magnifyArena :: forall p b a enva envb m n r.
+    ( HasItemTag Arena (Arena p b) (Arena p a) envb enva
     , Magnify m n enva envb
     , Contravariant (Magnified m r)
     )
-    => proxy p -> Traversal' b a -> m r -> n r
-magnifyObjModelItem _ l = magnify (to (\env -> env & (itemTag @SceneObj) %~ (access @p l)))
+    => Traversal' b a -> m r -> n r
+magnifyArena l = magnify (to (\env -> env & (itemTag @Arena) %~ (restage @p l)))
+
+
+magnifyArena2 :: forall p s a xs m n r.
+    ( UniqueLabelMember Arena xs
+    , Tagged Arena (Arena p s) ~ KindAtLabel Arena xs
+    , Magnify m n (Many xs)
+        (Many (Replace (Tagged Arena (Arena p s)) (Tagged Arena (Arena p a)) xs))
+    , Contravariant (Magnified m r)
+    )
+    => Traversal' s a -> m r -> n r
+magnifyArena2 l = magnify (to (\env ->
+    let sa = grabTag @Arena @(Arena p s) env
+    in replaceTag @Arena env (restage @p sa)))
 
 magnifyModel ::
     ( Magnify m n (Scene a) (Scene b)

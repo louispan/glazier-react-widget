@@ -34,7 +34,7 @@ import Glazier.React.Framework.Window
 -- type Handler x s m = (Widget x s m, MonadCont m)
 
 data Widget c p s a = Widget
-    { window :: WindowSTM s ()
+    { window :: WindowT s IO () -- so it can read IORef
     , gadget :: Gadget c p s a
     } deriving (G.Generic, Functor)
 

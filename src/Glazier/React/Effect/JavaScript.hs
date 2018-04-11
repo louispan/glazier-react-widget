@@ -22,27 +22,27 @@ type AsJavascript c =
 
 data SetProperty where
     SetProperty :: JE.ToJS j
-        => JE.Property -> j -> SetProperty
+        => j -> JE.Property -> SetProperty
 
 instance Show SetProperty where
-    showsPrec d (SetProperty p j) = showParen (d >= 11) $
+    showsPrec d (SetProperty j p) = showParen (d >= 11) $
         showString "SetProperty "
-        . showsPrec 11 p
-        . showChar ' '
         . showsPrec 11 (JE.toJSR j)
+        . showChar ' '
+        . showsPrec 11 p
         . showString "}"
 
 data GetProperty c where
     GetProperty :: JE.ToJS j
-        => J.JSString
-        -> j
+        => j
+        -> J.JSString
         -> (JE.JSRep -> c)
         -> GetProperty c
 
 instance Show (GetProperty c) where
-    showsPrec d (GetProperty n j _) = showParen (d >= 11) $
+    showsPrec d (GetProperty j n _) = showParen (d >= 11) $
         showString "GetProperty "
-        . showsPrec 11 n
-        . showChar ' '
         . showsPrec 11 (JE.toJSR j)
+        . showChar ' '
+        . showsPrec 11 n
         . showString "}"

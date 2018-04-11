@@ -23,7 +23,7 @@ import Glazier.React.Framework.Scene
 -- @m@ inner monad
 -- @a@ return of monad
 
-type GadgetT c p s m = ReadersT (SceneObj p s) (ContsT () (StatesT (Scenario c p) m))
+type GadgetT c p s m = ReadersT (Arena p s) (ContsT () (StatesT (Scenario c p) m))
 type Gadget c p s = GadgetT c p s Identity
 
 -- pattern Method' :: ((a -> m ()) -> m ()) -> DelegateT m a
@@ -47,7 +47,7 @@ type Gadget c p s = GadgetT c p s Identity
 -- gadgetT f = readersT (\r -> MContT (f (runTraversal r)))
 
 gadgetT ::
-    (SceneObj p s
+    (Arena p s
         -> (a -> StatesT (Scenario c p) m ())
         -> StatesT (Scenario c p) m ())
     -> GadgetT c p s m a
@@ -63,7 +63,7 @@ gadgetT f = readersT (\r -> contsT (f r))
 
 runGadgetT ::
     GadgetT c p s m a
-    -> SceneObj p s
+    -> Arena p s
     -> (a -> StatesT (Scenario c p) m ())
     -> StatesT (Scenario c p) m ()
 runGadgetT x l = runContsT (runReadersT x l)

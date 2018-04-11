@@ -22,13 +22,13 @@ execSetProperty ::
     ( MonadIO m
     )
     => SetProperty -> m ()
-execSetProperty (SetProperty prop j) = liftIO $ JE.setProperty prop j
+execSetProperty (SetProperty j prop) = liftIO $ JE.setProperty j prop
 
 execGetProperty ::
     MonadIO m
     => (c -> m ())
     -> GetProperty c
     -> m ()
-execGetProperty exec (GetProperty n j k) = do
-    r <- liftIO $ JE.getProperty n j
+execGetProperty exec (GetProperty j n k) = do
+    r <- liftIO $ JE.getProperty j n
     exec $ k r

@@ -11,15 +11,14 @@
 
 module Glazier.React.Framework.Reactor where
 
-import Control.Concurrent.STM
+import Control.Concurrent
 import Control.DeepSeq
 import qualified Control.Disposable as CD
 import Control.Lens
 import Control.Monad.State
 import Control.Monad.Trans.States.Strict
 import Data.Diverse.Lens
-import Data.Typeable
-import Glazier.React
+import Data.IORef
 import Glazier.React.Framework.Scene
 import Glazier.React.Framework.Window
 import qualified JavaScript.Extras as JE
@@ -60,7 +59,6 @@ type ReactorCmds c =
     , MkAction c
     , MkShimCallbacks
     , CD.Disposable
-    , ForkSTM c
     ]
 
 type AsReactor c =
@@ -71,25 +69,18 @@ type AsReactor c =
     , AsFacet (MkAction c) c
     , AsFacet MkShimCallbacks c
     , AsFacet CD.Disposable c
-    , AsFacet (ForkSTM c) c
     )
 
 -- | Rerender a ShimComponent using the given state.
 data Rerender where
     Rerender ::
-        -- Typeable to allow s to be 'GHCJS.Foreign.Export.export'ed
-        Typeable s
-        => ComponentRef
-        -> Scene s
+        IORef (Scene s)
+        -> MVar Plan
+        -> MVar s
         -> Rerender
 
 instance Show Rerender where
-    showsPrec d (Rerender j (Scene p s)) = showParen (d >= 11) $
-        showString "Rerender { "
-        . showString " componentRef = " . shows j
-        . showString ", plan = " . shows p
-        . showString ", model :: " . shows (typeOf s)
-        . showString "}"
+    showsPrec _ _ = showString "Rerender"
 
 -- Marks the current widget as dirty, and rerender is required
 -- A 'rerender' will called at the very end of a 'Glazier.React.Framework.Trigger.trigger'
@@ -98,40 +89,17 @@ instance Show Rerender where
 dirty :: (MonadState (Scenario c s) m) => m ()
 dirty = _scene._plan._currentFrameNum %= JE.safeModularIncrement
 
-rerender ::
-    ( AsFacet Rerender c
-    , Typeable s
-    , MonadState (Scenario c s) m
-    )
-    => m ()
-rerender = do
-    -- check frame num to see if dirty has been called
-    c <- use (_scene._plan._currentFrameNum)
-    p <- use (_scene._plan._previousFrameNum)
-    comp <- use (_scene._plan._componentRef)
-    -- we are dirty
-    case (c /= p, comp) of
-        (True, Just comp') -> do
-            _scene._plan._previousFrameNum .= c
-            scn <- use _scene
-            post . cmd $ Rerender comp' scn
-        _ -> pure ()
-
--- The executor of this command must automatically check 'rerender' at the end of this state tick
+-- The executor of this command will automatically check 'rerender' at the end of this state tick
 data TickState c where
     TickState ::
-        Typeable s
-        => TVar Plan
-        -> TVar s
+        IORef (Scene s)
+        -> MVar Plan
+        -> MVar s
         -> (States (Scenario c s) ())
         -> TickState c
 
 instance Show (TickState c) where
-    showsPrec d (TickState _ s _) = showParen (d >= 11) $
-        showString "TickState { model :: "
-        . (maybe (showChar '?') shows $ s ^? to typeOf -- TVar s
-            . to typeRepArgs . ix 0) -- s
-        . showString "}"
+    showsPrec _ _ = showString "TickState"
 
 -- | Convert a command to an IO action
 data MkAction c where
@@ -153,8 +121,7 @@ data MkAction1 c where
         -> MkAction1 c
 
 instance Show (MkAction1 c) where
-    showsPrec d _ = showParen (d >= 11) $
-        showString "MkAction1"
+    showsPrec _ _ = showString "MkAction1"
 
 -- | Make the 'ShimCallbacks' for this 'Plan' using the given
 -- 'Window' rendering function.
@@ -162,32 +129,10 @@ instance Show (MkAction1 c) where
 -- 'Gadget' to emphasis the fact that the 'Window' was used up.
 data MkShimCallbacks where
     MkShimCallbacks ::
-        Typeable s
-        => TVar Plan
-        -> TVar s
+        IORef (Scene s)
+        -> MVar Plan
         -> (Window s ())
         -> MkShimCallbacks
 
 instance Show MkShimCallbacks where
-    showsPrec d (MkShimCallbacks _ s _) = showParen (d >= 11) $
-        showString "MkShimCallbacks { model :: "
-        . (maybe (showChar '?') shows $ s ^? to typeOf -- TVar s
-            . to typeRepArgs . ix 0) -- s
-        . showString "}"
-
--- | Runs a blockable STM.
--- The executor should never be blocked from executing the next command.
--- Ie. the executor should always execute this STM in a concurrent thread just in case the STM blocks on
--- commands *after* this 'RunSTM'.
--- Eg. the STM reads from a channel will will be unblocked by a later STM.
-data ForkSTM c where
-    ForkSTM ::
-        -- blockable STM to run
-        STM a
-        -- Continuation to run when STM succeeds.
-        -> (a -> c)
-        -> ForkSTM c
-
-instance Show (ForkSTM c) where
-    showsPrec d _ = showParen (d >= 11) $
-        showString "ForkSTM"
+    showsPrec _ _ = showString "MkShimCallbacks"

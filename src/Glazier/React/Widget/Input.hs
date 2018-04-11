@@ -62,8 +62,7 @@ import qualified JavaScript.Extras as JE
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( Typeable p
-    , AsReactor c
+    ( AsReactor c
     , AsJavascript c
     )
     => GizmoId
@@ -90,13 +89,12 @@ textInput gid = dummy
 
     -- | Modify the DOM input value after every render to match the model value
     onInitialized ::
-        ( Typeable p
-        , AsReactor c
+        ( AsReactor c
         , AsJavascript c
         )
         => Gadget c p J.JSString ()
     onInitialized = do
-        SceneObj _ _ slf <- ask
+        Arena _ _ _ slf <- ask
         triggerOnUpdated $ void $ runMaybeT $ do
             j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
             s <- MaybeT $ preuse (_scene._model.slf)
@@ -104,14 +102,14 @@ textInput gid = dummy
             -- to put inside the commands.
             -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
             lift . post . evalCont . (`evalMaybeT` (cmd' @[] [])) $ do
-                start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionStart" j
-                end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "selectionEnd" j
-                v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty "value" j
+                start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty j "selectionStart"
+                end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty j "selectionEnd"
+                v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty j "value"
                 let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
                 pure $ cmd' @[]
-                    [ cmd $ SetProperty ("value", JE.toJSR s) j
-                    , cmd $ SetProperty ("selectionStart", JE.toJSR a) j
-                    , cmd $ SetProperty ("selectionEnd", JE.toJSR b) j
+                    [ cmd $ SetProperty j ("value", JE.toJSR s)
+                    , cmd $ SetProperty j ("selectionStart", JE.toJSR a)
+                    , cmd $ SetProperty j ("selectionEnd", JE.toJSR b)
                     ]
 
     -- hdlChange ::

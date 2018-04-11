@@ -47,15 +47,16 @@ mkTriggerAction1 ::
     ( NFData a
     , AsFacet (TickState c) c
     , AsFacet (MkAction1 c) c
+    , HasItem (Arena p s) r
     )
     => Lens' (Tagged "Once" (JE.JSRep -> IO ()), Tagged "Every" (JE.JSRep -> IO ())) (JE.JSRep -> IO ())
     -> GizmoId
     -> J.JSString
     -> (JE.JSRep -> IO (Maybe a))
     -> (a -> States (Scenario c p) b)
-    -> Gadget c p s b
+    -> Gadget r c p b
 mkTriggerAction1 l gid n goStrict goLazy = do
-    Arena scnRef plnVar mdlVar _ <- ask
+    Arena scnRef plnVar mdlVar _ <- viewArena
     lift $ contsT $ \fire -> do
         -- Add extra command producting state actions at the end
         let goLazy' a = cmd' $ TickState scnRef plnVar mdlVar (goLazy a >>= fire)
@@ -71,7 +72,7 @@ mkUpdatedAction ::
     )
     => Lens' (Tagged "Once" (IO ()), Tagged "Every" (IO ())) (IO ())
     -> States (Scenario c p) b
-    -> Gadget c p s b
+    -> Gadget r c p b
 mkUpdatedAction l go = do
     Arena scnRef plnVar mdlVar _ <- ask
     lift $ contsT $ \fire -> do
@@ -87,7 +88,7 @@ triggerOnUpdated_ ::
     )
     => Lens' (Tagged "Once" (IO ()), Tagged "Every" (IO ())) (IO ())
     -> States (Scenario c p) b
-    -> Gadget c p s b
+    -> Gadget r c p b
 triggerOnUpdated_ l go = mkUpdatedAction l go
 
 -- NB. This is trigged by react 'componentDidUpdate' and 'componentDidMount'
@@ -100,7 +101,7 @@ triggerOnUpdated ::
     , AsFacet (MkAction c) c
     )
     => States (Scenario c p) b
-    -> Gadget c p s b
+    -> Gadget r c p b
 triggerOnUpdated = triggerOnUpdated_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnceOnUpdated ::
@@ -108,7 +109,7 @@ triggerOnceOnUpdated ::
     , AsFacet (MkAction c) c
     )
     => States (Scenario c p) b
-    -> Gadget c p s b
+    -> Gadget r c p b
 triggerOnceOnUpdated = triggerOnUpdated_ (_1._Wrapped' @(Tagged "Once" _))
 
 -- | A 'trigger1' where all event info is dropped and the given value is fired.
@@ -119,7 +120,7 @@ trigger ::
     => GizmoId
     -> J.JSString
     -> States (Scenario c p) b
-    -> Gadget c p s b
+    -> Gadget r c p b
 trigger = trigger_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnce ::
@@ -129,7 +130,7 @@ triggerOnce ::
     => GizmoId
     -> J.JSString
     -> States (Scenario c p) b
-    -> Gadget c p s b
+    -> Gadget r c p b
 triggerOnce = trigger_ (_1._Wrapped' @(Tagged "Once" _))
 
 -- | Create callback for 'Notice' and add it to this gizmos's dlist of listeners.
@@ -142,7 +143,7 @@ trigger1 ::
     -> J.JSString
     -> (Notice -> IO a)
     -> (a -> States (Scenario c p) b)
-    -> Gadget c p s b
+    -> Gadget r c p b
 trigger1 = trigger1_ (_2._Wrapped' @(Tagged "Every" _))
 
 triggerOnce1 ::
@@ -154,7 +155,7 @@ triggerOnce1 ::
     -> J.JSString
     -> (Notice -> IO a)
     -> (a -> States (Scenario c p) b)
-    -> Gadget c p s b
+    -> Gadget r c p b
 triggerOnce1 = trigger1_ (_1._Wrapped' @(Tagged "Once" _))
 
 trigger1_ ::
@@ -167,7 +168,7 @@ trigger1_ ::
     -> J.JSString
     -> (Notice -> IO a)
     -> (a -> States (Scenario c p) b)
-    -> Gadget c p s b
+    -> Gadget r c p b
 trigger1_ l gid n goStrict goLazy = mkTriggerAction1 l gid n goStrict' goLazy
   where
     goStrict' e = case JE.fromJSR e of
@@ -182,7 +183,7 @@ trigger_ ::
     -> GizmoId
     -> J.JSString
     -> States (Scenario c p) b
-    -> Gadget c p s b
+    -> Gadget r c p b
 trigger_ l gid n go = mkTriggerAction1 l gid n (const $ pure (Just ())) (const $ go)
 
 -- | This adds a ReactJS "ref" callback assign the ref into an EventTarget for the
@@ -192,7 +193,7 @@ withRef ::
     , AsFacet (MkAction1 c) c
     )
     => GizmoId
-    -> Gadget c p s ()
+    -> Gadget r c p ()
 withRef gid = mkTriggerAction1 (_2._Wrapped' @(Tagged "Every" _)) gid "ref" (pure . Just) hdlRef
   where
     hdlRef j = let evt = JE.fromJSR j

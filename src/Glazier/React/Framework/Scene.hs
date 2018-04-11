@@ -15,6 +15,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Framework.Scene where
 
@@ -220,23 +221,23 @@ data Arena p s = Arena
     , self :: Traversal' p s
     }
 
-restage :: forall p s a. Traversal' s a -> Arena p s -> Arena p a
-restage l (Arena scn pln mdl s) = Arena scn pln mdl (s.l)
+restage :: forall p s a proxy. proxy p -> Traversal' s a -> Arena p s -> Arena p a
+restage _ l (Arena scn pln mdl s) = Arena scn pln mdl (s.l)
 
-magnifyObjModel ::
-    ( Magnify m n (Arena p a) (Arena p b)
-    , Contravariant (Magnified m r)
+magnifyArena ::
+    ( HasItem (Arena p s) r
+    , Magnify m n (Replaced (Arena p s) (Arena p a) r) r
+    , Contravariant (Magnified m b)
     )
-    => Traversal' b a -> m r -> n r
-magnifyObjModel l = magnify (to (restage l))
+    => proxy p -> Traversal' s a -> m b -> n b
+magnifyArena p l = magnify (to $ item %~ restage p l)
 
-magnifyArena3 :: forall p s a m n r xs proxy.
-    ( UniqueMember (Arena p s) xs
-    , Magnify m n (Many (Replace (Arena p s) (Arena p a) xs)) (Many xs)
-    , Contravariant (Magnified m r)
+viewArena ::
+    ( HasItem (Arena p s) r
+    , MonadReader r m
     )
-    => proxy p -> Traversal' s a -> m r -> n r
-magnifyArena3 _ l = magnify (to (\env -> env & (item @(Arena p s)) %~ (restage @p l)))
+    => m (Arena p s)
+viewArena = view item
 
 magnifyModel ::
     ( Magnify m n (Scene a) (Scene b)

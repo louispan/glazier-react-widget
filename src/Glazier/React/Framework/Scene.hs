@@ -230,26 +230,13 @@ magnifyObjModel ::
     => Traversal' b a -> m r -> n r
 magnifyObjModel l = magnify (to (restage l))
 
-magnifyArena :: forall p b a enva envb m n r.
-    ( HasItemTag Arena (Arena p b) (Arena p a) envb enva
-    , Magnify m n enva envb
+magnifyArena3 :: forall p s a m n r xs proxy.
+    ( UniqueMember (Arena p s) xs
+    , Magnify m n (Many (Replace (Arena p s) (Arena p a) xs)) (Many xs)
     , Contravariant (Magnified m r)
     )
-    => Traversal' b a -> m r -> n r
-magnifyArena l = magnify (to (\env -> env & (itemTag @Arena) %~ (restage @p l)))
-
-
-magnifyArena2 :: forall p s a xs m n r.
-    ( UniqueLabelMember Arena xs
-    , Tagged Arena (Arena p s) ~ KindAtLabel Arena xs
-    , Magnify m n (Many xs)
-        (Many (Replace (Tagged Arena (Arena p s)) (Tagged Arena (Arena p a)) xs))
-    , Contravariant (Magnified m r)
-    )
-    => Traversal' s a -> m r -> n r
-magnifyArena2 l = magnify (to (\env ->
-    let sa = grabTag @Arena @(Arena p s) env
-    in replaceTag @Arena env (restage @p sa)))
+    => proxy p -> Traversal' s a -> m r -> n r
+magnifyArena3 _ l = magnify (to (\env -> env & (item @(Arena p s)) %~ (restage @p l)))
 
 magnifyModel ::
     ( Magnify m n (Scene a) (Scene b)

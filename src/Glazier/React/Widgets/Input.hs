@@ -13,7 +13,7 @@
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
-module Glazier.React.Widget.Input where --(
+module Glazier.React.Widgets.Input where --(
     -- -- * Text input
     -- textInput
     -- -- * Checkbox input
@@ -39,8 +39,8 @@ import Data.Maybe
 import Data.Typeable
 import qualified GHC.Generics as G
 import Glazier.React
+import Glazier.React
 import Glazier.React.Effect.JavaScript
-import Glazier.React.Framework
 import qualified JavaScript.Extras as JE
 
 ----------------------------------------

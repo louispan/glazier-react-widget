@@ -11,7 +11,6 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Glazier.React
 import Glazier.React.Effect.HTMLElement
-import Glazier.React.Framework
 
 execHTMLElement ::
     ( MonadIO m

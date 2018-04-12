@@ -8,7 +8,6 @@ import Control.Lens
 import Control.Monad.State
 import Data.Diverse.Lens
 import Glazier.React
-import Glazier.React.Framework
 
 type HTMLElementCmds =
     '[ Focus

@@ -16,10 +16,7 @@ module Glazier.React.Effect.Concur
     )
     where
 
-import Control.Concurrent.STM
-import Control.Monad.State.Strict
 import Data.Diverse.Lens
-import qualified Data.DList as DL
 import Glazier.React.Effect.Concur.Internal
 
 type ConcurCmds c =

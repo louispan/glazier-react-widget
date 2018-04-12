@@ -5,8 +5,8 @@ module Glazier.React.Effect.JavaScript.Exec where
 import Control.Applicative
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
+import Glazier.React
 import Glazier.React.Effect.JavaScript
-import Glazier.React.Framework
 import qualified JavaScript.Extras as JE
 
 execJavascript ::

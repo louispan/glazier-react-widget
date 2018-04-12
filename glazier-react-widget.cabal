@@ -16,16 +16,6 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:
-                       Glazier.React.Framework
-                       Glazier.React.Framework.Gadget
-                       Glazier.React.Framework.MkId
-                       Glazier.React.Framework.MkId.Internal
-                       Glazier.React.Framework.Reactor
-                       Glazier.React.Framework.Reactor.Exec
-                       Glazier.React.Framework.Scene
-                       Glazier.React.Framework.Trigger
-                       Glazier.React.Framework.Widget
-                       Glazier.React.Framework.Window
                        Glazier.React.Action
                        Glazier.React.Action.KeyDownKey
                        Glazier.React.Effect
@@ -36,7 +26,7 @@ library
                        Glazier.React.Effect.HTMLElement.Exec
                        Glazier.React.Effect.JavaScript
                        Glazier.React.Effect.JavaScript.Exec
-                       Glazier.React.Widget.Input
+                       Glazier.React.Widgets.Input
                       --  Glazier.React.Widget.Pile
                       --  Glazier.React.Widget.Pile.Glam
                       --  Glazier.React.Widget.MapPile
@@ -59,7 +49,7 @@ library
                      , glazier-react >= 0.7
                      , javascript-extras >= 0.4.0.0
                      , lens >= 4
-                     , lens-misc >= 0.0.1
+                     , lens-misc >= 0.0.2
                      , mmorph >= 1
                      , monadlist >= 0.0.2
                      , mtl >= 2

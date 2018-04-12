@@ -12,8 +12,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
+import Glazier.React
 import Glazier.React.Effect.Concur.Internal
-import Glazier.React.Framework
 
 -- | Run the Concur IO in a forked thread because it may need to "wait" until MVars are unblocked.
 execForkConcur ::

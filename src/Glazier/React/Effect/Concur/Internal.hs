@@ -13,7 +13,7 @@ import Control.Concurrent
 import Control.Monad.State.Strict
 import Data.Diverse.Lens
 import qualified Data.DList as DL
-import Glazier.React.Framework.Reactor
+import Glazier.React
 
 -- | Command to run 'Concur a', given a continuation
 data ForkConcur c where

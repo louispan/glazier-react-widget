@@ -40,7 +40,7 @@ import Glazier.React.Framework.Window
 
 data Widget r c p s a = Widget
     { window :: WindowT s IO () -- so it can read IORef
-    , gadget :: Gadget r c p sa
+    , gadget :: Gadget r c p a
     } deriving (G.Generic, Functor)
 
 makeLenses ''Widget
@@ -72,11 +72,11 @@ dummy :: Widget r c p s ()
 dummy = mempty
 
 enlargeModel ::
-    ( HasItem (Arena p s') r'
-    , r ~ Replaced (Arena p s') (Arena p s) r'
+    ( HasItem (ReifiedTraversal' p s') r'
+    , r ~ Replaced (ReifiedTraversal' p s') (ReifiedTraversal' p s) r'
     )
     => Traversal' s' s -> Widget r c p s a -> Widget r' c p s' a
-enlargeModel l w@(Widget disp ini) = Widget (magnifyModel l disp) (magnifyArena (parentProxy w) l ini)
+enlargeModel l w@(Widget disp ini) = Widget (magnifyModel l disp) (magnifySelf (parentProxy w) l ini)
   where
     parentProxy :: Widget r c p s a -> Proxy p
     parentProxy _ = Proxy

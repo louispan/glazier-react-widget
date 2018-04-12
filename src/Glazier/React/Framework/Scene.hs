@@ -214,30 +214,36 @@ post c = _posted %= (`DL.snoc` c)
 -- | Using MVar to synchronizing because it guarantees FIFO wakeup
 -- which will help prevent old updates overriding new updates.
 -- NB. Different 'Arena' may have different modelVar, but share the same planVar.
-data Arena p s = Arena
+data Subject p = Subject
     { sceneRef :: IORef (Scene p)
     , planVar :: MVar Plan
     , modelVar :: MVar p
-    , self :: Traversal' p s
     }
 
-restage :: forall p s a proxy. proxy p -> Traversal' s a -> Arena p s -> Arena p a
-restage _ l (Arena scn pln mdl s) = Arena scn pln mdl (s.l)
+viewSubject ::
+    ( HasItem (Subject p) r
+    , MonadReader r m
+    )
+    => m (Subject p)
+viewSubject = view item
 
-magnifyArena ::
-    ( HasItem (Arena p s) r
-    , Magnify m n (Replaced (Arena p s) (Arena p a) r) r
+viewSelf ::
+    ( HasItem (ReifiedTraversal' p s) r
+    , MonadReader r m
+    )
+    => m (ReifiedTraversal' p s)
+viewSelf = view item
+
+magnifySelf ::
+    ( HasItem (ReifiedTraversal' p s) r
+    , Magnify m n (Replaced (ReifiedTraversal' p s) (ReifiedTraversal' p a) r) r
     , Contravariant (Magnified m b)
     )
     => proxy p -> Traversal' s a -> m b -> n b
-magnifyArena p l = magnify (to $ item %~ restage p l)
-
-viewArena ::
-    ( HasItem (Arena p s) r
-    , MonadReader r m
-    )
-    => m (Arena p s)
-viewArena = view item
+magnifySelf p l = magnify (to $ item %~ go p l)
+  where
+    go :: forall p s a proxy. proxy p -> Traversal' s a -> ReifiedTraversal' p s -> ReifiedTraversal' p a
+    go _ l' (Traversal s) = Traversal (s.l')
 
 magnifyModel ::
     ( Magnify m n (Scene a) (Scene b)

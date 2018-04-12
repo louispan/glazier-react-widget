@@ -74,9 +74,7 @@ type AsReactor c =
 -- | Rerender a ShimComponent using the given state.
 data Rerender where
     Rerender ::
-        IORef (Scene s)
-        -> MVar Plan
-        -> MVar s
+        Subject s
         -> Rerender
 
 instance Show Rerender where
@@ -92,9 +90,7 @@ dirty = _scene._plan._currentFrameNum %= JE.safeModularIncrement
 -- The executor of this command will automatically check 'rerender' at the end of this state tick
 data TickState c where
     TickState ::
-        IORef (Scene s)
-        -> MVar Plan
-        -> MVar s
+        Subject s
         -> (States (Scenario c s) ())
         -> TickState c
 
@@ -129,8 +125,7 @@ instance Show (MkAction1 c) where
 -- 'Gadget' to emphasis the fact that the 'Window' was used up.
 data MkShimCallbacks where
     MkShimCallbacks ::
-        IORef (Scene s)
-        -> MVar Plan
+        Subject s
         -> (Window s ())
         -> MkShimCallbacks
 

@@ -15,6 +15,7 @@ import Control.Lens
 import Control.Monad.Trans.Conts
 import Control.Monad.Trans.Readers
 import Control.Monad.Trans.States.Strict
+import Data.Diverse.Lens
 import Glazier.React.Framework.Scene
 
 -- | The type for initializing and handling callbacks.
@@ -49,11 +50,11 @@ type Gadget r c p = GadgetT r c p Identity
 -- -- methodT' = readrT' . (delegateT' .) . (. runTraversal)
 -- gadgetT f = readersT (\r -> MContT (f (runTraversal r)))
 
--- viewArena ::
---     ( HasItem (Arena p s) r
+-- viewSelf ::
+--     ( HasItem (ReifiedTraversal' p s) r
 --     )
---     => GadgetT r c p s m (Arena p s)
--- viewArena = view item
+--     => GadgetT r c p s m (ReifiedTraversal' p s)
+-- viewSelf = view item
 
 -- magnifyArena :: forall p s a r c m b.
 --     ( HasItem (Arena p s) r

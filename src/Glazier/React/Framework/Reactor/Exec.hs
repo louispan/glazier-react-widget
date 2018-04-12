@@ -57,13 +57,13 @@ initReactor exec s ini = do
     plnVar <- liftIO $ newMVar newPlan
     mdlVar <- liftIO $ newMVar s
     -- run through the app initialization, and execute any produced commands
-    cs <- liftIO $ tickState frmRef plnVar mdlVar ini
+    cs <- liftIO $ tickState (Subject frmRef plnVar mdlVar) ini
     exec (cmd' $ DL.toList cs)
     pure (CD.dispose plnVar, readMVar mdlVar)
 
 -- | Upate the world 'TVar' with the given action, and return the commands produced.
-tickState :: IORef (Scene s) -> MVar Plan -> MVar s -> States (Scenario c s) () -> IO (DL.DList c)
-tickState scnRef plnVar mdlVar tick = do
+tickState :: Subject s -> States (Scenario c s) () -> IO (DL.DList c)
+tickState (Subject scnRef plnVar mdlVar) tick = do
     mdl <- takeMVar mdlVar
     -- execShimCallbacks may 'takeMVar' only the plan,
     -- also plnVar may be shared with other 'Arena's
@@ -138,7 +138,7 @@ execRerender ::
     ( MonadIO m
     )
     => Rerender -> m ()
-execRerender (Rerender scnRef plnVar mdlVar) = liftIO $ do
+execRerender (Rerender (Subject scnRef plnVar mdlVar)) = liftIO $ do
     -- | 'tickState' and 'execRerender' are the only place where we 'takeMVar' the plan or model
     -- So as long as we take and put in the correct order, we won't block.
     mdl <- readMVar mdlVar
@@ -157,8 +157,8 @@ execTickState ::
     => (c -> m ())
     -> TickState c
     -> m ()
-execTickState exec (TickState scnRef plnVar mdlVar tick) = do
-    cs <- liftIO $ tickState scnRef plnVar mdlVar tick
+execTickState exec (TickState sbj tick) = do
+    cs <- liftIO $ tickState sbj tick
     exec (cmd' $ DL.toList cs)
 
 execMkAction1 ::
@@ -193,7 +193,7 @@ execMkShimCallbacks ::
     MonadIO m
     => MkShimCallbacks
     -> m ()
-execMkShimCallbacks (MkShimCallbacks scnRef plnVar rndr) = do
+execMkShimCallbacks (MkShimCallbacks (Subject scnRef plnVar _) rndr) = do
     -- For efficiency, render uses the state exported into ShimComponent
     let doRender = do
             scn <- readIORef scnRef

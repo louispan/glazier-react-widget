@@ -62,11 +62,13 @@ import qualified JavaScript.Extras as JE
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( AsReactor c
+    ( HasItem (ReifiedTraversal' p J.JSString) r
+    , HasItem (Subject p) r
+    , AsReactor c
     , AsJavascript c
     )
     => GizmoId
-    -> Widget c p J.JSString ()
+    -> Widget r c p J.JSString ()
 textInput gid = dummy
     { window = do
         s <- ask
@@ -89,12 +91,14 @@ textInput gid = dummy
 
     -- | Modify the DOM input value after every render to match the model value
     onInitialized ::
-        ( AsReactor c
+        ( HasItem (ReifiedTraversal' p J.JSString) r
+        , HasItem (Subject p) r
+        , AsReactor c
         , AsJavascript c
         )
-        => Gadget c p J.JSString ()
+        => Gadget r c p ()
     onInitialized = do
-        Arena _ _ _ slf <- ask
+        Traversal slf <- viewSelf
         triggerOnUpdated $ void $ runMaybeT $ do
             j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
             s <- MaybeT $ preuse (_scene._model.slf)

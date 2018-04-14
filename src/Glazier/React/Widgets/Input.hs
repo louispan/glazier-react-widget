@@ -13,32 +13,27 @@
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
-module Glazier.React.Widgets.Input where --(
-    -- -- * Text input
-    -- textInput
-    -- -- * Checkbox input
-    -- , checkboxInput
-    -- , IndeterminateCheckboxInput(..)
-    -- , indeterminateCheckboxInput
-    -- ) where
+module Glazier.React.Widgets.Input
+    (
+    -- * Text input
+    textInput
+    -- * Checkbox input
+    , checkboxInput
+    , IndeterminateCheckboxInput(..)
+    , indeterminateCheckboxInput
+    ) where
 
 -- import Control.Applicative.Esoteric
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.Cont
 import Control.Monad.Reader
-import Control.Monad.Trans.ACont
 import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Maybe.Extras
 import qualified Data.Algorithm.Diff as D
-import Data.Diverse.Lens
-import qualified Data.DList as DL
 import qualified Data.JSString as J
-import Data.Maybe
-import Data.Typeable
 import qualified GHC.Generics as G
-import Glazier.React
 import Glazier.React
 import Glazier.React.Effect.JavaScript
 import qualified JavaScript.Extras as JE
@@ -62,13 +57,11 @@ import qualified JavaScript.Extras as JE
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( HasItem (ReifiedTraversal' p J.JSString) r
-    , HasItem (Subject p) r
-    , AsReactor c
+    ( AsReactor c
     , AsJavascript c
     )
     => GizmoId
-    -> Widget r c p J.JSString ()
+    -> Widget c p J.JSString ()
 textInput gid = dummy
     { window = do
         s <- ask
@@ -85,27 +78,25 @@ textInput gid = dummy
             ]
     , gadget = withRef gid
         *> onInitialized
-        -- *> (trigger' gid "onChange" () >>= hdlChange)
+        *> (trigger gid "onChange" (pure ()) >>= hdlChange)
     }
   where
 
     -- | Modify the DOM input value after every render to match the model value
     onInitialized ::
-        ( HasItem (ReifiedTraversal' p J.JSString) r
-        , HasItem (Subject p) r
-        , AsReactor c
+        ( AsReactor c
         , AsJavascript c
         )
-        => Gadget r c p ()
+        => Gadget c p J.JSString ()
     onInitialized = do
-        Traversal slf <- viewSelf
+        Traversal slf <- view _self
         triggerOnUpdated $ void $ runMaybeT $ do
-            j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
-            s <- MaybeT $ preuse (_scene._model.slf)
+            j <- MaybeT . preuse $ _scene._plan._gizmos.ix gid._targetRef._Just
+            s <- MaybeT . preuse $ _scene._model.slf
             -- Use @('runCont` id)@ to allow do notation for making the continuation
             -- to put inside the commands.
             -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
-            lift . post . evalCont . (`evalMaybeT` (cmd' @[] [])) $ do
+            post . evalCont . (`evalMaybeT` (cmd' @[] [])) $ do
                 start <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty j "selectionStart"
                 end <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty j "selectionEnd"
                 v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty j "value"
@@ -116,17 +107,21 @@ textInput gid = dummy
                     , cmd $ SetProperty j ("selectionEnd", JE.toJSR b)
                     ]
 
-    -- hdlChange ::
-    --     ( MonadReactor m, MonadJS m
-    --     ) => a -> MethodT (Scene p m J.JSString) m ()
-    -- hdlChange _ = readrT' $ \Obj{..} -> do
-    --     lift $ void $ runMaybeT $ do
-    --         me <- lift $ doReadIORef self
-    --         j <- MaybeT $ pure $ me ^. my._plan._refs.at gid
-    --         v <- lift $ (fromMaybe J.empty . JE.fromJSR) <$> (doGetProperty "value" j)
-    --         lift $ doModifyIORef' self (my._model .~ v)
-    --         -- Don't mark input as dirty since changing model
-    --         -- does not change the DOM input value.
+    hdlChange ::
+        ( AsReactor c
+        , AsJavascript c
+        )
+        => a -> Gadget c p J.JSString ()
+    hdlChange _ = do
+        Traversal slf <- view _self
+        sbj <- view _subject
+        void $ runMaybeT $ do
+            j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
+            post . evalCont . (`evalMaybeT` (cmd' @[] [])) $ do
+                v <- MaybeT . fmap JE.fromJSR . cont $ cmd' . GetProperty j "value"
+                pure $ cmd' $ TickState sbj (_scene._model.slf .= v)
+                -- Don't mark input as dirty since changing model
+                -- does not change the DOM input value.
 
 
 -- This returns an greedy selection range for a new string based
@@ -170,64 +165,63 @@ estimateSelectionRange before after start end =
 
 ----------------------------------------
 
--- -- | This provide a prototype of a checkbox input but without a builder.
--- -- Instead a lens to the CheckboxInput is used, and the user of this widget
--- -- is responsible for making the entire model.
--- checkboxInput :: ( MonadReactor m)
---     => GadgetId
---     -> Prototype p Bool m ()
--- checkboxInput gid = mempty
---     { display = \s -> lf' gid s "input"
---         [ ("key", JE.toJSR . reactKey $ s ^. _plan)
---         , ("type", "checkbox")
---         , ("checked", JE.toJSR $ s ^. _model)
---         ]
---     , initializer = withRef gid
---         ^*> (trigger' gid "onChange" () >>= hdlChange)
---     }
+-- | This provide a prototype of a checkbox input but without a builder.
+-- Instead a lens to the CheckboxInput is used, and the user of this widget
+-- is responsible for making the entire model.
+checkboxInput ::
+    AsReactor c
+    => GizmoId
+    -> Widget c p Bool ()
+checkboxInput gid = dummy
+    { window = do
+        s <- ask
+        lf' gid "input"
+            [ ("key", JE.toJSR gid)
+            , ("type", "checkbox")
+            , ("checked", JE.toJSR $ s ^. _model)
+            ]
+    , gadget = withRef gid
+        *> (trigger gid "onChange" (pure ()) >>= hdlChange)
+    }
 
---   where
---     hdlChange :: (MonadReactor m)
---         => a -> MethodT (Scene p m Bool) m ()
---     hdlChange _ = readrT' $ \this@Obj{..} -> do
---         lift $ do
---             doModifyIORef' self (my._model %~ not)
---             dirty this
+  where
+    hdlChange ::
+        AsReactor c
+        => a -> Gadget c p Bool ()
+    hdlChange _ = do
+        Traversal slf <- view _self
+        sbj <- view _subject
+        post . cmd' $ TickState sbj $ do
+            _scene._model.slf %= not
+            dirty
 
--- data IndeterminateCheckboxInput = IndeterminateCheckboxInput
---     { checked :: Bool
---     , indeterminate :: Bool
---     } deriving G.Generic
+data IndeterminateCheckboxInput = IndeterminateCheckboxInput
+    { checked :: Bool
+    , indeterminate :: Bool
+    } deriving G.Generic
 
--- makeLenses_ ''IndeterminateCheckboxInput
+makeLenses_ ''IndeterminateCheckboxInput
 
--- -- | This provide a prototype of a checkbox input but without a builder.
--- -- Instead a lens to the CheckboxInput is used, and the user of this widget
--- -- is responsible for making the entire model.
--- indeterminateCheckboxInput ::
---     ( MonadReactor m
---     , MonadJS m
---     )
---     => GadgetId
---     -> Prototype p IndeterminateCheckboxInput m ()
--- indeterminateCheckboxInput gid = magnifyPrototype _checked (checkboxInput gid)
---     & _initializer %~ (^*> onInitialized)
---   where
---     -- | Add setting the indeterminate after every dirty as this is the only
---     -- way to change that setting.
---     onInitialized ::
---         ( MonadReactor m
---         , MonadJS m
---         ) => MethodT (Scene p m IndeterminateCheckboxInput) m ()
---     onInitialized = readrT' $ \this@Obj{..} -> do
---          lift $ addEveryOnUpdated this (go this)
---       where
---         go Obj{..} = do
---             me <- doReadIORef self
---             let j = me ^. my._plan._refs.at gid
---             case j of
---                 Nothing -> pure ()
---                 Just j' -> j' & doSetProperty
---                     ( "indeterminate"
---                     , JE.toJSR $ me ^. my._model._indeterminate
---                     )
+-- | This provide a prototype of a checkbox input but without a builder.
+-- Instead a lens to the CheckboxInput is used, and the user of this widget
+-- is responsible for making the entire model.
+indeterminateCheckboxInput ::
+    ( AsReactor c
+    , AsJavascript c
+    )
+    => GizmoId
+    -> Widget c p IndeterminateCheckboxInput ()
+indeterminateCheckboxInput gid = enlargeModel _checked (checkboxInput gid)
+    & _gadget %~ (*> onInitialized)
+  where
+    onInitialized ::
+        ( AsReactor c
+        , AsJavascript c
+        )
+        => Gadget c p IndeterminateCheckboxInput ()
+    onInitialized = do
+        Traversal slf <- view _self
+        triggerOnUpdated $ void $ runMaybeT $ do
+            j <- MaybeT . preuse $ _scene._plan._gizmos.ix gid._targetRef._Just
+            i <- MaybeT . preuse $ _scene._model.slf._indeterminate
+            post . cmd $ SetProperty j ("indeterminate", JE.toJSR i)

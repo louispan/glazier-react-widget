@@ -84,7 +84,6 @@ instance (AsFacet [c] c, AsFacet (ForkConcur c) c) => Monad (Concur c) where
             (\b -> cmd' $ ForkConcur (Concur $ pure $ putMVar v b) (const $ cmd' @[] []))))
         pure $ takeMVar v
 
-
 -- | Analogous to 'Control.Monad.Trans.cont'
 concur :: (AsFacet [c] c, AsFacet (ForkConcur c) c) => ((a -> c) -> c) -> Concur c a
 concur r = Concur $ do

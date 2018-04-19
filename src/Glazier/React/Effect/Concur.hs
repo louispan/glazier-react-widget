@@ -7,23 +7,19 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Glazier.React.Effect.Concur
-    ( ConcurCmds
-    , AsConcur
-    , ForkConcur(..)
+    ( ConcurCmd(..)
     , Concur -- constructor not exported
     , concur
     , evalConcur
     )
     where
 
-import Data.Diverse.Lens
+-- import Data.Diverse.Lens
 import Glazier.React.Effect.Concur.Internal
 
-type ConcurCmds c =
-    '[ ForkConcur c
-    ]
+-- type ConcurCmds c = '[[c], ForkConcur c]
 
-type AsConcur c =
-    ( AsFacet (ForkConcur c) c
-    , AsFacet [c] c
-    )
+-- type AsConcur c =
+--     ( AsFacet [c] c
+--     , AsFacet (ForkConcur c) c
+--     )

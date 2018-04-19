@@ -16,13 +16,13 @@ import qualified Data.DList as DL
 import Glazier.React
 
 -- | Command to run 'Concur a', given a continuation
-data ForkConcur c where
+data ConcurCmd c where
     ForkConcur ::
         Concur c a
         -> (a -> c)
-        -> ForkConcur c
+        -> ConcurCmd c
 
-instance Show (ForkConcur c) where
+instance Show (ConcurCmd c) where
     showsPrec d _ = showParen (d >= 11) $
         showString "ForkConcur"
 
@@ -74,7 +74,7 @@ instance Applicative (Concur c) where
     (Concur f) <*> (Concur a) = Concur $ liftA2 (<*>) f a
 
 -- Monad instance can't build commands without blocking.
-instance (AsFacet [c] c, AsFacet (ForkConcur c) c) => Monad (Concur c) where
+instance (AsFacet [c] c, AsFacet (ConcurCmd c) c) => Monad (Concur c) where
     (Concur m) >>= k = Concur $ do
         m' <- m
         v <- lift newEmptyMVar
@@ -85,7 +85,7 @@ instance (AsFacet [c] c, AsFacet (ForkConcur c) c) => Monad (Concur c) where
         pure $ takeMVar v
 
 -- | Analogous to 'Control.Monad.Trans.cont'
-concur :: (AsFacet [c] c, AsFacet (ForkConcur c) c) => ((a -> c) -> c) -> Concur c a
+concur :: (AsFacet [c] c, AsFacet (ConcurCmd c) c) => ((a -> c) -> c) -> Concur c a
 concur r = Concur $ do
     v <- lift newEmptyMVar
     cs <- get
@@ -93,5 +93,5 @@ concur r = Concur $ do
     pure $ takeMVar v
 
 -- | Analogous to 'Control.Monad.Trans.evalCont'
-evalConcur :: AsFacet (ForkConcur c) c => Concur c c -> c
+evalConcur :: AsFacet (ConcurCmd c) c => Concur c c -> c
 evalConcur k = cmd' $ ForkConcur k id

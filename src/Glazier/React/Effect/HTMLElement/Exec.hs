@@ -6,32 +6,17 @@
 
 module Glazier.React.Effect.HTMLElement.Exec where
 
-import Control.Applicative
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Maybe
 import Glazier.React
 import Glazier.React.Effect.HTMLElement
 
-execHTMLElement ::
-    ( MonadIO m
-    , AsHTMLElement c
-    )
-    => c -> MaybeT m ()
-execHTMLElement c =
-   maybeExec execFocus c
-    <|> maybeExec execBlur c
-
-execFocus ::
+execHTMLElementCmd ::
     ( MonadIO m
     )
-    => Focus -> m ()
-execFocus (Focus j) = liftIO $ js_focus j
-
-execBlur ::
-    ( MonadIO m
-    )
-    => Blur -> m ()
-execBlur (Blur j) = liftIO $ js_blur j
+    => HTMLElementCmd -> m ()
+execHTMLElementCmd c = case c of
+    Blur j -> liftIO $ js_blur j
+    Focus j -> liftIO $ js_focus j
 
 #ifdef __GHCJS__
 

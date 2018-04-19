@@ -22,7 +22,7 @@ execForkConcur ::
     )
     => (m () -> IO ())
     -> (c -> m ())
-    -> ForkConcur c
+    -> ConcurCmd c
     -> m ()
 execForkConcur runExec exec (ForkConcur (Concur m) k) = liftIO $ void $ forkIO $ do
     -- get the list of commands to run

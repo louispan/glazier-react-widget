@@ -5,41 +5,25 @@
 
 module Glazier.React.Effect.JavaScript where
 
-import Data.Diverse.Lens
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
-type JavascriptCmds c =
-    '[ [c]
-    , SetProperty
-    , GetProperty c
-    ]
-
-type AsJavascript c =
-    ( AsFacet SetProperty c
-    , AsFacet (GetProperty c) c
-    )
-
-data SetProperty where
+data JavaScriptCmd c where
     SetProperty :: JE.ToJS j
-        => j -> JE.Property -> SetProperty
+        => j -> JE.Property -> JavaScriptCmd c
+    GetProperty :: JE.ToJS j
+        => j
+        -> J.JSString
+        -> (JE.JSRep -> c)
+        -> JavaScriptCmd c
 
-instance Show SetProperty where
+instance Show (JavaScriptCmd c) where
     showsPrec d (SetProperty j p) = showParen (d >= 11) $
         showString "SetProperty "
         . showsPrec 11 (JE.toJSR j)
         . showChar ' '
         . showsPrec 11 p
         . showString "}"
-
-data GetProperty c where
-    GetProperty :: JE.ToJS j
-        => j
-        -> J.JSString
-        -> (JE.JSRep -> c)
-        -> GetProperty c
-
-instance Show (GetProperty c) where
     showsPrec d (GetProperty j n _) = showParen (d >= 11) $
         showString "GetProperty "
         . showsPrec 11 (JE.toJSR j)

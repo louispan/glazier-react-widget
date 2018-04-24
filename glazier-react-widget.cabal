@@ -26,7 +26,7 @@ library
                        Glazier.React.Effect.HTMLElement.Exec
                        Glazier.React.Effect.JavaScript
                        Glazier.React.Effect.JavaScript.Exec
-                      --  Glazier.React.Widgets.Input
+                       Glazier.React.Widgets.Input
                       --  Glazier.React.Widget.Pile
                       --  Glazier.React.Widget.Pile.Glam
                       --  Glazier.React.Widget.MapPile

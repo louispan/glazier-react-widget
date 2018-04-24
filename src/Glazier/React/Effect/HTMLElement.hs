@@ -9,13 +9,15 @@ import Control.Monad.State
 import Data.Diverse.Lens
 import Glazier.React
 
+type AsHTMLElement c = AsFacet HTMLElementCmd c
+
 -- Effects from methods in https://developeR.mozilla.org/en-US/docs/Web/API/HTMLElement
 data HTMLElementCmd =  Focus EventTarget | Blur EventTarget
     deriving Show
 
 focusRef ::
     ( MonadState (Scenario c s) m
-    , AsFacet HTMLElementCmd c
+    , AsHTMLElement c
     )
     => GizmoId -> m ()
 focusRef gid = do
@@ -26,7 +28,7 @@ focusRef gid = do
 
 blurRef ::
     ( MonadState (Scenario c s) m
-    , AsFacet HTMLElementCmd c
+    , AsHTMLElement c
     )
     => GizmoId -> m ()
 blurRef gid = do

@@ -5,8 +5,11 @@
 
 module Glazier.React.Effect.JavaScript where
 
+import Data.Diverse.Lens
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
+
+type AsJavascript c = AsFacet (JavaScriptCmd c) c
 
 data JavaScriptCmd c where
     SetProperty :: JE.ToJS j

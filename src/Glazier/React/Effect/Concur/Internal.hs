@@ -15,6 +15,10 @@ import Data.Diverse.Lens
 import qualified Data.DList as DL
 import Glazier.React
 
+type ConcurCmds c = '[ [c], ConcurCmd c]
+
+type AsConcur c = (AsFacet [c] c, AsFacet (ConcurCmd c) c)
+
 -- | Command to run 'Concur a', given a continuation
 data ConcurCmd c where
     ForkConcur ::
@@ -29,7 +33,7 @@ instance Show (ConcurCmd c) where
 -- | This monad is intended to be used with @ApplicativeDo@ to allow do noation
 -- for composing commands that can be run concurrently.
 -- The 'Applicative' instance can merge multiple commands into the internal state of @DList c@.
--- The 'Monad' instance create a 'ForkSTM' command to 'ForkConcur' before continuing the bind.
+-- The 'Monad' instance create a 'ConcurCmd' command to 'ForkConcur' before continuing the bind.
 -- This monad can replace usages of the 'Control.Monad.Trans.Cont' monad, by replacing usages of
 -- 'Control.Monad.Trans.evalCont' with 'evalConcur' and 'Control.Monad.Trans.cont' with 'concur'.
 --

@@ -28,7 +28,6 @@ import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.Cont
 import Control.Monad.Reader
-import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
@@ -92,19 +91,14 @@ textInput gid = dummy
         triggerOnUpdated $ void $ runMaybeT $ do
             j <- MaybeT . preuse $ _scene._plan._gizmos.ix gid._targetRef._Just
             s <- MaybeT . preuse $ _scene._model.slf
-            -- Use @('runCont` id)@ to allow do notation for making the continuation
-            -- to put inside the commands.
-            -- @runMaybeCmd@ adds 'MaybeT' to the 'Cont' stack.
-            postState . evalContT . void . runMaybeT $ do
-                start <- MaybeT . fmap JE.fromJSR . retrieve $ cmd' . GetProperty j "selectionStart"
-                end <- MaybeT . fmap JE.fromJSR . retrieve $ cmd' . GetProperty j "selectionEnd"
-                v <- MaybeT . fmap JE.fromJSR . retrieve $ cmd' . GetProperty j "value"
+            inquire . void . runMaybeT $ do
+                start <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionStart"
+                end <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionEnd"
+                v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
                 let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                post' $ cmd' @[]
-                    [ cmd' $ SetProperty j ("value", JE.toJSR s)
-                    , cmd' $ SetProperty j ("selectionStart", JE.toJSR a)
-                    , cmd' $ SetProperty j ("selectionEnd", JE.toJSR b)
-                    ]
+                post' $ SetProperty j ("value", JE.toJSR s)
+                post' $ SetProperty j ("selectionStart", JE.toJSR a)
+                post' $ SetProperty j ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
         ( AsReactor c
@@ -116,9 +110,9 @@ textInput gid = dummy
         sbj <- view _subject
         void $ runMaybeT $ do
             j <- MaybeT $ preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
-            postState . evalContT . void . runMaybeT $ do
-                v <- MaybeT . fmap JE.fromJSR . retrieve $ cmd' . GetProperty j "value"
-                post' $ cmd' $ TickState sbj (_scene._model.slf .= v)
+            inquire . void . runMaybeT $ do
+                v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
+                post' $ TickState sbj (_scene._model.slf .= v)
                 -- Don't mark input as dirty since changing model
                 -- does not change the DOM input value.
 
@@ -190,7 +184,7 @@ checkboxInput gid = dummy
     hdlChange _ = do
         Traversal slf <- view _self
         sbj <- view _subject
-        post . cmd' $ TickState sbj $ do
+        post' $ TickState sbj $ do
             _scene._model.slf %= not
             dirty
 
@@ -223,4 +217,4 @@ indeterminateCheckboxInput gid = enlargeModel _checked (checkboxInput gid)
         triggerOnUpdated $ void $ runMaybeT $ do
             j <- MaybeT . preuse $ _scene._plan._gizmos.ix gid._targetRef._Just
             i <- MaybeT . preuse $ _scene._model.slf._indeterminate
-            post . cmd' $ SetProperty j ("indeterminate", JE.toJSR i)
+            post' $ SetProperty j ("indeterminate", JE.toJSR i)

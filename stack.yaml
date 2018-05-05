@@ -40,6 +40,8 @@ packages:
 - '.'
 - location: '/Users/louis/repo/hs/alternators'
   extra-dep: true
+- location: '/Users/louis/repo/hs/glazier'
+  extra-dep: true
 - location: '/Users/louis/repo/js/glazier-react'
   extra-dep: true
 - location: '/Users/louis/repo/js/javascript-extras'
@@ -50,13 +52,9 @@ packages:
   extra-dep: true
 - location: '/Users/louis/repo/hs/esoteric-extras'
   extra-dep: true
-- location: '/Users/louis/repo/hs/glazier'
-  extra-dep: true
 - location: '/Users/louis/repo/hs/arrow-extras'
   extra-dep: true
 - location: '/Users/louis/repo/hs/stm-extras'
-  extra-dep: true
-- location: '/Users/louis/repo/hs/data-diverse-lens'
   extra-dep: true
 # - location: '/Users/louis/repo/hs/parameterized'
 #   extra-dep: true
@@ -67,13 +65,16 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 # - alternators-0.1.2.0
-- data-diverse-3.0.0.0
-# - data-diverse-lens-3.0.0.1
-- newtype-generics-0.5.2.1
+- async-2.2.1
+- data-diverse-3.1.0.0
+- data-diverse-lens-3.1.1.0
+- data-has-0.3.0.0
+- generic-lens-0.5.0.0
 - ghcjs-base-stub-0.1.0.4
 - monadlist-0.0.2
-- generic-lens-0.5.0.0
-- data-has-0.3.0.0
+- newtype-generics-0.5.2.1
+- unliftio-0.2.7.0
+- unliftio-core-0.1.1.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}

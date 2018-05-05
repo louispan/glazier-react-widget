@@ -11,7 +11,7 @@ import Glazier.React
 
 type AsHTMLElement c = AsFacet HTMLElementCmd c
 
--- Effects from methods in https://developeR.mozilla.org/en-US/docs/Web/API/HTMLElement
+-- Effects from methods in https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement
 data HTMLElementCmd =  Focus EventTarget | Blur EventTarget
     deriving Show
 
@@ -24,7 +24,7 @@ focusRef gid = do
     t <- preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> post . cmd $ Focus t'
+        Just t' -> post $ Focus t'
 
 blurRef ::
     ( MonadState (Scenario c s) m
@@ -35,4 +35,4 @@ blurRef gid = do
     t <- preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> post . cmd $ Blur t'
+        Just t' -> post $ Blur t'

@@ -184,9 +184,7 @@ checkboxInput gid = dummy
     hdlChange _ = do
         Traversal slf <- view _self
         sbj <- view _subject
-        post' $ TickState sbj $ do
-            _scene._model.slf %= not
-            dirty
+        post' $ TickState sbj $ _scene._model.slf %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool

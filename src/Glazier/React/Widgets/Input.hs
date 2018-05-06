@@ -44,9 +44,7 @@ import qualified JavaScript.Extras as JE
 -- So this prototype uses the React uncontrolled component
 -- (using defaultValue instead of value).
 --
--- For input, React uses controlled input if input.value is not null
--- For checkboxes,  React uses controlled checkbox if input.checked is not null
--- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
+-- For input, React uses controlled input if input.value is not null.
 --
 -- This widget attempts to set the cursor position at the correct place
 -- by using a diffing algorithm on the old and new value.
@@ -86,19 +84,17 @@ textInput gid = dummy
         , AsJavascript c
         )
         => Gadget c p J.JSString ()
-    onInitialized = do
-        Traversal slf <- view _self
-        triggerOnUpdated $ void $ runMaybeT $ do
-            j <- MaybeT . preuse $ _scene._plan._gizmos.ix gid._targetRef._Just
-            s <- MaybeT . preuse $ _scene._model.slf
-            inquire . void . runMaybeT $ do
-                start <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionStart"
-                end <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionEnd"
-                v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
-                let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                post' $ SetProperty j ("value", JE.toJSR s)
-                post' $ SetProperty j ("selectionStart", JE.toJSR a)
-                post' $ SetProperty j ("selectionEnd", JE.toJSR b)
+    onInitialized = triggerOnUpdated $ void $ runMaybeT $ do
+        j <- MaybeT . preview $ _plan._gizmos.ix gid._targetRef._Just
+        s <- MaybeT . preview $ _model
+        inquire . void . runMaybeT $ do
+            start <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionStart"
+            end <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionEnd"
+            v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
+            let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
+            post' $ SetProperty j ("value", JE.toJSR s)
+            post' $ SetProperty j ("selectionStart", JE.toJSR a)
+            post' $ SetProperty j ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
         ( AsReactor c
@@ -158,9 +154,9 @@ estimateSelectionRange before after start end =
 
 ----------------------------------------
 
--- | This provide a prototype of a checkbox input but without a builder.
--- Instead a lens to the CheckboxInput is used, and the user of this widget
--- is responsible for making the entire model.
+-- | This is a 'React controlled' checkbox.
+-- For checkboxes,  React uses controlled checkbox if input.checked is not null
+-- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     AsReactor c
     => GizmoId
@@ -193,9 +189,7 @@ data IndeterminateCheckboxInput = IndeterminateCheckboxInput
 
 makeLenses_ ''IndeterminateCheckboxInput
 
--- | This provide a prototype of a checkbox input but without a builder.
--- Instead a lens to the CheckboxInput is used, and the user of this widget
--- is responsible for making the entire model.
+-- | Variation of 'checkboxInput' supporting indeterminate state.
 indeterminateCheckboxInput ::
     ( AsReactor c
     , AsJavascript c
@@ -210,9 +204,8 @@ indeterminateCheckboxInput gid = enlargeModel _checked (checkboxInput gid)
         , AsJavascript c
         )
         => Gadget c p IndeterminateCheckboxInput ()
-    onInitialized = do
-        Traversal slf <- view _self
-        triggerOnUpdated $ void $ runMaybeT $ do
-            j <- MaybeT . preuse $ _scene._plan._gizmos.ix gid._targetRef._Just
-            i <- MaybeT . preuse $ _scene._model.slf._indeterminate
-            post' $ SetProperty j ("indeterminate", JE.toJSR i)
+    onInitialized = triggerOnUpdated $ void $ runMaybeT $ do
+        -- update indeterminate state after every render
+        j <- MaybeT . preview $ _plan._gizmos.ix gid._targetRef._Just
+        i <- MaybeT . preview $ _model._indeterminate
+        post' $ SetProperty j ("indeterminate", JE.toJSR i)

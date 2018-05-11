@@ -21,7 +21,7 @@ focusRef ::
     )
     => GizmoId -> m ()
 focusRef gid = do
-    t <- preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
+    t <- preuse (_scene'._plan._gizmos.ix gid._gizmoRef._Just)
     case t of
         Nothing -> pure ()
         Just t' -> post $ Focus t'
@@ -32,7 +32,7 @@ blurRef ::
     )
     => GizmoId -> m ()
 blurRef gid = do
-    t <- preuse (_scene._plan._gizmos.ix gid._targetRef._Just)
+    t <- preuse (_scene'._plan._gizmos.ix gid._gizmoRef._Just)
     case t of
         Nothing -> pure ()
         Just t' -> post $ Blur t'

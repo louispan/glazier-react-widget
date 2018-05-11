@@ -86,7 +86,7 @@ textInput eid = dummy
     hdlRendered = do
         Entity sbj slf <- ask
         onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
-            j <- MaybeT . preview $ _plan._elementals.ix eid._elementalRef._Just
+            j <- MaybeT . preview $ elementTarget eid
             s <- MaybeT . preview $ _model.slf
             inquire . void . runMaybeT $ do
                 start <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionStart"
@@ -106,10 +106,10 @@ textInput eid = dummy
         trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
         mandate' $ ReadScene sbj $ void $ runMaybeT $ do
-            j <- MaybeT $ preview (_plan._elementals.ix eid._elementalRef._Just)
+            j <- MaybeT $ preview $ elementTarget eid
             inquire . void . runMaybeT $ do
                 v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
-                mandate' $ TickScenario sbj (_scene'._model.slf .= v)
+                mandate' $ TickScenario sbj (_model.slf .= v)
                 -- Don't mark input as dirty since changing model
                 -- does not change the DOM input value.
 
@@ -181,7 +181,7 @@ checkboxInput eid = dummy
     hdlChange = do
         trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
-        mandate' $ TickScenario sbj $ _scene._model.slf %= not
+        mandate' $ TickScenario sbj $ _model.slf %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -208,6 +208,6 @@ indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
     hdlRendered = do
         Entity sbj slf <- ask
         onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
-            j <- MaybeT . preview $ _plan._elementals.ix eid._elementalRef._Just
+            j <- MaybeT . preview $ elementTarget eid
             i <- MaybeT . preview $ _model.slf._indeterminate
             mandate' $ SetProperty j ("indeterminate", JE.toJSR i)

@@ -93,9 +93,9 @@ textInput eid = dummy
                 end <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionEnd"
                 v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
                 let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                mandate' $ SetProperty j ("value", JE.toJSR s)
-                mandate' $ SetProperty j ("selectionStart", JE.toJSR a)
-                mandate' $ SetProperty j ("selectionEnd", JE.toJSR b)
+                postcmd' $ SetProperty j ("value", JE.toJSR s)
+                postcmd' $ SetProperty j ("selectionStart", JE.toJSR a)
+                postcmd' $ SetProperty j ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
         ( AsReactor c
@@ -105,11 +105,11 @@ textInput eid = dummy
     hdlChange = do
         trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
-        mandate' $ Scenario sbj $ void $ runMaybeT $ do
+        postcmd' $ Scenario sbj $ void $ runMaybeT $ do
             j <- MaybeT $ preview $ elementTarget eid
             inquire . void . runMaybeT $ do
                 v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
-                mandate' $ TickScene sbj (_model.slf .= v)
+                postcmd' $ TickScene sbj (_model.slf .= v)
                 -- Don't mark input as dirty since changing model
                 -- does not change the DOM input value.
 
@@ -181,7 +181,7 @@ checkboxInput eid = dummy
     hdlChange = do
         trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
-        mandate' $ TickScene sbj $ _model.slf %= not
+        postcmd' $ TickScene sbj $ _model.slf %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -210,4 +210,4 @@ indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
         onRendered _always $ command' $ Scenario sbj $ void $ runMaybeT $ do
             j <- MaybeT . preview $ elementTarget eid
             i <- MaybeT . preview $ _model.slf._indeterminate
-            mandate' $ SetProperty j ("indeterminate", JE.toJSR i)
+            postcmd' $ SetProperty j ("indeterminate", JE.toJSR i)

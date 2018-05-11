@@ -23,7 +23,7 @@ focusElement eid = do
     t <- preview (_plan._elementals.ix eid._elementalRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> mandate $ Focus t'
+        Just t' -> postcmd $ Focus t'
 
 blurElement ::
     ( MonadScenario s cmd m
@@ -34,4 +34,4 @@ blurElement eid = do
     t <- preview (_plan._elementals.ix eid._elementalRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> mandate $ Blur t'
+        Just t' -> postcmd $ Blur t'

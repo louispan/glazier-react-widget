@@ -15,24 +15,24 @@ type AsHTMLElement c = AsFacet HTMLElementCmd c
 data HTMLElementCmd =  Focus EventTarget | Blur EventTarget
     deriving Show
 
-focusRef ::
+focusElement ::
     ( MonadState (Scenario c s) m
     , AsHTMLElement c
     )
-    => GizmoId -> m ()
-focusRef gid = do
-    t <- preuse (_scene'._plan._gizmos.ix gid._gizmoRef._Just)
+    => ElementalId -> m ()
+focusElement eid = do
+    t <- preuse (_scene'._plan._elementals.ix eid._elementalRef._Just)
     case t of
         Nothing -> pure ()
         Just t' -> mandate $ Focus t'
 
-blurRef ::
+blurElement ::
     ( MonadState (Scenario c s) m
     , AsHTMLElement c
     )
-    => GizmoId -> m ()
-blurRef gid = do
-    t <- preuse (_scene'._plan._gizmos.ix gid._gizmoRef._Just)
+    => ElementalId -> m ()
+blurElement eid = do
+    t <- preuse (_scene'._plan._elementals.ix eid._elementalRef._Just)
     case t of
         Nothing -> pure ()
         Just t' -> mandate $ Blur t'

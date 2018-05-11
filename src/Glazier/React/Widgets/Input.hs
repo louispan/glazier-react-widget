@@ -55,13 +55,13 @@ textInput ::
     ( AsReactor c
     , AsJavascript c
     )
-    => GizmoId
+    => ElementalId
     -> Widget c p J.JSString ()
-textInput gid = dummy
+textInput eid = dummy
     { window = do
         s <- ask
-        lf' gid "input"
-            [ ("key", JE.toJSR gid)
+        lf' eid "input"
+            [ ("key", JE.toJSR eid)
             -- "value" cannot be used as React will take over as a controlled component.
             -- The defaultValue only sets the *initial* DOM value
             -- The user will need to modify reactKey if they want
@@ -71,7 +71,7 @@ textInput gid = dummy
             -- is updated under the hood in onInitialized
             , ("defaultValue", JE.toJSR $ s ^. _model)
             ]
-    , gadget = hdlGizmoRef gid
+    , gadget = hdlElementalRef eid
         >> hdlRendered
         >> hdlChange
     }
@@ -86,7 +86,7 @@ textInput gid = dummy
     hdlRendered = do
         Entity sbj slf <- ask
         onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
-            j <- MaybeT . preview $ _plan._gizmos.ix gid._gizmoRef._Just
+            j <- MaybeT . preview $ _plan._elementals.ix eid._elementalRef._Just
             s <- MaybeT . preview $ _model.slf
             inquire . void . runMaybeT $ do
                 start <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionStart"
@@ -103,10 +103,10 @@ textInput gid = dummy
         )
         => Gadget c p J.JSString ()
     hdlChange = do
-        trigger' _always gid "onChange" (const $ pure ())
+        trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
         mandate' $ ReadScene sbj $ void $ runMaybeT $ do
-            j <- MaybeT $ preview (_plan._gizmos.ix gid._gizmoRef._Just)
+            j <- MaybeT $ preview (_plan._elementals.ix eid._elementalRef._Just)
             inquire . void . runMaybeT $ do
                 v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
                 mandate' $ TickScenario sbj (_scene'._model.slf .= v)
@@ -160,17 +160,17 @@ estimateSelectionRange before after start end =
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     AsReactor c
-    => GizmoId
+    => ElementalId
     -> Widget c p Bool ()
-checkboxInput gid = dummy
+checkboxInput eid = dummy
     { window = do
         s <- ask
-        lf' gid "input"
-            [ ("key", JE.toJSR gid)
+        lf' eid "input"
+            [ ("key", JE.toJSR eid)
             , ("type", "checkbox")
             , ("checked", JE.toJSR $ s ^. _model)
             ]
-    , gadget = hdlGizmoRef gid
+    , gadget = hdlElementalRef eid
         >> hdlChange
     }
 
@@ -179,7 +179,7 @@ checkboxInput gid = dummy
         AsReactor c
         => Gadget c p Bool ()
     hdlChange = do
-        trigger' _always gid "onChange" (const $ pure ())
+        trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
         mandate' $ TickScenario sbj $ _scene._model.slf %= not
 
@@ -195,9 +195,9 @@ indeterminateCheckboxInput ::
     ( AsReactor c
     , AsJavascript c
     )
-    => GizmoId
+    => ElementalId
     -> Widget c p IndeterminateCheckboxInput ()
-indeterminateCheckboxInput gid = enlargeModel _checked (checkboxInput gid)
+indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
     & _gadget %~ (>> hdlRendered)
   where
     hdlRendered ::
@@ -208,6 +208,6 @@ indeterminateCheckboxInput gid = enlargeModel _checked (checkboxInput gid)
     hdlRendered = do
         Entity sbj slf <- ask
         onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
-            j <- MaybeT . preview $ _plan._gizmos.ix gid._gizmoRef._Just
+            j <- MaybeT . preview $ _plan._elementals.ix eid._elementalRef._Just
             i <- MaybeT . preview $ _model.slf._indeterminate
             mandate' $ SetProperty j ("indeterminate", JE.toJSR i)

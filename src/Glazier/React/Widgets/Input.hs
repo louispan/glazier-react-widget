@@ -85,7 +85,7 @@ textInput eid = dummy
         => Gadget c p J.JSString ()
     hdlRendered = do
         Entity sbj slf <- ask
-        onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
+        onRendered _always $ command' $ Scenario sbj $ void $ runMaybeT $ do
             j <- MaybeT . preview $ elementTarget eid
             s <- MaybeT . preview $ _model.slf
             inquire . void . runMaybeT $ do
@@ -105,11 +105,11 @@ textInput eid = dummy
     hdlChange = do
         trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
-        mandate' $ ReadScene sbj $ void $ runMaybeT $ do
+        mandate' $ Scenario sbj $ void $ runMaybeT $ do
             j <- MaybeT $ preview $ elementTarget eid
             inquire . void . runMaybeT $ do
                 v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
-                mandate' $ TickScenario sbj (_model.slf .= v)
+                mandate' $ TickScene sbj (_model.slf .= v)
                 -- Don't mark input as dirty since changing model
                 -- does not change the DOM input value.
 
@@ -181,7 +181,7 @@ checkboxInput eid = dummy
     hdlChange = do
         trigger' _always eid "onChange" (const $ pure ())
         Entity sbj slf <- ask
-        mandate' $ TickScenario sbj $ _model.slf %= not
+        mandate' $ TickScene sbj $ _model.slf %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -207,7 +207,7 @@ indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
         => Gadget c p IndeterminateCheckboxInput ()
     hdlRendered = do
         Entity sbj slf <- ask
-        onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
+        onRendered _always $ command' $ Scenario sbj $ void $ runMaybeT $ do
             j <- MaybeT . preview $ elementTarget eid
             i <- MaybeT . preview $ _model.slf._indeterminate
             mandate' $ SetProperty j ("indeterminate", JE.toJSR i)

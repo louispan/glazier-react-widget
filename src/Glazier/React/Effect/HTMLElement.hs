@@ -24,7 +24,7 @@ focusRef gid = do
     t <- preuse (_scene'._plan._gizmos.ix gid._gizmoRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> post $ Focus t'
+        Just t' -> mandate $ Focus t'
 
 blurRef ::
     ( MonadState (Scenario c s) m
@@ -35,4 +35,4 @@ blurRef gid = do
     t <- preuse (_scene'._plan._gizmos.ix gid._gizmoRef._Just)
     case t of
         Nothing -> pure ()
-        Just t' -> post $ Blur t'
+        Just t' -> mandate $ Blur t'

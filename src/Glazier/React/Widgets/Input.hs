@@ -85,7 +85,7 @@ textInput gid = dummy
         => Gadget c p J.JSString ()
     hdlRendered = do
         Entity sbj slf <- ask
-        onRendered _always $ stamp' $ ReadScene sbj $ void $ runMaybeT $ do
+        onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
             j <- MaybeT . preview $ _plan._gizmos.ix gid._gizmoRef._Just
             s <- MaybeT . preview $ _model.slf
             inquire . void . runMaybeT $ do
@@ -93,9 +93,9 @@ textInput gid = dummy
                 end <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionEnd"
                 v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
                 let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                post' $ SetProperty j ("value", JE.toJSR s)
-                post' $ SetProperty j ("selectionStart", JE.toJSR a)
-                post' $ SetProperty j ("selectionEnd", JE.toJSR b)
+                mandate' $ SetProperty j ("value", JE.toJSR s)
+                mandate' $ SetProperty j ("selectionStart", JE.toJSR a)
+                mandate' $ SetProperty j ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
         ( AsReactor c
@@ -105,11 +105,11 @@ textInput gid = dummy
     hdlChange = do
         trigger' _always gid "onChange" (const $ pure ())
         Entity sbj slf <- ask
-        post' $ ReadScene sbj $ void $ runMaybeT $ do
+        mandate' $ ReadScene sbj $ void $ runMaybeT $ do
             j <- MaybeT $ preview (_plan._gizmos.ix gid._gizmoRef._Just)
             inquire . void . runMaybeT $ do
                 v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
-                post' $ TickScenario sbj (_scene'._model.slf .= v)
+                mandate' $ TickScenario sbj (_scene'._model.slf .= v)
                 -- Don't mark input as dirty since changing model
                 -- does not change the DOM input value.
 
@@ -181,7 +181,7 @@ checkboxInput gid = dummy
     hdlChange = do
         trigger' _always gid "onChange" (const $ pure ())
         Entity sbj slf <- ask
-        post' $ TickScenario sbj $ _scene._model.slf %= not
+        mandate' $ TickScenario sbj $ _scene._model.slf %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -207,7 +207,7 @@ indeterminateCheckboxInput gid = enlargeModel _checked (checkboxInput gid)
         => Gadget c p IndeterminateCheckboxInput ()
     hdlRendered = do
         Entity sbj slf <- ask
-        onRendered _always $ stamp' $ ReadScene sbj $ void $ runMaybeT $ do
+        onRendered _always $ command' $ ReadScene sbj $ void $ runMaybeT $ do
             j <- MaybeT . preview $ _plan._gizmos.ix gid._gizmoRef._Just
             i <- MaybeT . preview $ _model.slf._indeterminate
-            post' $ SetProperty j ("indeterminate", JE.toJSR i)
+            mandate' $ SetProperty j ("indeterminate", JE.toJSR i)

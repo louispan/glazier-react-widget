@@ -186,7 +186,7 @@ checkboxInput eid = dummy
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
     , indeterminate :: Bool
-    } deriving G.Generic
+    } deriving (G.Generic, Show, Eq, Ord)
 
 makeLenses_ ''IndeterminateCheckboxInput
 

@@ -11,8 +11,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-{-# LANGUAGE NoMonomorphismRestriction #-}
-
 module Glazier.React.Widgets.Input
     (
     -- * Text input
@@ -72,8 +70,8 @@ textInput eid = dummy
             , ("defaultValue", JE.toJSR $ s ^. _model)
             ]
     , gadget = hdlElementalRef eid
-        >> hdlRendered
-        >> hdlChange
+        <|> hdlRendered
+        <|> hdlChange
     }
   where
 
@@ -171,7 +169,7 @@ checkboxInput eid = dummy
             , ("checked", JE.toJSR $ s ^. _model)
             ]
     , gadget = hdlElementalRef eid
-        >> hdlChange
+        <|> hdlChange
     }
 
   where

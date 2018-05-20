@@ -28,6 +28,7 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
+import Data.Semigroup
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
@@ -70,8 +71,8 @@ textInput eid = dummy
             , ("defaultValue", JE.toJSR $ s ^. _model)
             ]
     , gadget = hdlElementalRef eid
-        <|> hdlRendered
-        <|> hdlChange
+        <> hdlRendered
+        <> hdlChange
     }
   where
 
@@ -81,19 +82,16 @@ textInput eid = dummy
         , AsJavascript c
         )
         => Gadget c p J.JSString ()
-    hdlRendered = do
-        Entity sbj slf <- ask
-        onRendered _always $ command' $ Scenario sbj $ void $ runMaybeT $ do
-            j <- MaybeT . preview $ elementTarget eid
-            s <- MaybeT . preview $ _model.slf
-            inquire . void . runMaybeT $ do
-                start <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionStart"
-                end <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "selectionEnd"
-                v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
-                let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-                postcmd' $ SetProperty j ("value", JE.toJSR s)
-                postcmd' $ SetProperty j ("selectionStart", JE.toJSR a)
-                postcmd' $ SetProperty j ("selectionEnd", JE.toJSR b)
+    hdlRendered = onRendered _always $ getScene $ \scn -> void $ runMaybeT $ do
+            j <- MaybeT $ pure $ preview (elementTarget eid) scn
+            let s = view _model scn
+            start <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "selectionStart"
+            end <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "selectionEnd"
+            v <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "value"
+            let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
+            postcmd' $ SetProperty j ("value", JE.toJSR s)
+            postcmd' $ SetProperty j ("selectionStart", JE.toJSR a)
+            postcmd' $ SetProperty j ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
         ( AsReactor c
@@ -102,14 +100,12 @@ textInput eid = dummy
         => Gadget c p J.JSString ()
     hdlChange = do
         trigger' _always eid "onChange" (const $ pure ())
-        Entity sbj slf <- ask
-        postcmd' $ Scenario sbj $ void $ runMaybeT $ do
-            j <- MaybeT $ preview $ elementTarget eid
-            inquire . void . runMaybeT $ do
-                v <- MaybeT . fmap JE.fromJSR . conclude $ GetProperty j "value"
-                postcmd' $ TickScene sbj (_model.slf .= v)
-                -- Don't mark input as dirty since changing model
-                -- does not change the DOM input value.
+        getScene $ \scn -> void $ runMaybeT $ do
+            j <- MaybeT $ pure $ preview (elementTarget eid) scn
+            v <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "value"
+            tickScene $ _model .= v
+            -- Don't mark input as dirty since changing model
+            -- does not change the DOM input value.
 
 
 -- This returns an greedy selection range for a new string based
@@ -169,7 +165,7 @@ checkboxInput eid = dummy
             , ("checked", JE.toJSR $ s ^. _model)
             ]
     , gadget = hdlElementalRef eid
-        <|> hdlChange
+        <> hdlChange
     }
 
   where
@@ -178,8 +174,7 @@ checkboxInput eid = dummy
         => Gadget c p Bool ()
     hdlChange = do
         trigger' _always eid "onChange" (const $ pure ())
-        Entity sbj slf <- ask
-        postcmd' $ TickScene sbj $ _model.slf %= not
+        tickScene $ _model %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -196,16 +191,14 @@ indeterminateCheckboxInput ::
     => ElementalId
     -> Widget c p IndeterminateCheckboxInput ()
 indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
-    & _gadget %~ (>> hdlRendered)
+    & _gadget %~ (<> hdlRendered)
   where
     hdlRendered ::
         ( AsReactor c
         , AsJavascript c
         )
         => Gadget c p IndeterminateCheckboxInput ()
-    hdlRendered = do
-        Entity sbj slf <- ask
-        onRendered _always $ command' $ Scenario sbj $ void $ runMaybeT $ do
-            j <- MaybeT . preview $ elementTarget eid
-            i <- MaybeT . preview $ _model.slf._indeterminate
+    hdlRendered = onRendered _always $ getScene $ \scn -> void $ runMaybeT $ do
+            j <- MaybeT $ pure $ preview (elementTarget eid) scn
+            i <- MaybeT $ pure $ preview (_model._indeterminate) scn
             postcmd' $ SetProperty j ("indeterminate", JE.toJSR i)

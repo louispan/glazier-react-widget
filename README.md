@@ -62,7 +62,7 @@ This contains the list of callbacks to dispose after the next render frame (afte
 ```haskell
 MakerCommand (F (Maker Action) Action)
 ```
-This is the command to run the `Maker` instruction in the `Maker` interpreter which results in an `Action` to dispatch back tot he gadget.
+This is the command to run the `Maker` instruction in the `Maker` interpreter which results in an `Action` to outcome back tot he gadget.
 
 ## Action
 This contains the events that the widget `Gadget` processes.

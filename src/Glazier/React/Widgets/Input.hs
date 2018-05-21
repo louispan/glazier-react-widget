@@ -85,13 +85,13 @@ textInput eid = dummy
     hdlRendered = onRendered _always $ getScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             let s = view _model scn
-            start <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "selectionStart"
-            end <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "selectionEnd"
-            v <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "value"
+            start <- MaybeT . fmap JE.fromJSR . sequel $ post . command' . GetProperty j "selectionStart"
+            end <- MaybeT . fmap JE.fromJSR . sequel $ post . command' . GetProperty j "selectionEnd"
+            v <- MaybeT . fmap JE.fromJSR . sequel $ post . command' . GetProperty j "value"
             let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-            postcmd' $ SetProperty j ("value", JE.toJSR s)
-            postcmd' $ SetProperty j ("selectionStart", JE.toJSR a)
-            postcmd' $ SetProperty j ("selectionEnd", JE.toJSR b)
+            post . command' $ SetProperty j ("value", JE.toJSR s)
+            post . command' $ SetProperty j ("selectionStart", JE.toJSR a)
+            post . command' $ SetProperty j ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
         ( AsReactor c
@@ -102,7 +102,7 @@ textInput eid = dummy
         trigger' _always eid "onChange" (const $ pure ())
         getScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
-            v <- MaybeT . fmap JE.fromJSR . conclude $ postcmd' . GetProperty j "value"
+            v <- MaybeT . fmap JE.fromJSR . sequel $ post . command' . GetProperty j "value"
             tickScene $ _model .= v
             -- Don't mark input as dirty since changing model
             -- does not change the DOM input value.
@@ -201,4 +201,4 @@ indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
     hdlRendered = onRendered _always $ getScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             i <- MaybeT $ pure $ preview (_model._indeterminate) scn
-            postcmd' $ SetProperty j ("indeterminate", JE.toJSR i)
+            post . command' $ SetProperty j ("indeterminate", JE.toJSR i)

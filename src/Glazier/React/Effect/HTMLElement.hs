@@ -23,7 +23,7 @@ focusElement eid = getScene $ \scn -> do
     let t = preview (_plan._elementals.ix eid._elementalRef._Just) scn
     case t of
         Nothing -> pure ()
-        Just t' -> postcmd $ Focus t'
+        Just t' -> post . command $ Focus t'
 
 blurElement ::
     ( AsHTMLElement cmd
@@ -34,4 +34,4 @@ blurElement eid = getScene $ \scn -> do
     let t = preview (_plan._elementals.ix eid._elementalRef._Just) scn
     case t of
         Nothing -> pure ()
-        Just t' -> postcmd $ Blur t'
+        Just t' -> post . command $ Blur t'

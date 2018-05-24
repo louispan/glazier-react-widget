@@ -31,7 +31,7 @@ import Glazier.React.Widget.Pile.Glam
 
 hdlGlamMapPileDeleteItem :: (MonadReactor m, Ord k)
     => Finalizer s m
-    -> k -> MethodT (Scene p m (GlamPile ftr srt (M.Map k) s)) m ()
+    -> k -> MethodT (Scene p m (DynamicCollection ftr srt (M.Map k) s)) m ()
 hdlGlamMapPileDeleteItem fin k = do
     this@Obj{..} <- ask
     lift $ lift $ do
@@ -41,7 +41,7 @@ hdlGlamMapPileDeleteItem fin k = do
 
 hdlGlamMapPileInsertItem :: (MonadReactor m, Ord k)
     => Finalizer s m
-    -> (k, s) -> MethodT (Scene p m (GlamPile ftr srt (M.Map k) s)) m ()
+    -> (k, s) -> MethodT (Scene p m (DynamicCollection ftr srt (M.Map k) s)) m ()
 hdlGlamMapPileInsertItem fin k = do
     this@Obj{..} <- ask
     lift $ lift $ do

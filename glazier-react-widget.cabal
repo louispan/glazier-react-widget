@@ -25,7 +25,7 @@ library
                        Glazier.React.Effect.JavaScript.Exec
                        Glazier.React.Widgets.Input
                        Glazier.React.Widgets.Collection
-                      --  Glazier.React.Widget.Pile.Glam
+                       Glazier.React.Widgets.Collection.Dynamic
                       --  Glazier.React.Widget.MapPile
                       --  Glazier.React.Widget.MapPile.Glam
   build-depends:       base >= 4.7 && < 5
@@ -34,8 +34,8 @@ library
                      , containers >= 0.5
                      , contravariant >= 1.4
                     --  , monadplus >= 1.4
-                     , data-diverse >= 3.1
-                     , data-diverse-lens >= 3.1.1
+                     , data-diverse >= 4.0
+                     , data-diverse-lens >= 4.0
                      , deepseq >= 1.4
                      , disposable >= 0.3.0.0
                      , Diff >= 0.3.4

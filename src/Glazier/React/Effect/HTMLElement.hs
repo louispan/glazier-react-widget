@@ -19,7 +19,7 @@ focusElement ::
     , MonadReactor p s cmd m
     )
     => ElementalId -> m ()
-focusElement eid = getScene $ \scn -> do
+focusElement eid = withScene $ \scn -> do
     let t = preview (_plan._elementals.ix eid._elementalRef._Just) scn
     case t of
         Nothing -> pure ()
@@ -30,7 +30,7 @@ blurElement ::
     , MonadReactor p s cmd m
     )
     => ElementalId -> m ()
-blurElement eid = getScene $ \scn -> do
+blurElement eid = withScene $ \scn -> do
     let t = preview (_plan._elementals.ix eid._elementalRef._Just) scn
     case t of
         Nothing -> pure ()

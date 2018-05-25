@@ -114,18 +114,22 @@ betweenUncInt x y =
             _ -> 0
     in xq + yq + z
 
+cleanupCollectionItem :: (MonadState (Scene (M.Map k (Subject s))) m, Ord k)
+    => k -> MaybeT m ()
+cleanupCollectionItem k = do
+    old <- MaybeT $ use (_model.at k)
+    cleanupSubject old
+
 hdlCollectionDeleteItem :: (MonadReactor p (M.Map k (Subject s)) cmd m, Ord k)
     => k -> m ()
 hdlCollectionDeleteItem k =
     tickScene $ void $ runMaybeT $ do
-        old <- MaybeT $ use (_model.at k)
-        cleanupSubject old
+        cleanupCollectionItem k
         _model.at k .= Nothing
 
 hdlCollectionInsertItem :: (MonadReactor p (M.Map k (Subject s)) cmd m, Ord k)
     => Widget cmd s s a -> k -> s -> m a
 hdlCollectionInsertItem wid k s = mkSubject wid s $ \sbj ->
     tickScene $ void $ runMaybeT $ do
-        old <- MaybeT $ use (_model.at k)
-        cleanupSubject old
+        cleanupCollectionItem k
         _model.at k .= Just sbj

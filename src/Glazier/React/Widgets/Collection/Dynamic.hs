@@ -1,21 +1,21 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
 
-module Glazier.React.Widgets.Collection.Dynamic where
+module Glazier.React.Widgets.Collection.Dynamic
+    ( DynamicCollection(..)
+    , _filterCriteria
+    , _sortCriteria
+    , _visibleList
+    , _rawCollection
+    , dynamicCollectionDisplay
+    , regenerateVisibleList
+    , hdlDynamicCollectionSortCriteria
+    , hdlDynamicCollectionFilterCriteria
+    , hdlDynamicCollectionDeleteItem
+    , hdlDynamicCollectionInsertItem
+    ) where
 
 import Control.Lens
 import Control.Lens.Misc
@@ -23,25 +23,26 @@ import qualified Control.Monad.ListM as LM
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Data.Foldable
+import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Widgets.Collection as W
 
--- | Contains information on sorting and filtering the items in a pile
+-- | Contains information on sorting and filtering the items in a collection
 -- differerently from the native data structure.
-data DynamicCollection ftr srt t a = DynamicCollection
+data DynamicCollection ftr srt k a = DynamicCollection
     { filterCriteria :: ftr
     , sortCriteria :: srt
     , visibleList :: [a] -- filtered and sorted. If empty, it will be generated on rerender
-    , rawCollection :: t a
+    , rawCollection :: M.Map k a
     } deriving (G.Generic, Functor, Eq, Ord, Show)
 
 makeLenses_ ''DynamicCollection
 
-regenerateVisibleList :: Foldable t =>
+regenerateVisibleList ::
     (ftr -> s -> Bool)
     -> (srt -> s -> s -> Ordering)
-    -> StateT (DynamicCollection ftr srt t (Subject s)) ReadIORef ()
+    -> StateT (DynamicCollection ftr srt k (Subject s)) ReadIORef ()
 regenerateVisibleList ff fs = do
     zs@(DynamicCollection ftr srt _ xs) <- get
     let xs' = toList xs
@@ -53,8 +54,7 @@ regenerateVisibleList ff fs = do
 
 -- | Sort the items on the listing given a sorting function
 hdlDynamicCollectionSortCriteria ::
-    ( Foldable t
-    , MonadReactor p (DynamicCollection ftr srt t (Subject s)) cmd m
+    ( MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m
     )
     => (ftr -> s -> Bool)
     -> (srt -> s -> s -> Ordering)
@@ -66,8 +66,7 @@ hdlDynamicCollectionSortCriteria ff fs srt = tickScene $ do
 
 -- | Filter the items on the listing given a filter function
 hdlDynamicCollectionFilterCriteria ::
-    ( Foldable t
-    , MonadReactor p (DynamicCollection ftr srt t (Subject s)) cmd m
+    ( MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m
     )
     => (ftr -> s -> Bool)
     -> (srt -> s -> s -> Ordering)
@@ -77,5 +76,37 @@ hdlDynamicCollectionFilterCriteria ff fs ftr = tickScene $ do
     _model._filterCriteria .= ftr
     zoom _model $ regenerateVisibleList ff fs
 
-dynamicCollectionDisplay :: Window (DynamicCollection ftr srt t (Subject s)) ()
+dynamicCollectionDisplay :: Window (DynamicCollection ftr srt k (Subject s)) ()
 dynamicCollectionDisplay = magnify (editSceneModel _visibleList) collectionDisplay
+
+cleanupDynamicCollectionItem :: (MonadState (Scene (DynamicCollection ftr srt k (Subject s))) m, Ord k)
+    => k -> MaybeT m ()
+cleanupDynamicCollectionItem k = do
+    old <- MaybeT $ use (_model._rawCollection.at k)
+    cleanupSubject old
+
+hdlDynamicCollectionDeleteItem ::
+    (MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m, Ord k)
+    => (ftr -> s -> Bool)
+    -> (srt -> s -> s -> Ordering)
+    -> k
+    -> m ()
+hdlDynamicCollectionDeleteItem ff fs k =
+    tickScene $ void $ runMaybeT $ do
+        cleanupDynamicCollectionItem k
+        _model._rawCollection.at k .= Nothing
+        lift $ zoom _model $ regenerateVisibleList ff fs
+
+hdlDynamicCollectionInsertItem ::
+    (MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m, Ord k)
+    => (ftr -> s -> Bool)
+    -> (srt -> s -> s -> Ordering)
+    -> Widget cmd s s a
+    -> k
+    -> s
+    -> m a
+hdlDynamicCollectionInsertItem ff fs wid k s = mkSubject wid s $ \sbj ->
+    tickScene $ void $ runMaybeT $ do
+        cleanupDynamicCollectionItem k
+        _model._rawCollection.at k .= Just sbj
+        lift $ zoom _model $ regenerateVisibleList ff fs

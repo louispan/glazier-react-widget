@@ -51,11 +51,11 @@ import qualified JavaScript.Extras as JE
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( AsReactor c
-    , AsJavascript c
+    ( AsReactor cmd
+    , AsJavascript cmd
     )
     => ElementalId
-    -> Widget c p J.JSString ()
+    -> Widget cmd p J.JSString ()
 textInput eid = dummy
     { window = do
         s <- ask
@@ -78,10 +78,10 @@ textInput eid = dummy
 
     -- | Modify the DOM input value after every render to match the model value
     hdlRendered ::
-        ( AsReactor c
-        , AsJavascript c
+        ( AsReactor cmd
+        , AsJavascript cmd
         )
-        => Gadget c p J.JSString ()
+        => Gadget cmd p J.JSString ()
     hdlRendered = onRendered _always $ withScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             let s = view _model scn
@@ -94,12 +94,12 @@ textInput eid = dummy
             postCmd' $ SetProperty j ("selectionEnd", JE.toJSR b)
 
     hdlChange ::
-        ( AsReactor c
-        , AsJavascript c
+        ( AsReactor cmd
+        , AsJavascript cmd
         )
-        => Gadget c p J.JSString ()
+        => Gadget cmd p J.JSString ()
     hdlChange = do
-        trigger' _always eid "onChange" (const $ pure ())
+        trigger' eid _always "onChange" (const $ pure ())
         withScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
@@ -153,9 +153,9 @@ estimateSelectionRange before after start end =
 -- For checkboxes,  React uses controlled checkbox if input.checked is not null
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
-    AsReactor c
+    AsReactor cmd
     => ElementalId
-    -> Widget c p Bool ()
+    -> Widget cmd p Bool ()
 checkboxInput eid = dummy
     { window = do
         s <- ask
@@ -170,10 +170,10 @@ checkboxInput eid = dummy
 
   where
     hdlChange ::
-        AsReactor c
-        => Gadget c p Bool ()
+        AsReactor cmd
+        => Gadget cmd p Bool ()
     hdlChange = do
-        trigger' _always eid "onChange" (const $ pure ())
+        trigger' eid _always "onChange" (const $ pure ())
         tickScene $ _model %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
@@ -185,19 +185,19 @@ makeLenses_ ''IndeterminateCheckboxInput
 
 -- | Variation of 'checkboxInput' supporting indeterminate state.
 indeterminateCheckboxInput ::
-    ( AsReactor c
-    , AsJavascript c
+    ( AsReactor cmd
+    , AsJavascript cmd
     )
     => ElementalId
-    -> Widget c p IndeterminateCheckboxInput ()
+    -> Widget cmd p IndeterminateCheckboxInput ()
 indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
     & _gadget %~ (<> hdlRendered)
   where
     hdlRendered ::
-        ( AsReactor c
-        , AsJavascript c
+        ( AsReactor cmd
+        , AsJavascript cmd
         )
-        => Gadget c p IndeterminateCheckboxInput ()
+        => Gadget cmd p IndeterminateCheckboxInput ()
     hdlRendered = onRendered _always $ withScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             i <- MaybeT $ pure $ preview (_model._indeterminate) scn

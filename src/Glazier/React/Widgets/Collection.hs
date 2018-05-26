@@ -37,8 +37,8 @@ collectionDisplay :: (Functor t, Foldable t)
     => Window (t (Subject s)) ()
 collectionDisplay = do
     ss <- view _model
-    let toLi s = branch "li" [] (displaySubject s)
-    branch "ul" [] (fold $ toLi <$> ss)
+    let toLi s = bh "li" [] (displaySubject s)
+    bh "ul" [] (fold $ toLi <$> ss)
 
 
 -- | A key where you can always create

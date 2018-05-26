@@ -11,17 +11,16 @@ module Glazier.React.Widgets.Collection.Dynamic
     , _rawCollection
     , dynamicCollectionDisplay
     , regenerateVisibleList
-    , hdlDynamicCollectionSortCriteria
-    , hdlDynamicCollectionFilterCriteria
-    , hdlDynamicCollectionDeleteItem
-    , hdlDynamicCollectionInsertItem
+    , setDynamicCollectionSortCriteria
+    , setDynamicCollectionFilterCriteria
+    , deleteDynamicCollectionItem
+    , insertDynamicCollectionItem
     ) where
 
 import Control.Lens
 import Control.Lens.Misc
 import qualified Control.Monad.ListM as LM
 import Control.Monad.Reader
-import Control.Monad.State.Strict
 import Data.Foldable
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
@@ -40,73 +39,61 @@ data DynamicCollection ftr srt k a = DynamicCollection
 makeLenses_ ''DynamicCollection
 
 regenerateVisibleList ::
-    (ftr -> s -> Bool)
-    -> (srt -> s -> s -> Ordering)
-    -> StateT (DynamicCollection ftr srt k (Subject s)) ReadIORef ()
+    (ftr -> s -> ReadIORef Bool)
+    -> (srt -> s -> s -> ReadIORef Ordering)
+    -> SceneState (DynamicCollection ftr srt k (Subject s)) ()
 regenerateVisibleList ff fs = do
-    zs@(DynamicCollection ftr srt _ xs) <- get
+    zs@(DynamicCollection ftr srt _ xs) <- use _model
     let xs' = toList xs
         toSbj = sceneRef
-        ftr' x = (\x' -> ff ftr (model x')) <$> (doReadIORef $ toSbj x)
-        srt' x y = (\x' y' -> fs srt (model x') (model y')) <$> (doReadIORef $ toSbj x) <*> (doReadIORef $ toSbj y)
+        ftr' x = do
+            x' <- doReadIORef $ toSbj x
+            ff ftr (model x')
+        srt' x y = do
+            x' <- doReadIORef $ toSbj x
+            y' <- doReadIORef $ toSbj y
+            fs srt (model x') (model y')
     ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
-    put $ zs { visibleList = ys }
+    _model .= zs { visibleList = ys }
 
 -- | Sort the items on the listing given a sorting function
-hdlDynamicCollectionSortCriteria ::
-    ( MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m
-    )
-    => (ftr -> s -> Bool)
-    -> (srt -> s -> s -> Ordering)
+setDynamicCollectionSortCriteria ::
+    (ftr -> s -> ReadIORef Bool)
+    -> (srt -> s -> s -> ReadIORef Ordering)
     -> srt
-    -> m ()
-hdlDynamicCollectionSortCriteria ff fs srt = tickScene $ do
+    -> SceneState (DynamicCollection ftr srt k (Subject s)) ()
+setDynamicCollectionSortCriteria ff fs srt = do
     _model._sortCriteria .= srt
-    zoom _model $ regenerateVisibleList ff fs
+    regenerateVisibleList ff fs
 
 -- | Filter the items on the listing given a filter function
-hdlDynamicCollectionFilterCriteria ::
-    ( MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m
-    )
-    => (ftr -> s -> Bool)
-    -> (srt -> s -> s -> Ordering)
+setDynamicCollectionFilterCriteria ::
+    (ftr -> s -> ReadIORef Bool)
+    -> (srt -> s -> s -> ReadIORef Ordering)
     -> ftr
-    -> m ()
-hdlDynamicCollectionFilterCriteria ff fs ftr = tickScene $ do
+    -> SceneState (DynamicCollection ftr srt k (Subject s)) ()
+setDynamicCollectionFilterCriteria ff fs ftr = do
     _model._filterCriteria .= ftr
-    zoom _model $ regenerateVisibleList ff fs
+    regenerateVisibleList ff fs
 
 dynamicCollectionDisplay :: Window (DynamicCollection ftr srt k (Subject s)) ()
 dynamicCollectionDisplay = magnify (editSceneModel _visibleList) collectionDisplay
 
-cleanupDynamicCollectionItem :: (MonadState (Scene (DynamicCollection ftr srt k (Subject s))) m, Ord k)
-    => k -> MaybeT m ()
-cleanupDynamicCollectionItem k = do
-    old <- MaybeT $ use (_model._rawCollection.at k)
-    cleanupSubject old
-
-hdlDynamicCollectionDeleteItem ::
-    (MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m, Ord k)
-    => (ftr -> s -> Bool)
-    -> (srt -> s -> s -> Ordering)
+deleteDynamicCollectionItem :: (Ord k)
+    => (ftr -> s -> ReadIORef Bool)
+    -> (srt -> s -> s -> ReadIORef Ordering)
     -> k
-    -> m ()
-hdlDynamicCollectionDeleteItem ff fs k =
-    tickScene $ void $ runMaybeT $ do
-        cleanupDynamicCollectionItem k
-        _model._rawCollection.at k .= Nothing
-        lift $ zoom _model $ regenerateVisibleList ff fs
+    -> MaybeT (SceneState (DynamicCollection ftr srt k (Subject s))) ()
+deleteDynamicCollectionItem ff fs k = do
+    zoom (editSceneModel _rawCollection) (deleteCollectionItem k)
+    lift $ regenerateVisibleList ff fs
 
-hdlDynamicCollectionInsertItem ::
-    (MonadReactor p (DynamicCollection ftr srt k (Subject s)) cmd m, Ord k)
-    => (ftr -> s -> Bool)
-    -> (srt -> s -> s -> Ordering)
-    -> Widget cmd s s a
+insertDynamicCollectionItem :: (Ord k)
+    => (ftr -> s -> ReadIORef Bool)
+    -> (srt -> s -> s -> ReadIORef Ordering)
     -> k
-    -> s
-    -> m a
-hdlDynamicCollectionInsertItem ff fs wid k s = mkSubject wid s $ \sbj ->
-    tickScene $ void $ runMaybeT $ do
-        cleanupDynamicCollectionItem k
-        _model._rawCollection.at k .= Just sbj
-        lift $ zoom _model $ regenerateVisibleList ff fs
+    -> Subject s
+    -> MaybeT (SceneState (DynamicCollection ftr srt k (Subject s))) ()
+insertDynamicCollectionItem ff fs k sbj = do
+    zoom (editSceneModel _rawCollection) (insertCollectionItem k sbj)
+    lift $ regenerateVisibleList ff fs

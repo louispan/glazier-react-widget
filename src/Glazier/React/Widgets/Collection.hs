@@ -20,8 +20,8 @@ module Glazier.React.Widgets.Collection
     , betweenUKey
     -- * Collection
     , collectionDisplay
-    , hdlCollectionDeleteItem
-    , hdlCollectionInsertItem
+    , deleteCollectionItem
+    , insertCollectionItem
     ) where
 
 import Control.Lens
@@ -114,22 +114,20 @@ betweenUncInt x y =
             _ -> 0
     in xq + yq + z
 
-cleanupCollectionItem :: (MonadState (Scene (M.Map k (Subject s))) m, Ord k)
-    => k -> MaybeT m ()
+cleanupCollectionItem :: (Ord k)
+    => k -> MaybeT (SceneState (M.Map k (Subject s))) ()
 cleanupCollectionItem k = do
     old <- MaybeT $ use (_model.at k)
     cleanupSubject old
 
-hdlCollectionDeleteItem :: (MonadReactor p (M.Map k (Subject s)) cmd m, Ord k)
-    => k -> m ()
-hdlCollectionDeleteItem k =
-    tickScene $ void $ runMaybeT $ do
-        cleanupCollectionItem k
-        _model.at k .= Nothing
+deleteCollectionItem :: (Ord k)
+    => k -> MaybeT (SceneState (M.Map k (Subject s))) ()
+deleteCollectionItem k = do
+    cleanupCollectionItem k
+    _model.at k .= Nothing
 
-hdlCollectionInsertItem :: (MonadReactor p (M.Map k (Subject s)) cmd m, Ord k)
-    => Widget cmd s s a -> k -> s -> m a
-hdlCollectionInsertItem wid k s = mkSubject wid s $ \sbj ->
-    tickScene $ void $ runMaybeT $ do
-        cleanupCollectionItem k
-        _model.at k .= Just sbj
+insertCollectionItem :: (Ord k)
+    => k -> Subject s -> MaybeT (SceneState (M.Map k (Subject s))) ()
+insertCollectionItem k sbj = do
+    cleanupCollectionItem k
+    _model.at k .= Just sbj

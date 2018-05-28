@@ -99,7 +99,7 @@ textInput eid = blank
         )
         => Gadget cmd p J.JSString ()
     hdlChange = do
-        trigger' eid _always "onChange" (const $ pure ())
+        trigger_ eid _always "onChange" ()
         withScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
@@ -172,7 +172,7 @@ checkboxInput eid = blank
         AsReactor cmd
         => Gadget cmd p Bool ()
     hdlChange = do
-        trigger' eid _always "onChange" (const $ pure ())
+        trigger_ eid _always "onChange" ()
         tickScene $ _model %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput

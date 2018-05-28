@@ -56,7 +56,7 @@ textInput ::
     )
     => ElementalId
     -> Widget cmd p J.JSString ()
-textInput eid = dummy
+textInput eid = blank
     { window = do
         s <- ask
         lf' eid "input"
@@ -103,7 +103,7 @@ textInput eid = dummy
         withScene $ \scn -> void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
-            tickScene' $ _model .= v
+            tickScene $ _model .= v
             -- Don't mark input as dirty since changing model
             -- does not change the DOM input value.
 
@@ -155,7 +155,7 @@ checkboxInput ::
     AsReactor cmd
     => ElementalId
     -> Widget cmd p Bool ()
-checkboxInput eid = dummy
+checkboxInput eid = blank
     { window = do
         s <- ask
         lf' eid "input"
@@ -173,7 +173,7 @@ checkboxInput eid = dummy
         => Gadget cmd p Bool ()
     hdlChange = do
         trigger' eid _always "onChange" (const $ pure ())
-        tickScene' $ _model %= not
+        tickScene $ _model %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool

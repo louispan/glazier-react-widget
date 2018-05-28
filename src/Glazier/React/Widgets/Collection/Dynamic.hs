@@ -15,6 +15,7 @@ module Glazier.React.Widgets.Collection.Dynamic
     , setDynamicCollectionFilterCriteria
     , deleteDynamicCollectionItem
     , insertDynamicCollectionItem
+    , module Glazier.React.Widgets.Collection
     ) where
 
 import Control.Lens
@@ -25,7 +26,7 @@ import Data.Foldable
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import Glazier.React
-import Glazier.React.Widgets.Collection as W
+import Glazier.React.Widgets.Collection
 
 -- | Contains information on sorting and filtering the items in a collection
 -- differerently from the native data structure.
@@ -93,7 +94,7 @@ insertDynamicCollectionItem :: (Ord k)
     -> (srt -> s -> s -> ReadIORef Ordering)
     -> k
     -> Subject s
-    -> MaybeT (SceneState (DynamicCollection ftr srt k (Subject s))) ()
+    -> SceneState (DynamicCollection ftr srt k (Subject s)) ()
 insertDynamicCollectionItem ff fs k sbj = do
     zoom (editSceneModel _rawCollection) (insertCollectionItem k sbj)
-    lift $ regenerateVisibleList ff fs
+    regenerateVisibleList ff fs

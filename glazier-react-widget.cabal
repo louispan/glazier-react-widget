@@ -28,7 +28,7 @@ library
                        Glazier.React.Widgets.Collection.Dynamic
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5
-                     , data-diverse >= 4.0
+                     , data-diverse >= 4.1
                      , data-diverse-lens >= 4.1
                      , deepseq >= 1.4
                      , Diff >= 0.3.4

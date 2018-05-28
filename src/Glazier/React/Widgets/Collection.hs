@@ -1,5 +1,6 @@
 -- {-# LANGUAGE DataKinds #-}
 -- {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 -- {-# LANGUAGE FlexibleInstances #-}
 -- {-# LANGUAGE MultiParamTypeClasses #-}
@@ -28,6 +29,7 @@ import Control.Lens
 import Control.Monad.Trans.Maybe
 import Data.Foldable
 import qualified Data.Map.Strict as M
+import qualified GHC.Generics as G
 import Glazier.React
 import JavaScript.Extras.Number
 
@@ -46,6 +48,7 @@ collectionDisplay = do
 -- or another key above or below this key.
 -- Memonic: U for uncountable https://en.wikipedia.org/wiki/Uncountable_set
 newtype UKey = UKey { unUKey :: [Int] }
+    deriving (G.Generic, Show)
 
 -- | For comparison purposes, an empty list is equivalent to [0,0,..]
 instance Ord UKey where
@@ -127,7 +130,7 @@ deleteCollectionItem k = do
     _model.at k .= Nothing
 
 insertCollectionItem :: (Ord k)
-    => k -> Subject s -> MaybeT (SceneState (M.Map k (Subject s))) ()
+    => k -> Subject s -> SceneState (M.Map k (Subject s)) ()
 insertCollectionItem k sbj = do
-    cleanupCollectionItem k
+    void $ runMaybeT $ cleanupCollectionItem k
     _model.at k .= Just sbj

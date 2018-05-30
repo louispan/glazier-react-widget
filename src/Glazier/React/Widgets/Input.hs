@@ -56,7 +56,7 @@ textInput ::
     )
     => ElementalId
     -> Widget cmd p J.JSString ()
-textInput eid = blank
+textInput eid = prototype
     { window = do
         s <- ask
         lf' eid "input"
@@ -158,7 +158,7 @@ checkboxInput ::
     AsReactor cmd
     => ElementalId
     -> Widget cmd p Bool ()
-checkboxInput eid = blank
+checkboxInput eid = prototype
     { window = do
         s <- ask
         lf' eid "input"

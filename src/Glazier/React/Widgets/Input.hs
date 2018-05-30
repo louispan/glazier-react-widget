@@ -82,7 +82,9 @@ textInput eid = blank
         , AsJavascript cmd
         )
         => Gadget cmd p J.JSString ()
-    hdlRendered = onRendered _always $ withScene $ \scn -> void $ runMaybeT $ do
+    hdlRendered = onRendered _always $ do
+        scn <- getScene
+        void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             let s = view _model scn
             start <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionStart"
@@ -100,7 +102,8 @@ textInput eid = blank
         => Gadget cmd p J.JSString ()
     hdlChange = do
         trigger_ eid _always "onChange" ()
-        withScene $ \scn -> void $ runMaybeT $ do
+        scn <- getScene
+        void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
             tickScene $ _model .= v
@@ -197,7 +200,9 @@ indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
         , AsJavascript cmd
         )
         => Gadget cmd p IndeterminateCheckboxInput ()
-    hdlRendered = onRendered _always $ withScene $ \scn -> void $ runMaybeT $ do
+    hdlRendered = onRendered _always $ do
+        scn <- getScene
+        void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget eid) scn
             i <- MaybeT $ pure $ preview (_model._indeterminate) scn
             postCmd' $ SetProperty j ("indeterminate", JE.toJSR i)

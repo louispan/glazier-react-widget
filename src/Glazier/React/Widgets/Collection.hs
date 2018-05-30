@@ -10,11 +10,11 @@
 -- {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
--- {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Widgets.Collection
-    (
-    UKey
+    ( HKD
+    , UKey
     , zeroUKey
     , smallerUKey
     , largerUKey
@@ -33,15 +33,17 @@ import qualified GHC.Generics as G
 import Glazier.React
 import JavaScript.Extras.Number
 
--- | Collection doesn't have an initializing gadget since
--- the 'Subject's in the model are all initialized via 'addSubject'.
-collectionDisplay :: (Functor t, Foldable t)
-    => Window (t (Subject s)) ()
-collectionDisplay = do
-    ss <- view _model
-    let toLi s = bh "li" [] (displaySubject s)
-    bh "ul" [] (fold $ toLi <$> ss)
+-- "Higher-Kinded Data" http://reasonablypolymorphic.com/blog/higher-kinded-data/
+-- Erases Identity
+type family HKD f a where
+    HKD Identity a = a
+    HKD f        a = f a
 
+-- | Collection of higher kinded data
+type Collection t s f = t (HKD f s)
+
+-- | Collection of higher kinded "higher kinded data"
+type HKCollection t s f = t (HKD f (s f))
 
 -- | A key where you can always create
 -- another key ordered between two different keys,
@@ -116,6 +118,17 @@ betweenUncInt x y =
             2 -> 1
             _ -> 0
     in xq + yq + z
+
+-----------------------------------------------------------------
+
+-- | Collection doesn't have an initializing gadget since
+-- the 'Subject's in the model are all initialized via 'addSubject'.
+collectionDisplay :: (Functor t, Foldable t)
+    => Window (t (Subject s)) ()
+collectionDisplay = do
+    ss <- view _model
+    let toLi s = bh "li" [] (displaySubject s)
+    bh "ul" [] (fold $ toLi <$> ss)
 
 cleanupCollectionItem :: (Ord k)
     => k -> MaybeT (SceneState (M.Map k (Subject s))) ()

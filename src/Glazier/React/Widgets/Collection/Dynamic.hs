@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Widgets.Collection.Dynamic
     ( DynamicCollection(..)
@@ -30,19 +31,19 @@ import Glazier.React.Widgets.Collection
 
 -- | Contains information on sorting and filtering the items in a collection
 -- differerently from the native data structure.
-data DynamicCollection ftr srt k a = DynamicCollection
+data DynamicCollection ftr srt k f a = DynamicCollection
     { filterCriteria :: ftr
     , sortCriteria :: srt
-    , visibleList :: [Subject a] -- filtered and sorted. If empty, it will be generated on rerender
-    , rawCollection :: M.Map k (Subject a)
-    } deriving (G.Generic, Eq)
+    , visibleList :: [HKD f a] -- filtered and sorted. If empty, it will be generated on rerender
+    , rawCollection :: M.Map k (HKD f a)
+    } deriving (G.Generic)
 
 makeLenses_ ''DynamicCollection
 
 regenerateVisibleList ::
     (ftr -> s -> ReadIORef Bool)
     -> (srt -> s -> s -> ReadIORef Ordering)
-    -> SceneState (DynamicCollection ftr srt k s) ()
+    -> SceneState (DynamicCollection ftr srt k Subject s) ()
 regenerateVisibleList ff fs = do
     zs@(DynamicCollection ftr srt _ xs) <- use _model
     let xs' = toList xs
@@ -62,7 +63,7 @@ setDynamicCollectionSortCriteria ::
     (ftr -> s -> ReadIORef Bool)
     -> (srt -> s -> s -> ReadIORef Ordering)
     -> srt
-    -> SceneState (DynamicCollection ftr srt k s) ()
+    -> SceneState (DynamicCollection ftr srt k Subject s) ()
 setDynamicCollectionSortCriteria ff fs srt = do
     _model._sortCriteria .= srt
     regenerateVisibleList ff fs
@@ -72,19 +73,19 @@ setDynamicCollectionFilterCriteria ::
     (ftr -> s -> ReadIORef Bool)
     -> (srt -> s -> s -> ReadIORef Ordering)
     -> ftr
-    -> SceneState (DynamicCollection ftr srt k s) ()
+    -> SceneState (DynamicCollection ftr srt k Subject s) ()
 setDynamicCollectionFilterCriteria ff fs ftr = do
     _model._filterCriteria .= ftr
     regenerateVisibleList ff fs
 
-dynamicCollectionDisplay :: Window (DynamicCollection ftr srt k s) ()
+dynamicCollectionDisplay :: Window (DynamicCollection ftr srt k Subject s) ()
 dynamicCollectionDisplay = magnify (editSceneModel _visibleList) collectionDisplay
 
 deleteDynamicCollectionItem :: (Ord k)
     => (ftr -> s -> ReadIORef Bool)
     -> (srt -> s -> s -> ReadIORef Ordering)
     -> k
-    -> MaybeT (SceneState (DynamicCollection ftr srt k s)) ()
+    -> MaybeT (SceneState (DynamicCollection ftr srt k Subject s)) ()
 deleteDynamicCollectionItem ff fs k = do
     zoom (editSceneModel _rawCollection) (deleteCollectionItem k)
     lift $ regenerateVisibleList ff fs
@@ -94,7 +95,7 @@ insertDynamicCollectionItem :: (Ord k)
     -> (srt -> s -> s -> ReadIORef Ordering)
     -> k
     -> Subject s
-    -> SceneState (DynamicCollection ftr srt k s) ()
+    -> SceneState (DynamicCollection ftr srt k Subject s) ()
 insertDynamicCollectionItem ff fs k sbj = do
     zoom (editSceneModel _rawCollection) (insertCollectionItem k sbj)
     regenerateVisibleList ff fs

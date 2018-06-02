@@ -55,7 +55,7 @@ textInput ::
     , AsJavascript cmd
     )
     => ReactId -> Widget cmd p J.JSString ()
-textInput ri = do
+textInput ri =
     let win = do
             s <- ask
             lf' ri "input"
@@ -72,7 +72,7 @@ textInput ri = do
         gad = hdlElementalRef ri
             <> hdlRendered
             <> hdlChange
-    (pure $ Right win) <> (Left <$> gad)
+    in (pure $ Right win) <> (Left <$> gad)
   where
 
     -- | Modify the DOM input value after every render to match the model value
@@ -156,7 +156,7 @@ estimateSelectionRange before after start end =
 checkboxInput ::
     AsReactor cmd
     => ReactId -> Widget cmd p Bool ()
-checkboxInput ri = do
+checkboxInput ri =
     let win = do
             s <- ask
             lf' ri "input"
@@ -166,7 +166,7 @@ checkboxInput ri = do
                 ]
         gad = hdlElementalRef ri
             <> hdlChange
-    (pure $ Right win) <> (Left <$> gad)
+    in (pure $ Right win) <> (Left <$> gad)
   where
     hdlChange ::
         AsReactor cmd

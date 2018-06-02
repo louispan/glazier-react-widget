@@ -18,10 +18,10 @@ focusElement ::
     ( AsHTMLElement cmd
     , MonadReactor p s cmd m
     )
-    => ElementalId -> m ()
-focusElement eid = do
+    => ReactId -> m ()
+focusElement ri = do
     scn <- getScene
-    let t = preview (_plan._elementals.ix eid._elementalRef._Just) scn
+    let t = preview (_plan._elementals.ix ri._elementalRef._Just) scn
     case t of
         Nothing -> pure ()
         Just t' -> postCmd $ Focus t'
@@ -30,10 +30,10 @@ blurElement ::
     ( AsHTMLElement cmd
     , MonadReactor p s cmd m
     )
-    => ElementalId -> m ()
-blurElement eid = do
+    => ReactId -> m ()
+blurElement ri = do
     scn <- getScene
-    let t = preview (_plan._elementals.ix eid._elementalRef._Just) scn
+    let t = preview (_plan._elementals.ix ri._elementalRef._Just) scn
     case t of
         Nothing -> pure ()
         Just t' -> postCmd $ Blur t'

@@ -20,6 +20,8 @@ module Glazier.React.Widgets.Collection
     , largerUKey
     , betweenUKey
     -- * Collection
+    , Collection
+    , HKCollection
     , collectionDisplay
     , deleteCollectionItem
     , insertCollectionItem
@@ -38,12 +40,6 @@ import JavaScript.Extras.Number
 type family HKD f a where
     HKD Identity a = a
     HKD f        a = f a
-
--- | Collection of higher kinded data
-type Collection t s f = t (HKD f s)
-
--- | Collection of higher kinded "higher kinded data"
-type HKCollection t s f = t (HKD f (s f))
 
 -- | A key where you can always create
 -- another key ordered between two different keys,
@@ -120,6 +116,12 @@ betweenUncInt x y =
     in xq + yq + z
 
 -----------------------------------------------------------------
+
+-- | Collection of higher kinded data
+type Collection t s f = t (HKD f s)
+
+-- | Collection of higher kinded "higher kinded data"
+type HKCollection t s f = t (HKD f (s f))
 
 -- | Collection doesn't have an initializing gadget since
 -- the 'Subject's in the model are all initialized via 'addSubject'.

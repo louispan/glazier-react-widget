@@ -54,26 +54,25 @@ textInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ElementalId
-    -> Widget cmd p J.JSString ()
-textInput eid = prototype
-    { window = do
-        s <- ask
-        lf' eid "input"
-            [ ("key", JE.toJSR eid)
-            -- "value" cannot be used as React will take over as a controlled component.
-            -- The defaultValue only sets the *initial* DOM value
-            -- The user will need to modify reactKey if they want
-            -- react to actually rerender, since React will not do anything
-            -- even if defaultValue changes.
-            -- But hopefully this is not necessary as the DOM inpt value
-            -- is updated under the hood in onInitialized
-            , ("defaultValue", JE.toJSR $ s ^. _model)
-            ]
-    , gadget = hdlElementalRef eid
-        <> hdlRendered
-        <> hdlChange
-    }
+    => ReactId -> Widget cmd p J.JSString ()
+textInput ri = do
+    let win = do
+            s <- ask
+            lf' ri "input"
+                [ ("key", JE.toJSR ri)
+                -- "value" cannot be used as React will take over as a controlled component.
+                -- The defaultValue only sets the *initial* DOM value
+                -- The user will need to modify reactKey if they want
+                -- react to actually rerender, since React will not do anything
+                -- even if defaultValue changes.
+                -- But hopefully this is not necessary as the DOM inpt value
+                -- is updated under the hood in onInitialized
+                , ("defaultValue", JE.toJSR $ s ^. _model)
+                ]
+        gad = hdlElementalRef ri
+            <> hdlRendered
+            <> hdlChange
+    (pure $ Right win) <> (Left <$> gad)
   where
 
     -- | Modify the DOM input value after every render to match the model value
@@ -85,7 +84,7 @@ textInput eid = prototype
     hdlRendered = onRendered _always $ do
         scn <- getScene
         void $ runMaybeT $ do
-            j <- MaybeT $ pure $ preview (elementTarget eid) scn
+            j <- MaybeT $ pure $ preview (elementTarget ri) scn
             let s = view _model scn
             start <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionStart"
             end <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionEnd"
@@ -101,10 +100,10 @@ textInput eid = prototype
         )
         => Gadget cmd p J.JSString ()
     hdlChange = do
-        trigger_ eid _always "onChange" ()
+        trigger_ ri _always "onChange" ()
         scn <- getScene
         void $ runMaybeT $ do
-            j <- MaybeT $ pure $ preview (elementTarget eid) scn
+            j <- MaybeT $ pure $ preview (elementTarget ri) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
             tickScene $ _model .= v
             -- Don't mark input as dirty since changing model
@@ -156,26 +155,24 @@ estimateSelectionRange before after start end =
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     AsReactor cmd
-    => ElementalId
-    -> Widget cmd p Bool ()
-checkboxInput eid = prototype
-    { window = do
-        s <- ask
-        lf' eid "input"
-            [ ("key", JE.toJSR eid)
-            , ("type", "checkbox")
-            , ("checked", JE.toJSR $ s ^. _model)
-            ]
-    , gadget = hdlElementalRef eid
-        <> hdlChange
-    }
-
+    => ReactId -> Widget cmd p Bool ()
+checkboxInput ri = do
+    let win = do
+            s <- ask
+            lf' ri "input"
+                [ ("key", JE.toJSR ri)
+                , ("type", "checkbox")
+                , ("checked", JE.toJSR $ s ^. _model)
+                ]
+        gad = hdlElementalRef ri
+            <> hdlChange
+    (pure $ Right win) <> (Left <$> gad)
   where
     hdlChange ::
         AsReactor cmd
         => Gadget cmd p Bool ()
     hdlChange = do
-        trigger_ eid _always "onChange" ()
+        trigger_ ri _always "onChange" ()
         tickScene $ _model %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
@@ -190,10 +187,9 @@ indeterminateCheckboxInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ElementalId
-    -> Widget cmd p IndeterminateCheckboxInput ()
-indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
-    & _gadget %~ (<> hdlRendered)
+    => ReactId -> Widget cmd p IndeterminateCheckboxInput ()
+indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
+    <> finish hdlRendered
   where
     hdlRendered ::
         ( AsReactor cmd
@@ -203,6 +199,6 @@ indeterminateCheckboxInput eid = enlargeModel _checked (checkboxInput eid)
     hdlRendered = onRendered _always $ do
         scn <- getScene
         void $ runMaybeT $ do
-            j <- MaybeT $ pure $ preview (elementTarget eid) scn
+            j <- MaybeT $ pure $ preview (elementTarget ri) scn
             i <- MaybeT $ pure $ preview (_model._indeterminate) scn
             postCmd' $ SetProperty j ("indeterminate", JE.toJSR i)

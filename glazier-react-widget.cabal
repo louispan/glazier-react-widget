@@ -47,7 +47,7 @@ library
   if impl(ghcjs)
     build-depends: ghcjs-base
   if !impl(ghcjs)
-    build-depends: ghcjs-base-stub >= 0.1.0.2
+    build-depends: ghcjs-base-stub >= 0.2
 
 source-repository head
   type:     git

@@ -25,7 +25,6 @@ import Control.Lens
 import Control.Lens.Misc
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
-import Data.Semigroup
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
@@ -69,9 +68,9 @@ textInput ri =
                 , ("defaultValue", JE.toJSR $ s ^. _model)
                 ]
         gad = finish (hdlElementalRef ri)
-            <> finish (hdlRendered)
-            <> hdlChange
-    in (display win) <> (lift gad)
+            `also` finish (hdlRendered)
+            `also` hdlChange
+    in (display win) `also` (lift gad)
   where
 
     -- | Modify the DOM input value after every render to match the model value
@@ -99,14 +98,13 @@ textInput ri =
         )
         => Gadget cmd p J.JSString OnChangeInput
     hdlChange = do
-        trigger_ ri _always "onChange" OnChangeInput
+        trigger_ ri _always "onChange" ()
         scn <- getScene
-        void $ runMaybeT $ do
+        maybeDelegate () $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
             tickScene $ _model .= v
-            -- Don't mark input as dirty since changing model
-            -- does not change the DOM input value.
+            pure OnChangeInput
 
 -- This returns an greedy selection range for a new string based
 -- on the selection range on the original string, using a diffing algo.
@@ -164,15 +162,16 @@ checkboxInput ri =
                 , ("checked", JE.toJSR $ s ^. _model)
                 ]
         gad = (finish (hdlElementalRef ri))
-            <> hdlChange
-    in (display win) <> (lift gad)
+            `also` hdlChange
+    in (display win) `also` (lift gad)
   where
     hdlChange ::
         AsReactor cmd
         => Gadget cmd p Bool OnChangeInput
     hdlChange = do
-        trigger_ ri _always "onChange" OnChangeInput
+        trigger_ ri _always "onChange" ()
         tickScene $ _model %= not
+        pure OnChangeInput
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -188,7 +187,7 @@ indeterminateCheckboxInput ::
     )
     => ReactId -> Widget cmd p IndeterminateCheckboxInput OnChangeInput
 indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
-    <> finish (lift hdlRendered)
+    `also` finish (lift hdlRendered)
   where
     hdlRendered ::
         ( AsReactor cmd

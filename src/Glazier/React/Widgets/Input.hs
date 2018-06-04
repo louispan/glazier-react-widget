@@ -12,9 +12,9 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Widgets.Input
-    (
+    ( OnChangeInput(..)
     -- * Text input
-    textInput
+    , textInput
     -- * Checkbox input
     , checkboxInput
     , IndeterminateCheckboxInput(..)
@@ -23,9 +23,6 @@ module Glazier.React.Widgets.Input
 
 import Control.Lens
 import Control.Lens.Misc
-import Control.Monad.Cont
-import Control.Monad.Reader
-import Control.Monad.Trans.Maybe
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
 import Data.Semigroup
@@ -35,6 +32,8 @@ import Glazier.React.Effect.JavaScript
 import qualified JavaScript.Extras as JE
 
 ----------------------------------------
+
+data OnChangeInput = OnChangeInput
 
 -- | Text inputs dosn't interact well as a React controlled component.
 -- Eg. cursor jumps if user types quickly.
@@ -54,7 +53,7 @@ textInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p J.JSString ()
+    => ReactId -> Widget cmd p J.JSString OnChangeInput
 textInput ri =
     let win = do
             s <- ask
@@ -69,10 +68,10 @@ textInput ri =
                 -- is updated under the hood in onInitialized
                 , ("defaultValue", JE.toJSR $ s ^. _model)
                 ]
-        gad = hdlElementalRef ri
-            <> hdlRendered
+        gad = finish (hdlElementalRef ri)
+            <> finish (hdlRendered)
             <> hdlChange
-    in (pure $ Right win) <> (Left <$> gad)
+    in (display win) <> (lift gad)
   where
 
     -- | Modify the DOM input value after every render to match the model value
@@ -98,9 +97,9 @@ textInput ri =
         ( AsReactor cmd
         , AsJavascript cmd
         )
-        => Gadget cmd p J.JSString ()
+        => Gadget cmd p J.JSString OnChangeInput
     hdlChange = do
-        trigger_ ri _always "onChange" ()
+        trigger_ ri _always "onChange" OnChangeInput
         scn <- getScene
         void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
@@ -155,7 +154,7 @@ estimateSelectionRange before after start end =
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     AsReactor cmd
-    => ReactId -> Widget cmd p Bool ()
+    => ReactId -> Widget cmd p Bool OnChangeInput
 checkboxInput ri =
     let win = do
             s <- ask
@@ -164,15 +163,15 @@ checkboxInput ri =
                 , ("type", "checkbox")
                 , ("checked", JE.toJSR $ s ^. _model)
                 ]
-        gad = hdlElementalRef ri
+        gad = (finish (hdlElementalRef ri))
             <> hdlChange
-    in (pure $ Right win) <> (Left <$> gad)
+    in (display win) <> (lift gad)
   where
     hdlChange ::
         AsReactor cmd
-        => Gadget cmd p Bool ()
+        => Gadget cmd p Bool OnChangeInput
     hdlChange = do
-        trigger_ ri _always "onChange" ()
+        trigger_ ri _always "onChange" OnChangeInput
         tickScene $ _model %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
@@ -187,9 +186,9 @@ indeterminateCheckboxInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p IndeterminateCheckboxInput ()
+    => ReactId -> Widget cmd p IndeterminateCheckboxInput OnChangeInput
 indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
-    <> finish hdlRendered
+    <> finish (lift hdlRendered)
   where
     hdlRendered ::
         ( AsReactor cmd

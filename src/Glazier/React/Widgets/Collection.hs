@@ -129,8 +129,8 @@ collectionDisplay :: (Functor t, Foldable t)
     => Window (t (Subject s)) ()
 collectionDisplay = do
     ss <- view _model
-    let toLi s = bh "li" [] (displaySubject s)
-    bh "ul" [] (foldl' also alsoZero $ toLi <$> ss)
+    let toLi s = Als $ bh "li" [] (displaySubject s)
+    bh "ul" [] (getAls (fold $ toLi <$> ss))
 
 cleanupCollectionItem :: (Ord k)
     => k -> MaybeT (SceneState (M.Map k (Subject s))) ()

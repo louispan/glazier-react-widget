@@ -11,7 +11,7 @@ module Glazier.React.Widgets.Collection.Dynamic
     , _sortCriteria
     , _visibleList
     , _rawCollection
-    , dynamicCollectionDisplay
+    , dynamicCollectionWindow
     , regenerateVisibleList
     , setDynamicCollectionSortCriteria
     , setDynamicCollectionFilterCriteria
@@ -81,8 +81,8 @@ setDynamicCollectionFilterCriteria ff fs ftr = do
     _model._filterCriteria .= ftr
     regenerateVisibleList ff fs
 
-dynamicCollectionDisplay :: Window (DynamicCollection ftr srt k s Subject) ()
-dynamicCollectionDisplay = magnify (editSceneModel _visibleList) collectionDisplay
+dynamicCollectionWindow :: Window (DynamicCollection ftr srt k s Subject) ()
+dynamicCollectionWindow = magnifiedScene _visibleList collectionWindow
 
 deleteDynamicCollectionItem :: (Ord k)
     => (ftr -> s -> ReadIORef Bool)

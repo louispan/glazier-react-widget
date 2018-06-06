@@ -22,7 +22,7 @@ module Glazier.React.Widgets.Collection
     -- * Collection
     , Collection
     , HKCollection
-    , collectionDisplay
+    , collectionWindow
     , deleteCollectionItem
     , insertCollectionItem
     ) where
@@ -125,9 +125,9 @@ type HKCollection t s f = t (HKD f (s f))
 
 -- | Collection doesn't have an initializing gadget since
 -- the 'Subject's in the model are all initialized via 'addSubject'.
-collectionDisplay :: (Functor t, Foldable t)
+collectionWindow :: (Functor t, Foldable t)
     => Window (t (Subject s)) ()
-collectionDisplay = do
+collectionWindow = do
     ss <- view _model
     let toLi s = Als $ bh "li" [] (displaySubject s)
     bh "ul" [] (getAls (fold $ toLi <$> ss))

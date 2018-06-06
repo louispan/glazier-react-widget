@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -12,9 +13,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Widgets.Input
-    ( OnChangeInput(..)
-    -- * Text input
-    , textInput
+    ( -- * Text input
+    textInput
     -- * Checkbox input
     , checkboxInput
     , IndeterminateCheckboxInput(..)
@@ -25,6 +25,7 @@ import Control.Lens
 import Control.Lens.Misc
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
+import Data.Tagged
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
@@ -32,7 +33,7 @@ import qualified JavaScript.Extras as JE
 
 ----------------------------------------
 
-data OnChangeInput = OnChangeInput
+type InputOnChange = Tagged "InputOnChange"
 
 -- | Text inputs dosn't interact well as a React controlled component.
 -- Eg. cursor jumps if user types quickly.
@@ -52,7 +53,7 @@ textInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p J.JSString OnChangeInput
+    => ReactId -> Widget cmd p J.JSString (InputOnChange ())
 textInput ri =
     let win = do
             s <- ask
@@ -96,7 +97,7 @@ textInput ri =
         ( AsReactor cmd
         , AsJavascript cmd
         )
-        => Gadget cmd p J.JSString OnChangeInput
+        => Gadget cmd p J.JSString (InputOnChange ())
     hdlChange = do
         trigger_ ri _always "onChange" ()
         scn <- getScene
@@ -104,7 +105,7 @@ textInput ri =
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
             tickScene $ _model .= v
-            pure OnChangeInput
+            pure $ Tagged @"InputOnChange" ()
 
 -- This returns an greedy selection range for a new string based
 -- on the selection range on the original string, using a diffing algo.
@@ -152,7 +153,7 @@ estimateSelectionRange before after start end =
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     AsReactor cmd
-    => ReactId -> Widget cmd p Bool OnChangeInput
+    => ReactId -> Widget cmd p Bool (InputOnChange ())
 checkboxInput ri =
     let win = do
             s <- ask
@@ -167,11 +168,11 @@ checkboxInput ri =
   where
     hdlChange ::
         AsReactor cmd
-        => Gadget cmd p Bool OnChangeInput
+        => Gadget cmd p Bool (InputOnChange ())
     hdlChange = do
         trigger_ ri _always "onChange" ()
         tickScene $ _model %= not
-        pure OnChangeInput
+        pure $ Tagged @"InputOnChange" ()
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -185,7 +186,7 @@ indeterminateCheckboxInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p IndeterminateCheckboxInput OnChangeInput
+    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputOnChange ())
 indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
     `also` finish (lift hdlRendered)
   where

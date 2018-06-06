@@ -40,6 +40,7 @@ library
                      , lens-misc >= 0.0.2
                      , monadlist >= 0.0.2
                      , mtl >= 2
+                     , tagged >= 0.8
                      , transformers >= 0.4
   default-language:    Haskell2010
   default-extensions:  ApplicativeDo

@@ -68,7 +68,7 @@ textInput ri =
                 -- is updated under the hood in onInitialized
                 , ("defaultValue", JE.toJSR $ s ^. _model)
                 ]
-        gad = finish (hdlElementalRef ri)
+        gad = finish (onElementalRef ri)
             `also` finish (hdlRendered)
             `also` hdlChange
     in (display win) `also` (lift gad)
@@ -80,7 +80,7 @@ textInput ri =
         , AsJavascript cmd
         )
         => Gadget cmd p J.JSString ()
-    hdlRendered = onRendered _always $ do
+    hdlRendered = onRendered $ do
         scn <- getScene
         void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
@@ -99,7 +99,7 @@ textInput ri =
         )
         => Gadget cmd p J.JSString (InputOnChange ())
     hdlChange = do
-        trigger_ ri _always "onChange" ()
+        trigger_ ri "onChange" ()
         scn <- getScene
         maybeDelegate () $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
@@ -162,7 +162,7 @@ checkboxInput ri =
                 , ("type", "checkbox")
                 , ("checked", JE.toJSR $ s ^. _model)
                 ]
-        gad = (finish (hdlElementalRef ri))
+        gad = (finish (onElementalRef ri))
             `also` hdlChange
     in (display win) `also` (lift gad)
   where
@@ -170,7 +170,7 @@ checkboxInput ri =
         AsReactor cmd
         => Gadget cmd p Bool (InputOnChange ())
     hdlChange = do
-        trigger_ ri _always "onChange" ()
+        trigger_ ri "onChange" ()
         tickScene $ _model %= not
         pure $ Tagged @"InputOnChange" ()
 
@@ -195,7 +195,7 @@ indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
         , AsJavascript cmd
         )
         => Gadget cmd p IndeterminateCheckboxInput ()
-    hdlRendered = onRendered _always $ do
+    hdlRendered = onRendered $ do
         scn <- getScene
         void $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn

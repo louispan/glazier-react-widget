@@ -50,13 +50,12 @@ regenerateVisibleList ::
 regenerateVisibleList ff fs = do
     zs@(DynamicCollection ftr srt _ xs) <- use _model
     let xs' = toList xs
-        toSbj = sceneRef
         ftr' x = do
-            x' <- doReadIORef $ toSbj x
+            x' <- doReadIORef $ sceneRef x
             ff ftr (model x')
         srt' x y = do
-            x' <- doReadIORef $ toSbj x
-            y' <- doReadIORef $ toSbj y
+            x' <- doReadIORef $ sceneRef x
+            y' <- doReadIORef $ sceneRef y
             fs srt (model x') (model y')
     ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
     _model .= zs { visibleList = ys }

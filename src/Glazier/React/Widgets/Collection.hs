@@ -147,5 +147,5 @@ deleteCollectionItem k = do
 insertCollectionItem :: (Ord k)
     => k -> Subject s -> SceneState (M.Map k (Subject s)) ()
 insertCollectionItem k sbj = do
-    void $ runMaybeT $ cleanupCollectionItem k
+    (`evalMaybeT` ()) $ cleanupCollectionItem k
     _model.at k .= Just sbj

@@ -33,7 +33,7 @@ import qualified JavaScript.Extras as JE
 
 ----------------------------------------
 
-type InputOnChange = Tagged "InputOnChange"
+type InputChange = Tagged "InputChange"
 
 -- | Text inputs dosn't interact well as a React controlled component.
 -- Eg. cursor jumps if user types quickly.
@@ -53,7 +53,7 @@ textInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p J.JSString (InputOnChange ())
+    => ReactId -> Widget cmd p J.JSString (InputChange (SceneState J.JSString ()))
 textInput ri =
     let win = do
             s <- ask
@@ -82,7 +82,7 @@ textInput ri =
         => Gadget cmd p J.JSString ()
     hdlRendered = onRendered $ do
         scn <- getScene
-        void $ runMaybeT $ do
+        (`evalMaybeT` ()) $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
             let s = view _model scn
             start <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionStart"
@@ -97,15 +97,14 @@ textInput ri =
         ( AsReactor cmd
         , AsJavascript cmd
         )
-        => Gadget cmd p J.JSString (InputOnChange ())
+        => Gadget cmd p J.JSString (InputChange (SceneState J.JSString ()))
     hdlChange = do
         trigger_ ri "onChange" ()
         scn <- getScene
         maybeDelegate () $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
-            tickScene $ _model .= v
-            pure $ Tagged @"InputOnChange" ()
+            pure $ Tagged @"InputChange" $ _model .= v
 
 -- This returns an greedy selection range for a new string based
 -- on the selection range on the original string, using a diffing algo.
@@ -153,7 +152,7 @@ estimateSelectionRange before after start end =
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     AsReactor cmd
-    => ReactId -> Widget cmd p Bool (InputOnChange ())
+    => ReactId -> Widget cmd p Bool (InputChange (SceneState Bool ()))
 checkboxInput ri =
     let win = do
             s <- ask
@@ -168,11 +167,10 @@ checkboxInput ri =
   where
     hdlChange ::
         AsReactor cmd
-        => Gadget cmd p Bool (InputOnChange ())
+        => Gadget cmd p Bool (InputChange (SceneState Bool ()))
     hdlChange = do
         trigger_ ri "onChange" ()
-        tickScene $ _model %= not
-        pure $ Tagged @"InputOnChange" ()
+        pure $ Tagged @"InputChange" $ _model %= not
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -186,7 +184,7 @@ indeterminateCheckboxInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputOnChange ())
+    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputChange (SceneState Bool ()))
 indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
     `also` finish (lift hdlRendered)
   where
@@ -197,7 +195,7 @@ indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
         => Gadget cmd p IndeterminateCheckboxInput ()
     hdlRendered = onRendered $ do
         scn <- getScene
-        void $ runMaybeT $ do
+        (`evalMaybeT` ()) $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
             i <- MaybeT $ pure $ preview (_model._indeterminate) scn
             postCmd' $ SetProperty j ("indeterminate", JE.toJSR i)

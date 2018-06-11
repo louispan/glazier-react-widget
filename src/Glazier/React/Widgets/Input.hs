@@ -33,6 +33,8 @@ import qualified JavaScript.Extras as JE
 
 ----------------------------------------
 
+-- Tagged event. The convention is to fire "OnXXX" if the event is not handled
+-- or fire "XXX" to notify handled events.
 type InputChange = Tagged "InputChange"
 
 -- | Text inputs dosn't interact well as a React controlled component.

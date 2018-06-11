@@ -53,7 +53,7 @@ textInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p J.JSString (InputChange (SceneState J.JSString ()))
+    => ReactId -> Widget cmd p J.JSString (InputChange ())
 textInput ri =
     let win = do
             s <- ask
@@ -97,14 +97,15 @@ textInput ri =
         ( AsReactor cmd
         , AsJavascript cmd
         )
-        => Gadget cmd p J.JSString (InputChange (SceneState J.JSString ()))
+        => Gadget cmd p J.JSString (InputChange ())
     hdlChange = do
         trigger_ ri "onChange" ()
         scn <- getScene
         maybeDelegate () $ runMaybeT $ do
             j <- MaybeT $ pure $ preview (elementTarget ri) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
-            pure $ Tagged @"InputChange" $ _model .= v
+            tickScene $ _model .= v
+            pure $ Tagged @"InputChange" ()
 
 -- This returns an greedy selection range for a new string based
 -- on the selection range on the original string, using a diffing algo.
@@ -152,7 +153,7 @@ estimateSelectionRange before after start end =
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     AsReactor cmd
-    => ReactId -> Widget cmd p Bool (InputChange (SceneState Bool ()))
+    => ReactId -> Widget cmd p Bool (InputChange ())
 checkboxInput ri =
     let win = do
             s <- ask
@@ -167,10 +168,11 @@ checkboxInput ri =
   where
     hdlChange ::
         AsReactor cmd
-        => Gadget cmd p Bool (InputChange (SceneState Bool ()))
+        => Gadget cmd p Bool (InputChange ())
     hdlChange = do
         trigger_ ri "onChange" ()
-        pure $ Tagged @"InputChange" $ _model %= not
+        tickScene $ _model %= not
+        pure $ Tagged @"InputChange" ()
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -184,7 +186,7 @@ indeterminateCheckboxInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputChange (SceneState Bool ()))
+    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputChange ())
 indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
     `also` finish (lift hdlRendered)
   where

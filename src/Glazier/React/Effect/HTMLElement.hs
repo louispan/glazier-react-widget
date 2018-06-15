@@ -8,7 +8,7 @@ import Control.Lens
 import Data.Diverse.Lens
 import Glazier.React
 
-type AsHTMLElement c = AsFacet HTMLElementCmd c
+type AsHTMLElement cmd = AsFacet HTMLElementCmd cmd
 
 -- Effects from methods in https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement
 data HTMLElementCmd =  Focus EventTarget | Blur EventTarget

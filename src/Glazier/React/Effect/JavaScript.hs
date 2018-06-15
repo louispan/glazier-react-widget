@@ -9,18 +9,18 @@ import Data.Diverse.Lens
 import qualified GHCJS.Types as J
 import qualified JavaScript.Extras as JE
 
-type AsJavascript c = AsFacet (JavaScriptCmd c) c
+type AsJavascript cmd = AsFacet (JavaScriptCmd cmd) cmd
 
-data JavaScriptCmd c where
+data JavaScriptCmd cmd where
     SetProperty :: JE.ToJS j
         => j -> JE.Property -> JavaScriptCmd c
     GetProperty :: JE.ToJS j
         => j
         -> J.JSString
-        -> (JE.JSRep -> c)
-        -> JavaScriptCmd c
+        -> (JE.JSRep -> cmd)
+        -> JavaScriptCmd cmd
 
-instance Show (JavaScriptCmd c) where
+instance Show (JavaScriptCmd cmd) where
     showsPrec d (SetProperty j p) = showParen (d >= 11) $
         showString "SetProperty "
         . showsPrec 11 (JE.toJSR j)

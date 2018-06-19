@@ -15,8 +15,8 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2018-04-21
-# resolver: lts-10.0
+# resolver: nightly-2018-04-21
+resolver: lts-7.19
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -54,7 +54,6 @@ packages:
 extra-deps:
 # - alternators-0.1.2.0
 # - async-2.2.1
-- data-diverse-4.1.0.0
 # - data-diverse-lens-4.1.0.0
 # - data-has-0.3.0.0
 # - ghcjs-base-stub-0.1.0.4
@@ -72,6 +71,12 @@ extra-deps:
 - '/Users/louis/repo/hs/disposable'
 - '/Users/louis/repo/hs/data-diverse-lens'
 - '/Users/louis/repo/hs/lens-misc'
+- async-2.2.1
+- data-diverse-4.5.0.0
+- data-has-0.3.0.0
+- newtype-generics-0.5.3
+- unliftio-0.2.7.0
+- unliftio-core-0.1.1.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}

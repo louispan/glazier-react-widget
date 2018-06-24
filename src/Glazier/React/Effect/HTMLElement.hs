@@ -4,14 +4,13 @@
 
 module Glazier.React.Effect.HTMLElement where
 
-import Control.Lens
 import Data.Diverse.Lens
 import Glazier.React
 
 type AsHTMLElement cmd = AsFacet HTMLElementCmd cmd
 
 -- Effects from methods in https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement
-data HTMLElementCmd =  Focus EventTarget | Blur EventTarget
+data HTMLElementCmd = Focus EventTarget | Blur EventTarget
     deriving Show
 
 focusElement ::
@@ -20,11 +19,8 @@ focusElement ::
     )
     => ReactId -> m ()
 focusElement ri = do
-    scn <- getScene
-    let t = preview (_plan._elementals.ix ri._elementalRef._Just) scn
-    case t of
-        Nothing -> pure ()
-        Just t' -> postCmd $ Focus t'
+    j <- getElementalRef ri
+    postCmd $ Focus j
 
 blurElement ::
     ( AsHTMLElement cmd
@@ -32,8 +28,5 @@ blurElement ::
     )
     => ReactId -> m ()
 blurElement ri = do
-    scn <- getScene
-    let t = preview (_plan._elementals.ix ri._elementalRef._Just) scn
-    case t of
-        Nothing -> pure ()
-        Just t' -> postCmd $ Blur t'
+    j <- getElementalRef ri
+    postCmd $ Blur j

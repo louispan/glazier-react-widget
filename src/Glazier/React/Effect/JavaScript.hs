@@ -33,3 +33,6 @@ instance Show (JavaScriptCmd cmd) where
         . showChar ' '
         . showsPrec 11 n
         . showString "}"
+
+
+-- FIXME: Add an operator to do a chain of GetProperty, and SetProperty?

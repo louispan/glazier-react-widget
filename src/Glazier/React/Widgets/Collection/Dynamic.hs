@@ -12,9 +12,9 @@ module Glazier.React.Widgets.Collection.Dynamic
     , _visibleList
     , _rawCollection
     , dynamicCollectionWindow
-    , regenerateVisibleList
-    , setDynamicCollectionSortCriteria
-    , setDynamicCollectionFilterCriteria
+    , updateVisibleList
+    -- , setDynamicCollectionSortCriteria
+    -- , setDynamicCollectionFilterCriteria
     , deleteDynamicCollectionItem
     , insertDynamicCollectionItem
     , module Glazier.React.Widgets.Collection
@@ -43,12 +43,12 @@ type HKDynamicCollection ftr srt k a f = DynamicCollection ftr srt k (a f) f
 
 makeLenses_ ''DynamicCollection
 
-regenerateVisibleList ::
+updateVisibleList ::
     (ftr -> s -> ReadIORef Bool)
     -> (srt -> s -> s -> ReadIORef Ordering)
-    -> SceneState (DynamicCollection ftr srt k s Subject) ()
-regenerateVisibleList ff fs = do
-    zs@(DynamicCollection ftr srt _ xs) <- use _model
+    -> ModelState (DynamicCollection ftr srt k s Subject) ()
+updateVisibleList ff fs = do
+    zs@(DynamicCollection ftr srt _ xs) <- use id
     let xs' = toList xs
         ftr' x = do
             x' <- doReadIORef $ sceneRef x
@@ -58,46 +58,42 @@ regenerateVisibleList ff fs = do
             y' <- doReadIORef $ sceneRef y
             fs srt (model x') (model y')
     ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
-    _model .= zs { visibleList = ys }
+    id .= zs { visibleList = ys }
 
--- | Sort the items on the listing given a sorting function
-setDynamicCollectionSortCriteria ::
-    (ftr -> s -> ReadIORef Bool)
-    -> (srt -> s -> s -> ReadIORef Ordering)
-    -> srt
-    -> SceneState (DynamicCollection ftr srt k s Subject) ()
-setDynamicCollectionSortCriteria ff fs srt = do
-    _model._sortCriteria .= srt
-    regenerateVisibleList ff fs
+-- -- | Sort the items on the listing given a sorting function
+-- setDynamicCollectionSortCriteria ::
+--     (ftr -> s -> ReadIORef Bool)
+--     -> (srt -> s -> s -> ReadIORef Ordering)
+--     -> srt
+--     -> SceneState (DynamicCollection ftr srt k s Subject) ()
+-- setDynamicCollectionSortCriteria ff fs srt = do
+--     _model._sortCriteria .= srt
+--     regenerateVisibleList ff fs
 
--- | Filter the items on the listing given a filter function
-setDynamicCollectionFilterCriteria ::
-    (ftr -> s -> ReadIORef Bool)
-    -> (srt -> s -> s -> ReadIORef Ordering)
-    -> ftr
-    -> SceneState (DynamicCollection ftr srt k s Subject) ()
-setDynamicCollectionFilterCriteria ff fs ftr = do
-    _model._filterCriteria .= ftr
-    regenerateVisibleList ff fs
+-- -- | Filter the items on the listing given a filter function
+-- setDynamicCollectionFilterCriteria ::
+--     (ftr -> s -> ReadIORef Bool)
+--     -> (srt -> s -> s -> ReadIORef Ordering)
+--     -> ftr
+--     -> SceneState (DynamicCollection ftr srt k s Subject) ()
+-- setDynamicCollectionFilterCriteria ff fs ftr = do
+--     _model._filterCriteria .= ftr
+--     regenerateVisibleList ff fs
 
-dynamicCollectionWindow :: Window (DynamicCollection ftr srt k s Subject) ()
-dynamicCollectionWindow = magnifiedScene _visibleList collectionWindow
+dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s Subject) ()
+dynamicCollectionWindow ri = magnifiedScene _visibleList $ collectionWindow ri
 
-deleteDynamicCollectionItem :: (Ord k)
-    => (ftr -> s -> ReadIORef Bool)
-    -> (srt -> s -> s -> ReadIORef Ordering)
-    -> k
-    -> MaybeT (SceneState (DynamicCollection ftr srt k s Subject)) ()
-deleteDynamicCollectionItem ff fs k = do
-    zoom (editSceneModel _rawCollection) (deleteCollectionItem k)
-    lift $ regenerateVisibleList ff fs
+deleteDynamicCollectionItem :: (MonadReactor p allS cmd m, Ord k)
+    => k
+    -> ModelState (DynamicCollection ftr srt k s Subject) (m ())
+deleteDynamicCollectionItem k =
+    zoom _rawCollection (deleteCollectionItem k)
+    -- lift $ regenerateVisibleList ff fs
 
-insertDynamicCollectionItem :: (Ord k)
-    => (ftr -> s -> ReadIORef Bool)
-    -> (srt -> s -> s -> ReadIORef Ordering)
-    -> k
+insertDynamicCollectionItem :: (MonadReactor p allS cmd m, Ord k)
+    => k
     -> Subject s
-    -> SceneState (DynamicCollection ftr srt k s Subject) ()
-insertDynamicCollectionItem ff fs k sbj = do
-    zoom (editSceneModel _rawCollection) (insertCollectionItem k sbj)
-    regenerateVisibleList ff fs
+    -> ModelState (DynamicCollection ftr srt k s Subject) (m ())
+insertDynamicCollectionItem k sbj =
+    zoom _rawCollection (insertCollectionItem k sbj)
+    -- regenerateVisibleList ff fs

@@ -28,12 +28,11 @@ module Glazier.React.Widgets.Collection
     ) where
 
 import Control.Lens
-import Control.Monad.Trans.Maybe
 import Data.Foldable
 import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import Glazier.React
-import JavaScript.Extras.Number
+import qualified JavaScript.Extras as JE
 
 -- "Higher-Kinded Data" http://reasonablypolymorphic.com/blog/higher-kinded-data/
 -- Erases Identity
@@ -75,19 +74,19 @@ ukeyStep = 32
 -- | Create a key smaller than the input key.
 smallerUKey :: UKey -> UKey
 smallerUKey (UKey []) = UKey [-ukeyStep]
-smallerUKey (UKey (a : as)) = UKey $ case compare a (minSafeInteger + ukeyStep) of
-        LT -> if minSafeInteger == a
-            then minSafeInteger : unUKey (smallerUKey (UKey as))
-            else [minSafeInteger]
+smallerUKey (UKey (a : as)) = UKey $ case compare a (JE.minSafeInteger + ukeyStep) of
+        LT -> if JE.minSafeInteger == a
+            then JE.minSafeInteger : unUKey (smallerUKey (UKey as))
+            else [JE.minSafeInteger]
         _ -> [a - ukeyStep]
 
 -- | Create a key larger than the input key.
 largerUKey :: UKey -> UKey
 largerUKey (UKey []) = UKey [ukeyStep]
-largerUKey (UKey (a : as)) = UKey $ case compare a (maxSafeInteger - ukeyStep) of
-        GT -> if maxSafeInteger == a
-            then maxSafeInteger : unUKey (largerUKey (UKey as))
-            else [maxSafeInteger]
+largerUKey (UKey (a : as)) = UKey $ case compare a (JE.maxSafeInteger - ukeyStep) of
+        GT -> if JE.maxSafeInteger == a
+            then JE.maxSafeInteger : unUKey (largerUKey (UKey as))
+            else [JE.maxSafeInteger]
         _ -> [a + ukeyStep]
 
 -- | Make a key that will fit in between the two provided keys,
@@ -99,10 +98,10 @@ betweenUKey (UKey xs) (UKey []) = betweenUKey (UKey xs) (UKey [0])
 betweenUKey (UKey []) (UKey ys) = betweenUKey (UKey [0]) (UKey ys)
 betweenUKey (UKey (x : xs)) (UKey (y : ys)) = UKey $ case compare x y of
     LT -> if x + 1 == y
-        then x : unUKey (betweenUKey (UKey xs) (UKey $ repeat maxSafeInteger))
+        then x : unUKey (betweenUKey (UKey xs) (UKey $ repeat JE.maxSafeInteger))
         else [betweenUncInt x y]
     GT -> if y + 1 == x
-        then y : unUKey (betweenUKey (UKey ys) (UKey $ repeat maxSafeInteger))
+        then y : unUKey (betweenUKey (UKey ys) (UKey $ repeat JE.maxSafeInteger))
         else [betweenUncInt x y]
     EQ -> x : unUKey (betweenUKey (UKey xs) (UKey ys))
 
@@ -126,26 +125,22 @@ type HKCollection t s f = t (HKD f (s f))
 -- | Collection doesn't have an initializing gadget since
 -- the 'Subject's in the model are all initialized via 'addSubject'.
 collectionWindow :: (Functor t, Foldable t)
-    => Window (t (Subject s)) ()
-collectionWindow = do
+    => ReactId -> Window (t (Subject s)) ()
+collectionWindow ri = do
     ss <- view _model
-    let toLi s = Als $ bh "li" [] (displaySubject s)
-    bh "ul" [] (getAls (fold $ toLi <$> ss))
+    let displayItem s = Als $ (displaySubject s)
+    bh "ul" [("key", JE.toJSR $ ri)] (getAls (fold $ displayItem <$> ss))
 
-cleanupCollectionItem :: (Ord k)
-    => k -> MaybeT (SceneState (M.Map k (Subject s))) ()
-cleanupCollectionItem k = do
-    old <- MaybeT $ use (_model.at k)
-    cleanupSubject old
-
-deleteCollectionItem :: (Ord k)
-    => k -> MaybeT (SceneState (M.Map k (Subject s))) ()
+deleteCollectionItem :: (MonadReactor p allS cmd m, Ord k)
+    => k -> ModelState (M.Map k (Subject s)) (m ())
 deleteCollectionItem k = do
-    cleanupCollectionItem k
-    _model.at k .= Nothing
+    old <- use (id.at k)
+    (at k) .= Nothing
+    pure $ maybe (pure ()) bookSubjectCleanup old
 
-insertCollectionItem :: (Ord k)
-    => k -> Subject s -> SceneState (M.Map k (Subject s)) ()
+insertCollectionItem :: (MonadReactor p allS cmd m, Ord k)
+    => k -> Subject s -> ModelState (M.Map k (Subject s)) (m ())
 insertCollectionItem k sbj = do
-    (`evalMaybeT` ()) $ cleanupCollectionItem k
-    _model.at k .= Just sbj
+    old <- use (at k)
+    (at k) .= Just sbj
+    pure $ maybe (pure ()) bookSubjectCleanup old

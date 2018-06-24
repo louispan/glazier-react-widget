@@ -70,8 +70,7 @@ textInput ri =
                 -- is updated under the hood in onInitialized
                 , ("defaultValue", JE.toJSR $ s ^. _model)
                 ]
-        gad = finish (onElementalRef ri)
-            `also` finish (hdlRendered)
+        gad = finish (hdlRendered)
             `also` hdlChange
     in (display win) `also` (lift gad)
   where
@@ -83,10 +82,9 @@ textInput ri =
         )
         => Gadget cmd p J.JSString ()
     hdlRendered = onRendered $ do
-        scn <- getScene
+        s <- getModel
+        j <- getElementalRef ri
         (`evalMaybeT` ()) $ do
-            j <- MaybeT $ pure $ preview (elementTarget ri) scn
-            let s = view _model scn
             start <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionStart"
             end <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionEnd"
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
@@ -102,11 +100,10 @@ textInput ri =
         => Gadget cmd p J.JSString (InputChange ())
     hdlChange = do
         trigger_ ri "onChange" ()
-        scn <- getScene
+        j <- getElementalRef ri
         maybeDelegate () $ runMaybeT $ do
-            j <- MaybeT $ pure $ preview (elementTarget ri) scn
             v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
-            tickScene $ _model .= v
+            tickModel $ id .= v
             pure $ Tagged @"InputChange" ()
 
 -- This returns an greedy selection range for a new string based
@@ -154,7 +151,7 @@ estimateSelectionRange before after start end =
 -- For checkboxes,  React uses controlled checkbox if input.checked is not null
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
-    AsReactor cmd
+    (AsReactor cmd)
     => ReactId -> Widget cmd p Bool (InputChange ())
 checkboxInput ri =
     let win = do
@@ -164,16 +161,15 @@ checkboxInput ri =
                 , ("type", "checkbox")
                 , ("checked", JE.toJSR $ s ^. _model)
                 ]
-        gad = (finish (onElementalRef ri))
-            `also` hdlChange
+        gad = hdlChange
     in (display win) `also` (lift gad)
   where
     hdlChange ::
-        AsReactor cmd
+        (AsReactor cmd)
         => Gadget cmd p Bool (InputChange ())
     hdlChange = do
         trigger_ ri "onChange" ()
-        tickScene $ _model %= not
+        tickModel $ id %= not
         pure $ Tagged @"InputChange" ()
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
@@ -198,8 +194,8 @@ indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
         )
         => Gadget cmd p IndeterminateCheckboxInput ()
     hdlRendered = onRendered $ do
-        scn <- getScene
+        j <- getElementalRef ri
+        s <- getModel
         (`evalMaybeT` ()) $ do
-            j <- MaybeT $ pure $ preview (elementTarget ri) scn
-            i <- MaybeT $ pure $ preview (_model._indeterminate) scn
+            i <- MaybeT $ pure $ preview _indeterminate s
             postCmd' $ SetProperty j ("indeterminate", JE.toJSR i)

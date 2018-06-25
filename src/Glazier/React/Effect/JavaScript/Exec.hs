@@ -9,8 +9,8 @@ import qualified JavaScript.Extras as JE
 execJavascript ::
     MonadIO m
     => (c -> m ()) -> JavaScriptCmd c -> m ()
-execJavascript exec c = case c of
-    SetProperty j prop -> liftIO $ JE.setProperty j prop
-    GetProperty j n k -> do
-        r <- liftIO $ JE.getProperty j n
-        exec $ k r
+execJavascript executor c = case c of
+    SetProperty prop j -> liftIO $ JE.setProperty prop j
+    GetProperty n j k -> do
+        r <- liftIO $ JE.getProperty n j
+        executor $ k r

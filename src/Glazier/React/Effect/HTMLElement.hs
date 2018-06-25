@@ -13,20 +13,16 @@ type AsHTMLElement cmd = AsFacet HTMLElementCmd cmd
 data HTMLElementCmd = Focus EventTarget | Blur EventTarget
     deriving Show
 
-focusElement ::
-    ( AsHTMLElement cmd
-    , MonadReactor p s cmd m
-    )
-    => ReactId -> m ()
-focusElement ri = do
-    j <- getElementalRef ri
-    postCmd $ Focus j
+-- focus ::
+--     ( AsHTMLElement cmd
+--     , MonadCommand cmd m
+--     )
+--     => EventTarget -> m ()
+-- focus = postCmd . Focus
 
-blurElement ::
-    ( AsHTMLElement cmd
-    , MonadReactor p s cmd m
-    )
-    => ReactId -> m ()
-blurElement ri = do
-    j <- getElementalRef ri
-    postCmd $ Blur j
+-- blur ::
+--     ( AsHTMLElement cmd
+--     , MonadCommand cmd m
+--     )
+--     => EventTarget -> m ()
+-- blur = postCmd . Blur

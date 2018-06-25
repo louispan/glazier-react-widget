@@ -35,7 +35,7 @@ library
                      , dlist >= 0.8
                      , glazier >= 1.0
                      , glazier-react >= 1.0
-                     , javascript-extras >= 0.4.0.0
+                     , javascript-extras >= 0.5
                      , lens >= 4
                      , lens-misc >= 0.0.2
                      , monadlist >= 0.0.2

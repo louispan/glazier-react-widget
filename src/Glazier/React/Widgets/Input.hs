@@ -29,6 +29,7 @@ import Data.Tagged
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
+import Glazier.React.Event.Synthetic
 import qualified JavaScript.Extras as JE
 
 ----------------------------------------
@@ -85,13 +86,13 @@ textInput ri =
         s <- getModel
         j <- getElementalRef ri
         (`evalMaybeT` ()) $ do
-            start <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionStart"
-            end <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "selectionEnd"
-            v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
+            start <- maybeGetProperty "selectionStart" j
+            end <- maybeGetProperty "selectionEnd" j
+            v <- maybeGetProperty "value" j
             let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-            postCmd' $ SetProperty j ("value", JE.toJSR s)
-            postCmd' $ SetProperty j ("selectionStart", JE.toJSR a)
-            postCmd' $ SetProperty j ("selectionEnd", JE.toJSR b)
+            exec' $ SetProperty ("value", JE.toJSR s) j
+            exec' $ SetProperty ("selectionStart", JE.toJSR a) j
+            exec' $ SetProperty ("selectionEnd", JE.toJSR b) j
 
     hdlChange ::
         ( AsReactor cmd
@@ -99,10 +100,9 @@ textInput ri =
         )
         => Gadget cmd p J.JSString (InputChange ())
     hdlChange = do
-        trigger_ ri "onChange" ()
-        j <- getElementalRef ri
+        j <- trigger ri "onChange" (pure . target . toSyntheticEvent)
         maybeDelegate () $ runMaybeT $ do
-            v <- MaybeT . fmap JE.fromJSR . sequel $ postCmd' . GetProperty j "value"
+            v <- maybeGetProperty "value" j
             tickModel $ id .= v
             pure $ Tagged @"InputChange" ()
 
@@ -198,4 +198,4 @@ indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
         s <- getModel
         (`evalMaybeT` ()) $ do
             i <- MaybeT $ pure $ preview _indeterminate s
-            postCmd' $ SetProperty j ("indeterminate", JE.toJSR i)
+            exec' $ SetProperty ("indeterminate", JE.toJSR i) j

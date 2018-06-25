@@ -5,34 +5,55 @@
 
 module Glazier.React.Effect.JavaScript where
 
+import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
 import qualified GHCJS.Types as J
+import Glazier.Command
 import qualified JavaScript.Extras as JE
 
 type AsJavascript cmd = AsFacet (JavaScriptCmd cmd) cmd
 
 data JavaScriptCmd cmd where
     SetProperty :: JE.ToJS j
-        => j -> JE.Property -> JavaScriptCmd c
+        => JE.Property -> j -> JavaScriptCmd c
     GetProperty :: JE.ToJS j
-        => j
-        -> J.JSString
+        => J.JSString
+        -> j
         -> (JE.JSRep -> cmd)
         -> JavaScriptCmd cmd
 
 instance Show (JavaScriptCmd cmd) where
-    showsPrec d (SetProperty j p) = showParen (d >= 11) $
+    showsPrec d (SetProperty p j) = showParen (d >= 11) $
         showString "SetProperty "
-        . showsPrec 11 (JE.toJSR j)
-        . showChar ' '
         . showsPrec 11 p
-        . showString "}"
-    showsPrec d (GetProperty j n _) = showParen (d >= 11) $
-        showString "GetProperty "
-        . showsPrec 11 (JE.toJSR j)
         . showChar ' '
+        . showsPrec 11 (JE.toJSR j)
+        . showString "}"
+    showsPrec d (GetProperty n j _) = showParen (d >= 11) $
+        showString "GetProperty "
         . showsPrec 11 n
+        . showChar ' '
+        . showsPrec 11 (JE.toJSR j)
         . showString "}"
 
+maybeGetProperty ::
+    ( AsJavascript cmd
+    , MonadCommand cmd m
+    , JE.FromJS a
+    , JE.ToJS j)
+    => J.JSString -> j -> MaybeT m a
+maybeGetProperty n j = MaybeT . fmap JE.fromJSR . eval' $ GetProperty n j
 
--- FIXME: Add an operator to do a chain of GetProperty, and SetProperty?
+-- doGetProperty ::
+--     ( AsJavascript cmd
+--     , MonadCommand cmd m
+--     , JE.ToJS j)
+--     => J.JSString -> j -> m JE.JSRep
+-- doGetProperty n j = outcome $ postCmd' . GetProperty n j
+
+-- doSetProperty ::
+--     ( AsJavascript cmd
+--     , MonadCommand cmd m
+--     , JE.ToJS j)
+--     => JE.Property -> j -> m ()
+-- doSetProperty prop j = postCmd' $ SetProperty prop j

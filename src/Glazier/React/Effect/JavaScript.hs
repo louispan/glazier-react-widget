@@ -43,17 +43,3 @@ maybeGetProperty ::
     , JE.ToJS j)
     => J.JSString -> j -> MaybeT m a
 maybeGetProperty n j = MaybeT . fmap JE.fromJSR . eval' $ GetProperty n j
-
--- doGetProperty ::
---     ( AsJavascript cmd
---     , MonadCommand cmd m
---     , JE.ToJS j)
---     => J.JSString -> j -> m JE.JSRep
--- doGetProperty n j = outcome $ postCmd' . GetProperty n j
-
--- doSetProperty ::
---     ( AsJavascript cmd
---     , MonadCommand cmd m
---     , JE.ToJS j)
---     => JE.Property -> j -> m ()
--- doSetProperty prop j = postCmd' $ SetProperty prop j

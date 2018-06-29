@@ -71,7 +71,7 @@ textInput ri =
                 -- is updated under the hood in onInitialized
                 , ("defaultValue", JE.toJSR $ s ^. _model)
                 ]
-        gad = finish (hdlRendered)
+        gad = (finish hdlRendered)
             `also` hdlChange
     in (display win) `also` (lift gad)
   where

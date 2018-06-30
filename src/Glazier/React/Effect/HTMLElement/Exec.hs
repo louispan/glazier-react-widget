@@ -21,7 +21,7 @@ execHTMLElementCmd c = case c of
 #ifdef __GHCJS__
 
 foreign import javascript unsafe
-  "if ($1 && $1['focus']) { $1['focus'](); console.log('focusing YES:' + $1); window.weck = $1 }"
+  "if ($1 && $1['focus']) { $1['focus'](); }"
   js_focus :: EventTarget -> IO ()
 
 foreign import javascript unsafe

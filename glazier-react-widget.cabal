@@ -1,7 +1,7 @@
 name:                glazier-react-widget
 version:             1.0.0.0
 synopsis:            Generic widget library using glazier-react
-description:         Generic widget library using glazier-react
+description:         Generic widget library using glazier-react. Please see README.md.
 homepage:            https://github.com/louispan/glazier-react-widget#readme
 license:             BSD3
 license-file:        LICENSE
@@ -28,7 +28,7 @@ library
                        Glazier.React.Widgets.Collection.Dynamic
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5
-                     , data-diverse >= 4.5
+                     , data-diverse >= 4.6
                      , data-diverse-lens >= 4.3
                      , deepseq >= 1.4
                      , Diff >= 0.3.4
@@ -37,8 +37,8 @@ library
                      , glazier-react >= 1.0
                      , javascript-extras >= 0.5
                      , lens >= 4
-                     , lens-misc >= 0.0.2
-                     , monadlist >= 0.0.2
+                     , lens-misc >= 0
+                     , monadlist >= 0
                      , mtl >= 2
                      , tagged >= 0.8
                      , transformers >= 0.4

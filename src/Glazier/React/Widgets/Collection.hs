@@ -131,16 +131,16 @@ collectionWindow ri = do
     let displayItem s = Als $ (displaySubject s)
     bh "ul" [("key", JE.toJSR $ ri)] (getAls (fold $ displayItem <$> ss))
 
-deleteCollectionItem :: (MonadReactor p allS cmd m, Ord k)
-    => k -> ModelState (M.Map k (Subject s)) (m ())
+deleteCollectionItem :: (MonadReactor p s cmd m, Ord k)
+    => k -> ModelState (M.Map k (Subject a)) (m ())
 deleteCollectionItem k = do
     old <- use (id.at k)
     (at k) .= Nothing
-    pure $ maybe (pure ()) bookSubjectCleanup old
+    pure $ maybe (pure ()) keepAliveSubjectUntilNextRender old
 
-insertCollectionItem :: (MonadReactor p allS cmd m, Ord k)
-    => k -> Subject s -> ModelState (M.Map k (Subject s)) (m ())
+insertCollectionItem :: (MonadReactor p s cmd m, Ord k)
+    => k -> Subject a -> ModelState (M.Map k (Subject a)) (m ())
 insertCollectionItem k sbj = do
     old <- use (at k)
     (at k) .= Just sbj
-    pure $ maybe (pure ()) bookSubjectCleanup old
+    pure $ maybe (pure ()) keepAliveSubjectUntilNextRender old

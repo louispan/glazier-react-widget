@@ -123,24 +123,24 @@ type Collection t s f = t (HKD f s)
 type HKCollection t s f = t (HKD f (s f))
 
 -- | Collection doesn't have an initializing gadget since
--- the 'Subject's in the model are all initialized via 'addSubject'.
+-- the 'Obj's in the model are all initialized via 'addObj'.
 collectionWindow :: (Functor t, Foldable t)
-    => ReactId -> Window (t (Subject s)) ()
+    => ReactId -> Window (t (Obj s)) ()
 collectionWindow ri = do
     ss <- view _model
-    let displayItem s = Als $ (displaySubject s)
+    let displayItem s = Als $ (displayObj s)
     bh "ul" [("key", JE.toJSR $ ri)] (getAls (fold $ displayItem <$> ss))
 
 deleteCollectionItem :: (MonadReactor p s cmd m, Ord k)
-    => k -> ModelState (M.Map k (Subject a)) (m ())
+    => k -> ModelState (M.Map k (Obj a)) (m ())
 deleteCollectionItem k = do
     old <- use (id.at k)
     (at k) .= Nothing
-    pure $ maybe (pure ()) keepAliveSubjectUntilNextRender old
+    pure $ maybe (pure ()) keepAliveObjUntilNextRender old
 
 insertCollectionItem :: (MonadReactor p s cmd m, Ord k)
-    => k -> Subject a -> ModelState (M.Map k (Subject a)) (m ())
-insertCollectionItem k sbj = do
+    => k -> Obj a -> ModelState (M.Map k (Obj a)) (m ())
+insertCollectionItem k obj = do
     old <- use (at k)
-    (at k) .= Just sbj
-    pure $ maybe (pure ()) keepAliveSubjectUntilNextRender old
+    (at k) .= Just obj
+    pure $ maybe (pure ()) keepAliveObjUntilNextRender old

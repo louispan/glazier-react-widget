@@ -230,14 +230,14 @@ instance Disposing Model where
 Link `Glazier.React.Model`'s genericHasPlan/HasModel with this widget's specific `HasPlan`/`HasModel` from generated from `makeClassy`
 
 ```haskell
-instance HasPlan (Scene Model Plan) where
+instance HasPlan (Model Model Plan) where
     plan = plan
-instance HasDesign (Scene Model Plan) where
+instance HasDesign (Model Model Plan) where
     design = model
 instance HasPlan (Gizmo Model Plan) where
-    plan = scene . plan
+    plan = model . plan
 instance HasDesign (Gizmo Model Plan) where
-    design = scene . design
+    design = model . design
 ```
 
 ### Widget definitions

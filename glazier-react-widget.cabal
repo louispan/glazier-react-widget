@@ -1,5 +1,5 @@
 name:                glazier-react-widget
-version:             1.0.0.1
+version:             1.1
 synopsis:            Generic widget library using glazier-react
 description:         Generic widget library using glazier-react. Please see README.md.
 homepage:            https://github.com/louispan/glazier-react-widget#readme
@@ -34,7 +34,7 @@ library
                      , Diff >= 0.3.4
                      , dlist >= 0.8
                      , glazier >= 1.0
-                     , glazier-react >= 1.0.0.1
+                     , glazier-react >= 1.1
                      , javascript-extras >= 0.5
                      , lens >= 4
                      , lens-misc >= 0

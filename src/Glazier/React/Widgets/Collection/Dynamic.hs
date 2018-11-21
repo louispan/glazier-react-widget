@@ -46,16 +46,16 @@ makeLenses_ ''DynamicCollection
 updateVisibleList ::
     (ftr -> s -> ReadIORef Bool)
     -> (srt -> s -> s -> ReadIORef Ordering)
-    -> ModelState (DynamicCollection ftr srt k s Subject) ()
+    -> ModelState (DynamicCollection ftr srt k s Obj) ()
 updateVisibleList ff fs = do
     zs@(DynamicCollection ftr srt _ xs) <- use id
     let xs' = toList xs
         ftr' x = do
-            x' <- doReadIORef $ sceneRef x
+            x' <- doReadIORef $ modelRef x
             ff ftr (model x')
         srt' x y = do
-            x' <- doReadIORef $ sceneRef x
-            y' <- doReadIORef $ sceneRef y
+            x' <- doReadIORef $ modelRef x
+            y' <- doReadIORef $ modelRef y
             fs srt (model x') (model y')
     ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
     id .= zs { visibleList = ys }
@@ -65,7 +65,7 @@ updateVisibleList ff fs = do
 --     (ftr -> s -> ReadIORef Bool)
 --     -> (srt -> s -> s -> ReadIORef Ordering)
 --     -> srt
---     -> SceneState (DynamicCollection ftr srt k s Subject) ()
+--     -> ModelState (DynamicCollection ftr srt k s Obj) ()
 -- setDynamicCollectionSortCriteria ff fs srt = do
 --     _model._sortCriteria .= srt
 --     regenerateVisibleList ff fs
@@ -75,25 +75,25 @@ updateVisibleList ff fs = do
 --     (ftr -> s -> ReadIORef Bool)
 --     -> (srt -> s -> s -> ReadIORef Ordering)
 --     -> ftr
---     -> SceneState (DynamicCollection ftr srt k s Subject) ()
+--     -> ModelState (DynamicCollection ftr srt k s Obj) ()
 -- setDynamicCollectionFilterCriteria ff fs ftr = do
 --     _model._filterCriteria .= ftr
 --     regenerateVisibleList ff fs
 
-dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s Subject) ()
-dynamicCollectionWindow ri = magnifiedScene _visibleList $ collectionWindow ri
+dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s Obj) ()
+dynamicCollectionWindow ri = magnifiedModel _visibleList $ collectionWindow ri
 
 deleteDynamicCollectionItem :: (MonadReactor p allS cmd m, Ord k)
     => k
-    -> ModelState (DynamicCollection ftr srt k s Subject) (m ())
+    -> ModelState (DynamicCollection ftr srt k s Obj) (m ())
 deleteDynamicCollectionItem k =
     zoom _rawCollection (deleteCollectionItem k)
     -- lift $ regenerateVisibleList ff fs
 
 insertDynamicCollectionItem :: (MonadReactor p allS cmd m, Ord k)
     => k
-    -> Subject s
-    -> ModelState (DynamicCollection ftr srt k s Subject) (m ())
-insertDynamicCollectionItem k sbj =
-    zoom _rawCollection (insertCollectionItem k sbj)
+    -> Obj s
+    -> ModelState (DynamicCollection ftr srt k s Obj) (m ())
+insertDynamicCollectionItem k obj =
+    zoom _rawCollection (insertCollectionItem k obj)
     -- regenerateVisibleList ff fs

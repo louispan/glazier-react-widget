@@ -23,8 +23,6 @@ module Glazier.React.Widgets.Collection
     , Collection
     , HKCollection
     , collectionWindow
-    , deleteCollectionItem
-    , insertCollectionItem
     ) where
 
 import Control.Lens
@@ -130,17 +128,3 @@ collectionWindow ri = do
     ss <- view _model
     let displayItem s = Als $ (displayObj s)
     bh "ul" [("key", JE.toJSR $ ri)] (getAls (fold $ displayItem <$> ss))
-
-deleteCollectionItem :: (MonadReactor p s cmd m, Ord k)
-    => k -> ModelState (M.Map k (Obj a)) (m ())
-deleteCollectionItem k = do
-    old <- use (id.at k)
-    (at k) .= Nothing
-    pure $ maybe (pure ()) keepAliveObjUntilNextRender old
-
-insertCollectionItem :: (MonadReactor p s cmd m, Ord k)
-    => k -> Obj a -> ModelState (M.Map k (Obj a)) (m ())
-insertCollectionItem k obj = do
-    old <- use (at k)
-    (at k) .= Just obj
-    pure $ maybe (pure ()) keepAliveObjUntilNextRender old

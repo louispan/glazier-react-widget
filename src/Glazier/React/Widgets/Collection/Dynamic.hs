@@ -13,10 +13,6 @@ module Glazier.React.Widgets.Collection.Dynamic
     , _rawCollection
     , dynamicCollectionWindow
     , updateVisibleList
-    -- , setDynamicCollectionSortCriteria
-    -- , setDynamicCollectionFilterCriteria
-    , deleteDynamicCollectionItem
-    , insertDynamicCollectionItem
     , module Glazier.React.Widgets.Collection
     ) where
 
@@ -60,40 +56,5 @@ updateVisibleList ff fs = do
     ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
     id .= zs { visibleList = ys }
 
--- -- | Sort the items on the listing given a sorting function
--- setDynamicCollectionSortCriteria ::
---     (ftr -> s -> ReadIORef Bool)
---     -> (srt -> s -> s -> ReadIORef Ordering)
---     -> srt
---     -> ModelState (DynamicCollection ftr srt k s Obj) ()
--- setDynamicCollectionSortCriteria ff fs srt = do
---     _model._sortCriteria .= srt
---     regenerateVisibleList ff fs
-
--- -- | Filter the items on the listing given a filter function
--- setDynamicCollectionFilterCriteria ::
---     (ftr -> s -> ReadIORef Bool)
---     -> (srt -> s -> s -> ReadIORef Ordering)
---     -> ftr
---     -> ModelState (DynamicCollection ftr srt k s Obj) ()
--- setDynamicCollectionFilterCriteria ff fs ftr = do
---     _model._filterCriteria .= ftr
---     regenerateVisibleList ff fs
-
 dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s Obj) ()
 dynamicCollectionWindow ri = magnifiedModel _visibleList $ collectionWindow ri
-
-deleteDynamicCollectionItem :: (MonadReactor p allS cmd m, Ord k)
-    => k
-    -> ModelState (DynamicCollection ftr srt k s Obj) (m ())
-deleteDynamicCollectionItem k =
-    zoom _rawCollection (deleteCollectionItem k)
-    -- lift $ regenerateVisibleList ff fs
-
-insertDynamicCollectionItem :: (MonadReactor p allS cmd m, Ord k)
-    => k
-    -> Obj s
-    -> ModelState (DynamicCollection ftr srt k s Obj) (m ())
-insertDynamicCollectionItem k obj =
-    zoom _rawCollection (insertCollectionItem k obj)
-    -- regenerateVisibleList ff fs

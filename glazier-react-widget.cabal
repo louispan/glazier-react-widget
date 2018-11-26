@@ -33,7 +33,7 @@ library
                      , deepseq >= 1.4
                      , Diff >= 0.3.4
                      , dlist >= 0.8
-                     , glazier >= 1.0
+                     , glazier >= 1.1
                      , glazier-react >= 1.1
                      , javascript-extras >= 0.5
                      , lens >= 4

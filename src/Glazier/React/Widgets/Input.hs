@@ -103,7 +103,7 @@ textInput ri =
         j <- trigger ri "onChange" (pure . target . toSyntheticEvent)
         maybeDelegate () $ runMaybeT $ do
             v <- maybeGetProperty "value" j
-            tickModel $ id .= v
+            mutate $ id .= v
             pure $ Tagged @"InputChange" ()
 
 -- This returns an greedy selection range for a new string based
@@ -169,7 +169,7 @@ checkboxInput ri =
         => Gadget cmd p Bool (InputChange ())
     hdlChange = do
         trigger_ ri "onChange" ()
-        tickModel $ id %= not
+        mutate $ id %= not
         pure $ Tagged @"InputChange" ()
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput

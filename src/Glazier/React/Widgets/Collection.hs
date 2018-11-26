@@ -27,7 +27,6 @@ module Glazier.React.Widgets.Collection
 
 import Control.Lens
 import Data.Foldable
-import qualified Data.Map.Strict as M
 import qualified GHC.Generics as G
 import Glazier.React
 import qualified JavaScript.Extras as JE

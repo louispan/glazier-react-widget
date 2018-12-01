@@ -57,4 +57,4 @@ updateVisibleList ff fs = do
     id .= zs { visibleList = ys }
 
 dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s Obj) ()
-dynamicCollectionWindow ri = magnifiedModel _visibleList $ collectionWindow ri
+dynamicCollectionWindow k = magnifiedModel _visibleList $ collectionWindow k

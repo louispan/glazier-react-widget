@@ -23,6 +23,7 @@ module Glazier.React.Widgets.Input
 
 import Control.Lens
 import Control.Lens.Misc
+import Control.Monad.State.Strict
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
 import Data.Tagged
@@ -57,11 +58,11 @@ textInput ::
     , AsJavascript cmd
     )
     => ReactId -> Widget cmd p J.JSString (InputChange ())
-textInput ri =
+textInput k =
     let win = do
             s <- ask
-            lf' ri "input"
-                [ ("key", JE.toJSR ri)
+            lf' k "input"
+                [ ("key", reactIdKey' k)
                 -- "value" cannot be used as React will take over as a controlled component.
                 -- The defaultValue only sets the *initial* DOM value
                 -- The user will need to modify reactKey if they want
@@ -84,7 +85,7 @@ textInput ri =
         => Gadget cmd p J.JSString ()
     hdlRendered = onRendered $ do
         s <- getModel
-        j <- getElementalRef ri
+        j <- getElementalRef k
         (`evalMaybeT` ()) $ do
             start <- maybeGetProperty "selectionStart" j
             end <- maybeGetProperty "selectionEnd" j
@@ -100,10 +101,11 @@ textInput ri =
         )
         => Gadget cmd p J.JSString (InputChange ())
     hdlChange = do
-        j <- trigger ri "onChange" (pure . target . toSyntheticEvent)
+        j <- trigger k "onChange" (pure . target . toSyntheticEvent)
         maybeDelegate () $ runMaybeT $ do
             v <- maybeGetProperty "value" j
-            mutate $ id .= v
+            put "Hello"
+            mutate k $ id .= v
             pure $ Tagged @"InputChange" ()
 
 -- This returns an greedy selection range for a new string based
@@ -153,11 +155,11 @@ estimateSelectionRange before after start end =
 checkboxInput ::
     (AsReactor cmd)
     => ReactId -> Widget cmd p Bool (InputChange ())
-checkboxInput ri =
+checkboxInput k =
     let win = do
             s <- ask
-            lf' ri "input"
-                [ ("key", JE.toJSR ri)
+            lf' k "input"
+                [ ("key", reactIdKey' k)
                 , ("type", "checkbox")
                 , ("checked", JE.toJSR $ s ^. _model)
                 ]
@@ -168,8 +170,8 @@ checkboxInput ri =
         (AsReactor cmd)
         => Gadget cmd p Bool (InputChange ())
     hdlChange = do
-        trigger_ ri "onChange" ()
-        mutate $ id %= not
+        trigger_ k "onChange" ()
+        mutate k $ id %= not
         pure $ Tagged @"InputChange" ()
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
@@ -185,7 +187,7 @@ indeterminateCheckboxInput ::
     , AsJavascript cmd
     )
     => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputChange ())
-indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
+indeterminateCheckboxInput k = magnifyWidget _checked (checkboxInput k)
     `also` finish (lift hdlRendered)
   where
     hdlRendered ::
@@ -194,7 +196,7 @@ indeterminateCheckboxInput ri = magnifyWidget _checked (checkboxInput ri)
         )
         => Gadget cmd p IndeterminateCheckboxInput ()
     hdlRendered = onRendered $ do
-        j <- getElementalRef ri
+        j <- getElementalRef k
         s <- getModel
         (`evalMaybeT` ()) $ do
             i <- MaybeT $ pure $ preview _indeterminate s

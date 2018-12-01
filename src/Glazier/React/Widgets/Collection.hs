@@ -123,7 +123,7 @@ type HKCollection t s f = t (HKD f (s f))
 -- the 'Obj's in the model are all initialized via 'addObj'.
 collectionWindow :: (Functor t, Foldable t)
     => ReactId -> Window (t (Obj s)) ()
-collectionWindow ri = do
+collectionWindow k = do
     ss <- view _model
     let displayItem s = Als $ (displayObj s)
-    bh "ul" [("key", JE.toJSR $ ri)] (getAls (fold $ displayItem <$> ss))
+    bh "ul" [("key", reactIdKey' k)] (getAls (fold $ displayItem <$> ss))

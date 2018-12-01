@@ -57,7 +57,7 @@ textInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p J.JSString (InputChange ())
+    => ReactId -> Widget cmd p J.JSString (InputChange ReactId)
 textInput k =
     let win = do
             s <- ask
@@ -99,14 +99,14 @@ textInput k =
         ( AsReactor cmd
         , AsJavascript cmd
         )
-        => Gadget cmd p J.JSString (InputChange ())
+        => Gadget cmd p J.JSString (InputChange ReactId)
     hdlChange = do
         j <- trigger k "onChange" (pure . target . toSyntheticEvent)
         maybeDelegate () $ runMaybeT $ do
             v <- maybeGetProperty "value" j
             put "Hello"
             mutate k $ id .= v
-            pure $ Tagged @"InputChange" ()
+            pure $ Tagged @"InputChange" k
 
 -- This returns an greedy selection range for a new string based
 -- on the selection range on the original string, using a diffing algo.
@@ -154,7 +154,7 @@ estimateSelectionRange before after start end =
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
     (AsReactor cmd)
-    => ReactId -> Widget cmd p Bool (InputChange ())
+    => ReactId -> Widget cmd p Bool (InputChange ReactId)
 checkboxInput k =
     let win = do
             s <- ask
@@ -168,11 +168,11 @@ checkboxInput k =
   where
     hdlChange ::
         (AsReactor cmd)
-        => Gadget cmd p Bool (InputChange ())
+        => Gadget cmd p Bool (InputChange ReactId)
     hdlChange = do
         trigger_ k "onChange" ()
         mutate k $ id %= not
-        pure $ Tagged @"InputChange" ()
+        pure $ Tagged @"InputChange" k
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -186,7 +186,7 @@ indeterminateCheckboxInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputChange ())
+    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputChange ReactId)
 indeterminateCheckboxInput k = magnifyWidget _checked (checkboxInput k)
     `also` finish (lift hdlRendered)
   where

@@ -57,7 +57,7 @@ textInput ::
     ( AsReactor cmd
     , AsJavascript cmd
     )
-    => ReactId -> Widget cmd p J.JSString (InputChange ReactId)
+    => ReactId -> Widget cmd o J.JSString (InputChange ReactId)
 textInput k =
     let win = do
             s <- ask

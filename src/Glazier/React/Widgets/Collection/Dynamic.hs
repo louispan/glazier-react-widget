@@ -40,18 +40,18 @@ type HKDynamicCollection ftr srt k a f = DynamicCollection ftr srt k (a f) f
 makeLenses_ ''DynamicCollection
 
 updateVisibleList ::
-    (ftr -> s -> ReadIORef Bool)
-    -> (srt -> s -> s -> ReadIORef Ordering)
+    (ftr -> s -> Benign IO Bool)
+    -> (srt -> s -> s -> Benign IO Ordering)
     -> ModelState (DynamicCollection ftr srt k s Obj) ()
 updateVisibleList ff fs = do
     zs@(DynamicCollection ftr srt _ xs) <- use id
     let xs' = toList xs
         ftr' x = do
-            x' <- doReadIORef $ modelRef x
+            x' <- benignReadIORef $ modelRef x
             ff ftr (model x')
         srt' x y = do
-            x' <- doReadIORef $ modelRef x
-            y' <- doReadIORef $ modelRef y
+            x' <- benignReadIORef $ modelRef x
+            y' <- benignReadIORef $ modelRef y
             fs srt (model x') (model y')
     ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
     id .= zs { visibleList = ys }

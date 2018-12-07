@@ -54,10 +54,10 @@ type InputChange = Tagged "InputChange"
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( AsReactor cmd
-    , AsJavascript cmd
+    ( AsReactor c
+    , AsJavascript c
     )
-    => ReactId -> Widget cmd o J.JSString (InputChange ReactId)
+    => ReactId -> Widget c o J.JSString (InputChange ReactId)
 textInput k =
     let win = do
             s <- ask
@@ -79,10 +79,10 @@ textInput k =
 
     -- | Modify the DOM input value after every render to match the model value
     hdlRendered ::
-        ( AsReactor cmd
-        , AsJavascript cmd
+        ( AsReactor c
+        , AsJavascript c
         )
-        => Gadget cmd p J.JSString ()
+        => Gadget c p J.JSString ()
     hdlRendered = onRendered $ do
         s <- getModel
         j <- getElementalRef k
@@ -96,10 +96,10 @@ textInput k =
             exec' $ SetProperty ("selectionEnd", JE.toJSR b) j
 
     hdlChange ::
-        ( AsReactor cmd
-        , AsJavascript cmd
+        ( AsReactor c
+        , AsJavascript c
         )
-        => Gadget cmd p J.JSString (InputChange ReactId)
+        => Gadget c p J.JSString (InputChange ReactId)
     hdlChange = do
         j <- trigger k "onChange" (pure . target . toSyntheticEvent)
         maybeDelegate () $ runMaybeT $ do
@@ -153,8 +153,8 @@ estimateSelectionRange before after start end =
 -- For checkboxes,  React uses controlled checkbox if input.checked is not null
 -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
 checkboxInput ::
-    (AsReactor cmd)
-    => ReactId -> Widget cmd p Bool (InputChange ReactId)
+    (AsReactor c)
+    => ReactId -> Widget c p Bool (InputChange ReactId)
 checkboxInput k =
     let win = do
             s <- ask
@@ -167,8 +167,8 @@ checkboxInput k =
     in (display win) `also` (lift gad)
   where
     hdlChange ::
-        (AsReactor cmd)
-        => Gadget cmd p Bool (InputChange ReactId)
+        (AsReactor c)
+        => Gadget c p Bool (InputChange ReactId)
     hdlChange = do
         trigger_ k "onChange" ()
         mutate k $ id %= not
@@ -183,18 +183,18 @@ makeLenses_ ''IndeterminateCheckboxInput
 
 -- | Variation of 'checkboxInput' supporting indeterminate state.
 indeterminateCheckboxInput ::
-    ( AsReactor cmd
-    , AsJavascript cmd
+    ( AsReactor c
+    , AsJavascript c
     )
-    => ReactId -> Widget cmd p IndeterminateCheckboxInput (InputChange ReactId)
+    => ReactId -> Widget c p IndeterminateCheckboxInput (InputChange ReactId)
 indeterminateCheckboxInput k = magnifyWidget _checked (checkboxInput k)
     `also` finish (lift hdlRendered)
   where
     hdlRendered ::
-        ( AsReactor cmd
-        , AsJavascript cmd
+        ( AsReactor c
+        , AsJavascript c
         )
-        => Gadget cmd p IndeterminateCheckboxInput ()
+        => Gadget c p IndeterminateCheckboxInput ()
     hdlRendered = onRendered $ do
         j <- getElementalRef k
         s <- getModel

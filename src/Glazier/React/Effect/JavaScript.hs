@@ -11,18 +11,18 @@ import qualified GHCJS.Types as J
 import Glazier.Command
 import qualified JavaScript.Extras as JE
 
-type AsJavascript cmd = AsFacet (JavaScriptCmd cmd) cmd
+type AsJavascript c = AsFacet (JavaScriptCmd c) c
 
-data JavaScriptCmd cmd where
+data JavaScriptCmd c where
     SetProperty :: JE.ToJS j
         => JE.Property -> j -> JavaScriptCmd c
     GetProperty :: JE.ToJS j
         => J.JSString
         -> j
-        -> (JE.JSRep -> cmd)
-        -> JavaScriptCmd cmd
+        -> (JE.JSRep -> c)
+        -> JavaScriptCmd c
 
-instance Show (JavaScriptCmd cmd) where
+instance Show (JavaScriptCmd c) where
     showsPrec d (SetProperty p j) = showParen (d >= 11) $
         showString "SetProperty "
         . showsPrec 11 p
@@ -37,8 +37,8 @@ instance Show (JavaScriptCmd cmd) where
         . showString "}"
 
 maybeGetProperty ::
-    ( AsJavascript cmd
-    , MonadCommand cmd m
+    ( AsJavascript c
+    , MonadCommand c m
     , JE.FromJS a
     , JE.ToJS j)
     => J.JSString -> j -> MaybeT m a

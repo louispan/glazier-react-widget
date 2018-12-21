@@ -21,6 +21,7 @@ module Glazier.React.Widgets.Input
     , indeterminateCheckboxInput
     ) where
 
+import GHC.Stack
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.State.Strict
@@ -54,7 +55,8 @@ type InputChange = Tagged "InputChange"
 -- potentially overridding any user changes.
 -- So when changing the model value, be sure that the onChange handler will not be called.
 textInput ::
-    ( AsReactor c
+    ( HasCallStack
+    , AsReactor c
     , AsJavascript c
     )
     => ReactId -> Widget c o J.JSString (InputChange ReactId)
@@ -79,7 +81,8 @@ textInput k =
 
     -- | Modify the DOM input value after every render to match the model value
     hdlRendered ::
-        ( AsReactor c
+        ( HasCallStack
+        , AsReactor c
         , AsJavascript c
         )
         => Gadget c p J.JSString ()
@@ -87,13 +90,13 @@ textInput k =
         s <- getModel
         j <- getElementalRef k
         (`evalMaybeT` ()) $ do
-            start <- maybeGetProperty "selectionStart" j
-            end <- maybeGetProperty "selectionEnd" j
-            v <- maybeGetProperty "value" j
+            start <- MaybeT $ JE.fromJSR <$> getProperty "selectionStart" j
+            end <- MaybeT $ JE.fromJSR <$> getProperty "selectionEnd" j
+            v <- MaybeT $ JE.fromJSR <$> getProperty "value" j
             let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-            exec' $ SetProperty ("value", JE.toJSR s) j
-            exec' $ SetProperty ("selectionStart", JE.toJSR a) j
-            exec' $ SetProperty ("selectionEnd", JE.toJSR b) j
+            setProperty ("value", JE.toJSR s) j
+            setProperty ("selectionStart", JE.toJSR a) j
+            setProperty ("selectionEnd", JE.toJSR b) j
 
     hdlChange ::
         ( AsReactor c
@@ -103,8 +106,7 @@ textInput k =
     hdlChange = do
         j <- trigger k "onChange" (pure . target . toSyntheticEvent)
         maybeDelegate () $ runMaybeT $ do
-            v <- maybeGetProperty "value" j
-            put "Hello"
+            v <- MaybeT $ JE.fromJSR <$> getProperty "value" j
             mutate k $ id .= v
             pure $ Tagged @"InputChange" k
 
@@ -200,4 +202,4 @@ indeterminateCheckboxInput k = magnifyWidget _checked (checkboxInput k)
         s <- getModel
         (`evalMaybeT` ()) $ do
             i <- MaybeT $ pure $ preview _indeterminate s
-            exec' $ SetProperty ("indeterminate", JE.toJSR i) j
+            setProperty ("indeterminate", JE.toJSR i) j

@@ -119,8 +119,6 @@ type Collection t s f = t (HKD f s)
 -- | Collection of higher kinded "higher kinded data"
 type HKCollection t s f = t (HKD f (s f))
 
--- | Collection doesn't have an initializing gadget since
--- the 'Obj's in the model are all initialized via 'addObj'.
 collectionWindow :: (Functor t, Foldable t)
     => ReactId -> Window (t (Obj s)) ()
 collectionWindow k = do

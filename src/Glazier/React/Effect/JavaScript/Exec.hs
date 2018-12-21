@@ -10,7 +10,7 @@ execJavascript ::
     MonadIO m
     => (c -> m ()) -> JavaScriptCmd c -> m ()
 execJavascript executor c = case c of
-    SetProperty prop j -> liftIO $ JE.setProperty prop j
+    SetProperty prop j -> liftIO $ JE.setPropertyIO prop j
     GetProperty n j k -> do
-        r <- liftIO $ JE.getProperty n j
+        r <- liftIO $ JE.getPropertyIO n j
         executor $ k r

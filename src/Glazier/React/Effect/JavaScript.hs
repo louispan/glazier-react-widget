@@ -5,10 +5,11 @@
 
 module Glazier.React.Effect.JavaScript where
 
-import Control.Monad.Trans.Maybe
 import Data.Diverse.Lens
+import GHC.Stack
 import qualified GHCJS.Types as J
 import Glazier.Command
+import Glazier.React.Reactor
 import qualified JavaScript.Extras as JE
 
 type AsJavascript c = AsFacet (JavaScriptCmd c) c
@@ -36,10 +37,23 @@ instance Show (JavaScriptCmd c) where
         . showsPrec 11 (JE.toJSR j)
         . showString "}"
 
-maybeGetProperty ::
-    ( AsJavascript c
+-- | get a property of any JSVal. If a null or undefined is queried, the result will also be null
+getProperty ::
+    ( HasCallStack
+    , AsReactor c
+    , AsJavascript c
     , MonadCommand c m
-    , JE.FromJS a
     , JE.ToJS j)
-    => J.JSString -> j -> MaybeT m a
-maybeGetProperty n j = MaybeT . fmap JE.fromJSR . eval' $ GetProperty n j
+    => J.JSString -> j -> m JE.JSRep
+getProperty n j = tracedEval' callStack $ GetProperty n j
+
+-- | set a property of any JSVal
+setProperty ::
+    ( HasCallStack
+    , AsReactor c
+    , AsJavascript c
+    , MonadCommand c m
+    , JE.ToJS j
+    )
+    => JE.Property -> j -> m ()
+setProperty p j = tracedExec' callStack $ SetProperty p j

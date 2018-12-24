@@ -6,7 +6,6 @@
 
 module Glazier.React.Widgets.Collection.Dynamic
     ( DynamicCollection(..)
-    , HKDynamicCollection
     , _filterCriteria
     , _sortCriteria
     , _visibleList
@@ -28,21 +27,19 @@ import Glazier.React.Widgets.Collection
 
 -- | Contains information on sorting and filtering the items in a collection
 -- differerently from the native data structure.
-data DynamicCollection ftr srt k a f = DynamicCollection
+data DynamicCollection ftr srt k a = DynamicCollection
     { filterCriteria :: ftr
     , sortCriteria :: srt
-    , visibleList :: [HKD f a] -- filtered and sorted.
-    , rawCollection :: M.Map k (HKD f a)
+    , visibleList :: [Obj a] -- filtered and sorted.
+    , rawCollection :: M.Map k (Obj a)
     } deriving (G.Generic)
-
-type HKDynamicCollection ftr srt k a f = DynamicCollection ftr srt k (a f) f
 
 makeLenses_ ''DynamicCollection
 
 updateVisibleList ::
     (ftr -> s -> Benign IO Bool)
     -> (srt -> s -> s -> Benign IO Ordering)
-    -> ModelState (DynamicCollection ftr srt k s Obj) ()
+    -> ModelState (DynamicCollection ftr srt k s) ()
 updateVisibleList ff fs = do
     zs@(DynamicCollection ftr srt _ xs) <- use id
     let xs' = toList xs
@@ -56,5 +53,5 @@ updateVisibleList ff fs = do
     ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
     id .= zs { visibleList = ys }
 
-dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s Obj) ()
+dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s) ()
 dynamicCollectionWindow k = magnifiedModel _visibleList $ collectionWindow k

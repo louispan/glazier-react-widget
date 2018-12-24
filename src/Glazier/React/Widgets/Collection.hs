@@ -13,15 +13,12 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Glazier.React.Widgets.Collection
-    ( HKD
-    , UKey
+    ( UKey
     , zeroUKey
     , smallerUKey
     , largerUKey
     , betweenUKey
     -- * Collection
-    , Collection
-    , HKCollection
     , collectionWindow
     ) where
 
@@ -30,12 +27,6 @@ import Data.Foldable
 import qualified GHC.Generics as G
 import Glazier.React
 import qualified JavaScript.Extras as JE
-
--- "Higher-Kinded Data" http://reasonablypolymorphic.com/blog/higher-kinded-data/
--- Erases Identity
-type family HKD f a where
-    HKD Identity a = a
-    HKD f        a = f a
 
 -- | A key where you can always create
 -- another key ordered between two different keys,
@@ -112,12 +103,6 @@ betweenUncInt x y =
     in xq + yq + z
 
 -----------------------------------------------------------------
-
--- | Collection of higher kinded data
-type Collection t s f = t (HKD f s)
-
--- | Collection of higher kinded "higher kinded data"
-type HKCollection t s f = t (HKD f (s f))
 
 collectionWindow :: (Functor t, Foldable t)
     => ReactId -> Window (t (Obj s)) ()

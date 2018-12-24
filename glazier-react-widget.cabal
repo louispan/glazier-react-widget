@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:
+  exposed-modules:     Data.UKey
                        Glazier.React.Action
                        Glazier.React.Action.KeyDownKey
                        Glazier.React.Effect

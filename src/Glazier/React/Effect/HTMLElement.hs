@@ -6,7 +6,6 @@ module Glazier.React.Effect.HTMLElement where
 
 import Data.Diverse.Lens
 import Glazier.React
-import GHC.Stack
 
 type AsHTMLElement c = AsFacet HTMLElementCmd c
 
@@ -16,18 +15,16 @@ data HTMLElementCmd = Focus EventTarget | Blur EventTarget
 
 focus ::
     ( HasCallStack
-    , AsReactor c
+    , MonadReactor c m
     , AsHTMLElement c
-    , MonadCommand c m
     )
     => EventTarget -> m ()
 focus j = tracedExec callStack $ Focus j
 
 blur ::
     ( HasCallStack
-    , AsReactor c
+    , MonadReactor c m
     , AsHTMLElement c
-    , MonadCommand c m
     )
     => EventTarget -> m ()
 blur j = tracedExec callStack $ Blur j

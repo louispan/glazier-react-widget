@@ -6,10 +6,8 @@
 module Glazier.React.Effect.JavaScript where
 
 import Data.Diverse.Lens
-import GHC.Stack
 import qualified GHCJS.Types as J
-import Glazier.Command
-import Glazier.React.Reactor
+import Glazier.React
 import qualified JavaScript.Extras as JE
 
 type AsJavascript c = AsFacet (JavaScriptCmd c) c
@@ -40,9 +38,8 @@ instance Show (JavaScriptCmd c) where
 -- | get a property of any JSVal. If a null or undefined is queried, the result will also be null
 getProperty ::
     ( HasCallStack
-    , AsReactor c
+    , MonadReactor c m
     , AsJavascript c
-    , MonadCommand c m
     , JE.ToJS j)
     => J.JSString -> j -> m JE.JSRep
 getProperty n j = tracedEval' callStack $ GetProperty n j
@@ -50,9 +47,8 @@ getProperty n j = tracedEval' callStack $ GetProperty n j
 -- | set a property of any JSVal
 setProperty ::
     ( HasCallStack
-    , AsReactor c
+    , MonadReactor c m
     , AsJavascript c
-    , MonadCommand c m
     , JE.ToJS j
     )
     => JE.Property -> j -> m ()

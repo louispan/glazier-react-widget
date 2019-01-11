@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Data.UKey
     ( UKey
@@ -7,8 +8,10 @@ module Data.UKey
     , largerUKey
     , betweenUKey
     ) where
+
 import qualified GHC.Generics as G
 import qualified JavaScript.Extras as JE
+import qualified Data.Aeson as A
 
 -- | A key where you can always create
 -- another key ordered between two different keys,
@@ -34,6 +37,15 @@ instance Eq UKey where
     (UKey (x : xs)) == (UKey (y : ys)) = if x == y
         then (UKey xs) == (UKey ys)
         else False
+
+instance A.ToJSON UKey where
+    toEncoding = A.genericToEncoding A.defaultOptions
+
+instance A.FromJSON UKey
+
+instance A.ToJSONKey UKey
+
+instance A.FromJSONKey UKey
 
 zeroUKey :: UKey
 zeroUKey = UKey []

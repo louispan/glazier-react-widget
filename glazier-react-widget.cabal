@@ -27,6 +27,8 @@ library
                        Glazier.React.Widgets.Collection
                        Glazier.React.Widgets.Collection.Dynamic
   build-depends:       base >= 4.7 && < 5
+                     , aeson >= 1.1.2
+                     , aeson-applicative >= 1.4
                      , containers >= 0.5
                      , data-diverse >= 4.6
                      , data-diverse-lens >= 4.3
@@ -41,6 +43,7 @@ library
                      , monadlist >= 0
                      , mtl >= 2
                      , tagged >= 0.8
+                     , text >= 1.2
                      , transformers >= 0.4
   default-language:    Haskell2010
   default-extensions:  ApplicativeDo

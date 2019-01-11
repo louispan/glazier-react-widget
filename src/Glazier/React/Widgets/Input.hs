@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -25,6 +26,7 @@ import GHC.Stack
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.State.Strict
+import qualified Data.Aeson.Applicative as A
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
 import Data.Tagged
@@ -182,6 +184,9 @@ data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     } deriving (G.Generic, Show, Eq, Ord)
 
 makeLenses_ ''IndeterminateCheckboxInput
+
+instance Applicative m => A.AToJSON m IndeterminateCheckboxInput
+instance Applicative m => A.AFromJSON m IndeterminateCheckboxInput
 
 -- | Variation of 'checkboxInput' supporting indeterminate state.
 indeterminateCheckboxInput ::

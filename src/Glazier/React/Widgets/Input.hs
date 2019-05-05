@@ -13,19 +13,20 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Glazier.React.Widgets.Input
-    ( -- * Text input
-    textInput
-    -- * Checkbox input
-    , checkboxInput
-    , IndeterminateCheckboxInput(..)
-    , indeterminateCheckboxInput
-    ) where
+module Glazier.React.Widgets.Input where
+    -- ( -- * Text input
+    -- textInput
+    -- -- * Checkbox input
+    -- , checkboxInput
+    -- , IndeterminateCheckboxInput(..)
+    -- , indeterminateCheckboxInput
+    -- ) where
 
 import GHC.Stack
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.State.Strict
+import qualified Data.Aeson as A
 import qualified Data.Aeson.Applicative as A
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
@@ -60,57 +61,54 @@ textInput ::
     ( HasCallStack
     , AsReactor c
     , AsJavascript c
+    , MonadWidget c s m
+    , Observer (InputChange ReactId) m
     )
-    => ReactId -> Widget c o J.JSString (InputChange ReactId)
-textInput k =
-    let win = do
-            s <- ask
-            lf' k "input"
-                [ ("key", reactIdKey' k)
-                -- "value" cannot be used as React will take over as a controlled component.
-                -- The defaultValue only sets the *initial* DOM value
-                -- The user will need to modify reactKey if they want
-                -- react to actually rerender, since React will not do anything
-                -- even if defaultValue changes.
-                -- But hopefully this is not necessary as the DOM inpt value
-                -- is updated under the hood in onInitialized
-                , ("defaultValue", JE.toJSR $ s ^. _model)
-                ]
-        gad = (finish hdlRendered)
-            `also` hdlChange
-    in (display win) `also` (lift gad)
+    => Traversal' s J.JSString -> m ()
+textInput this = lf' "input"
+    -- "value" cannot be used as React will take over as a controlled component.
+    -- The defaultValue only sets the *initial* DOM value
+    -- The user will need to modify reactKey if they want
+    -- react to actually rerender, since React will not do anything
+    -- even if defaultValue changes.
+    -- But hopefully this is not necessary as the DOM inpt value
+    -- is updated under the hood in onInitialized
+    [("default", prop this)]
+    [hdlRendered this, hdlChange this]
   where
-
     -- | Modify the DOM input value after every render to match the model value
     hdlRendered ::
         ( HasCallStack
         , AsReactor c
         , AsJavascript c
+        , MonadGadget c s m
         )
-        => Gadget c p J.JSString ()
-    hdlRendered = onRendered $ do
-        s <- getModel
-        j <- getElementalRef k
-        (`evalMaybeT` ()) $ do
-            start <- MaybeT $ JE.fromJSR <$> getProperty "selectionStart" j
-            end <- MaybeT $ JE.fromJSR <$> getProperty "selectionEnd" j
-            v <- MaybeT $ JE.fromJSR <$> getProperty "value" j
-            let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-            setProperty ("value", JE.toJSR s) j
-            setProperty ("selectionStart", JE.toJSR a) j
-            setProperty ("selectionEnd", JE.toJSR b) j
+        => Traversal' s J.JSString -> m ()
+    hdlRendered this = onRendered $ do
+        s <- getModel this
+        j <- getReactRef
+        start <- fromProperty "selectionStart" j
+        end <- fromProperty "selectionEnd" j
+        v <- fromProperty "value" j
+        let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
+        setProperty ("value", JE.toJSRep s) j
+        setProperty ("selectionStart", JE.toJSRep a) j
+        setProperty ("selectionEnd", JE.toJSRep b) j
 
     hdlChange ::
         ( AsReactor c
         , AsJavascript c
+        , MonadGadget c s m
+        , Observer (InputChange ReactId) m
         )
-        => Gadget c p J.JSString (InputChange ReactId)
-    hdlChange = do
-        j <- trigger k "onChange" (pure . target . toSyntheticEvent)
-        maybeDelegate () $ runMaybeT $ do
-            v <- MaybeT $ JE.fromJSR <$> getProperty "value" j
-            mutate k $ id .= v
-            pure $ Tagged @"InputChange" k
+        => Traversal' s J.JSString -> m ()
+        -- => Gadget c p J.JSString (InputChange ReactId)
+    hdlChange this = do
+        k <- askReactId
+        j <- trigger "onChange" (pure . target . toSyntheticEvent)
+        v <- fromProperty "value" j
+        mutate this $ id .= v
+        observe $ Tagged @"InputChange" k
 
 -- This returns an greedy selection range for a new string based
 -- on the selection range on the original string, using a diffing algo.
@@ -153,58 +151,60 @@ estimateSelectionRange before after start end =
 
 ----------------------------------------
 
--- | This is a 'React controlled' checkbox.
--- For checkboxes,  React uses controlled checkbox if input.checked is not null
--- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
-checkboxInput ::
-    (AsReactor c)
-    => ReactId -> Widget c p Bool (InputChange ReactId)
-checkboxInput k =
-    let win = do
-            s <- ask
-            lf' k "input"
-                [ ("key", reactIdKey' k)
-                , ("type", "checkbox")
-                , ("checked", JE.toJSR $ s ^. _model)
-                ]
-        gad = hdlChange
-    in (display win) `also` (lift gad)
-  where
-    hdlChange ::
-        (AsReactor c)
-        => Gadget c p Bool (InputChange ReactId)
-    hdlChange = do
-        trigger_ k "onChange" ()
-        mutate k $ id %= not
-        pure $ Tagged @"InputChange" k
+-- -- | This is a 'React controlled' checkbox.
+-- -- For checkboxes,  React uses controlled checkbox if input.checked is not null
+-- -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
+-- checkboxInput ::
+--     (AsReactor c)
+--     => ReactId -> Widget c p Bool (InputChange ReactId)
+-- checkboxInput k =
+--     let win = do
+--             s <- ask
+--             lf' k "input"
+--                 [ ("key", reactIdKey' k)
+--                 , ("type", "checkbox")
+--                 , ("checked", JE.toJSRep $ s ^. _model)
+--                 ]
+--         gad = hdlChange
+--     in (display win) `also` (lift gad)
+--   where
+--     hdlChange ::
+--         (AsReactor c)
+--         => Gadget c p Bool (InputChange ReactId)
+--     hdlChange = do
+--         trigger_ k "onChange" ()
+--         mutate k $ id %= not
+--         pure $ Tagged @"InputChange" k
 
-data IndeterminateCheckboxInput = IndeterminateCheckboxInput
-    { checked :: Bool
-    , indeterminate :: Bool
-    } deriving (G.Generic, Show, Eq, Ord)
+-- data IndeterminateCheckboxInput = IndeterminateCheckboxInput
+--     { checked :: Bool
+--     , indeterminate :: Bool
+--     } deriving (G.Generic, Show, Eq, Ord)
 
-makeLenses_ ''IndeterminateCheckboxInput
+-- makeLenses_ ''IndeterminateCheckboxInput
 
-instance Applicative m => A.AToJSON m IndeterminateCheckboxInput
-instance Applicative m => A.AFromJSON m IndeterminateCheckboxInput
+-- instance A.ToJSON IndeterminateCheckboxInput where toEncoding = A.genericToEncoding A.defaultOptions
+-- instance A.FromJSON IndeterminateCheckboxInput
+-- instance Applicative m => A.AToJSON m IndeterminateCheckboxInput
+-- instance Applicative m => A.AFromJSON m IndeterminateCheckboxInput
 
--- | Variation of 'checkboxInput' supporting indeterminate state.
-indeterminateCheckboxInput ::
-    ( AsReactor c
-    , AsJavascript c
-    )
-    => ReactId -> Widget c p IndeterminateCheckboxInput (InputChange ReactId)
-indeterminateCheckboxInput k = magnifyWidget _checked (checkboxInput k)
-    `also` finish (lift hdlRendered)
-  where
-    hdlRendered ::
-        ( AsReactor c
-        , AsJavascript c
-        )
-        => Gadget c p IndeterminateCheckboxInput ()
-    hdlRendered = onRendered $ do
-        j <- getElementalRef k
-        s <- getModel
-        (`evalMaybeT` ()) $ do
-            i <- MaybeT $ pure $ preview _indeterminate s
-            setProperty ("indeterminate", JE.toJSR i) j
+-- -- | Variation of 'checkboxInput' supporting indeterminate state.
+-- indeterminateCheckboxInput ::
+--     ( AsReactor c
+--     , AsJavascript c
+--     )
+--     => ReactId -> Widget c p IndeterminateCheckboxInput (InputChange ReactId)
+-- indeterminateCheckboxInput k = magnifyWidget _checked (checkboxInput k)
+--     `also` finish (lift hdlRendered)
+--   where
+--     hdlRendered ::
+--         ( AsReactor c
+--         , AsJavascript c
+--         )
+--         => Gadget c p IndeterminateCheckboxInput ()
+--     hdlRendered = onRendered $ do
+--         j <- getElementalRef k
+--         s <- getModel
+--         (`evalMaybeT` ()) $ do
+--             i <- MaybeT $ pure $ preview _indeterminate s
+--             setProperty ("indeterminate", JE.toJSRep i) j

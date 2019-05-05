@@ -26,30 +26,46 @@ instance Show (JavaScriptCmd c) where
         showString "SetProperty "
         . showsPrec 11 p
         . showChar ' '
-        . showsPrec 11 (JE.toJSR j)
+        . showsPrec 11 (JE.toJSRep j)
         . showString "}"
     showsPrec d (GetProperty n j _) = showParen (d >= 11) $
         showString "GetProperty "
         . showsPrec 11 n
         . showChar ' '
-        . showsPrec 11 (JE.toJSR j)
+        . showsPrec 11 (JE.toJSRep j)
         . showString "}"
 
 -- | get a property of any JSVal. If a null or undefined is queried, the result will also be null
 getProperty ::
     ( HasCallStack
-    , MonadReactor c m
     , AsJavascript c
+    , AsFacet LogLine c
+    , MonadCommand c m
+    , AskLogLevel m
     , JE.ToJS j)
     => J.JSString -> j -> m JE.JSRep
-getProperty n j = tracedEval' callStack $ GetProperty n j
+getProperty n j = logEval' TRACE callStack $ GetProperty n j
+
+fromProperty ::
+    ( HasCallStack
+    , AsJavascript c
+    , AsFacet LogLine c
+    , MonadCommand c m
+    , AskLogLevel m
+    , JE.ToJS j
+    , Alternative m
+    , JE.FromJS a)
+    => J.JSString -> j -> m a
+fromProperty n j = JE.fromJSRep =<< getProperty n j
 
 -- | set a property of any JSVal
 setProperty ::
     ( HasCallStack
-    , MonadReactor c m
     , AsJavascript c
+    , AsFacet LogLine c
+    , MonadProgram c m
+    , AskLogLevel m
     , JE.ToJS j
     )
     => JE.Property -> j -> m ()
-setProperty p j = tracedExec' callStack $ SetProperty p j
+setProperty p j = logExec' TRACE callStack $ SetProperty p j

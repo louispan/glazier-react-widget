@@ -24,8 +24,8 @@ library
                        Glazier.React.Effect.JavaScript
                        Glazier.React.Effect.JavaScript.Exec
                        Glazier.React.Widgets.Input
-                       Glazier.React.Widgets.Collection
-                       Glazier.React.Widgets.Collection.Dynamic
+                      --  Glazier.React.Widgets.Collection
+                      --  Glazier.React.Widgets.Collection.Dynamic
   build-depends:       base >= 4.7 && < 5
                      , aeson >= 1.1.2
                      , aeson-applicative >= 1.4

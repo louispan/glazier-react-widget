@@ -15,16 +15,20 @@ data HTMLElementCmd = Focus EventTarget | Blur EventTarget
 
 focus ::
     ( HasCallStack
-    , MonadReactor c m
     , AsHTMLElement c
+    , AsFacet LogLine c
+    , MonadProgram c m
+    , AskLogLevel m
     )
     => EventTarget -> m ()
-focus j = tracedExec callStack $ Focus j
+focus j = logExec TRACE callStack $ Focus j
 
 blur ::
     ( HasCallStack
-    , MonadReactor c m
     , AsHTMLElement c
+    , AsFacet LogLine c
+    , MonadProgram c m
+    , AskLogLevel m
     )
     => EventTarget -> m ()
-blur j = tracedExec callStack $ Blur j
+blur j = logExec TRACE callStack $ Blur j

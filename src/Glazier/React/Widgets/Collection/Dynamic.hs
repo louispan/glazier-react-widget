@@ -31,15 +31,15 @@ import Glazier.React.Widgets.Collection
 data DynamicCollection ftr srt k s = DynamicCollection
     { filterCriteria :: ftr
     , sortCriteria :: srt
-    , visibleList :: [Obj s] -- filtered and sorted.
-    , rawCollection :: M.Map k (Obj s)
-    } deriving (G.Generic)
+    , visibleList :: [s] -- filtered and sorted.
+    , rawCollection :: M.Map k s
+    } deriving (G.Generic, Functor)
 
 makeLenses_ ''DynamicCollection
 
 instance
     ( A.ToJSONKey k
-    , A.AToJSON m (Obj s)
+    , A.AToJSON m s
     , A.AToJSON m ftr
     , A.AToJSON m srt
     )
@@ -51,55 +51,73 @@ instance
         sortCriteria' = AE.pair "sortCriteria" <$> A.atoEncoding sortCriteria
         rawCollection' = AE.pair "rawCollection" <$> A.atoEncoding rawCollection
 
--- FIXME: updateVisibleList
 instance
-    ( FilterPredicate ftr s
-    , SortPredicate srt s
-    , MonadReactor c m
-    , A.FromJSONKey k
+    ( A.FromJSONKey k
     , Ord k
-    , A.AFromJSON m (Obj s)
+    , A.AFromJSON m s
     , A.AFromJSON m ftr
     , A.AFromJSON m srt
+    , MonadReactor c m
     )
-    => A.AFromJSON m (DynamicCollection ftr srt k s) where
+    => A.AFromJSON (ReaderT (ftr -> s -> Benign IO Bool, srt -> s -> s -> Benign IO Ordering) m) (DynamicCollection ftr srt k s) where
     aparseJSON = A.withObject "DynamicCollection" $ \v -> fmap go $ getCompose $ DynamicCollection
-        <$> (Compose $ A.aparseField v "filterCriteria")
-        <*> (Compose $ A.aparseField v "sortCriteria")
-        <*> (pure mempty)
-        <*> (Compose $ A.aparseField v "rawCollection")
+            <$> (Compose $ lift <$> A.aparseField v "filterCriteria")
+            <*> (Compose $ lift <$> A.aparseField v "sortCriteria")
+            <*> (pure mempty)
+            <*> (Compose $ lift <$> A.aparseField v "rawCollection")
       where
-        go ::
-            ( FilterPredicate ftr s
-            , SortPredicate srt s
-            , MonadReactor c m
-            ) => m (DynamicCollection ftr srt k s) -> m (DynamicCollection ftr srt k s)
         go m = do
+            (fftr, fsrt) <- ask
             s <- m
-            evalBenignIO (execStateT updateVisibleList s)
+            lift $ evalBenignIO (execStateT (updateVisibleList fftr fsrt) s)
 
-class FilterPredicate ftr s where
-    filterPredicate :: ftr -> s -> Benign IO Bool
+instance
+    ( A.FromJSONKey k
+    , Ord k
+    , A.AFromJSON m ftr
+    , A.AFromJSON m srt
+    , MonadReactor c m
+    )
+    => A.AFromJSON1 (ReaderT (ftr -> s -> Benign IO Bool, srt -> s -> s -> Benign IO Ordering) m) (DynamicCollection ftr srt k) where
+    aliftParseJSON p _ = A.withObject "DynamicCollection" $ \v -> fmap go $ getCompose $ DynamicCollection
+            <$> (Compose $ lift <$> A.aparseField v "filterCriteria")
+            <*> (Compose $ lift <$> A.aparseField v "sortCriteria")
+            <*> (pure mempty)
+            <*> (Compose $ lift <$> A.aparseField v "rawCollection")
+      where
+        go m = do
+            (fftr, fsrt) <- ask
+            s <- m
+            lift $ evalBenignIO (execStateT (updateVisibleList fftr fsrt) s)
 
-class SortPredicate srt s where
-    sortPredicate :: srt -> s -> s -> Benign IO Ordering
+-- class FilterPredicate ftr s where
+--     filterPredicate :: ftr -> s -> Benign IO Bool
+
+-- class SortPredicate srt s where
+--     sortPredicate :: srt -> s -> s -> Benign IO Ordering
+
+-- instance FilterPredicate () s where
+--     filterPredicate _ _ = pure True -- always allow
+
+-- instance SortPredicate () s where
+--     sortPredicate _ _ _ = pure LT -- just use container order
 
 updateVisibleList ::
-    ( FilterPredicate ftr s
-    , SortPredicate srt s
-    ) => ModelState (DynamicCollection ftr srt k s) ()
-updateVisibleList = do
+    (ftr -> s -> Benign IO Bool)
+    -> (srt -> s -> s -> Benign IO Ordering)
+    -> SceneState (DynamicCollection ftr srt k s) ()
+updateVisibleList fftr fsrt = do
     zs@(DynamicCollection ftr srt _ xs) <- use id
     let xs' = toList xs
-        ftr' x = do
-            x' <- benignReadIORef $ modelRef x
-            filterPredicate ftr (model x')
-        srt' x y = do
-            x' <- benignReadIORef $ modelRef x
-            y' <- benignReadIORef $ modelRef y
-            sortPredicate srt (model x') (model y')
-    ys <- lift $ LM.filterMP ftr' xs' >>= LM.sortByM srt'
+        -- ftr' x = do
+        --     x' <- benignReadIORef $ sceneRef x
+        --     filterPredicate ftr (model x')
+        -- srt' x y = do
+        --     x' <- benignReadIORef $ sceneRef x
+        --     y' <- benignReadIORef $ sceneRef y
+        --     sortPredicate srt (model x') (model y')
+    ys <- lift $ LM.filterMP (fftr ftr) xs' >>= LM.sortByM (fsrt srt)
     id .= zs { visibleList = ys }
 
-dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k s) ()
+dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k (Obj s)) ()
 dynamicCollectionWindow k = magnifiedModel _visibleList $ collectionWindow k

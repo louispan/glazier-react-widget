@@ -26,6 +26,7 @@ import GHC.Stack
 import Control.Lens
 import Control.Lens.Misc
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Extras
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Applicative as A
 import qualified Data.Algorithm.Diff as D
@@ -73,18 +74,11 @@ textInput this = lf' "input"
     -- even if defaultValue changes.
     -- But hopefully this is not necessary as the DOM inpt value
     -- is updated under the hood in onInitialized
-    [("default", prop this)]
-    [hdlRendered this, hdlChange this]
+    [("default", winProp $ preview this)]
+    [hdlRendered, hdlChange]
   where
     -- | Modify the DOM input value after every render to match the model value
-    hdlRendered ::
-        ( HasCallStack
-        , AsReactor c
-        , AsJavascript c
-        , MonadGadget c s m
-        )
-        => Traversal' s J.JSString -> m ()
-    hdlRendered this = onRendered $ do
+    hdlRendered = onRendered $ do
         s <- getModel this
         j <- getReactRef
         start <- fromProperty "selectionStart" j
@@ -95,15 +89,7 @@ textInput this = lf' "input"
         setProperty ("selectionStart", JE.toJSRep a) j
         setProperty ("selectionEnd", JE.toJSRep b) j
 
-    hdlChange ::
-        ( AsReactor c
-        , AsJavascript c
-        , MonadGadget c s m
-        , Observer (InputChange ReactId) m
-        )
-        => Traversal' s J.JSString -> m ()
-        -- => Gadget c p J.JSString (InputChange ReactId)
-    hdlChange this = do
+    hdlChange = do
         k <- askReactId
         j <- trigger "onChange" (pure . target . toSyntheticEvent)
         v <- fromProperty "value" j
@@ -151,44 +137,53 @@ estimateSelectionRange before after start end =
 
 ----------------------------------------
 
--- -- | This is a 'React controlled' checkbox.
--- -- For checkboxes,  React uses controlled checkbox if input.checked is not null
--- -- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
--- checkboxInput ::
---     (AsReactor c)
---     => ReactId -> Widget c p Bool (InputChange ReactId)
--- checkboxInput k =
---     let win = do
---             s <- ask
---             lf' k "input"
---                 [ ("key", reactIdKey' k)
---                 , ("type", "checkbox")
---                 , ("checked", JE.toJSRep $ s ^. _model)
---                 ]
---         gad = hdlChange
---     in (display win) `also` (lift gad)
---   where
---     hdlChange ::
---         (AsReactor c)
---         => Gadget c p Bool (InputChange ReactId)
---     hdlChange = do
---         trigger_ k "onChange" ()
---         mutate k $ id %= not
---         pure $ Tagged @"InputChange" k
+-- | This is a 'React controlled' checkbox.
+-- For checkboxes,  React uses controlled checkbox if input.checked is not null
+-- https://stackoverflow.com/questions/37427508/react-changing-an-uncontrolled-input
+checkboxInput ::
+    ( HasCallStack
+    , AsReactor c
+    , MonadWidget c s m
+    , Observer (InputChange ReactId) m
+    )
+    => Traversal' s Bool -> m ()
+checkboxInput this = lf' "input"
+    [ ("type", strProp "checkbox")
+    , ("checked", winProp $ preview this)
+    ]
+    [hdlChange]
+  where
+    hdlChange = do
+        k <- askReactId
+        trigger_ "onChange" ()
+        mutate this $ id %= not
+        observe $ Tagged @"InputChange" k
 
--- data IndeterminateCheckboxInput = IndeterminateCheckboxInput
---     { checked :: Bool
---     , indeterminate :: Bool
---     } deriving (G.Generic, Show, Eq, Ord)
+data IndeterminateCheckboxInput = IndeterminateCheckboxInput
+    { checked :: Bool
+    , indeterminate :: Bool
+    } deriving (G.Generic, Show, Eq, Ord)
 
--- makeLenses_ ''IndeterminateCheckboxInput
+makeLenses_ ''IndeterminateCheckboxInput
 
--- instance A.ToJSON IndeterminateCheckboxInput where toEncoding = A.genericToEncoding A.defaultOptions
+instance A.ToJSON IndeterminateCheckboxInput where toEncoding = A.genericToEncoding A.defaultOptions
+instance Applicative m => A.AToJSON m IndeterminateCheckboxInput
+
 -- instance A.FromJSON IndeterminateCheckboxInput
--- instance Applicative m => A.AToJSON m IndeterminateCheckboxInput
 -- instance Applicative m => A.AFromJSON m IndeterminateCheckboxInput
 
--- -- | Variation of 'checkboxInput' supporting indeterminate state.
+-- | Variation of 'checkboxInput' supporting indeterminate state.
+indeterminateCheckboxInput ::
+    ( HasCallStack
+    , AsReactor c
+    , AsJavascript c
+    , MonadWidget c s m
+    , Observer (InputChange ReactId) m
+    )
+    => Traversal' s IndeterminateCheckboxInput -> m ()
+indeterminateCheckboxInput this = checkboxInput _checked
+-- How to attach additional props and listeners
+
 -- indeterminateCheckboxInput ::
 --     ( AsReactor c
 --     , AsJavascript c

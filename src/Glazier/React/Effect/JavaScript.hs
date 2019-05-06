@@ -14,7 +14,7 @@ type AsJavascript c = AsFacet (JavaScriptCmd c) c
 
 data JavaScriptCmd c where
     SetProperty :: JE.ToJS j
-        => JE.Property -> j -> JavaScriptCmd c
+        => (J.JSString, JE.JSRep) -> j -> JavaScriptCmd c
     GetProperty :: JE.ToJS j
         => J.JSString
         -> j
@@ -66,6 +66,7 @@ setProperty ::
     , MonadProgram c m
     , AskLogLevel m
     , JE.ToJS j
+    , JE.ToJS v
     )
-    => JE.Property -> j -> m ()
-setProperty p j = logExec' TRACE callStack $ SetProperty p j
+    => (J.JSString, v) -> j -> m ()
+setProperty (p, v) j = logExec' TRACE callStack $ SetProperty (p, JE.toJSRep v) j

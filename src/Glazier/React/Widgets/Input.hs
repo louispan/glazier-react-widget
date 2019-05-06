@@ -12,25 +12,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
 
 module Glazier.React.Widgets.Input where
-    -- ( -- * Text input
-    -- textInput
-    -- -- * Checkbox input
-    -- , checkboxInput
-    -- , IndeterminateCheckboxInput(..)
-    -- , indeterminateCheckboxInput
-    -- ) where
 
 import GHC.Stack
 import Control.Lens
 import Control.Lens.Misc
-import Control.Monad.State.Strict
-import Control.Monad.Trans.Extras
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Applicative as A
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
+import qualified Data.DList as DL
 import Data.Tagged
 import qualified GHC.Generics as G
 import Glazier.React
@@ -65,8 +59,11 @@ textInput ::
     , MonadWidget c s m
     , Observer (InputChange ReactId) m
     )
-    => Traversal' s J.JSString -> m ()
-textInput this = lf' "input"
+    => Traversal' s J.JSString
+    -> DL.DList (J.JSString, Prop s)
+    -> DL.DList (m ())
+    -> m ()
+textInput this props gads = lf' "input"
     -- "value" cannot be used as React will take over as a controlled component.
     -- The defaultValue only sets the *initial* DOM value
     -- The user will need to modify reactKey if they want
@@ -74,8 +71,8 @@ textInput this = lf' "input"
     -- even if defaultValue changes.
     -- But hopefully this is not necessary as the DOM inpt value
     -- is updated under the hood in onInitialized
-    [("default", winProp $ preview this)]
-    [hdlRendered, hdlChange]
+    ([("default", propM $ preview this)] <> props)
+    ([hdlRendered, hdlChange] <> gads)
   where
     -- | Modify the DOM input value after every render to match the model value
     hdlRendered = onRendered $ do
@@ -96,44 +93,44 @@ textInput this = lf' "input"
         mutate this $ id .= v
         observe $ Tagged @"InputChange" k
 
--- This returns an greedy selection range for a new string based
--- on the selection range on the original string, using a diffing algo.
---
--- https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/setSelectionRange
--- selectionStart
--- The 0-based index of the first selected character.
--- selectionEnd
--- The 0-based index of the character after the last selected character.
---
--- So if there is no selection then selectionEnd == selectionStart
-estimateSelectionRange :: String -> String -> Int -> Int -> (Int, Int)
-estimateSelectionRange before after start end =
-    let ds = D.getDiff before after
-    in go ds start end 0 0
-  where
-    go :: [D.Diff Char] -> Int -> Int -> Int -> Int -> (Int, Int)
-    go [] _ _ a b = (a, b)
-    go (d : ds) s e a b =
-        if (s <= 0 && e <= -1)
-            then (a, b)
-            else
-                let (s', a') = step d s a
-                    (e', b') = greedyStep d e b
-                in go ds s' e' a' b'
+    -- This returns an greedy selection range for a new string based
+    -- on the selection range on the original string, using a diffing algo.
+    --
+    -- https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/setSelectionRange
+    -- selectionStart
+    -- The 0-based index of the first selected character.
+    -- selectionEnd
+    -- The 0-based index of the character after the last selected character.
+    --
+    -- So if there is no selection then selectionEnd == selectionStart
+    estimateSelectionRange :: String -> String -> Int -> Int -> (Int, Int)
+    estimateSelectionRange before after start end =
+        let ds = D.getDiff before after
+        in go ds start end 0 0
+      where
+        go :: [D.Diff Char] -> Int -> Int -> Int -> Int -> (Int, Int)
+        go [] _ _ a b = (a, b)
+        go (d : ds) s e a b =
+            if (s <= 0 && e <= -1)
+                then (a, b)
+                else
+                    let (s', a') = step d s a
+                        (e', b') = greedyStep d e b
+                    in go ds s' e' a' b'
 
-    step :: D.Diff Char -> Int -> Int -> (Int, Int)
-    step (D.First _) s s' = (if s > 0 then s - 1 else 0, s')
-    step (D.Second _) s s' = (s, if s > 0 then s' + 1 else s')
-    step (D.Both _ _) s s' = if s > 0
-        then (s - 1, s' + 1)
-        else (0, s')
+        step :: D.Diff Char -> Int -> Int -> (Int, Int)
+        step (D.First _) s s' = (if s > 0 then s - 1 else 0, s')
+        step (D.Second _) s s' = (s, if s > 0 then s' + 1 else s')
+        step (D.Both _ _) s s' = if s > 0
+            then (s - 1, s' + 1)
+            else (0, s')
 
-    greedyStep :: D.Diff Char -> Int -> Int -> (Int, Int)
-    greedyStep (D.First _) s s' = (if s >= 0 then s - 1 else (-1), s')
-    greedyStep (D.Second _) s s' = (s, if s >= 0 then s' + 1 else s')
-    greedyStep (D.Both _ _) s s' = if s > 0
-        then (s - 1, s' + 1)
-        else (-1, s')
+        greedyStep :: D.Diff Char -> Int -> Int -> (Int, Int)
+        greedyStep (D.First _) s s' = (if s >= 0 then s - 1 else (-1), s')
+        greedyStep (D.Second _) s s' = (s, if s >= 0 then s' + 1 else s')
+        greedyStep (D.Both _ _) s s' = if s > 0
+            then (s - 1, s' + 1)
+            else (-1, s')
 
 ----------------------------------------
 
@@ -146,12 +143,15 @@ checkboxInput ::
     , MonadWidget c s m
     , Observer (InputChange ReactId) m
     )
-    => Traversal' s Bool -> m ()
-checkboxInput this = lf' "input"
-    [ ("type", strProp "checkbox")
-    , ("checked", winProp $ preview this)
-    ]
-    [hdlChange]
+    => Traversal' s Bool
+    -> DL.DList (J.JSString, Prop s)
+    -> DL.DList (m ())
+    -> m ()
+checkboxInput this props gads = lf' "input"
+    ([ ("type", strProp "checkbox")
+    , ("checked", propM $ preview this)
+    ] <> props)
+    ([hdlChange] <> gads)
   where
     hdlChange = do
         k <- askReactId
@@ -180,26 +180,17 @@ indeterminateCheckboxInput ::
     , MonadWidget c s m
     , Observer (InputChange ReactId) m
     )
-    => Traversal' s IndeterminateCheckboxInput -> m ()
-indeterminateCheckboxInput this = checkboxInput _checked
--- How to attach additional props and listeners
-
--- indeterminateCheckboxInput ::
---     ( AsReactor c
---     , AsJavascript c
---     )
---     => ReactId -> Widget c p IndeterminateCheckboxInput (InputChange ReactId)
--- indeterminateCheckboxInput k = magnifyWidget _checked (checkboxInput k)
---     `also` finish (lift hdlRendered)
---   where
---     hdlRendered ::
---         ( AsReactor c
---         , AsJavascript c
---         )
---         => Gadget c p IndeterminateCheckboxInput ()
---     hdlRendered = onRendered $ do
---         j <- getElementalRef k
---         s <- getModel
---         (`evalMaybeT` ()) $ do
---             i <- MaybeT $ pure $ preview _indeterminate s
---             setProperty ("indeterminate", JE.toJSRep i) j
+    => Traversal' s IndeterminateCheckboxInput
+    -> DL.DList (J.JSString, Prop s)
+    -> DL.DList (m ())
+    -> m ()
+indeterminateCheckboxInput this props gads =
+    checkboxInput (this._checked)
+    props
+    (hdlRendered `DL.cons` gads)
+  where
+    hdlRendered = onRendered $ do
+        j <- getReactRef
+        s <- getModel this
+        i <- whenJust $ preview _indeterminate s
+        setProperty ("indeterminate", i) j

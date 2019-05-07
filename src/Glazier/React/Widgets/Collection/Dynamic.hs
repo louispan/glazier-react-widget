@@ -51,25 +51,25 @@ instance
         sortCriteria' = AE.pair "sortCriteria" <$> A.atoEncoding sortCriteria
         rawCollection' = AE.pair "rawCollection" <$> A.atoEncoding rawCollection
 
-instance
-    ( A.FromJSONKey k
-    , Ord k
-    , A.AFromJSON m s
-    , A.AFromJSON m ftr
-    , A.AFromJSON m srt
-    , MonadReactor c m
-    )
-    => A.AFromJSON (ReaderT (ftr -> s -> Benign IO Bool, srt -> s -> s -> Benign IO Ordering) m) (DynamicCollection ftr srt k s) where
-    aparseJSON = A.withObject "DynamicCollection" $ \v -> fmap go $ getCompose $ DynamicCollection
-            <$> (Compose $ lift <$> A.aparseField v "filterCriteria")
-            <*> (Compose $ lift <$> A.aparseField v "sortCriteria")
-            <*> (pure mempty)
-            <*> (Compose $ lift <$> A.aparseField v "rawCollection")
-      where
-        go m = do
-            (fftr, fsrt) <- ask
-            s <- m
-            lift $ evalBenignIO (execStateT (updateVisibleList fftr fsrt) s)
+-- instance
+--     ( A.FromJSONKey k
+--     , Ord k
+--     , A.AFromJSON m s
+--     , A.AFromJSON m ftr
+--     , A.AFromJSON m srt
+--     , MonadReactor c m
+--     )
+--     => A.AFromJSON (ReaderT (ftr -> s -> Benign IO Bool, srt -> s -> s -> Benign IO Ordering) m) (DynamicCollection ftr srt k s) where
+--     aparseJSON = A.withObject "DynamicCollection" $ \v -> fmap go $ getCompose $ DynamicCollection
+--             <$> (Compose $ lift <$> A.aparseField v "filterCriteria")
+--             <*> (Compose $ lift <$> A.aparseField v "sortCriteria")
+--             <*> (pure mempty)
+--             <*> (Compose $ lift <$> A.aparseField v "rawCollection")
+--       where
+--         go m = do
+--             (fftr, fsrt) <- ask
+--             s <- m
+--             lift $ evalBenignIO (execStateT (updateVisibleList fftr fsrt) s)
 
 instance
     ( A.FromJSONKey k
@@ -119,5 +119,5 @@ updateVisibleList fftr fsrt = do
     ys <- lift $ LM.filterMP (fftr ftr) xs' >>= LM.sortByM (fsrt srt)
     id .= zs { visibleList = ys }
 
-dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k (Obj s)) ()
-dynamicCollectionWindow k = magnifiedModel _visibleList $ collectionWindow k
+-- dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k (Obj s)) ()
+-- dynamicCollectionWindow k = magnifiedModel _visibleList $ collectionWindow k

@@ -25,18 +25,18 @@ import qualified Data.Aeson.Applicative as A
 import qualified Data.Algorithm.Diff as D
 import qualified Data.JSString as J
 import qualified Data.DList as DL
-import Data.Tagged
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
 import Glazier.React.Event.Synthetic
-import qualified JavaScript.Extras as JE
 
 ----------------------------------------
 
+data InputChange = InputChange
+
 -- Tagged event. The convention is to fire "OnXXX" if the event is not handled
 -- or fire "XXX" to notify handled events.
-type InputChange = Tagged "InputChange"
+-- type InputChange = Tagged "InputChange"
 
 -- | Text inputs dosn't interact well as a React controlled component.
 -- Eg. cursor jumps if user types quickly.
@@ -57,13 +57,13 @@ textInput ::
     , AsReactor c
     , AsJavascript c
     , MonadWidget c s m
-    , Observer (InputChange ReactId) m
+    , Observer (InputChange) m
     )
     => Traversal' s J.JSString
     -> DL.DList (J.JSString, Prop s)
     -> DL.DList (m ())
     -> m ()
-textInput this props gads = lf' "input"
+textInput this props gads = lf "input"
     -- "value" cannot be used as React will take over as a controlled component.
     -- The defaultValue only sets the *initial* DOM value
     -- The user will need to modify reactKey if they want
@@ -77,21 +77,20 @@ textInput this props gads = lf' "input"
     -- | Modify the DOM input value after every render to match the model value
     hdlRendered = onRendered $ do
         s <- getModel this
-        j <- getReactRef
+        j <- getReactRef -- "input" element
         start <- fromProperty "selectionStart" j
         end <- fromProperty "selectionEnd" j
         v <- fromProperty "value" j
         let (a, b) = estimateSelectionRange (J.unpack v) (J.unpack s) start end
-        setProperty ("value", JE.toJSRep s) j
-        setProperty ("selectionStart", JE.toJSRep a) j
-        setProperty ("selectionEnd", JE.toJSRep b) j
+        setProperty ("value", s) j
+        setProperty ("selectionStart", a) j
+        setProperty ("selectionEnd", b) j
 
     hdlChange = do
-        k <- askReactId
         j <- trigger "onChange" (pure . target . toSyntheticEvent)
         v <- fromProperty "value" j
-        mutate this $ id .= v
-        observe $ Tagged @"InputChange" k
+        mutate $ this .= v
+        observe InputChange
 
     -- This returns an greedy selection range for a new string based
     -- on the selection range on the original string, using a diffing algo.
@@ -141,23 +140,22 @@ checkboxInput ::
     ( HasCallStack
     , AsReactor c
     , MonadWidget c s m
-    , Observer (InputChange ReactId) m
+    , Observer InputChange m
     )
     => Traversal' s Bool
     -> DL.DList (J.JSString, Prop s)
     -> DL.DList (m ())
     -> m ()
-checkboxInput this props gads = lf' "input"
+checkboxInput this props gads = lf "input"
     ([ ("type", strProp "checkbox")
     , ("checked", propM $ preview this)
     ] <> props)
     ([hdlChange] <> gads)
   where
     hdlChange = do
-        k <- askReactId
         trigger_ "onChange" ()
-        mutate this $ id %= not
-        observe $ Tagged @"InputChange" k
+        mutate $ this %= not
+        observe InputChange
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -178,7 +176,7 @@ indeterminateCheckboxInput ::
     , AsReactor c
     , AsJavascript c
     , MonadWidget c s m
-    , Observer (InputChange ReactId) m
+    , Observer InputChange m
     )
     => Traversal' s IndeterminateCheckboxInput
     -> DL.DList (J.JSString, Prop s)

@@ -1,5 +1,5 @@
 name:                glazier-react-widget
-version:             1.1
+version:             2.0.0.0
 synopsis:            Generic widget library using glazier-react
 description:         Generic widget library using glazier-react. Please see README.md.
 homepage:            https://github.com/louispan/glazier-react-widget#readme
@@ -25,9 +25,9 @@ library
                        Glazier.React.Effect.JavaScript.Exec
                        Glazier.React.Widgets.Input
                        Glazier.React.Widgets.Collection
-                      --  Glazier.React.Widgets.Collection.Dynamic
+                       Glazier.React.Widgets.Collection.Dynamic
   build-depends:       base >= 4.7 && < 5
-                     , aeson >= 1.1.2
+                     , aeson >= 1.4.2
                      , aeson-applicative >= 1.4
                      , alternators >= 2.0
                      , containers >= 0.5

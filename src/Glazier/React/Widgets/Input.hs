@@ -5,26 +5,23 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE LiberalTypeSynonyms #-}
 
 module Glazier.React.Widgets.Input where
 
-import GHC.Stack
-import Control.Lens
-import Control.Lens.Misc
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Applicative as A
 import qualified Data.Algorithm.Diff as D
-import qualified Data.JSString as J
 import qualified Data.DList as DL
+import qualified Data.JSString as J
 import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
@@ -32,7 +29,7 @@ import Glazier.React.Event.Synthetic
 
 ----------------------------------------
 
-data InputChange = InputChange
+-- data InputChange = InputChange
 
 -- Tagged event. The convention is to fire "OnXXX" if the event is not handled
 -- or fire "XXX" to notify handled events.
@@ -57,7 +54,7 @@ textInput ::
     , AsReactor c
     , AsJavascript c
     , MonadWidget c s m
-    , Observer (InputChange) m
+    , Observer (Tagged "InputChange" ()) m
     )
     => Traversal' s J.JSString
     -> DL.DList (J.JSString, Prop s)
@@ -90,7 +87,7 @@ textInput this props gads = lf "input"
         j <- trigger "onChange" (pure . target . toSyntheticEvent)
         v <- fromProperty "value" j
         mutate $ this .= v
-        observe InputChange
+        observe $ Tagged @"InputChange" ()
 
     -- This returns an greedy selection range for a new string based
     -- on the selection range on the original string, using a diffing algo.
@@ -140,7 +137,7 @@ checkboxInput ::
     ( HasCallStack
     , AsReactor c
     , MonadWidget c s m
-    , Observer InputChange m
+    , Observer (Tagged "InputChange" ()) m
     )
     => Traversal' s Bool
     -> DL.DList (J.JSString, Prop s)
@@ -155,7 +152,7 @@ checkboxInput this props gads = lf "input"
     hdlChange = do
         trigger_ "onChange" ()
         mutate $ this %= not
-        observe InputChange
+        observe $ Tagged @"InputChange" ()
 
 data IndeterminateCheckboxInput = IndeterminateCheckboxInput
     { checked :: Bool
@@ -176,7 +173,7 @@ indeterminateCheckboxInput ::
     , AsReactor c
     , AsJavascript c
     , MonadWidget c s m
-    , Observer InputChange m
+    , Observer (Tagged "InputChange" ()) m
     )
     => Traversal' s IndeterminateCheckboxInput
     -> DL.DList (J.JSString, Prop s)

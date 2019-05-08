@@ -1,12 +1,24 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Glazier.React.Widgets.Collection where
 
 import Control.Lens
 import Glazier.React
+
+collectionWindow ::
+    ( Foldable t
+    , Monoid (t s')
+    )
+    => Traversal' s (t s')
+    -> (s' -> Window s ())
+    -> Window s ()
+collectionWindow this f = do
+    ss <- view (_model.this)
+    getAls (foldMap (Als . f) ss)
+
+-- mkCollection :: (s'' -> m s') -> t s'' -> m (Obj s)
+-- mkCollection =
 
 -- collectionWindow :: (Functor t, Foldable t)
 --     => ReactId -> Window (t (Obj s)) ()

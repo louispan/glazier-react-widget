@@ -66,8 +66,8 @@ textInput this props gads = lf "input"
     -- The user will need to modify reactKey if they want
     -- react to actually rerender, since React will not do anything
     -- even if defaultValue changes.
-    -- But hopefully this is not necessary as the DOM inpt value
-    -- is updated under the hood in onInitialized
+    -- But hopefully this is not necessary as the DOM input value
+    -- is updated under the hood in onRendered
     ([("default", propM $ preview this)] <> props)
     ([hdlRendered, hdlChange] <> gads)
   where

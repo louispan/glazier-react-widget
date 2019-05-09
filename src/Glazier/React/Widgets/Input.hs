@@ -58,8 +58,8 @@ textInput ::
     )
     => Traversal' s J.JSString
     -> DL.DList (J.JSString, Prop s)
-    -> DL.DList (m ())
-    -> m ()
+    -> DL.DList (Gadget m ())
+    -> Widget m ()
 textInput this props gads = lf "input"
     -- "value" cannot be used as React will take over as a controlled component.
     -- The defaultValue only sets the *initial* DOM value
@@ -83,8 +83,7 @@ textInput this props gads = lf "input"
         setProperty ("selectionStart", a) j
         setProperty ("selectionEnd", b) j
 
-    hdlChange = do
-        j <- trigger "onChange" (pure . target . toSyntheticEvent)
+    hdlChange = trigger "onChange" (pure . target . toSyntheticEvent) $ \j -> do
         v <- fromProperty "value" j
         mutate $ this .= v
         observe $ Tagged @"InputChange" ()
@@ -141,16 +140,15 @@ checkboxInput ::
     )
     => Traversal' s Bool
     -> DL.DList (J.JSString, Prop s)
-    -> DL.DList (m ())
-    -> m ()
+    -> DL.DList (Gadget m ())
+    -> Widget m ()
 checkboxInput this props gads = lf "input"
     ([ ("type", strProp "checkbox")
     , ("checked", propM $ preview this)
     ] <> props)
     ([hdlChange] <> gads)
   where
-    hdlChange = do
-        trigger_ "onChange" ()
+    hdlChange = trigger_ "onChange" () . const $ do
         mutate $ this %= not
         observe $ Tagged @"InputChange" ()
 
@@ -177,8 +175,8 @@ indeterminateCheckboxInput ::
     )
     => Traversal' s IndeterminateCheckboxInput
     -> DL.DList (J.JSString, Prop s)
-    -> DL.DList (m ())
-    -> m ()
+    -> DL.DList (Gadget m ())
+    -> Widget m ()
 indeterminateCheckboxInput this props gads =
     checkboxInput (this._checked)
     props

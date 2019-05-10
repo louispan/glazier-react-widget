@@ -26,6 +26,7 @@ import qualified GHC.Generics as G
 import Glazier.React
 import Glazier.React.Effect.JavaScript
 import Glazier.React.Event.Synthetic
+import JavaScript.Extras as JE
 
 ----------------------------------------
 
@@ -57,10 +58,10 @@ textInput ::
     , Observer (Tagged "InputChange" ()) m
     )
     => Traversal' s J.JSString
-    -> DL.DList (J.JSString, Prop s)
     -> DL.DList (Gadget m ())
+    -> DL.DList (J.JSString, ModelReader s JE.JSRep)
     -> Widget m ()
-textInput this props gads = lf "input"
+textInput this gads props = lf "input" ([hdlRendered, hdlChange] <> gads)
     -- "value" cannot be used as React will take over as a controlled component.
     -- The defaultValue only sets the *initial* DOM value
     -- The user will need to modify reactKey if they want
@@ -69,7 +70,6 @@ textInput this props gads = lf "input"
     -- But hopefully this is not necessary as the DOM input value
     -- is updated under the hood in onRendered
     ([("default", propM $ preview this)] <> props)
-    ([hdlRendered, hdlChange] <> gads)
   where
     -- | Modify the DOM input value after every render to match the model value
     hdlRendered = onRendered $ do
@@ -139,14 +139,13 @@ checkboxInput ::
     , Observer (Tagged "InputChange" ()) m
     )
     => Traversal' s Bool
-    -> DL.DList (J.JSString, Prop s)
     -> DL.DList (Gadget m ())
+    -> DL.DList (J.JSString, ModelReader s JE.JSRep)
     -> Widget m ()
-checkboxInput this props gads = lf "input"
+checkboxInput this gads props = lf "input" ([hdlChange] <> gads)
     ([ ("type", strProp "checkbox")
     , ("checked", propM $ preview this)
     ] <> props)
-    ([hdlChange] <> gads)
   where
     hdlChange = trigger_ "onChange" () . const $ do
         mutate $ this %= not
@@ -174,13 +173,13 @@ indeterminateCheckboxInput ::
     , Observer (Tagged "InputChange" ()) m
     )
     => Traversal' s IndeterminateCheckboxInput
-    -> DL.DList (J.JSString, Prop s)
     -> DL.DList (Gadget m ())
+    -> DL.DList (J.JSString, ModelReader s JE.JSRep)
     -> Widget m ()
-indeterminateCheckboxInput this props gads =
+indeterminateCheckboxInput this gads props =
     checkboxInput (this._checked)
-    props
     (hdlRendered `DL.cons` gads)
+    props
   where
     hdlRendered = onRendered $ do
         j <- getReactRef

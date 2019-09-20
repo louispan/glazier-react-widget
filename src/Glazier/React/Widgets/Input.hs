@@ -47,9 +47,9 @@ import JavaScript.Extras as JE
 -- This widget attempts to set the cursor position at the correct place
 -- by using a diffing algorithm on the old and new value.
 --
--- Warning: This widget listens to onChange and will update the model value with the DOM input value.
+-- Warning: This widget listens to onChange and will update the meta value with the DOM input value.
 -- potentially overridding any user changes.
--- So when changing the model value, be sure that the onChange handler will not be called.
+-- So when changing the meta value, be sure that the onChange handler will not be called.
 textInput ::
     ( HasCallStack
     , AsReactor c
@@ -59,7 +59,7 @@ textInput ::
     )
     => Traversal' s J.JSString
     -> DL.DList (Gadget m ())
-    -> DL.DList (J.JSString, ModelReader s JE.JSRep)
+    -> DL.DList (J.JSString, MetaReader s JE.JSRep)
     -> Widget m ()
 textInput this gads props = lf "input" ([hdlRendered, hdlChange] <> gads)
     -- "value" cannot be used as React will take over as a controlled component.
@@ -71,9 +71,9 @@ textInput this gads props = lf "input" ([hdlRendered, hdlChange] <> gads)
     -- is updated under the hood in onRendered
     ([("default", propM $ preview this)] <> props)
   where
-    -- | Modify the DOM input value after every render to match the model value
+    -- | Modify the DOM input value after every render to match the meta value
     hdlRendered = onRendered $ do
-        s <- getModel this
+        s <- getMeta this
         j <- getReactRef -- "input" element
         start <- fromProperty "selectionStart" j
         end <- fromProperty "selectionEnd" j
@@ -140,7 +140,7 @@ checkboxInput ::
     )
     => Traversal' s Bool
     -> DL.DList (Gadget m ())
-    -> DL.DList (J.JSString, ModelReader s JE.JSRep)
+    -> DL.DList (J.JSString, MetaReader s JE.JSRep)
     -> Widget m ()
 checkboxInput this gads props = lf "input" ([hdlChange] <> gads)
     ([ ("type", strProp "checkbox")
@@ -174,7 +174,7 @@ indeterminateCheckboxInput ::
     )
     => Traversal' s IndeterminateCheckboxInput
     -> DL.DList (Gadget m ())
-    -> DL.DList (J.JSString, ModelReader s JE.JSRep)
+    -> DL.DList (J.JSString, MetaReader s JE.JSRep)
     -> Widget m ()
 indeterminateCheckboxInput this gads props =
     checkboxInput (this._checked)
@@ -183,6 +183,6 @@ indeterminateCheckboxInput this gads props =
   where
     hdlRendered = onRendered $ do
         j <- getReactRef
-        s <- getModel this
+        s <- getMeta this
         i <- whenJust $ preview _indeterminate s
         setProperty ("indeterminate", i) j

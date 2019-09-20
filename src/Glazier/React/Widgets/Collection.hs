@@ -14,7 +14,7 @@ collectionWindow ::
     -> (s' -> Window s ())
     -> Window s ()
 collectionWindow this f = do
-    ss <- view (_model.this)
+    ss <- view (_meta.this)
     getAls (foldMap (Als . f) ss)
 
 -- mkCollection :: (s'' -> m s') -> t s'' -> m (Obj s)
@@ -23,7 +23,7 @@ collectionWindow this f = do
 -- collectionWindow :: (Functor t, Foldable t)
 --     => ReactId -> Window (t (Obj s)) ()
 -- collectionWindow k = do
---     ss <- view _model
+--     ss <- view _meta
 --     let displayItem s = Als $ (displayWeakObj $ weakObj s)
 --     bh "ul" [("key", JE.toJSRep . J.pack $ show k)] (getAls (fold $ displayItem <$> ss))
 
@@ -35,7 +35,7 @@ collectionWindow this f = do
 --     -> Traversal' s (t (Obj s'))
 --     -> Window (t (Obj s') ()
 -- foldableWindow f this = do
---     ss <- view (_model.this)
+--     ss <- view (_meta.this)
 --     getAls (foldMap (Als . f . displayWeakObj . weakObj) ss)
 
 -- -- FIXME: what about zoomin sate into list?

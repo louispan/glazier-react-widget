@@ -16,16 +16,18 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Data.UKey
-                       Glazier.React.Action
-                       Glazier.React.Action.KeyDownKey
-                       Glazier.React.Effect
-                       Glazier.React.Effect.HTMLElement
-                       Glazier.React.Effect.HTMLElement.Exec
-                       Glazier.React.Effect.JavaScript
-                       Glazier.React.Effect.JavaScript.Exec
-                       Glazier.React.Widgets.Input
-                       Glazier.React.Widgets.Collection
-                       Glazier.React.Widgets.Collection.Dynamic
+                       -- Glazier.React.Action
+                       -- Glazier.React.Action.KeyDownKey
+                       -- Glazier.React.Effect
+                       -- Glazier.React.Effect.HTMLElement
+                       -- Glazier.React.Effect.HTMLElement.Exec
+                       -- Glazier.React.Effect.JavaScript
+                       -- Glazier.React.Effect.JavaScript.Exec
+                       Glazier.React.Effect.EventTarget
+                       Glazier.React.Effect.EventTarget.Exec
+                       -- Glazier.React.Widgets.Input
+                       -- Glazier.React.Widgets.Collection
+                       -- Glazier.React.Widgets.Collection.Dynamic
   build-depends:       base >= 4.7 && < 5
                      , aeson >= 1.4.2
                      , aeson-applicative >= 1.4

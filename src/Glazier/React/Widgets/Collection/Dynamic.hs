@@ -90,7 +90,7 @@ instance
 updateVisibleList ::
     (ftr -> s -> Benign IO Bool)
     -> (srt -> s -> s -> Benign IO Ordering)
-    -> SceneState (DynamicCollection ftr srt k s) ()
+    -> ModelState (DynamicCollection ftr srt k s) ()
 updateVisibleList fftr fsrt = do
     zs@(DynamicCollection ftr srt _ xs) <- use id
     let xs' = toList xs
@@ -98,7 +98,7 @@ updateVisibleList fftr fsrt = do
     id .= zs { visibleList = ys }
 
 -- dynamicCollectionWindow :: ReactId -> Window (DynamicCollection ftr srt k (Obj s)) ()
--- dynamicCollectionWindow k = magnifiedModel _visibleList $ collectionWindow k
+-- dynamicCollectionWindow k = magnifiedMeta _visibleList $ collectionWindow k
 
 dynamicCollectionWindow :: Traversal' s (DynamicCollection ftr srt k s') -> (s' -> Window s ()) -> Window s ()
 dynamicCollectionWindow this = collectionWindow (this._visibleList)

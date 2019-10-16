@@ -20,7 +20,7 @@ module Glazier.React.Widgets.Input where
 -- import qualified Data.Aeson as A
 -- import qualified Data.Aeson.Applicative as A
 import qualified Data.DList as DL
-import Glazier.DOM as DOM
+import qualified Glazier.DOM as DOM
 import Glazier.React
 import Glazier.React.Widgets.Input.Internal
 
@@ -51,16 +51,19 @@ import Glazier.React.Widgets.Input.Internal
 
 
 input :: (MonadWidget s c m, MonadObserver (Tagged "InputChange" ()) m)
-    => Lens' s JSString
+    => Traversal' s JSString
     -> DL.DList (JSString, m Handler)
-    -> DL.DList (JSString, Getting' s JSVal)
+    -> DL.DList (JSString, Prop s)
     -> m ()
-input this gads props = lf inputComponent
-    ([("onChange", onChange)] <> gads)
-    ([("value", this.toJS_)] <> props)
+input this gads props = do
+    s <- askModel
+    when (has this s) $
+        lf inputComponent
+            ([("onChange", onChange)] <> gads)
+            ([("value", preview (this._toJS))] <> props)
   where
     onChange = mkSyntheticHandler fromChange hdlChange
-    fromChange = maybeM . fmap fromJS . (`getProperty` "value") . target
+    fromChange = maybeM . fmap fromJS . (`getProperty` "value") . DOM.target
     hdlChange v = do
         mutate RerenderNotRequired $ this .= v
         observe $ Tagged @"InputChange" ()
@@ -69,13 +72,16 @@ input this gads props = lf inputComponent
 
 -- For an indeterminate checkbox, just set the property "indeterminate" to true.
 checkbox :: (MonadWidget s c m, MonadObserver (Tagged "InputChange" ()) m)
-    => Lens' s Bool
+    => Traversal' s Bool
     -> DL.DList (JSString, m Handler)
-    -> DL.DList (JSString, Getting' s JSVal)
+    -> DL.DList (JSString, Prop s)
     -> m ()
-checkbox this gads props = lf inputComponent
-    ([("onChange", onChange)] <> gads)
-    ([("type", strProp "checkbox"), ("checked", this.toJS_)] <> props)
+checkbox this gads props = do
+    s <- askModel
+    when (has this s) $
+        lf inputComponent
+        ([("onChange", onChange)] <> gads)
+        ([("type", strProp "checkbox"), ("checked", preview (this._toJS))] <> props)
   where
     onChange = mkSyntheticHandler (const $ pure ()) hdlChange
     hdlChange () = do

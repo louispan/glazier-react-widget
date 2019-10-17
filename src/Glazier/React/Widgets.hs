@@ -1,9 +1,5 @@
-module Glazier.React.Widget
-    ( module Glazier.React.Widget.Input
-    , module Glazier.React.Widget.Mapping
-    , module Glazier.React.Widget.Mapping.Dressed
+module Glazier.React.Widgets
+    ( module Glazier.React.Widgets.Input
     ) where
 
-import Glazier.React.Widget.Input
-import Glazier.React.Widget.Mapping
-import Glazier.React.Widget.Mapping.Dressed
+import Glazier.React.Widgets.Input

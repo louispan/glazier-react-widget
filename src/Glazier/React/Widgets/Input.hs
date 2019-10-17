@@ -26,64 +26,56 @@ import Glazier.React.Widgets.Input.Internal
 
 ----------------------------------------
 
--- data InputChange = InputChange
-
--- Tagged event. The convention is to fire "OnXXX" if the event is not handled
--- or fire "XXX" to notify handled events.
--- type InputChange = Tagged "InputChange"
-
--- | Text inputs dosn't interact well as a React controlled component.
+-- In GHJS, text inputs doesn't interact well as a React controlled component.
 -- Eg. cursor jumps if user types quickly.
---
+
 -- It is because there is a race condition with lazy event handlers setting the value,
 -- So this prototype uses the React uncontrolled component
 -- (using defaultValue instead of value).
 --
--- For <input>, React uses controlled input if input.value is not null
--- and there is an onChange handler.
---
--- This widget attempts to set the cursor position at the correct place
--- by using a diffing algorithm on the old and new value.
---
--- Warning: This widget listens to onChange and will update the model value with the DOM input value.
--- potentially overridding any user changes to the model
--- So when changing the model value, be sure that the onChange handler will not be called.
-
-
-input :: (MonadWidget s c m, MonadObserver (Tagged "InputChange" ()) m)
-    => Traversal' s JSString
+-- Therefore this widget uses the InputComponent wrapper in
+-- glazier-react-widget.js which uses a React uncontrolled component
+-- and does not trigger a rerender when mutating the model (since the
+-- DOM input do not need to be rerendered with user input.
+input :: (MonadWidget s c m, MonadObserver a m)
+    => a
+    -> Traversal' s JSString
     -> DL.DList (JSString, m Handler)
     -> DL.DList (JSString, Prop s)
     -> m ()
-input this gads props = do
+input a this gads props = do
     s <- askModel
     when (has this s) $
         lf inputComponent
             ([("onChange", onChange)] <> gads)
-            ([("value", preview (this._toJS))] <> props)
+            ([("value", preview $ this._toJS)] <> props)
   where
     onChange = mkSyntheticHandler fromChange hdlChange
     fromChange = maybeM . fmap fromJS . (`getProperty` "value") . DOM.target
     hdlChange v = do
         mutate RerenderNotRequired $ this .= v
-        observe $ Tagged @"InputChange" ()
+        observe a
 
 ----------------------------------------
 
--- For an indeterminate checkbox, just set the property "indeterminate" to true.
-checkbox :: (MonadWidget s c m, MonadObserver (Tagged "InputChange" ()) m)
-    => Traversal' s Bool
+-- | This widget uses the InputComponent wrapper in
+-- glazier-react-widget.js which allows setting the property "indeterminate" to
+-- render an intermediate checkbox.
+checkbox :: (MonadWidget s c m, MonadObserver a m)
+    => a
+    -> Traversal' s Bool
     -> DL.DList (JSString, m Handler)
     -> DL.DList (JSString, Prop s)
     -> m ()
-checkbox this gads props = do
+checkbox a this gads props = do
     s <- askModel
     when (has this s) $
         lf inputComponent
         ([("onChange", onChange)] <> gads)
-        ([("type", strProp "checkbox"), ("checked", preview (this._toJS))] <> props)
+        ([("type", strProp "checkbox"), ("checked", preview $ this._toJS)] <> props)
   where
-    onChange = mkSyntheticHandler (const $ pure ()) hdlChange
-    hdlChange () = do
-        mutate RerenderNotRequired $ this %= not
-        observe $ Tagged @"InputChange" ()
+    onChange = mkSyntheticHandler fromChange hdlChange
+    fromChange = maybeM . fmap fromJS . (`getProperty` "checked") . DOM.target
+    hdlChange v = do
+        mutate RerenderNotRequired $ this .= v
+        observe a

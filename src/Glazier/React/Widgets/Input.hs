@@ -1,19 +1,9 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LiberalTypeSynonyms #-}
+{-# OPTIONS_GHC -Wno-type-defaults #-}
+
+{-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Glazier.React.Widgets.Input where
 
@@ -23,6 +13,8 @@ import qualified Data.DList as DL
 import qualified Glazier.DOM as DOM
 import Glazier.React
 import Glazier.React.Widgets.Input.Internal
+
+default (JSString)
 
 ----------------------------------------
 

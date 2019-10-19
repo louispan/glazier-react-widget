@@ -37,7 +37,7 @@ import Glazier.React.Widgets.Input.Internal
 -- glazier-react-widget.js which uses a React uncontrolled component
 -- and does not trigger a rerender when mutating the model (since the
 -- DOM input do not need to be rerendered with user input.
-input :: (MonadWidget s c m, MonadObserver a m)
+input :: (MonadWidget s m, MonadObserver' a m)
     => a
     -> Traversal' s JSString
     -> DL.DList (JSString, m Handler)
@@ -54,14 +54,14 @@ input a this gads props = do
     fromChange = maybeM . fmap fromJS . (`getProperty` "value") . DOM.target
     hdlChange v = do
         mutate RerenderNotRequired $ this .= v
-        observe a
+        observe' a
 
 ----------------------------------------
 
 -- | This widget uses the InputComponent wrapper in
 -- glazier-react-widget.js which allows setting the property "indeterminate" to
 -- render an intermediate checkbox.
-checkbox :: (MonadWidget s c m, MonadObserver a m)
+checkbox :: (MonadWidget s m, MonadObserver' a m)
     => a
     -> Traversal' s Bool
     -> DL.DList (JSString, m Handler)
@@ -78,4 +78,4 @@ checkbox a this gads props = do
     fromChange = maybeM . fmap fromJS . (`getProperty` "checked") . DOM.target
     hdlChange v = do
         mutate RerenderNotRequired $ this .= v
-        observe a
+        observe' a

@@ -72,7 +72,7 @@ checkbox a this gads props = do
     when (has this s) $
         lf inputComponent
         ([("onChange", onChange)] <> gads)
-        ([("type", strProp "checkbox"), ("checked", preview $ this._toJS)] <> props)
+        ([("type", "checkbox"), ("checked", preview $ this._toJS)] <> props)
   where
     onChange = mkSyntheticHandler fromChange hdlChange
     fromChange = maybeM . fmap fromJS . (`getProperty` "checked") . DOM.target

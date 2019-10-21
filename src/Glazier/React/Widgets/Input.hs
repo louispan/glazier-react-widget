@@ -42,8 +42,8 @@ input a this gads props = do
             ([("onChange", onChange)] <> gads)
             ([("value", preview $ this._toJS)] <> props)
   where
-    onChange = mkSyntheticHandler fromChange hdlChange
-    fromChange = maybeM . fmap fromJS . (`getProperty` "value") . DOM.target
+    onChange = mkHandler' fromChange hdlChange
+    fromChange = fromJustM . fmap fromJS . (`getProperty` "value") . DOM.target
     hdlChange v = do
         mutate RerenderNotRequired $ this .= v
         observe' a
@@ -66,8 +66,8 @@ checkbox a this gads props = do
         ([("onChange", onChange)] <> gads)
         ([("type", "checkbox"), ("checked", preview $ this._toJS)] <> props)
   where
-    onChange = mkSyntheticHandler fromChange hdlChange
-    fromChange = maybeM . fmap fromJS . (`getProperty` "checked") . DOM.target
+    onChange = mkHandler' fromChange hdlChange
+    fromChange = fromJustM . fmap fromJS . (`getProperty` "checked") . DOM.target
     hdlChange v = do
         mutate RerenderNotRequired $ this .= v
         observe' a

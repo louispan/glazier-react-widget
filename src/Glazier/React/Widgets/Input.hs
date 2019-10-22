@@ -21,21 +21,24 @@ default (JSString)
 -- In GHJS, text inputs doesn't interact well as a React controlled component.
 -- Eg. cursor jumps if user types quickly.
 
--- It is because there is a race condition with lazy event handlers setting the value,
--- So this prototype uses the React uncontrolled component
--- (using defaultValue instead of value).
+-- It is because there is a race condition between user updating the DOM input asynchronously
+-- vs lazy event handlers saving the DOM value into the widget.
+-- If saving the DOM value into the widget triggers a render, it could rerender
+-- be a "stale" value that is behind the current DOM value typed by the user.
 --
--- Therefore this widget uses the InputComponent wrapper in
+-- This widget uses the InputComponent wrapper in
 -- glazier-react-widget.js which uses a React uncontrolled component
--- and does not trigger a rerender when mutating the model (since the
+-- and does not trigger a rerender when mutating the model, since the
 -- DOM input do not need to be rerendered with user input.
-input :: (MonadWidget s m, MonadObserver' a m)
-    => a
-    -> Traversal' s JSString
+--
+-- The DOM input value is considered a source of truth, while the widget saved value
+-- is a potentially stale copy.
+input :: (MonadWidget s m)
+    => Traversal' s JSString
     -> DL.DList (JSString, m Handler)
     -> DL.DList (JSString, Prop s)
     -> m ()
-input a this gads props = do
+input this gads props = do
     s <- askModel
     when (has this s) $
         lf inputComponent
@@ -43,23 +46,20 @@ input a this gads props = do
             ([("value", preview $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange hdlChange
-    fromChange = fromJustM . fmap fromJS . (`getProperty` "value") . DOM.target
-    hdlChange v = do
-        mutate RerenderNotRequired $ this .= v
-        observe' a
+    fromChange = fromJustIO . fmap fromJS . (`getProperty` "value") . DOM.target
+    hdlChange v = quietMutate $ this .= v
 
 ----------------------------------------
 
 -- | This widget uses the InputComponent wrapper in
 -- glazier-react-widget.js which allows setting the property "indeterminate" to
 -- render an intermediate checkbox.
-checkbox :: (MonadWidget s m, MonadObserver' a m)
-    => a
-    -> Traversal' s Bool
+checkbox :: (MonadWidget s m)
+    => Traversal' s Bool
     -> DL.DList (JSString, m Handler)
     -> DL.DList (JSString, Prop s)
     -> m ()
-checkbox a this gads props = do
+checkbox this gads props = do
     s <- askModel
     when (has this s) $
         lf inputComponent
@@ -67,7 +67,5 @@ checkbox a this gads props = do
         ([("type", "checkbox"), ("checked", preview $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange hdlChange
-    fromChange = fromJustM . fmap fromJS . (`getProperty` "checked") . DOM.target
-    hdlChange v = do
-        mutate RerenderNotRequired $ this .= v
-        observe' a
+    fromChange = fromJustIO . fmap fromJS . (`getProperty` "checked") . DOM.target
+    hdlChange v = quietMutate $ this .= v

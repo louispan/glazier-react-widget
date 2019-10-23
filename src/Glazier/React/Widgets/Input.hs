@@ -36,7 +36,7 @@ default (JSString)
 input :: (MonadWidget s m)
     => Traversal' s JSString
     -> DL.DList (JSString, m Handler)
-    -> DL.DList (JSString, Prop s)
+    -> DL.DList (JSString, Prop s JSVal)
     -> m ()
 input this gads props = do
     s <- askModel
@@ -57,7 +57,7 @@ input this gads props = do
 checkbox :: (MonadWidget s m)
     => Traversal' s Bool
     -> DL.DList (JSString, m Handler)
-    -> DL.DList (JSString, Prop s)
+    -> DL.DList (JSString, Prop s JSVal)
     -> m ()
 checkbox this gads props = do
     s <- askModel

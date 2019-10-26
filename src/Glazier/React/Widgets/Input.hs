@@ -38,7 +38,7 @@ default (JSString)
 --
 -- The DOM input value is considered a source of truth, while the widget saved value
 -- is a potentially stale copy.
-input :: (MonadWidget' s m)
+input :: (MonadWidget s m)
     => Traversal' s JSString
     -> DL.DList (JSString, Gizmo s m Handler)
     -> DL.DList (JSString, Gizmo s m (Maybe JSVal))
@@ -60,7 +60,7 @@ input this gads props = do
 -- | This widget uses the InputComponent wrapper in
 -- glazier-react-widget.js which allows setting the property "indeterminate" to
 -- render an intermediate checkbox.
-checkbox :: (MonadWidget' s m)
+checkbox :: (MonadWidget s m)
     => Traversal' s Bool
     -> DL.DList (JSString, Gizmo s m Handler)
     -> DL.DList (JSString, Gizmo s m (Maybe JSVal))

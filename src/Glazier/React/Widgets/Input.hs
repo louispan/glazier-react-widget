@@ -1,11 +1,16 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 
 {-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Glazier.React.Widgets.Input where
+module Glazier.React.Widgets.Input
+( input
+, checkbox
+, inputComponent
+) where
 
 -- import qualified Data.Aeson as A
 -- import qualified Data.Aeson.Applicative as A
@@ -33,39 +38,39 @@ default (JSString)
 --
 -- The DOM input value is considered a source of truth, while the widget saved value
 -- is a potentially stale copy.
-input :: (MonadWidget s m)
+input :: (MonadWidget m, MonadModel s m)
     => Traversal' s JSString
-    -> DL.DList (JSString, m Handler)
-    -> DL.DList (JSString, Prop s JSVal)
+    -> DL.DList (JSString, GadgetT (ModelT s m) Handler)
+    -> DL.DList (JSString, Prop s m JSVal)
     -> m ()
 input this gads props = do
     s <- askModel
     when (has this s) $
         lf inputComponent
             ([("onChange", onChange)] <> gads)
-            ([("value", preview $ this._toJS)] <> props)
+            ([("value", premodel $ this._toJS)] <> props)
   where
-    onChange = mkHandler' fromChange hdlChange
+    onChange = mkHandler' fromChange handlChange
     fromChange = fromJustIO . fmap fromJS . (`getProperty` "value") . DOM.target
-    hdlChange v = quietMutate $ this .= v
+    handlChange v = quietMutate $ this .= v
 
 ----------------------------------------
 
 -- | This widget uses the InputComponent wrapper in
 -- glazier-react-widget.js which allows setting the property "indeterminate" to
 -- render an intermediate checkbox.
-checkbox :: (MonadWidget s m)
+checkbox :: (MonadWidget m, MonadModel s m)
     => Traversal' s Bool
-    -> DL.DList (JSString, m Handler)
-    -> DL.DList (JSString, Prop s JSVal)
+    -> DL.DList (JSString, GadgetT (ModelT s m) Handler)
+    -> DL.DList (JSString, Prop s m JSVal)
     -> m ()
 checkbox this gads props = do
     s <- askModel
     when (has this s) $
         lf inputComponent
         ([("onChange", onChange)] <> gads)
-        ([("type", "checkbox"), ("checked", preview $ this._toJS)] <> props)
+        ([("type", "checkbox"), ("checked", premodel $ this._toJS)] <> props)
   where
-    onChange = mkHandler' fromChange hdlChange
+    onChange = mkHandler' fromChange handlChange
     fromChange = fromJustIO . fmap fromJS . (`getProperty` "checked") . DOM.target
-    hdlChange v = quietMutate $ this .= v
+    handlChange v = quietMutate $ this .= v

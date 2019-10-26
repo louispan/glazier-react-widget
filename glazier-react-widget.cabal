@@ -10,6 +10,7 @@ author:               Louis Pan
 maintainer:           louis@pan.me
 copyright:            2019 Louis Pan
 category:             Web, GUI
+stability:            experimental
 build-type:           Simple
 extra-source-files:   README.md
 
@@ -25,10 +26,10 @@ library
                     , glazier-react >= 2
                     , lens >= 4
                     , tagged >= 0.8
-  default-language:    Haskell2010
-  default-extensions:  ApplicativeDo
-  ghc-options:         -Wall -Wredundant-constraints
-  build-depends:    ghcjs-base-stub >= 0.3.0.2
+  default-language:   Haskell2010
+  default-extensions: ApplicativeDo
+  ghc-options:        -Wall -Wredundant-constraints
+  build-depends:      ghcjs-base-stub >= 0.3.0.2
 
 source-repository head
   type:     git

@@ -40,9 +40,10 @@ default (JSString)
 -- is a potentially stale copy.
 input :: (MonadWidget m, MonadModel s m)
     => Traversal' s JSString
-    -> DL.DList (JSString, GadgetT (ModelT s m) Handler)
-    -> DL.DList (JSString, Prop s m JSVal)
+    -> DL.DList (JSString, Prop s m Handler)
+    -> DL.DList (JSString, Prop s m (Maybe JSVal))
     -> m ()
+
 input this gads props = do
     s <- askModel
     when (has this s) $
@@ -61,8 +62,8 @@ input this gads props = do
 -- render an intermediate checkbox.
 checkbox :: (MonadWidget m, MonadModel s m)
     => Traversal' s Bool
-    -> DL.DList (JSString, GadgetT (ModelT s m) Handler)
-    -> DL.DList (JSString, Prop s m JSVal)
+    -> DL.DList (JSString, Prop s m Handler)
+    -> DL.DList (JSString, Prop s m (Maybe JSVal))
     -> m ()
 checkbox this gads props = do
     s <- askModel

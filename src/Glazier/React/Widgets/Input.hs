@@ -45,14 +45,13 @@ input :: (MonadWidget s m)
     -> m ()
 
 input this gads props = do
-    s <- askModel
-    when (has this s) $
-        lf inputComponent
-            ([("onChange", onChange)] <> gads)
-            ([("value", premodel $ this._toJS)] <> props)
+    void $ guardJustM $ premodel this
+    lf inputComponent
+        ([("onChange", onChange)] <> gads)
+        ([("value", premodel $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange handlChange
-    fromChange = fromJustIO . fmap fromJS . (`getProperty` "value") . DOM.target
+    fromChange = guardJustIO . fmap fromJS . (`getProperty` "value") . DOM.target
     handlChange v = quietMutate $ this .= v
 
 ----------------------------------------
@@ -66,12 +65,11 @@ checkbox :: (MonadWidget s m)
     -> DL.DList (JSString, Gizmo s m (Maybe JSVal))
     -> m ()
 checkbox this gads props = do
-    s <- askModel
-    when (has this s) $
-        lf inputComponent
+    void $ guardJustM $ premodel this
+    lf inputComponent
         ([("onChange", onChange)] <> gads)
         ([("type", "checkbox"), ("checked", premodel $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange handlChange
-    fromChange = fromJustIO . fmap fromJS . (`getProperty` "checked") . DOM.target
+    fromChange = guardJustIO . fmap fromJS . (`getProperty` "checked") . DOM.target
     handlChange v = quietMutate $ this .= v

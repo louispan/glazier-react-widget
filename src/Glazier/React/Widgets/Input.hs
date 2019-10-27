@@ -41,14 +41,14 @@ default (JSString)
 input :: (MonadWidget s m)
     => Traversal' s JSString
     -> DL.DList (JSString, Gizmo s m Handler)
-    -> DL.DList (JSString, Gizmo s m (Maybe JSVal))
+    -> DL.DList (JSString, Gizmo s m JSVal)
     -> m ()
 
 input this gads props = do
-    void $ guardJustM $ premodel this
+    void $ guardJustM $ premodel this -- don't display at all if Traversal fails
     lf inputComponent
         ([("onChange", onChange)] <> gads)
-        ([("value", premodel $ this._toJS)] <> props)
+        ([("value", model $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange handlChange
     fromChange = guardJustIO . fmap fromJS . (`getProperty` "value") . DOM.target
@@ -62,13 +62,13 @@ input this gads props = do
 checkbox :: (MonadWidget s m)
     => Traversal' s Bool
     -> DL.DList (JSString, Gizmo s m Handler)
-    -> DL.DList (JSString, Gizmo s m (Maybe JSVal))
+    -> DL.DList (JSString, Gizmo s m JSVal)
     -> m ()
 checkbox this gads props = do
-    void $ guardJustM $ premodel this
+    void $ guardJustM $ premodel this -- don't display at all if Traversal fails
     lf inputComponent
         ([("onChange", onChange)] <> gads)
-        ([("type", "checkbox"), ("checked", premodel $ this._toJS)] <> props)
+        ([("type", "checkbox"), ("checked", model $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange handlChange
     fromChange = guardJustIO . fmap fromJS . (`getProperty` "checked") . DOM.target

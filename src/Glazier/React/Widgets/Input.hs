@@ -45,7 +45,6 @@ input :: (MonadWidget s m)
     -> m ()
 
 input this gads props = do
-    void $ guardJustM $ premodel this -- don't display at all if Traversal fails
     lf inputComponent
         ([("onChange", onChange)] <> gads)
         ([("value", model $ this._toJS)] <> props)
@@ -65,7 +64,6 @@ checkbox :: (MonadWidget s m)
     -> DL.DList (JSString, Gizmo s m JSVal)
     -> m ()
 checkbox this gads props = do
-    void $ guardJustM $ premodel this -- don't display at all if Traversal fails
     lf inputComponent
         ([("onChange", onChange)] <> gads)
         ([("type", "checkbox"), ("checked", model $ this._toJS)] <> props)

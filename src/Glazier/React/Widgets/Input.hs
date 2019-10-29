@@ -35,8 +35,8 @@ default (JSString)
 -- is a potentially stale copy.
 input :: (MonadWidget s m)
     => Traversal' s JSString
-    -> DL.DList (JSString, Gizmo s m Handler)
-    -> DL.DList (JSString, Gizmo s m JSVal)
+    -> DL.DList (JSString, ModelT s m Handler)
+    -> DL.DList (JSString, ModelT s m JSVal)
     -> m ()
 
 input this gads props = do
@@ -55,8 +55,8 @@ input this gads props = do
 -- render an intermediate checkbox.
 checkbox :: (MonadWidget s m)
     => Traversal' s Bool
-    -> DL.DList (JSString, Gizmo s m Handler)
-    -> DL.DList (JSString, Gizmo s m JSVal)
+    -> DL.DList (JSString, ModelT s m Handler)
+    -> DL.DList (JSString, ModelT s m JSVal)
     -> m ()
 checkbox this gads props = do
     lf "input"

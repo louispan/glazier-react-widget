@@ -16,10 +16,8 @@ extra-source-files:   README.md
 
 library
   hs-source-dirs:     src
-  js-sources:         jsbits/glazier-react-widgets.js
   exposed-modules:    Glazier.React.Widgets
                       Glazier.React.Widgets.Input
-                      Glazier.React.Widgets.Input.Internal
   build-depends:      base >= 4.7 && < 5
                     , deepseq >= 1.4
                     , dlist >= 0.8

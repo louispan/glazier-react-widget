@@ -6,18 +6,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Glazier.React.Widgets.Input
-( input
-, checkbox
-, inputComponent
-) where
+module Glazier.React.Widgets.Input where
 
 -- import qualified Data.Aeson as A
 -- import qualified Data.Aeson.Applicative as A
 import qualified Data.DList as DL
 import qualified Glazier.DOM as DOM
 import Glazier.React
-import Glazier.React.Widgets.Input.Internal
 
 default (JSString)
 
@@ -45,7 +40,7 @@ input :: (MonadWidget s m)
     -> m ()
 
 input this gads props = do
-    lf inputComponent
+    lf "input"
         ([("onChange", onChange)] <> gads)
         ([("value", model $ this._toJS)] <> props)
   where
@@ -64,7 +59,7 @@ checkbox :: (MonadWidget s m)
     -> DL.DList (JSString, Gizmo s m JSVal)
     -> m ()
 checkbox this gads props = do
-    lf inputComponent
+    lf "input"
         ([("onChange", onChange)] <> gads)
         ([("type", "checkbox"), ("checked", model $ this._toJS)] <> props)
   where

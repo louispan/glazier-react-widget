@@ -46,7 +46,7 @@ input this gads props = do
   where
     onChange = mkHandler' fromChange handlChange
     fromChange j = do
-        t <- DOM.currentTarget j
+        t <- guardJustIO $ DOM.currentTarget j
         guardJustIO . fmap fromJS $ t `getProperty` "value"
     handlChange v = quietMutate $ this .= v
 
@@ -67,6 +67,6 @@ checkbox this gads props = do
   where
     onChange = mkHandler' fromChange handlChange
     fromChange j = do
-        t <- DOM.currentTarget j
+        t <- guardJustIO $ DOM.currentTarget j
         guardJustIO . fmap fromJS $ t `getProperty` "checked"
     handlChange v = quietMutate $ this .= v

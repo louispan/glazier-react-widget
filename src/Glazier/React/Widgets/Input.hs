@@ -11,8 +11,8 @@ module Glazier.React.Widgets.Input where
 -- import qualified Data.Aeson as A
 -- import qualified Data.Aeson.Applicative as A
 import qualified Data.DList as DL
-import qualified Glazier.DOM as DOM
 import Glazier.React
+import qualified JS.DOM as DOM
 
 default (JSString)
 
@@ -45,7 +45,9 @@ input this gads props = do
         ([("value", model $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange handlChange
-    fromChange = guardJustIO . fmap fromJS . (`getProperty` "value") . DOM.target
+    fromChange j = do
+        t <- DOM.currentTarget j
+        guardJustIO . fmap fromJS $ t `getProperty` "value"
     handlChange v = quietMutate $ this .= v
 
 ----------------------------------------
@@ -64,5 +66,7 @@ checkbox this gads props = do
         ([("type", "checkbox"), ("checked", model $ this._toJS)] <> props)
   where
     onChange = mkHandler' fromChange handlChange
-    fromChange = guardJustIO . fmap fromJS . (`getProperty` "checked") . DOM.target
+    fromChange j = do
+        t <- DOM.currentTarget j
+        guardJustIO . fmap fromJS $ t `getProperty` "checked"
     handlChange v = quietMutate $ this .= v

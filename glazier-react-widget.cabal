@@ -22,6 +22,7 @@ library
                     , deepseq >= 1.4
                     , dlist >= 0.8
                     , glazier-react >= 2
+                    , javascript-extras >= 1
                     , lens >= 4
                     , tagged >= 0.8
   default-language:   Haskell2010
